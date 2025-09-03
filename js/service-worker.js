@@ -581,19 +581,25 @@ async function Lister(e, t, r) {
 }
 
 const other = { Lister: Lister };
-// function ListerScript(ta) {
-//   chrome.scripting.executeScript({
-//     target: { tabId: tab.id },
-//     func: modifyPageVariable
-//   });
-// }
+async function ListerScript(value) {
+  const tabId = await getCurrentTabId();
+  console.log('ListerScript: ', tabId, value, );
+  chrome.scripting.executeScript({
+    target: { tabId },
+    func: injectScript({
+      type: 'eval',
+      value,
+      world: 'MAIN'
+    })
+  });
+}
 
-// const inject_scripts = {
-//   Lister: ListerScript
-// }
+const inject_scripts = {
+  Lister: ListerScript
+}
 
 function Bg_OnMessageLister(e, t, r) {
-  // if ("inject_scripts" == e.cmd) return inject_scripts.Lister();
+  if ("inject_scripts" == e.cmd) return inject_scripts.Lister(e.value);
   if ("zzb_apply" == e.cmd) return zzb_apply.Lister(e, t, r);
   if ("inject" === e.cmd) return inject.Lister(e, t, r);
   if ("start" === e.cmd) return hot_code.Lister(e, t, r);

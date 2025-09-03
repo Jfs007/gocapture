@@ -63,6 +63,11 @@
     },
     {
       "matches": ["<all_urls>"],
+      "js": ["js/utils.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
       "js": ["js/haohuo.jinritemai.com.js"],
       "run_at": "document_end"
     },

@@ -1,12 +1,16 @@
 !function () {
     // 初始化
     const CR = _require('chromeRedux');
-    console.log('初始化');
     const DOUYIN_GOODS = {
         state: {
             goodsInfo: {
                 mainImages: [],
-                skus: [],
+                skuInfo: {
+                    specs: [],
+                    skus: [],
+                    pic: {},
+                    big_pic: {}
+                },
                 detailImages: [],
                 baseInfo: {}
             },
@@ -38,11 +42,12 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
 (function () {
     const mdChrome = _require('mdChrome');
     mdChrome.web.injectScript('hack_scripts/web-request.js');
+   
 })();
+// https://haohuo.jinritemai.com/
 (function () {
     if (HAOHUO_HREF.indexOf('https://haohuo.jinritemai.com/') < 0) return;
     const mdLoadsh = _require('mdLoadsh');
-
     const CR = _require('chromeRedux');
     async function setBaseInfo(res) {
         const mediaList = mdLoadsh.getProperty(res.result, 'promotion_h5.head_figure_data.media_list');
@@ -60,7 +65,7 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
                 }),
                 baseInfo: {
                     product_id: basicInfoData.product_id,
-                    title_info: basicInfoData.title_info,
+                    title_info: Object.assign(basicInfoData.title_info || {}, { safeTitle: (basicInfoData.title_info.title||'').replace(/\//g, "") }),
 
                 }
             });
@@ -95,12 +100,13 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
         },
 
         'web/ecom/order/confirm/edit': async (res) => {
-            console.log('confirm/edit', res);
             await CR.commit('DOUYIN_GOODS2/SET_STEP', 'AI_PUT_GOODS_INFO');
             window.open('https://fxg.jinritemai.com/ffa/g/create');
         },
         'v1/web/ecom/product/sku/list': async (res) => {
-            console.log('sku/list', res);
+            await CR.commit('DOUYIN_GOODS2/SET_GOODS_INFO', {
+                   skuInfo: res?.result?.data
+            });
 
         },
         'product/detail/saas/pc': setBaseInfo
@@ -145,37 +151,17 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
 
 
 
-
-    // 等待API准备就绪后添加规则
-    setTimeout(() => {
-        if (window.__WEB_REQUEST_API__) {
-            // 函数形式的规则 - 更灵活的修改方式
-            window.__WEB_REQUEST_API__.addRule({
-                urlPattern: "tproduct/addWithSchema",
-                modifier: (bodyData) => {
-                    // 可以进行任意复杂的修改逻辑
-                    if (bodyData.schema && bodyData.schema.model && bodyData.schema.model.title) {
-                        bodyData.schema.model.title.value = "测试新的功能1";
-                    }
-
-                    return bodyData;
-                }
-            });
-
-            console.log('✅ 规则添加成功');
-        }
-    }, 100);
-
-
 })();
-
+// https://fxg.jinritemai.com
 (async function () {
 
     if (HAOHUO_HREF.indexOf('https://fxg.jinritemai.com/ffa/g/create') < 0) return;
 
     const CR = _require('chromeRedux');
     const mdLoadsh = _require('mdLoadsh');
+    const utils = _require('fxg.jinritemai.com.utils');
     let app = await CR.get('DOUYIN_GOODS2');
+    
     // await CR.commit('DOUYIN_GOODS2/SET_STEP', 'AI_PUT_GOODS_INFO');
     if (app.step == "AI_PUT_GOODS_INFO") {
         mdLoadsh.showToast({
@@ -191,6 +177,7 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
 
         if (!(mainImages || []).length) return;
         const title = baseInfo?.title_info?.title;
+        const safeTitle = baseInfo?.title_info?.safeTitle;
         mdLoadsh.simulateInput(document.querySelector('#pg-title-input'), title);
 
         const getBlobs = (mainImages || []).map(image => {
@@ -198,15 +185,22 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
         });
         const blobs = await Promise.all(getBlobs);
         mdLoadsh.simulateUpload(uploader, blobs.map((blob, i) => {
-            return { blob, name: `主图_${i}.png` }
+            return { blob, name: `主图_${safeTitle.slice(0, 14)}_${i}.png` }
         }));
     }
+    // let CHROME_WEB_REQUEST_SCRIPTS = null;
+    let __WEB_REQUEST_API__ = {};
+    // const CHROME_WEB_REQUEST_SCRIPTS = document.querySelector(`#CHROME_WEB_REQUEST_SCRIPTS`);
+    // const __WEB_REQUEST_API__ = CHROME_WEB_REQUEST_SCRIPTS ? CHROME_WEB_REQUEST_SCRIPTS.__WEB_REQUEST_API__ : {};
+    // console.log(CHROME_WEB_REQUEST_SCRIPTS, 'CHROME_WEB_REQUEST_SCRIPTS');
+
     // 该行为极度危险
     function addSchemeRuleDangerLevel() {
-        console.log(app.step, 'pp.step', window);
-        if(app.step !== 'ADD_GOODS_DRAFT_INFO') return;
-        
-        window.__WEB_REQUEST_API__.addRule({
+
+        return;
+        if (app.step !== 'ADD_GOODS_DRAFT_INFO') return;
+
+        __WEB_REQUEST_API__.addRule({
             urlPattern: "addWithSchema",
             modifier: (bodyData) => {
                 const sku_detail = {
@@ -352,7 +346,8 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
     }
     // 
     function removeSchemeRuleSafeLevel() {
-        window.__WEB_REQUEST_API__.removeRule('addWithSchema')
+        return;
+        __WEB_REQUEST_API__.removeRule('addWithSchema')
     }
 
 
@@ -362,19 +357,25 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
             uploadMainImage();
         },
         'refetchSchema?action=spec_price_unit_predict_for_title_and_spec': async () => {
-
             const btns = document.querySelectorAll('.ecom-g-btn');
-
             const nextBtn = [...btns].find(_ => _.innerText == '下一步');
             await CR.commit('DOUYIN_GOODS2/SET_STEP', 'ADD_GOODS_DRAFT_INFO');
             app = await CR.get('DOUYIN_GOODS2');
             addSchemeRuleDangerLevel();
             if (nextBtn) nextBtn.click();
-           
+
 
         },
         'tproduct/addWithSchema': () => {
             removeSchemeRuleSafeLevel();
+        },
+        'tproduct/getSchema': (res) => {
+            const result = res.result;
+            const items = result.data?.model?.spec_detail.items;
+            console.log('getSchema.utils', utils, );
+            const skuAndSpecs = utils.parseTToSku(app.goodsInfo.skuInfo, items || []);
+            console.log(skuAndSpecs, 'skuAndSpecs');
+
         }
 
 
