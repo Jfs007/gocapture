@@ -42,7 +42,23 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
 (function () {
     const mdChrome = _require('mdChrome');
     mdChrome.web.injectScript('hack_scripts/web-request.js');
-   
+
+
+    // setTimeout(() => {
+    //     chrome.runtime.sendMessage({
+    //         cmd: "webRequest.addRule",
+    //         rule: {
+    //             urlPattern: "addWithSchema",
+    //             modifier: (bodyData) => {
+    //                 bodyData.schema.model.sku_detail = sku_detail;
+    //                 bodyData.schema.model.spec_detail = spec_detail;
+    //                 return bodyData;
+    //             }
+    //         }
+    //     });
+    // })
+
+
 })();
 // https://haohuo.jinritemai.com/
 (function () {
@@ -65,7 +81,7 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
                 }),
                 baseInfo: {
                     product_id: basicInfoData.product_id,
-                    title_info: Object.assign(basicInfoData.title_info || {}, { safeTitle: (basicInfoData.title_info.title||'').replace(/\//g, "") }),
+                    title_info: Object.assign(basicInfoData.title_info || {}, { safeTitle: (basicInfoData.title_info.title || '').replace(/\//g, "") }),
 
                 }
             });
@@ -105,7 +121,7 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
         },
         'v1/web/ecom/product/sku/list': async (res) => {
             await CR.commit('DOUYIN_GOODS2/SET_GOODS_INFO', {
-                   skuInfo: res?.result?.data
+                skuInfo: res?.result?.data
             });
 
         },
@@ -161,7 +177,7 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
     const mdLoadsh = _require('mdLoadsh');
     const utils = _require('fxg.jinritemai.com.utils');
     let app = await CR.get('DOUYIN_GOODS2');
-    
+
     // await CR.commit('DOUYIN_GOODS2/SET_STEP', 'AI_PUT_GOODS_INFO');
     if (app.step == "AI_PUT_GOODS_INFO") {
         mdLoadsh.showToast({
@@ -372,9 +388,7 @@ const HAOHUO_HREF_PARAMS = new URLSearchParams(window.location.search);
         'tproduct/getSchema': (res) => {
             const result = res.result;
             const items = result.data?.model?.spec_detail.items;
-            console.log('getSchema.utils', utils, );
             const skuAndSpecs = utils.parseTToSku(app.goodsInfo.skuInfo, items || []);
-            console.log(skuAndSpecs, 'skuAndSpecs');
 
         }
 

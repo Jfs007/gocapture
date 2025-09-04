@@ -3,7 +3,10 @@
     "allow": [
       "WebFetch(domain:yapi.madaomall.com)",
       "mcp__node__get_yapi_interface",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npx prettier:*)",
+      "Bash(js-beautify:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

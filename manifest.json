@@ -63,12 +63,28 @@
     },
     {
       "matches": ["<all_urls>"],
-      "js": ["js/utils.js"],
+      "js": ["libs/vue3.js", "libs/naivueui.js", "libs/index.js"],
       "run_at": "document_start"
     },
     {
       "matches": ["<all_urls>"],
+      "js": ["ui-component/app.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["js/utils.js"],
+      "run_at": "document_start"
+    },
+
+    {
+      "matches": ["https://haohuo.jinritemai.com/*", "https://fxg.jinritemai.com/ffa/g/create/*"],
       "js": ["js/haohuo.jinritemai.com.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://compass.jinritemai.com/*"],
+      "js": ["js/compass.jinritemai.com.js"],
       "run_at": "document_end"
     },
     {

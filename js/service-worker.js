@@ -583,7 +583,6 @@ async function Lister(e, t, r) {
 const other = { Lister: Lister };
 async function ListerScript(value) {
   const tabId = await getCurrentTabId();
-  console.log('ListerScript: ', tabId, value, );
   chrome.scripting.executeScript({
     target: { tabId },
     func: injectScript({
@@ -594,12 +593,20 @@ async function ListerScript(value) {
   });
 }
 
-const inject_scripts = {
-  Lister: ListerScript
+const moduleLister = {
+  webRequest: (cmd) => {
+    chrome.runtime.sendMessage(cmd, (response) => {
+      console.log('response: ', response);
+    })
+
+  }
 }
 
 function Bg_OnMessageLister(e, t, r) {
-  if ("inject_scripts" == e.cmd) return inject_scripts.Lister(e.value);
+  const cmd = e.cmd;
+  const [_module] = (cmd || '').split('.');
+  if (moduleLister[_module]) return moduleLister[_module](cmd);
+
   if ("zzb_apply" == e.cmd) return zzb_apply.Lister(e, t, r);
   if ("inject" === e.cmd) return inject.Lister(e, t, r);
   if ("start" === e.cmd) return hot_code.Lister(e, t, r);

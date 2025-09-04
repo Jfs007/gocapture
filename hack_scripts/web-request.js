@@ -281,158 +281,170 @@
     window.__WEB_REQUEST_VERSION__ = '2.0';
 
 
+    // chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+    //     const cmd = message.cmd;
+    //     const [_module, handleName] = cmd.split('.');
+    //     if(_module !='webRequest') return;
+    //     console.log(message, 'web-request-message');
+    //     api[handleName] && api[handleName](message.rule);
+    //     sendResponse({ success: true });
+        
+    // });
+
+
 
 
     console.log('🎉 Enhanced Web Request Interceptor Ready!');
 }();
 
-!function () {
-    // return;
-    __WEB_REQUEST_API__.addRule({
-        urlPattern: "addWithSchema",
-        modifier: (bodyData) => {
-        const sku = { 
-            sku_detail: {
-                "value": [
-                    {
-                        "id": "a2bff75f3699-b96f75-9dd998f1d26c",
-                        "stock_info": {
-                            "stock_num": 0
-                        },
-                        "sku_status": true,
-                        "confirm_no_barcode": false,
-                        "spec_detail_ids": [
-                            "996662214245076355"
-                        ],
-                        "spec_price_unit_info": [
-                            {
-                                "correction_type": 0,
-                                "is_updated": false,
-                                "property_name": "件数",
-                                "value_name": "3瓶"
-                            },
-                            {
-                                "correction_type": 0,
-                                "is_updated": false,
-                                "property_name": "总净含量",
-                                "value_name": "810g"
-                            }
-                        ],
-                        "price": "39.9"
-                    },
-                    {
-                        "id": "bcaefa0e2da1-956a79-b939f6d4441a",
-                        "stock_info": {
-                            "stock_num": 0
-                        },
-                        "sku_status": true,
-                        "confirm_no_barcode": false,
-                        "spec_detail_ids": [
-                            "997852115074171730"
-                        ],
-                        "spec_price_unit_info": [
-                            {
-                                "correction_type": 0,
-                                "is_updated": false,
-                                "property_name": "件数",
-                                "value_name": "1瓶"
-                            },
-                            {
-                                "correction_type": 0,
-                                "is_updated": false,
-                                "property_name": "总净含量",
-                                "value_name": "270g"
-                            }
-                        ],
-                        "price": "28.9"
-                    }
-                ]
-            },
-            spec_detail: {
-                "value": [
-                    {
-                        "cp_id": 3164,
-                        "id": "-10000",
-                        "name": "套餐类型",
-                        "spec_values": [
-                            {
-                                "id": "996662214245076355",
-                                "name": "【买二加一 大半年用量】270g*3瓶",
-                                "measure_info": {
-                                    "template_id": 98,
-                                    "values": [
-                                        {
-                                            "module_id": 155,
-                                            "prefix": "",
-                                            "suffix": "",
-                                            "value": "【买二加一 大半年用量】"
-                                        },
-                                        {
-                                            "module_id": 156,
-                                            "prefix": "",
-                                            "suffix": "*",
-                                            "value": "270",
-                                            "unit_id": 2,
-                                            "unit_name": "g"
-                                        },
-                                        {
-                                            "module_id": 157,
-                                            "prefix": "",
-                                            "suffix": "",
-                                            "value": "3",
-                                            "unit_id": 118,
-                                            "unit_name": "瓶"
-                                        }
-                                    ]
-                                },
-                                "invalid": false,
-                                "img_url": "https://p3-aio.ecombdimg.com/obj/ecom-shop-material/webp_m_abe6ce6b50b24eed36b3c496479ff396_sx_65552_www800-800"
-                            },
-                            {
-                                "id": "997852115074171730",
-                                "name": "【贵在运费】270g*1瓶",
-                                "measure_info": {
-                                    "template_id": 98,
-                                    "values": [
-                                        {
-                                            "module_id": 155,
-                                            "prefix": "",
-                                            "suffix": "",
-                                            "value": "【贵在运费】"
-                                        },
-                                        {
-                                            "module_id": 156,
-                                            "prefix": "",
-                                            "suffix": "*",
-                                            "value": "270",
-                                            "unit_id": 2,
-                                            "unit_name": "g"
-                                        },
-                                        {
-                                            "module_id": 157,
-                                            "prefix": "",
-                                            "suffix": "",
-                                            "value": "1",
-                                            "unit_id": 118,
-                                            "unit_name": "瓶"
-                                        }
-                                    ]
-                                },
-                                "invalid": false,
-                                "img_url": "https://p3-aio.ecombdimg.com/obj/ecom-shop-material/png_m_4da83a62ae28301394bfbd172c25b3e9_sx_41869_www300-300"
-                            }
-                        ]
-                    }
-                ]
-            } 
-            }
-            // bodyData.schema.model.sku_detail = sku_detail;
-            // bodyData.schema.model.spec_detail = spec_detail;
+// !function () {
+//     // return;
+//     __WEB_REQUEST_API__.addRule({
+//         urlPattern: "addWithSchema",
+//         modifier: (bodyData) => {
+//         const sku = { 
+//             sku_detail: {
+//                 "value": [
+//                     {
+//                         "id": "a2bff75f3699-b96f75-9dd998f1d26c",
+//                         "stock_info": {
+//                             "stock_num": 0
+//                         },
+//                         "sku_status": true,
+//                         "confirm_no_barcode": false,
+//                         "spec_detail_ids": [
+//                             "996662214245076355"
+//                         ],
+//                         "spec_price_unit_info": [
+//                             {
+//                                 "correction_type": 0,
+//                                 "is_updated": false,
+//                                 "property_name": "件数",
+//                                 "value_name": "3瓶"
+//                             },
+//                             {
+//                                 "correction_type": 0,
+//                                 "is_updated": false,
+//                                 "property_name": "总净含量",
+//                                 "value_name": "810g"
+//                             }
+//                         ],
+//                         "price": "39.9"
+//                     },
+//                     {
+//                         "id": "bcaefa0e2da1-956a79-b939f6d4441a",
+//                         "stock_info": {
+//                             "stock_num": 0
+//                         },
+//                         "sku_status": true,
+//                         "confirm_no_barcode": false,
+//                         "spec_detail_ids": [
+//                             "997852115074171730"
+//                         ],
+//                         "spec_price_unit_info": [
+//                             {
+//                                 "correction_type": 0,
+//                                 "is_updated": false,
+//                                 "property_name": "件数",
+//                                 "value_name": "1瓶"
+//                             },
+//                             {
+//                                 "correction_type": 0,
+//                                 "is_updated": false,
+//                                 "property_name": "总净含量",
+//                                 "value_name": "270g"
+//                             }
+//                         ],
+//                         "price": "28.9"
+//                     }
+//                 ]
+//             },
+//             spec_detail: {
+//                 "value": [
+//                     {
+//                         "cp_id": 3164,
+//                         "id": "-10000",
+//                         "name": "套餐类型",
+//                         "spec_values": [
+//                             {
+//                                 "id": "996662214245076355",
+//                                 "name": "【买二加一 大半年用量】270g*3瓶",
+//                                 "measure_info": {
+//                                     "template_id": 98,
+//                                     "values": [
+//                                         {
+//                                             "module_id": 155,
+//                                             "prefix": "",
+//                                             "suffix": "",
+//                                             "value": "【买二加一 大半年用量】"
+//                                         },
+//                                         {
+//                                             "module_id": 156,
+//                                             "prefix": "",
+//                                             "suffix": "*",
+//                                             "value": "270",
+//                                             "unit_id": 2,
+//                                             "unit_name": "g"
+//                                         },
+//                                         {
+//                                             "module_id": 157,
+//                                             "prefix": "",
+//                                             "suffix": "",
+//                                             "value": "3",
+//                                             "unit_id": 118,
+//                                             "unit_name": "瓶"
+//                                         }
+//                                     ]
+//                                 },
+//                                 "invalid": false,
+//                                 "img_url": "https://p3-aio.ecombdimg.com/obj/ecom-shop-material/webp_m_abe6ce6b50b24eed36b3c496479ff396_sx_65552_www800-800"
+//                             },
+//                             {
+//                                 "id": "997852115074171730",
+//                                 "name": "【贵在运费】270g*1瓶",
+//                                 "measure_info": {
+//                                     "template_id": 98,
+//                                     "values": [
+//                                         {
+//                                             "module_id": 155,
+//                                             "prefix": "",
+//                                             "suffix": "",
+//                                             "value": "【贵在运费】"
+//                                         },
+//                                         {
+//                                             "module_id": 156,
+//                                             "prefix": "",
+//                                             "suffix": "*",
+//                                             "value": "270",
+//                                             "unit_id": 2,
+//                                             "unit_name": "g"
+//                                         },
+//                                         {
+//                                             "module_id": 157,
+//                                             "prefix": "",
+//                                             "suffix": "",
+//                                             "value": "1",
+//                                             "unit_id": 118,
+//                                             "unit_name": "瓶"
+//                                         }
+//                                     ]
+//                                 },
+//                                 "invalid": false,
+//                                 "img_url": "https://p3-aio.ecombdimg.com/obj/ecom-shop-material/png_m_4da83a62ae28301394bfbd172c25b3e9_sx_41869_www300-300"
+//                             }
+//                         ]
+//                     }
+//                 ]
+//             } 
+//             }
+//             // bodyData.schema.model.sku_detail = sku_detail;
+//             // bodyData.schema.model.spec_detail = spec_detail;
 
-            return bodyData;
-        }
-    });
-}()
+//             return bodyData;
+//         }
+//     });
+// }()
 
 
 
