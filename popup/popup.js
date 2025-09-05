@@ -4,7 +4,6 @@ async function start(){
     var u = config.popUrl+"?crxId="+m.crxId+"&v="+m.version+"&time="+new Date().getTime()
     var r = await fetch(u)
     var r2 = await r.text()
-    console.log(r2, 'rs', m, config);
     document.getElementsByTagName("body")[0].innerHTML = r2
 }
 start()

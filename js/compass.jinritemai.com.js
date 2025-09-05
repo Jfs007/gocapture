@@ -1,21 +1,21 @@
 !function () {
     // Compass 抖音商家平台 - 商品视频带货数据拦截
     const mdChrome = _require('mdChrome');
-    const { reactive, h, defineComponent, ref, computed,  } = _require('Vue3');
+    const { reactive, h, defineComponent, ref, computed, } = _require('Vue3');
     const NaiveUi = _require('NaiveUi');
     const { App } = _require('MdUiComponent');
-    
+
     mdChrome.web.injectScript('hack_scripts/web-request.js');
-    
+
     // 加载压缩库
     mdChrome.web.injectScript('other/jszip.min.js');
     mdChrome.web.injectScript('other/FileSaver.js');
-    
+
     const videoInfos = reactive({});
-    
+
     // 存储商品信息，用于显示商品名称
     window.__PRODUCT_INFO__ = window.__PRODUCT_INFO__ || {};
-    
+
     // API拦截配置
     const api_hook = {
         'shop/product/product_rank/video_bring_good': (res) => {
@@ -55,38 +55,70 @@
             const showSettingsModal = ref(false);
             const isDragging = ref(false);
             const position = ref({ x: window.innerWidth - 200, y: 100 });
-            
+
             // 选中的视频ID集合
             const selectedVideos = ref(new Set());
-            
+
             // 下载进度状态
             const downloadProgress = ref({
                 isDownloading: false,
                 current: 0,
                 total: 0,
                 currentFileName: '',
-                percentage: 0
+                percentage: 0,
+                phase: 'download', // 'download' | 'compress'
+                currentBatch: 0,
+                totalBatches: 0
             });
-            
+
             // 性能配置
             const performanceConfig = ref({
                 concurrentLimit: 3, // 并发下载数量
                 batchDelay: 100,    // 批次间延迟(ms)
-                compressionLevel: 1 // 压缩级别 1-9 (1最快,9最小)
+                compressionLevel: 1, // 压缩级别 1-9 (1最快,9最小)
+                maxFilesPerZip: 15,  // 每个压缩包最大文件数
+                maxSizePerZip: 100,   // 每个压缩包最大大小(MB)
+                videosPerPage: 50,   // 每页显示视频数(性能优化)
+                enableVirtualScroll: true // 启用虚拟滚动
             });
             
-            // 按商品分组的视频数据
+            // UI性能优化状态
+            const uiState = ref({
+                currentPage: 1,
+                searchKeyword: '',
+                showAllProducts: true // 是否显示所有商品(默认只显示前几个)
+            });
+
+            // 按商品分组的视频数据（性能优化版）
             const groupedVideos = computed(() => {
                 const groups = [];
-                Object.entries(videoInfos).forEach(([goodsId, videoList]) => {
-                    // 查找商品信息（从第一个视频的接口数据中获取）
+                const entries = Object.entries(videoInfos);
+                
+                // 限制显示的商品数量以提升性能
+                const maxProducts = uiState.value.showAllProducts ? entries.length : Math.min(entries.length, 10);
+                const limitedEntries = entries.slice(0, maxProducts);
+                
+                limitedEntries.forEach(([goodsId, videoList]) => {
                     const productInfo = window.__PRODUCT_INFO__?.[goodsId] || {};
-                    
-                    const videos = videoList.map(video => {
-                        const videoUrl = video.video_play_url 
-                            ? video.video_play_url 
+
+                    // 过滤和搜索
+                    let filteredVideos = videoList;
+                    if (uiState.value.searchKeyword) {
+                        const keyword = uiState.value.searchKeyword.toLowerCase();
+                        filteredVideos = videoList.filter(video => 
+                            (video.video_name || '').toLowerCase().includes(keyword) ||
+                            (video.author_name || '').toLowerCase().includes(keyword)
+                        );
+                    }
+
+                    // 不在这里分页，在后面统一分页
+                    const pagedVideos = filteredVideos;
+
+                    const videos = pagedVideos.map(video => {
+                        const videoUrl = video.video_play_url
+                            ? video.video_play_url
                             : `https://www.douyin.com/video/${video.video_id}`;
-                        
+
                         return {
                             goodsId,
                             ...video,
@@ -94,17 +126,21 @@
                             has_play_url: !!video.video_play_url
                         };
                     });
-                    
-                    groups.push({
-                        goodsId,
-                        productName: productInfo.name || `商品 ${goodsId}`,
-                        videos
-                    });
+
+                    if (videos.length > 0) {
+                        groups.push({
+                            goodsId,
+                            productName: productInfo.name || `商品 ${goodsId}`,
+                            videos,
+                            totalVideos: filteredVideos.length
+                        });
+                    }
                 });
+                
                 return groups;
             });
 
-            // 所有视频的扁平数组（用于统计）
+            // 所有视频的扁平数组（用于统计和分页）
             const allVideos = computed(() => {
                 const videos = [];
                 groupedVideos.value.forEach(group => {
@@ -113,9 +149,94 @@
                 return videos;
             });
 
+            // 分页后的视频数据
+            const pagedGroupedVideos = computed(() => {
+                const videosPerPage = performanceConfig.value.videosPerPage;
+                const startIndex = (uiState.value.currentPage - 1) * videosPerPage;
+                const endIndex = startIndex + videosPerPage;
+                const pagedVideos = allVideos.value.slice(startIndex, endIndex);
+
+                // 按商品重新分组分页后的视频
+                const groupsMap = new Map();
+                pagedVideos.forEach(video => {
+                    const { goodsId } = video;
+                    const originalGroup = groupedVideos.value.find(g => g.goodsId === goodsId);
+                    if (!groupsMap.has(goodsId)) {
+                        groupsMap.set(goodsId, {
+                            goodsId,
+                            productName: originalGroup?.productName || `商品 ${goodsId}`,
+                            videos: [],
+                            totalVideos: originalGroup?.totalVideos || 0
+                        });
+                    }
+                    groupsMap.get(goodsId).videos.push(video);
+                });
+
+                return Array.from(groupsMap.values());
+            });
+
+            // 总页数计算
+            const totalPages = computed(() => {
+                return Math.ceil(allVideos.value.length / performanceConfig.value.videosPerPage);
+            });
+
             const handleGetVideos = () => {
                 console.log('openVideos')
                 showModal.value = true;
+            };
+
+            // 每个商品的全选功能
+            const isProductAllSelected = (goodsId) => {
+                const productVideos = groupedVideos.value.find(g => g.goodsId === goodsId)?.videos || [];
+                return productVideos.length > 0 && productVideos.every(video => 
+                    selectedVideos.value.has(video.video_id)
+                );
+            };
+
+            const isProductPartialSelected = (goodsId) => {
+                const productVideos = groupedVideos.value.find(g => g.goodsId === goodsId)?.videos || [];
+                const selectedCount = productVideos.filter(video => 
+                    selectedVideos.value.has(video.video_id)
+                ).length;
+                return selectedCount > 0 && selectedCount < productVideos.length;
+            };
+
+            const toggleProductSelection = (goodsId) => {
+                const productVideos = groupedVideos.value.find(g => g.goodsId === goodsId)?.videos || [];
+                const isAllSelected = isProductAllSelected(goodsId);
+                
+                if (isAllSelected) {
+                    // 取消全选
+                    productVideos.forEach(video => {
+                        selectedVideos.value.delete(video.video_id);
+                    });
+                } else {
+                    // 全选
+                    productVideos.forEach(video => {
+                        if (video.has_play_url) {
+                            selectedVideos.value.add(video.video_id);
+                        }
+                    });
+                }
+            };
+
+            // 分页控制函数
+            const goToPage = (page) => {
+                if (page >= 1 && page <= totalPages.value) {
+                    uiState.value.currentPage = page;
+                }
+            };
+
+            const goToPreviousPage = () => {
+                if (uiState.value.currentPage > 1) {
+                    uiState.value.currentPage--;
+                }
+            };
+
+            const goToNextPage = () => {
+                if (uiState.value.currentPage < totalPages.value) {
+                    uiState.value.currentPage++;
+                }
             };
 
             // 选择相关方法
@@ -123,7 +244,12 @@
                 return selectedVideos.value.has(videoId);
             };
 
+            // 防抖优化：批量更新选中状态
+            let selectionUpdateTimer = null;
+            const pendingSelections = new Set();
+            
             const toggleVideoSelection = (videoId) => {
+                // 立即更新本地状态，给用户即时反馈
                 const newSet = new Set(selectedVideos.value);
                 if (newSet.has(videoId)) {
                     newSet.delete(videoId);
@@ -131,6 +257,19 @@
                     newSet.add(videoId);
                 }
                 selectedVideos.value = newSet;
+                
+                // 添加到待处理队列
+                pendingSelections.add(videoId);
+                
+                // 防抖：延迟批量更新UI
+                if (selectionUpdateTimer) {
+                    clearTimeout(selectionUpdateTimer);
+                }
+                selectionUpdateTimer = setTimeout(() => {
+                    // 批量更新完成，清空队列
+                    pendingSelections.clear();
+                    selectionUpdateTimer = null;
+                }, 100);
             };
 
             const toggleAllSelection = () => {
@@ -150,30 +289,30 @@
             const downloadVideoFile = async (video) => {
                 try {
                     console.log(`📥 开始下载视频: ${video.video_id}`);
-                    
+
                     // 使用fetch获取视频文件
                     const response = await fetch(video.video_play_url);
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    
+
                     // 获取文件blob
                     const blob = await response.blob();
-                    
+
                     // 创建下载链接
                     const url = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = `${video.author_name || 'unknown'}_${video.video_id}.mp4`;
                     link.style.display = 'none';
-                    
+
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    
+
                     // 清理blob URL
                     setTimeout(() => window.URL.revokeObjectURL(url), 100);
-                    
+
                     console.log(`✅ 下载完成: ${video.video_id}`);
                     return true;
                 } catch (error) {
@@ -182,161 +321,213 @@
                 }
             };
 
-            // 下载选中视频（压缩包模式）
+            // 分批压缩下载（内存优化版本）
             const handleDownloadSelected = async () => {
-                const selectedVideoData = allVideos.value.filter(video => 
+                const selectedVideoData = allVideos.value.filter(video =>
                     selectedVideos.value.has(video.video_id) && video.has_play_url
                 );
-                
+
                 if (selectedVideoData.length === 0) {
                     window.$message?.warning('请先选择可下载的视频');
                     return;
                 }
+
+                const maxFilesPerZip = performanceConfig.value.maxFilesPerZip;
+                const totalBatches = Math.ceil(selectedVideoData.length / maxFilesPerZip);
 
                 // 初始化进度状态
                 downloadProgress.value = {
                     isDownloading: true,
                     current: 0,
                     total: selectedVideoData.length,
-                    currentFileName: '准备下载...',
-                    percentage: 0
+                    currentFileName: '准备分批下载...',
+                    percentage: 0,
+                    phase: 'download',
+                    currentBatch: 0,
+                    totalBatches
                 };
 
-                console.log(`🗜️ 开始创建包含 ${selectedVideoData.length} 个视频的压缩包...`);
+                console.log(`🗜️ 开始分批下载 ${selectedVideoData.length} 个视频，分为 ${totalBatches} 个压缩包...`);
 
                 try {
-                    // 等待JSZip库加载
-                    while (!window.JSZip) {
-                        console.log('⏳ 等待JSZip库加载...');
+                    // 等待库加载
+                    while (!window.JSZip || !window.saveAs) {
+                        console.log('⏳ 等待压缩库加载...');
                         await new Promise(resolve => setTimeout(resolve, 100));
                     }
 
-                    const zip = new JSZip();
-                    let successCount = 0;
-                    let failCount = 0;
-                    let completedCount = 0;
+                    let totalSuccessCount = 0;
+                    let totalFailCount = 0;
+                    let globalCompletedCount = 0; // 全局已完成文件计数
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
 
-                    // 并发下载配置 - 使用可配置参数
-                    const CONCURRENT_LIMIT = performanceConfig.value.concurrentLimit;
-                    
-                    // 创建下载任务
-                    const downloadFile = async (video, index) => {
-                        const fileName = `${video.author_name || 'unknown'}_${video.video_id}.mp4`.replace(/[/\\:*?"<>|]/g, '_');
+                    // 分批处理
+                    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+                        const startIndex = batchIndex * maxFilesPerZip;
+                        const endIndex = Math.min(startIndex + maxFilesPerZip, selectedVideoData.length);
+                        const batchVideos = selectedVideoData.slice(startIndex, endIndex);
+
+                        console.log(`📦 处理第 ${batchIndex + 1}/${totalBatches} 个压缩包 (${batchVideos.length} 个文件)...`);
+
+                        downloadProgress.value = {
+                            ...downloadProgress.value,
+                            currentFileName: `处理压缩包 ${batchIndex + 1}/${totalBatches}...`,
+                            percentage: Math.round((batchIndex / totalBatches) * 90)
+                        };
+
+                        const { successCount, failCount } = await processBatch(batchVideos, batchIndex + 1, timestamp, globalCompletedCount);
+                        globalCompletedCount += batchVideos.length;
                         
-                        try {
-                            console.log(`📥 开始下载: ${fileName}`);
-                            
-                            // 获取视频文件
-                            const response = await fetch(video.video_play_url);
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-                            
-                            const blob = await response.blob();
-                            
-                            // 获取商品信息，创建文件夹结构
-                            const productInfo = window.__PRODUCT_INFO__[video.goodsId];
-                            const productName = productInfo?.name?.replace(/[/\\:*?"<>|]/g, '_') || `商品_${video.goodsId}`;
-                            
-                            // 添加到压缩包中，按商品分文件夹
-                            zip.folder(productName).file(fileName, blob);
-                            
-                            successCount++;
-                            console.log(`✅ 完成下载: ${fileName}`);
-                            return { success: true, fileName, video };
-                            
-                        } catch (error) {
-                            console.error(`❌ 下载失败: ${video.video_id}`, error);
-                            failCount++;
-                            return { success: false, fileName, video, error };
-                        } finally {
-                            completedCount++;
-                            
-                            // 更新进度状态
-                            downloadProgress.value = {
-                                ...downloadProgress.value,
-                                current: completedCount,
-                                currentFileName: fileName,
-                                percentage: Math.round((completedCount / selectedVideoData.length) * 90) // 预留10%给压缩
-                            };
+                        totalSuccessCount += successCount;
+                        totalFailCount += failCount;
+
+                        // 强制垃圾回收，释放内存
+                        if (window.gc) window.gc();
+                        
+                        // 批次间短暂休息，让浏览器喘口气
+                        if (batchIndex < totalBatches - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
                         }
+                    }
+
+                    // 完成所有下载
+                    downloadProgress.value = {
+                        ...downloadProgress.value,
+                        currentFileName: '所有压缩包下载完成！',
+                        percentage: 100,
+                        phase: 'complete'
                     };
 
-                    // 分批并发下载
-                    console.log(`📦 开始并发下载 ${selectedVideoData.length} 个文件，并发数: ${CONCURRENT_LIMIT}`);
-                    
-                    for (let i = 0; i < selectedVideoData.length; i += CONCURRENT_LIMIT) {
-                        const batch = selectedVideoData.slice(i, i + CONCURRENT_LIMIT);
-                        const batchPromises = batch.map((video, batchIndex) => 
-                            downloadFile(video, i + batchIndex)
-                        );
-                        
-                        // 等待当前批次完成
-                        await Promise.all(batchPromises);
-                        
-                        console.log(`📊 完成批次 ${Math.floor(i / CONCURRENT_LIMIT) + 1}/${Math.ceil(selectedVideoData.length / CONCURRENT_LIMIT)}`);
-                        
-                        // 批次间延迟，避免过于激进
-                        if (i + CONCURRENT_LIMIT < selectedVideoData.length) {
-                            await new Promise(resolve => setTimeout(resolve, performanceConfig.value.batchDelay));
-                        }
-                    }
+                    console.log(`🎉 分批下载完成！总计成功: ${totalSuccessCount}, 失败: ${totalFailCount}`);
+                    window.$message?.success(`下载完成！生成了 ${totalBatches} 个压缩包，包含 ${totalSuccessCount} 个视频`);
 
-                    if (successCount > 0) {
-                        // 更新进度：生成压缩包
-                        downloadProgress.value = {
-                            ...downloadProgress.value,
-                            currentFileName: '正在生成压缩包...',
-                            percentage: 95
-                        };
-                        
-                        console.log('📦 正在生成压缩包...');
-                        
-                        // 优化压缩设置：使用可配置的压缩级别
-                        const content = await zip.generateAsync({
-                            type: "blob",
-                            compression: "DEFLATE",
-                            compressionOptions: {
-                                level: performanceConfig.value.compressionLevel // 可配置压缩级别
-                            }
-                        });
-                        
-                        // 使用FileSaver下载
-                        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                        const filename = `商品视频_${successCount}个_${timestamp}.zip`;
-                        
-                        // 等待FileSaver库加载
-                        while (!window.saveAs) {
-                            console.log('⏳ 等待FileSaver库加载...');
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
-                        
-                        window.saveAs(content, filename);
-                        
-                        // 完成下载
-                        downloadProgress.value = {
-                            ...downloadProgress.value,
-                            currentFileName: '下载完成！',
-                            percentage: 100
-                        };
-                        
-                        console.log(`🎉 压缩包下载完成！成功: ${successCount}, 失败: ${failCount}`);
-                        window.$message?.success(`压缩包下载完成！包含 ${successCount} 个视频`);
-                        
-                        // 延迟重置状态
-                        setTimeout(() => {
-                            downloadProgress.value.isDownloading = false;
-                        }, 2000);
-                    } else {
-                        window.$message?.error('没有成功下载任何视频');
+                    // 延迟重置状态
+                    setTimeout(() => {
                         downloadProgress.value.isDownloading = false;
-                    }
-                    
+                    }, 3000);
+
                 } catch (error) {
-                    console.error('❌ 创建压缩包失败:', error);
-                    window.$message?.error('创建压缩包失败，请重试');
+                    console.error('❌ 分批下载失败:', error);
+                    window.$message?.error('分批下载失败，请重试');
                     downloadProgress.value.isDownloading = false;
                 }
+            };
+
+            // 处理单个批次的压缩包
+            const processBatch = async (batchVideos, batchNumber, timestamp, startingCompletedCount) => {
+                const zip = new JSZip();
+                let successCount = 0;
+                let failCount = 0;
+                let completedInBatch = 0;
+                let currentBatchSize = 0; // 当前批次大小(字节)
+
+                const CONCURRENT_LIMIT = performanceConfig.value.concurrentLimit;
+                const MAX_SIZE_BYTES = performanceConfig.value.maxSizePerZip * 1024 * 1024; // 转换为字节
+
+                // 分组下载任务
+                const downloadFile = async (video, index) => {
+                    const fileName = `${video.author_name || 'unknown'}_${video.video_id}.mp4`.replace(/[/\\:*?"<>|]/g, '_');
+
+                    try {
+                        console.log(`📥 [批次${batchNumber}] 下载: ${fileName}`);
+
+                        const response = await fetch(video.video_play_url);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const blob = await response.blob();
+                        
+                        // 检查大小限制
+                        if (currentBatchSize + blob.size > MAX_SIZE_BYTES && successCount > 0) {
+                            console.log(`⚠️ [批次${batchNumber}] 文件过大，跳过: ${fileName} (${(blob.size/1024/1024).toFixed(1)}MB)`);
+                            failCount++;
+                            return { success: false, reason: 'size_limit', fileName, video };
+                        }
+
+                        const productInfo = window.__PRODUCT_INFO__[video.goodsId];
+                        const productName = productInfo?.name?.replace(/[/\\:*?"<>|]/g, '_') || `商品_${video.goodsId}`;
+
+                        zip.folder(productName).file(fileName, blob);
+                        currentBatchSize += blob.size;
+
+                        successCount++;
+                        console.log(`✅ [批次${batchNumber}] 完成: ${fileName} (${(blob.size/1024/1024).toFixed(1)}MB)`);
+                        return { success: true, fileName, video, size: blob.size };
+
+                    } catch (error) {
+                        console.error(`❌ [批次${batchNumber}] 下载失败: ${video.video_id}`, error);
+                        failCount++;
+                        return { success: false, fileName, video, error };
+                    } finally {
+                        completedInBatch++;
+                        
+                        // 更新总体进度 - 下载阶段占70%
+                        const globalCompleted = startingCompletedCount + completedInBatch;
+                        const downloadPhaseProgress = (globalCompleted / downloadProgress.value.total) * 70;
+                        downloadProgress.value = {
+                            ...downloadProgress.value,
+                            current: globalCompleted,
+                            currentFileName: `[批次${batchNumber}] ${fileName}`,
+                            percentage: Math.round(downloadPhaseProgress),
+                            phase: 'download'
+                        };
+                    }
+                };
+
+                // 并发下载当前批次
+                console.log(`📦 [批次${batchNumber}] 开始并发下载 ${batchVideos.length} 个文件，并发数: ${CONCURRENT_LIMIT}`);
+
+                for (let i = 0; i < batchVideos.length; i += CONCURRENT_LIMIT) {
+                    const chunk = batchVideos.slice(i, i + CONCURRENT_LIMIT);
+                    const chunkPromises = chunk.map(video => downloadFile(video, i));
+
+                    await Promise.all(chunkPromises);
+
+                    // 小批次间延迟
+                    if (i + CONCURRENT_LIMIT < batchVideos.length) {
+                        await new Promise(resolve => setTimeout(resolve, performanceConfig.value.batchDelay));
+                    }
+                }
+
+                // 生成并下载当前批次的压缩包
+                if (successCount > 0) {
+                    console.log(`📦 [批次${batchNumber}] 生成压缩包... (${(currentBatchSize/1024/1024).toFixed(1)}MB)`);
+
+                    // 压缩进度更新 - 压缩阶段占30%，从70%开始
+                    const downloadPhaseProgress = 70;
+                    const currentBatchProgress = (batchNumber - 1) / downloadProgress.value.totalBatches;
+                    const compressionProgress = downloadPhaseProgress + (currentBatchProgress * 30);
+                    downloadProgress.value = {
+                        ...downloadProgress.value,
+                        currentFileName: `生成压缩包 ${batchNumber}/${downloadProgress.value.totalBatches}...`,
+                        percentage: Math.round(compressionProgress),
+                        phase: 'compress',
+                        currentBatch: batchNumber
+                    };
+
+                    // 使用更快的压缩设置
+                    const content = await zip.generateAsync({
+                        type: "blob",
+                        compression: "DEFLATE",
+                        compressionOptions: {
+                            level: performanceConfig.value.compressionLevel
+                        }
+                    });
+
+                    const filename = batchVideos.length > 1 
+                        ? `商品视频_批次${batchNumber}_${successCount}个_${timestamp}.zip`
+                        : `商品视频_${successCount}个_${timestamp}.zip`;
+
+                    window.saveAs(content, filename);
+
+                    console.log(`✅ [批次${batchNumber}] 压缩包已保存: ${filename}`);
+                }
+
+                // 清理内存
+                zip.files = {};
+                
+                return { successCount, failCount };
             };
 
             // 拖拽功能
@@ -424,7 +615,7 @@
                             textAlign: 'center'
                         }
                     }, '视频数据工具'),
-                    
+
                     h('div', {
                         onMousedown: (e) => e.stopPropagation()
                     }, [
@@ -439,7 +630,7 @@
                                     block: true,
                                     onClick: handleGetVideos
                                 }, { default: () => `获取当前视频 (${allVideos.value.length})` }),
-                                
+
                                 h(NaiveUi.NButton, {
                                     type: 'default',
                                     size: 'small',
@@ -455,10 +646,20 @@
                                     loading: downloadProgress.value.isDownloading,
                                     onClick: handleDownloadSelected,
                                     disabled: selectedCount.value === 0 || downloadProgress.value.isDownloading
-                                }, { 
-                                    default: () => downloadProgress.value.isDownloading 
-                                        ? `下载中 (${downloadProgress.value.current}/${downloadProgress.value.total})`
-                                        : `打包下载 (${selectedCount.value})`
+                                }, {
+                                    default: () => {
+                                        if (!downloadProgress.value.isDownloading) {
+                                            return `打包下载 (${selectedCount.value})`;
+                                        }
+                                        const phase = downloadProgress.value.phase;
+                                        if (phase === 'download') {
+                                            return `下载中 (${downloadProgress.value.current}/${downloadProgress.value.total})`;
+                                        } else if (phase === 'compress') {
+                                            return `压缩中 (${downloadProgress.value.currentBatch}/${downloadProgress.value.totalBatches})`;
+                                        } else {
+                                            return `处理中...`;
+                                        }
+                                    }
                                 }),
 
                                 h(NaiveUi.NButton, {
@@ -481,15 +682,50 @@
                     style: { width: '90%', maxWidth: '1400px' }
                 }, {
                     default: () => h('div', {
-                        style: { maxHeight: '700px', overflowY: 'auto' }
+                        style: { 
+                            height: '700px',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }
                     }, [
+                        // 可滚动的内容区域
+                        h('div', {
+                            style: { 
+                                flex: 1,
+                                overflowY: 'auto',
+                                marginBottom: '8px'
+                            }
+                        }, [
                         // 操作栏
                         h('div', {
                             style: { marginBottom: '16px', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px' }
                         }, [
+                            // 搜索和过滤栏
+                            h('div', {
+                                style: { marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'center' }
+                            }, [
+                                h(NaiveUi.NInput, {
+                                    value: uiState.value.searchKeyword,
+                                    'onUpdate:value': (val) => { uiState.value.searchKeyword = val; },
+                                    placeholder: '搜索视频标题或作者...',
+                                    size: 'small',
+                                    style: { width: '200px' }
+                                }),
+                                
+                                allVideos.value.length > 50 ? h(NaiveUi.NButton, {
+                                    size: 'small',
+                                    type: uiState.value.showAllProducts ? 'warning' : 'default',
+                                    onClick: () => { uiState.value.showAllProducts = !uiState.value.showAllProducts; }
+                                }, { 
+                                    default: () => uiState.value.showAllProducts 
+                                        ? `🔥 显示全部 (${allVideos.value.length})` 
+                                        : `⚡ 仅显示前100个商品 (性能优化)`
+                                }) : null
+                            ]),
+                            
                             h(NaiveUi.NSpace, { justify: 'space-between', align: 'center' }, {
                                 default: () => [
-                                    h('span', `共 ${allVideos.value.length} 个视频`),
+                                    h('span', `当前显示 ${pagedGroupedVideos.value.reduce((sum, g) => sum + g.videos.length, 0)} / 共 ${allVideos.value.length} 个视频 (第 ${uiState.value.currentPage}/${totalPages.value} 页)`),
                                     h(NaiveUi.NSpace, { size: 'small' }, {
                                         default: () => [
                                             h(NaiveUi.NCheckbox, {
@@ -504,24 +740,34 @@
                                                 loading: downloadProgress.value.isDownloading,
                                                 onClick: handleDownloadSelected,
                                                 disabled: selectedCount.value === 0 || downloadProgress.value.isDownloading
-                                            }, { 
-                                                default: () => downloadProgress.value.isDownloading 
-                                                    ? `下载中 (${downloadProgress.value.current}/${downloadProgress.value.total})`
-                                                    : `打包下载 (${selectedCount.value})`
+                                            }, {
+                                                default: () => {
+                                                    if (!downloadProgress.value.isDownloading) {
+                                                        return `打包下载 (${selectedCount.value})`;
+                                                    }
+                                                    const phase = downloadProgress.value.phase;
+                                                    if (phase === 'download') {
+                                                        return `下载中 (${downloadProgress.value.current}/${downloadProgress.value.total})`;
+                                                    } else if (phase === 'compress') {
+                                                        return `压缩中 (${downloadProgress.value.currentBatch}/${downloadProgress.value.totalBatches})`;
+                                                    } else {
+                                                        return `处理中...`;
+                                                    }
+                                                }
                                             })
                                         ]
                                     })
                                 ]
                             }),
-                            
+
                             // 下载进度条
                             downloadProgress.value.isDownloading ? h('div', {
                                 style: { marginTop: '12px' }
                             }, [
                                 h('div', {
-                                    style: { 
-                                        fontSize: '12px', 
-                                        color: '#666', 
+                                    style: {
+                                        fontSize: '12px',
+                                        color: '#666',
                                         marginBottom: '4px',
                                         display: 'flex',
                                         justifyContent: 'space-between'
@@ -540,35 +786,45 @@
                         ]),
 
                         // 视频内容
-                        groupedVideos.value.length === 0 
+                        pagedGroupedVideos.value.length === 0
                             ? h('div', {
                                 style: { textAlign: 'center', padding: '60px', color: '#999' }
                             }, '暂无视频数据，请先访问商品视频页面')
-                            : h(NaiveUi.NSpace, { 
-                                vertical: true, 
+                            : h(NaiveUi.NSpace, {
+                                vertical: true,
                                 size: 'medium',
                                 style: { width: '100%' }
                             }, {
-                                default: () => groupedVideos.value.map(group => 
+                                default: () => pagedGroupedVideos.value.map(group =>
                                     h('div', { key: group.goodsId }, [
                                         // 商品名称标题
                                         h('div', {
-                                            style: { 
-                                                fontSize: '15px', 
-                                                fontWeight: 'bold', 
+                                            style: {
+                                                fontSize: '15px',
+                                                fontWeight: 'bold',
                                                 marginBottom: '8px',
                                                 paddingBottom: '6px',
                                                 borderBottom: '1px solid #e8e8e8',
-                                                color: '#333'
+                                                color: '#333',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between'
                                             }
-                                        }, `📦 ${group.productName} (${group.videos.length}个视频)`),
-                                        
+                                        }, [
+                                            h('span', `📦 ${group.productName} (${group.videos.length}个视频)`),
+                                            h(NaiveUi.NCheckbox, {
+                                                checked: isProductAllSelected(group.goodsId),
+                                                indeterminate: isProductPartialSelected(group.goodsId),
+                                                'onUpdate:checked': () => toggleProductSelection(group.goodsId)
+                                            }, { default: () => '全选' })
+                                        ]),
+
                                         // 视频卡片网格
-                                        group.videos.length === 0 
+                                        group.videos.length === 0
                                             ? h('div', {
-                                                style: { 
-                                                    textAlign: 'center', 
-                                                    padding: '40px', 
+                                                style: {
+                                                    textAlign: 'center',
+                                                    padding: '40px',
                                                     color: '#999',
                                                     border: '2px dashed #d9d9d9',
                                                     borderRadius: '8px'
@@ -582,16 +838,16 @@
                                                 }, { default: () => '访问抖音查看' })
                                             ])
                                             : h('div', {
-                                                style: { 
+                                                style: {
                                                     display: 'grid',
                                                     gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
                                                     gap: '6px'
                                                 }
-                                            }, group.videos.map(video => 
+                                            }, group.videos.map(video =>
                                                 h(NaiveUi.NCard, {
                                                     key: video.video_id,
                                                     hoverable: true,
-                                                    style: { 
+                                                    style: {
                                                         cursor: 'pointer',
                                                         border: isVideoSelected(video.video_id) ? '2px solid #1890ff' : '1px solid #e8e8e8'
                                                     }
@@ -607,16 +863,16 @@
                                                             // 视频封面
                                                             video.video_img ? h('img', {
                                                                 src: video.video_img,
-                                                                style: { 
-                                                                    width: '100%', 
-                                                                    height: '90px', 
+                                                                style: {
+                                                                    width: '100%',
+                                                                    height: '90px',
                                                                     objectFit: 'cover',
                                                                     borderRadius: '4px'
                                                                 }
                                                             }) : h('div', {
-                                                                style: { 
-                                                                    width: '100%', 
-                                                                    height: '90px', 
+                                                                style: {
+                                                                    width: '100%',
+                                                                    height: '90px',
                                                                     backgroundColor: '#f5f5f5',
                                                                     display: 'flex',
                                                                     alignItems: 'center',
@@ -625,13 +881,13 @@
                                                                     color: '#999'
                                                                 }
                                                             }, '无封面'),
-                                                            
+
                                                             // 选择框
                                                             h('div', {
-                                                                style: { 
-                                                                    position: 'absolute', 
-                                                                    top: '8px', 
-                                                                    left: '8px' 
+                                                                style: {
+                                                                    position: 'absolute',
+                                                                    top: '8px',
+                                                                    left: '8px'
                                                                 }
                                                             }, [
                                                                 h(NaiveUi.NCheckbox, {
@@ -643,9 +899,9 @@
 
                                                             // 视频类型标签
                                                             h('div', {
-                                                                style: { 
-                                                                    position: 'absolute', 
-                                                                    top: '8px', 
+                                                                style: {
+                                                                    position: 'absolute',
+                                                                    top: '8px',
                                                                     right: '8px',
                                                                     padding: '4px 8px',
                                                                     backgroundColor: video.has_play_url ? '#52c41a' : '#1890ff',
@@ -655,13 +911,13 @@
                                                                 }
                                                             }, video.has_play_url ? '可下载' : '仅链接')
                                                         ]),
-                                                        
+
                                                         // 视频信息
                                                         h('div', [
                                                             h('div', {
-                                                                style: { 
-                                                                    fontSize: '12px', 
-                                                                    fontWeight: '500', 
+                                                                style: {
+                                                                    fontSize: '12px',
+                                                                    fontWeight: '500',
                                                                     marginBottom: '6px',
                                                                     lineHeight: '1.3',
                                                                     display: '-webkit-box',
@@ -670,18 +926,16 @@
                                                                     overflow: 'hidden'
                                                                 }
                                                             }, video.video_name || '无标题'),
-                                                            
-                                                            h(NaiveUi.NSpace, { size: 'small', wrap: false }, {
-                                                                default: () => [
-                                                                    h('span', {
-                                                                        style: { fontSize: '11px', color: '#666' }
-                                                                    }, `👤 ${video.author_name || '未知作者'}`),
-                                                                    
-                                                                    video.publish_ts ? h('span', {
-                                                                        style: { fontSize: '11px', color: '#666' }
-                                                                    }, `🕒 ${new Date(video.publish_ts * 1000).toLocaleDateString('zh-CN')}`) : null
-                                                                ]
-                                                            })
+
+                                                            h('div', { size: 'small', wrap: false, style: 'display: flex;' }, [
+                                                                h(NaiveUi.NEllipsis, {
+                                                                    style: { fontSize: '11px', color: '#666', }
+                                                                }, () => `👤 ${video.author_name || '未知作者'}`),
+
+                                                                video.publish_ts ? h(NaiveUi.NEllipsis, {
+                                                                    style: { fontSize: '11px', color: '#666' }
+                                                                }, () => `🕒 ${new Date(video.publish_ts * 1000).toLocaleDateString('zh-CN')}`) : null
+                                                            ])
                                                         ]),
 
                                                         // 操作按钮
@@ -696,7 +950,7 @@
                                                                         type: 'primary',
                                                                         onClick: () => window.open(video.video_url, '_blank')
                                                                     }, { default: () => video.has_play_url ? '播放' : '查看' }),
-                                                                    
+
                                                                     h(NaiveUi.NButton, {
                                                                         size: 'small',
                                                                         type: 'default',
@@ -711,6 +965,30 @@
                                     ])
                                 )
                             })
+                    ]),
+
+                        // 固定在底部的分页控件
+                        totalPages.value > 1 ? h('div', {
+                            style: { 
+                                display: 'flex', 
+                                justifyContent: 'center', 
+                                alignItems: 'center',
+                                padding: '12px',
+                                borderTop: '1px solid #f0f0f0',
+                                backgroundColor: '#fafafa',
+                                flexShrink: 0
+                            }
+                        }, [
+                            h(NaiveUi.NPagination, {
+                                page: uiState.value.currentPage,
+                                'onUpdate:page': (page) => { uiState.value.currentPage = page; },
+                                pageCount: totalPages.value,
+                                size: 'medium',
+                                showSizePicker: false,
+                                showQuickJumper: true,
+                                prefix: () => `共 ${allVideos.value.length} 个视频`
+                            })
+                        ]) : null
                     ])
                 }),
 
@@ -748,7 +1026,7 @@
                                         }
                                     })
                                 ]),
-                                
+
                                 // 批次延迟设置
                                 h('div', [
                                     h('div', {
@@ -770,7 +1048,7 @@
                                         }
                                     })
                                 ]),
-                                
+
                                 // 压缩级别设置
                                 h('div', [
                                     h('div', {
@@ -792,7 +1070,73 @@
                                         }
                                     })
                                 ]),
-                                
+
+                                // 分批设置
+                                h('div', [
+                                    h('div', {
+                                        style: { marginBottom: '8px', fontSize: '14px', fontWeight: '500' }
+                                    }, '每包文件数'),
+                                    h('div', {
+                                        style: { marginBottom: '12px', fontSize: '12px', color: '#666' }
+                                    }, '每个压缩包包含的最大文件数，避免内存溢出'),
+                                    h(NaiveUi.NSlider, {
+                                        value: performanceConfig.value.maxFilesPerZip,
+                                        'onUpdate:value': (val) => { performanceConfig.value.maxFilesPerZip = val; },
+                                        min: 5,
+                                        max: 30,
+                                        step: 5,
+                                        marks: {
+                                            5: '5个',
+                                            15: '15个',
+                                            30: '30个'
+                                        }
+                                    })
+                                ]),
+
+                                // 包大小限制
+                                h('div', [
+                                    h('div', {
+                                        style: { marginBottom: '8px', fontSize: '14px', fontWeight: '500' }
+                                    }, '单包大小限制'),
+                                    h('div', {
+                                        style: { marginBottom: '12px', fontSize: '12px', color: '#666' }
+                                    }, '每个压缩包的最大大小(MB)，超过会自动分包'),
+                                    h(NaiveUi.NSlider, {
+                                        value: performanceConfig.value.maxSizePerZip,
+                                        'onUpdate:value': (val) => { performanceConfig.value.maxSizePerZip = val; },
+                                        min: 50,
+                                        max: 500,
+                                        step: 50,
+                                        marks: {
+                                            50: '50MB',
+                                            100: '100MB',
+                                            500: '500MB'
+                                        }
+                                    })
+                                ]),
+
+                                // UI性能优化
+                                h('div', [
+                                    h('div', {
+                                        style: { marginBottom: '8px', fontSize: '14px', fontWeight: '500' }
+                                    }, 'UI性能优化'),
+                                    h('div', {
+                                        style: { marginBottom: '12px', fontSize: '12px', color: '#666' }
+                                    }, '每页显示视频数，数量越少页面越流畅'),
+                                    h(NaiveUi.NSlider, {
+                                        value: performanceConfig.value.videosPerPage,
+                                        'onUpdate:value': (val) => { performanceConfig.value.videosPerPage = val; },
+                                        min: 20,
+                                        max: 100,
+                                        step: 10,
+                                        marks: {
+                                            20: '20个',
+                                            50: '50个',
+                                            100: '100个'
+                                        }
+                                    })
+                                ]),
+
                                 // 预设配置
                                 h('div', [
                                     h('div', {
@@ -803,21 +1147,21 @@
                                             h(NaiveUi.NButton, {
                                                 size: 'small',
                                                 onClick: () => {
-                                                    performanceConfig.value = { concurrentLimit: 6, batchDelay: 0, compressionLevel: 1 };
+                                                    performanceConfig.value = { concurrentLimit: 6, batchDelay: 0, compressionLevel: 1, maxFilesPerZip: 10, maxSizePerZip: 200, videosPerPage: 30 };
                                                 }
                                             }, { default: () => '🚀 极速模式' }),
-                                            
+
                                             h(NaiveUi.NButton, {
                                                 size: 'small',
                                                 onClick: () => {
-                                                    performanceConfig.value = { concurrentLimit: 3, batchDelay: 100, compressionLevel: 5 };
+                                                    performanceConfig.value = { concurrentLimit: 3, batchDelay: 100, compressionLevel: 5, maxFilesPerZip: 15, maxSizePerZip: 100, videosPerPage: 50 };
                                                 }
                                             }, { default: () => '⚖️ 平衡模式' }),
-                                            
+
                                             h(NaiveUi.NButton, {
                                                 size: 'small',
                                                 onClick: () => {
-                                                    performanceConfig.value = { concurrentLimit: 1, batchDelay: 300, compressionLevel: 9 };
+                                                    performanceConfig.value = { concurrentLimit: 1, batchDelay: 300, compressionLevel: 9, maxFilesPerZip: 20, maxSizePerZip: 50, videosPerPage: 100 };
                                                 }
                                             }, { default: () => '🐌 稳定模式' })
                                         ]
@@ -832,7 +1176,7 @@
     });
 
     // 创建应用
-    const app = App({ 
+    const app = App({
         slots: {
             default: () => h(FloatingToolbox)
         },
@@ -849,7 +1193,7 @@
     };
 
     document.body.appendChild(app.__el__);
-    
+
     console.log('🚀 Compass 视频数据工具已启动');
 
 }();

@@ -452,6 +452,7 @@ async function executeScript2(e, t, r, a, n) {
   var s = "MAIN";
   t.world && (s = t.world);
   var o = { function: injectJsCode, args: [e], world: s };
+
   return (o = fillIframeIdToData(r, a, o)), chrome.scripting.executeScript(o);
 }
 
@@ -581,32 +582,9 @@ async function Lister(e, t, r) {
 }
 
 const other = { Lister: Lister };
-async function ListerScript(value) {
-  const tabId = await getCurrentTabId();
-  chrome.scripting.executeScript({
-    target: { tabId },
-    func: injectScript({
-      type: 'eval',
-      value,
-      world: 'MAIN'
-    })
-  });
-}
-
-const moduleLister = {
-  webRequest: (cmd) => {
-    chrome.runtime.sendMessage(cmd, (response) => {
-      console.log('response: ', response);
-    })
-
-  }
-}
 
 function Bg_OnMessageLister(e, t, r) {
-  const cmd = e.cmd;
-  const [_module] = (cmd || '').split('.');
-  if (moduleLister[_module]) return moduleLister[_module](cmd);
-
+  
   if ("zzb_apply" == e.cmd) return zzb_apply.Lister(e, t, r);
   if ("inject" === e.cmd) return inject.Lister(e, t, r);
   if ("start" === e.cmd) return hot_code.Lister(e, t, r);
@@ -649,6 +627,17 @@ chrome.runtime.onMessage.addListener(((e, t, r) => (Bg_OnMessageLister(e, t, r),
 chrome.runtime.onMessageExternal.addListener(function (e, t, r) {
   Bg_OnMessageLister(e, t, r);
 });
+
+
+// setTimeout(async () => {
+//   const tabId = await getCurrentTabId();
+//   chrome.scripting.executeScript({
+//     args: ['console.log("你好 罗盘", window.__WEB_REQUEST_API__); '],
+//     function: injectJsCode,
+//     target: {tabId: tabId},
+//     world: "MAIN"
+//   })
+// }, 3000)
 
 
 
