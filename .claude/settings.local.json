@@ -6,7 +6,11 @@
       "Bash(node:*)",
       "Bash(npx prettier:*)",
       "Bash(js-beautify:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 5 npm run dev)"
     ],
     "deny": [],
     "ask": []

@@ -84,7 +84,7 @@
     },
     {
       "matches": ["https://compass.jinritemai.com/*"],
-      "js": ["js/compass.jinritemai.com.js"],
+      "js": ["js/md-ui-component.js", "js/compass.jinritemai.com.js"],
       "run_at": "document_end"
     },
     {

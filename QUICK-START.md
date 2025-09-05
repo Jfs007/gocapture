@@ -1,0 +1,104 @@
+# 🚀 快速开始指南
+
+## 立即使用Chrome扩展
+
+### 方法1：直接使用已构建的扩展包
+```bash
+# Chrome扩展包已经准备就绪！
+# 直接在Chrome中加载 chrome-extension/ 目录即可
+
+# 1. 打开 Chrome 扩展管理页面
+#    chrome://extensions/
+
+# 2. 开启"开发者模式"
+
+# 3. 点击"加载已解压的扩展程序"
+
+# 4. 选择项目中的 chrome-extension/ 目录
+
+# ✅ 完成！扩展已安装并可使用
+```
+
+### 方法2：开发模式（实时编译）
+```bash
+# 1. 进入开发目录
+cd dev
+
+# 2. 启动实时构建
+npm run dev
+
+# 3. 在Chrome中加载 ../chrome-extension/ 目录
+
+# ✅ 现在修改代码会自动重新构建到扩展包
+# ✅ 刷新页面即可看到最新效果
+```
+
+## 📁 关键目录说明
+
+```
+📦 chrome-extension/          ← 🎯 这是完整的Chrome扩展包
+├── js/
+│   └── compass.jinritemai.com.js  ← Vue构建输出 (481KB)
+├── manifest.json
+├── other/                    ← 第三方库
+└── ... (其他运行时文件)
+
+🔧 dev/                      ← 开发环境 (可选)
+├── src/                     ← Vue源码
+├── package.json
+└── vite.config.js
+
+# 🎉 直接打包 chrome-extension/ 目录就是完整的扩展包！
+```
+
+## ⚡ 三种使用场景
+
+### 1. 📦 只要扩展包 (推荐)
+```bash
+# 直接使用 chrome-extension/ 目录
+# 无需安装任何开发依赖
+# 文件大小最小
+```
+
+### 2. 🔧 需要修改功能
+```bash
+cd dev
+npm install          # 安装开发依赖
+npm run dev          # 启动开发模式
+# 修改 src/ 中的代码
+# 自动构建到 chrome-extension/
+```
+
+### 3. 🎁 打包发布
+```bash
+cd dev
+npm run build        # 生产构建
+zip -r extension.zip chrome-extension/  # 打包
+# 上传到Chrome商店
+```
+
+## 🎯 文件大小对比
+
+| 版本 | 文件大小 | 功能 |
+|------|---------|-----|
+| 原版 h函数 | 62KB | 完整功能 |
+| Vue版 | 481KB | 完整功能 + 更好开发体验 |
+| 压缩后 | 146KB (gzip) | 实际网络传输大小 |
+
+## ✅ 验证安装
+
+安装扩展后，访问 `compass.jinritemai.com` 应该能看到：
+- 页面右下角出现"获取当前视频"按钮 ✅
+- 点击后弹出视频列表弹窗 ✅  
+- 支持搜索、分页、批量下载等功能 ✅
+
+## 🎉 完成！
+
+现在你拥有了：
+- ✅ 可直接使用的Chrome扩展包
+- ✅ 现代化的Vue开发环境  
+- ✅ 实时构建和热更新
+- ✅ 最小化的构建输出
+- ✅ 完美的功能兼容性
+
+**享受现代化的Chrome扩展开发体验吧！** 🚀
