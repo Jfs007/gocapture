@@ -16,6 +16,7 @@ export default defineConfig({
         // 可以继续添加其他站点: 'other-site.com': resolve(__dirname, 'src/sites/other/index.js')
       },
       output: {
+        // inlineDynamicImports: false,
         // 不同类型文件使用不同命名
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'md-ui-component') {
