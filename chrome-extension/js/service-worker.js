@@ -1,643 +1,360 @@
-function Lister$9(e, t, r) {
-  var a = "MAIN";
-  if (e.world && (a = e.world), 2 == e.type)
-    return (
-      (n = fillIframeIdToData$1(
-        e,
-        t,
-        (n = { world: a, files: e.fileNames })
-      )),
-      void chrome.scripting.executeScript(n).then((e) => {
-        r(e);
-      })
-    );
-  var n,
-    s = [e.params];
-  e.args && (s = e.args),
-    (n = fillIframeIdToData$1(
-      e,
-      t,
-      (n = { function: injectScript, args: s, world: a })
-    )),
-    chrome.scripting.executeScript(n).then((e) => {
-      r(e);
-    });
+
+const localConfig = {
+  jsUrls: ['chrome/cli.js', 'chrome/web.js', "cp-module/store/index.js", "cp-module/loadsh/index.js"]
 }
 
-function injectScript(params) {
-  if (params) return "eval" == params.type ? eval(params.value) : void 0;
-}
-
-function fillIframeIdToData$1(e, t, r) {
-  var a = e.myIframeId;
-  !a && t.frameId && (a = t.frameId);
-  var n = null;
-  a && (n = [a]);
-  var s = e.tabId;
-  s || (s = t.tab.id);
-  (r.target = { tabId: s }),
-    n && (r.target.frameIds = n),
-    e.execteTarget && (r.target = e.execteTarget);
-  return r;
-}
-
-const inject = { Lister: Lister$9 };
-
-var headerPre = "zzb-header-";
-
-function RegOne(e, t) {
-  if (!e) return !1;
-  var r = t.exec(e);
-  return !!(r && r.length > 1) && r[1];
-}
-
-async function UpdateRules(e) {
-  var t = e.headers || e.header,
-    r = {},
-    a = !1,
-    n = "";
-  e.url && (n = RegOne(e.url, /\/\/([^\/]+)/));
-  var s = [];
-  for (var o in t) {
-    var i = t[o];
-    if ((o = String(o).toLowerCase()).includes(headerPre)) {
-      a = !0;
-      var c = o.replace(headerPre, "");
-      s.push({ header: c, operation: "set", value: i });
-    } else r[o] = i;
+// 全局缓存对象
+const myExeCodeMap = {};
+/**
+ * 获取远程数据
+ */
+async function fetchData(url) {
+  try {
+    const response = await fetch(url);
+    return await response.text();
+  } catch (error) {
+    console.error('获取远程数据失败:', error);
+    return null;
   }
-  if (!a) return r;
-  var l = [],
-    u = { urlFilter: n, resourceTypes: ["xmlhttprequest"] };
-  s.map((e) => {
-    l.push(e);
-  }),
-    e.requestHeaders && (l = e.requestHeaders),
-    e.condition && (u = e.condition);
-  var d = [
-    {
-      id: 14,
-      priority: 1,
-      action: { type: "modifyHeaders", requestHeaders: l },
-      condition: u,
-    },
-  ],
-    m = [14];
-  return (
-    e.addRules && e.addRules.length > 0 && (d = e.addRules),
-    e.removeRuleIds && e.removeRuleIds.length > 0 && (m = e.removeRuleIds),
-    await chrome.declarativeNetRequest.updateSessionRules({
-      removeRuleIds: m,
-      addRules: d,
-    }),
-    r
-  );
 }
 
-async function ClearRules() {
-  await chrome.declarativeNetRequest.updateSessionRules({
-    removeRuleIds: [14, 999],
-    addRules: [
-      {
-        action: {
-          requestHeaders: [
-            {
-              header: "referer",
-              operation: "set",
-              value: "https://aaabg.com",
-            },
-            { header: "origin", operation: "set", value: "https://aaabg.com" },
-          ],
-          type: "modifyHeaders",
-        },
-        condition: { resourceTypes: ["ping"], urlFilter: "aaabg.com" },
-        id: 999,
-        priority: 1,
-      },
-    ],
+/**
+ * 填充iframe target信息
+ */
+function fillIframeIdToData(message, sender, execData) {
+  // iframe id 优先使用 message.myIframeId，否则用 sender.frameId
+  let frameId = message.myIframeId || sender.frameId;
+  let frameIds = frameId ? [frameId] : undefined;
+
+  // tab id
+  let tabId = message.tabId || (sender.tab && sender.tab.id);
+  // 填充 target
+  execData.target = { tabId };
+  if (frameIds) execData.target.frameIds = frameIds;
+
+  // 如果 message 指定了执行目标，则覆盖 target
+  if (message.executeTarget) execData.target = message.executeTarget;
+
+  return execData;
+}
+
+/**
+ * Chrome runtime 消息监听调用
+ * @param {Object} message - 消息对象，对应 e
+ * @param {Object} sender - 消息发送者信息，对应 t
+ * @param {Function} sendResponse - 回调响应函数，对应 r
+ */
+function InjectLister(message, sender, sendResponse) {
+  // 默认执行环境（world）
+  let world = message.world || "MAIN";
+  // 如果 type === 2，执行文件注入
+  if (message.type === 2) {
+    const execData = fillIframeTarget(
+      message,
+      sender,
+      { world, files: message.fileNames }
+    );
+    chrome.scripting.executeScript(execData).then(result => {
+      sendResponse(result);
+    });
+
+    return; // 早返回
+  }
+  // 默认执行函数注入
+  let args = message.args || [message.params];
+  const execData = fillIframeTarget(
+    message,
+    sender,
+    { function: injectScript, args, world }
+  );
+
+  chrome.scripting.executeScript(execData).then(result => {
+    sendResponse(result);
   });
 }
-
-async function Lister$8(e, t, r) {
-  await UpdateRules(e), r("");
-}
-
-const http_rule = { UpdateRules: UpdateRules, Lister: Lister$8, ClearRules: ClearRules };
-
-async function Lister$7(e, t, r) {
-  var a = { headers: await http_rule.UpdateRules(e) };
-  e.method && (a.method = e.method),
-    e.data && (a.body = e.data),
-    e.fetchParams && (a = e.fetchParams);
-  if (e.type && "base64" == e.type.toLowerCase()) return GetBase64(e.url, r);
-
-  fetch(e.url, a)
-    .then(async (t) => {
-      if (t.ok) {
-        if (e.textDecoderType) {
-          const a = new TextDecoder(e.textDecoderType);
-          var r = await t.arrayBuffer();
-          return a.decode(new Uint8Array(r));
-        }
-        return t.text();
-      }
-      throw await t.text();
-    })
-    .then((t) => {
-      let a = null;
-      try {
-        a = JSON.parse(t);
-      } catch (s) { };
-      var n = { result: a || t, resultContent: t, success: !0 };
-      if (e.isNotNeedClearRules) return r(n);
-      http_rule.ClearRules().then(() => {
-        r(n);
-      });
-    })
-    .catch((t) => {
-      var a = { result: t, success: !1 };
-      if (e.isNotNeedClearRules) return r(a);
-      http_rule.ClearRules().then(() => {
-        r(a);
-      });
-    });
-}
-
-function GetBase64(e, t) {
-  fetch(e)
-    .then((e) => e.blob())
-    .then((e) => {
-      var r = new FileReader();
-      e.type && e.type;
-      r.onload = (function () {
-        return function (e) {
-          t(e.currentTarget.result);
-        };
-      })();
-      r.readAsDataURL(e);
-    })
-    .catch(function (e) { });
-}
-
-const fetch$1 = { Lister: Lister$7, ListerMax: ListerMax };
-
-function ListerMax(e, t, r) {
-  const rMax = (response, _, __) => {
-    var a = { cmd: "response_info", data: response, url: e.url };
-    send_message_to_content.SendMessageToContentScript(a);
-    return r(response, _, __);
+/**
+ * 执行注入的函数
+ * @param {Object} params - 参数对象
+ */
+function injectScript(params) {
+  if (!params) return;
+  if (params.type === "eval" && params.value) {
+    return eval(params.value);
   }
-  return fetch$1.Lister(e, t, rMax);
+}
+/**
+ * 填充 iframe/tab 信息，生成 chrome.scripting.executeScript 所需对象
+ * @param {Object} message - 消息对象
+ * @param {Object} sender - 消息发送者
+ * @param {Object} execData - 执行数据对象
+ * @returns {Object} 带 target 信息的执行数据
+ */
+function fillIframeTarget(message, sender, execData) {
+  // iframe id 优先使用 message.myIframeId，否则用 sender.frameId
+  let frameId = message.myIframeId || sender.frameId;
+  let frameIds = frameId ? [frameId] : undefined;
 
+  // tab id
+  let tabId = message.tabId || (sender.tab && sender.tab.id);
+  // 填充 target
+  execData.target = { tabId };
+  if (frameIds) execData.target.frameIds = frameIds;
+
+  // 如果 message 指定了执行目标，则覆盖 target
+  if (message.executeTarget) execData.target = message.executeTarget;
+
+  return execData;
 }
 
+// 导出对象
+const injectCmd = { Lister: InjectLister };
 
 
 
-function Lister$6(e, t, r) {
-  var a = null;
-  (a = chrome[e.objKey]),
-    e.objKey2 && (a = a[e.objKey2]),
-    e.objKey3 && (a = a[e.objKey3]),
-    e.objKey4 && (a = a[e.objKey4]);
-  var n = null;
-  (n = e.funcName ? a[e.funcName] : a),
-    e.isMastCallBack || (e.params = e.params.concat((e) => { r && r(e); }));
-  var s = n.apply(e.obj, e.params);
-  e.isMastCallBack &&
-    (e.isReturnPromise
-      ? s.then((e, t, a) => {
-        r && r(e, t, a);
-      })
-      : r && r(s));
-}
-
-const zzb_apply = { Lister: Lister$6 };
-
-async function SendMessageToContentScript(e) {
-  var t = await getCurrentTabId();
-  t && chrome.tabs.sendMessage(t, e);
-}
-
-async function getCurrentTabId() {
-  var e = await chrome.tabs.query({ active: !0, currentWindow: !0 });
-  return e.length ? e[0].id : null;
-}
-
-const send_message_to_content = { SendMessageToContentScript: SendMessageToContentScript };
-
-async function removeCookie(e, t, r) {
-  e.name
-    ? chrome.cookies.remove({ url: e.url, name: e.name }, r)
-    : e.names
-      ? e.names.forEach((t) => {
-        chrome.cookies.remove({ url: e.url, name: t });
-      })
-      : e.removeInfos &&
-      e.removeInfos.forEach((e) => {
-        chrome.cookies.remove(e);
-      }),
-    r();
-}
-
-function setCookies(e, t, r) {
-  let a = (null == e ? void 0 : e.domainUrl) || "",
-    n = e.cookieData;
-  for (var s in (e.secure || (e.secure = !1),
-    e.httpOnly || (e.httpOnly = !1),
-    n)) {
-    let t = n[s];
-    var o = t.detail;
-    o ||
-      (o = {
-        url: a,
-        name: s,
-        value: t,
-        secure: e.secure,
-        httpOnly: e.httpOnly,
-      }),
-      e.domain && (o.domain = e.domain),
-      chrome.cookies.set(o, (e) => { });
-  }
-  r();
-}
-
-async function Lister$5(e, t, r) {
-  if ("removeCookie" == e.cmd) return removeCookie(e, t, r);
-  if ("setCookies" == e.cmd) return setCookies(e, t, r);
-  for (
-    var a = await chrome.cookies.getAll({ domain: e.myDomain }),
-    n = [],
-    s = "",
-    o = 0;
-    o < a.length;
-    o++
-  ) {
-    var i = a[o],
-      c = { name: i.name, value: i.value };
-    (n[n.length] = c),
-      (s = s + c.name + "=" + c.value),
-      o < a.length - 1 && (s += ";");
-  }
-  r && r({ cookies: n, cookiesStr: s });
-}
-
-chrome.cookies.onChanged.addListener(function (e, t, r) {
-  var a = { cmd: "cookie_change", type: 9001 };
-  (a.data = e), send_message_to_content.SendMessageToContentScript(a);
-});
-
-const cookie = { Lister: Lister$5 };
-
-async function Lister$4(e, t, r) {
-  e.dataType || (e.dataType = "html"),
-    e.method || (e.method = "POST"),
-    e.header || (e.header = {}),
-    e.data || (e.data = {});
-  let a = convertBase64UrlToFile(
-    e.base64Img || (await uploadImageGetBase64(e.fileUrl, e.loadType)),
-    e.fileName
-  );
-  var n = await http_rule.UpdateRules(e),
-    s = new FormData;
-  for (var o in (s.append(e.formFileName, a), e.data)) s.append(o, e.data[o]);
-  fetch(e.url, { method: e.method, headers: n, body: s })
-    .then(async (e) => {
-      if (e.ok) return e.text();
-      throw await e.text();
-    })
-    .then((e) => {
-      let t = null;
-      try {
-        t = JSON.parse(e);
-      } catch (a) { }
-      r({ result: e, resultContent: t, success: !0 });
-    })
-    .catch((e) => {
-      r({ result: e, success: !1 });
-    });
-}
-
-function uploadImageGetBase64(e, t) {
-  return (
-    t || (t = "image/jpeg"),
-    new Promise((r) => {
-      fetch(e)
-        .then((e) => e.blob())
-        .then((e) => {
-          var a = new FileReader();
-          e.type && (t = e.type),
-            (a.onload = (function () {
-              return function (e) {
-                var a = { dataURL: e.currentTarget.result, type: t };
-                r(a);
-              };
-            })()),
-            a.readAsDataURL(e);
-        })
-        .catch(function (e) { });
-    })
-  );
-}
-
-function convertBase64UrlToFile(e, t) {
-  t || (t = "test1.jpg");
-  var r = e.dataURL,
-    a = e.type;
-  let n = self.atob(r.split(",")[1]);
-  for (var s = new ArrayBuffer(n.length), o = new Uint8Array(s), i = 0; i < n.length; i++)
-    o[i] = n.charCodeAt(i);
-  return new File([s], t, { type: a });
-}
-
-const update_file = { Lister: Lister$4 };
-
-function GetConfigUrl() {
+function GetRemoteConfigUrl() {
   return `${`https://plug${(new Date).getTime() % 100}.zzbtool.com`}/zzbPlug/v3config`;
 }
 
-async function checkHasSubUrl(e) {
-  var t = !1;
+function GetLocalAppConfigUrl() {
   try {
-    (await chrome.storage.local.get(["enable_sub_urls"])).enable_sub_urls.urls.map((r) => {
-      t || (t = e.includes(r));
-    });
-  } catch (r) { }
-  return t;
-}
-
-async function GetConfig(e, t, r) {
-  var a = t.url;
-  if (((e.isSub = t.frameId && t.frameId > 0), e.isSub)) {
-    if (!a) return;
-    if (!(await checkHasSubUrl(a))) return;
+    return chrome.runtime.getURL('app/config.json');
+  } catch (error) {
+    return ''
   }
-  const n = chrome.runtime.getManifest();
-  var s = n.author_name;
-  !s && n.authorName && (s = n.authorName), s || (s = "");
-  var o = n.channel;
-  o || (o = "");
-  var i = {
-    z_channel: o,
-    z_crxid: chrome.runtime.id,
-    z_v: n.version,
-    z_authorname: s,
-  };
-  e.isOnlineConfig && (i.z_isOnlineConfig = 1),
-    e.isDevConfig && (i.z_isdevconfig = 1),
-    e.isSub && (i.z_issub = e.isSub),
-    (i.z_current = a);
-  var c = await fetch(GetConfigUrl(), { headers: i }),
-    l = await c.json();
-  return (l = l.result), r && r(l), l;
+
 }
 
-async function Lister$3(e, t, r) {
-  var a = await GetConfig(e, t, r);
-  if (a && a.jsUrls) {
-    await requestLocalExecuteScript(a, e, t),
-      await requestLocalExecuteCss(a, e, t);
-    for (var n = 0; n < a.cssUrls.length; n++) {
-      var s = a.cssUrls[n];
-      await executeCss(s, a, e, t);
-    }
-    for (n = 0; n < a.jsUrls.length; n++) {
-      var o = a.jsUrls[n];
-      await executeScript(o, a, e, t);
-    }
-  }
-}
 
-async function requestLocalExecuteScript(e, t, r, a) {
-  var n = [
-    "other/jquery-1.8.3.js",
-    "other/base64.js",
-    "other/md5.js",
-    "other/layer.js",
-    "other/layui.all.js",
-    "other/clipboard.min.js",
-    "other/crypto-js.min.js",
-    "other/FileSaver.js",
-    "other/html2canvas.min.js",
-    "other/jquery.qrcode.min.js",
-    "other/jquery.hotkeys.min.js",
-    "other/jsencrypt.min.js",
-    "other/jszip-utils.js",
-    "other/jszip.min.js",
-  ];
-  e.requestLocalExecuteJs && (n = e.requestLocalExecuteJs);
-  var s = "MAIN";
-  e.world && (s = e.world);
-  var o = { world: s, files: n };
-  return (o = fillIframeIdToData(t, r, o)), chrome.scripting.executeScript(o);
-}
 
-async function requestLocalExecuteCss(e, t, r, a) {
-  var n = ["css/other/layui.css", "css/font-awesome.min.css", "css/index.css"];
-  e.requestLocalExecuteCss && (n = e.requestLocalExecuteCss);
-  var s = { files: n };
-  return (s = fillIframeIdToData(t, r, s)), chrome.scripting.insertCSS(s);
-}
+/**
+ * 检查给定 URL 是否在允许的子 URL 列表中
+ * @param {string} url - 需要检查的 URL
+ * @returns {Promise<boolean>} 如果 URL 匹配列表中的任意一项，则返回 true，否则 false
+ */
+async function checkHasSubUrl(url) {
+  let hasMatch = false;
 
-var myExeCodeMap = {};
+  try {
+    // 从 chrome.storage.local 获取 enable_sub_urls 配置
+    const data = await chrome.storage.local.get(["enable_sub_urls"]);
 
-async function executeScript(e, t, r, a, n) {
-  var s = `js_${e}`,
-    o = myExeCodeMap[s];
-  if ((o || (o = await fetchData(e)) && (myExeCodeMap[s] = o), o))
-    return executeScript2(o, t, r, a);
-}
-
-async function executeScript2(e, t, r, a, n) {
-  var s = "MAIN";
-  t.world && (s = t.world);
-  var o = { function: injectJsCode, args: [e], world: s };
-
-  return (o = fillIframeIdToData(r, a, o)), chrome.scripting.executeScript(o);
-}
-
-function injectJsCode(value) {
-  value && eval(value);
-}
-
-async function fetchData(e) {
-  return new Promise((t, r) => {
-    fetch(e, {})
-      .then((e) => {
-        if (e.ok) return e.text();
-        throw new Error(`请求失败，状态码: ${e.status}`);
-      })
-      .then((e) => {
-        t(e);
-      })
-      .catch((e) => {
-        r(e);
-      });
-  });
-}
-
-async function executeCss(e, t, r, a, n) {
-  var s = `css_${e}`,
-    o = myExeCodeMap[s];
-  if ((o || (o = await fetchData(e)) && (myExeCodeMap[s] = o), o))
-    return await executeCss2(o, t, r, a);
-}
-
-function fillIframeIdToData(e, t, r) {
-  var a = e.myIframeId;
-  !a && t.frameId && (a = t.frameId);
-  var n = null;
-  a && (n = [a]);
-  var s = e.tabId;
-  s || (s = t.tab.id);
-  (r.target = { tabId: s }),
-    n && (r.target.frameIds = n),
-    e.execteTarget && (r.target = e.execteTarget);
-  return r;
-}
-
-async function executeCss2(e, t, r, a, n) {
-  var s = `var style = document.createElement('style');
-    style.innerHTML = \`${e}\`;
-    document.head.appendChild(style);`,
-    o = "MAIN";
-  t.world && (o = t.world);
-  var i = { function: injectJsCode, args: [s], world: o };
-  return (i = fillIframeIdToData(r, a, i)), chrome.scripting.executeScript(i);
-}
-
-const hot_code = { Lister: Lister$3, GetConfig: GetConfig };
-
-async function Lister$2(e, t, r) {
-  var a = { url: e.url || e.srcUrl, saveAs: e.saveAs, filename: e.filename };
-  e.params && (a = e.params);
-  var n = await chrome.downloads.download(a);
-  r && r(n);
-}
-
-const download = { Lister: Lister$2 };
-
-async function Lister$1(e, t, r) {
-  if ("GetCacheData" != e.cmd) {
-    if ("SetCacheData" == e.cmd)
-      return ((a = {})[e.key] = e.value), void chrome.storage.local.set(a, () => { r(!0); });
-    if ("RemoveCacheData" == e.cmd) {
-      var a = [e.key];
-      return chrome.storage.local.remove(a), void r();
-    }
-    if ("GetCacheSessionData" != e.cmd) {
-      if ("SetCacheSessionData" == e.cmd)
-        return ((a = {})[e.key] = e.value), void chrome.storage.session.set(a, () => { r(!0); });
-      if ("RemoveCacheSessionData" == e.cmd) {
-        a = [e.key];
-        return chrome.storage.session.remove(a), void r();
+    // 遍历允许的 URL 列表，检查是否包含目标 URL
+    const urls = data.enable_sub_urls?.urls || [];
+    for (const allowedUrl of urls) {
+      if (url.includes(allowedUrl)) {
+        hasMatch = true;
+        break; // 一旦匹配就退出循环
       }
-    } else
-      chrome.storage.session.get([e.key], (t) => {
-        r(t[e.key], t);
-      });
-  } else
-    chrome.storage.local.get([e.key], (t) => {
-      r(t[e.key], t);
-    });
+    }
+  } catch (err) {
+    // 出错时默认返回 false，不影响主流程
+    console.warn("checkHasSubUrl error:", err);
+  }
+
+  return hasMatch;
 }
 
-const cache = { Lister: Lister$1 };
+/**
+ * 获取配置
+ * @param {Object} context - 上下文对象，原来的 e
+ * @param {Object} sender - 消息发送者信息，原来的 t
+ * @param {Function} callback - 可选回调函数，原来的 r
+ * @returns {Promise<Object|undefined>} 返回配置对象，如果不满足条件则返回 undefined
+ */
+async function GetConfig(context, sender, callback) {
+  const url = sender.url;
+  // 1️⃣ 判断是否子 iframe
+  context.isSub = sender.frameId && sender.frameId > 0;
+  if (context.isSub) {
+    if (!url) return; // 没有 url 就不请求
+    if (!(await checkHasSubUrl(url))) return; // url 不在允许列表
+  }
+  // 2️⃣ 获取 manifest 信息
+  const manifest = chrome.runtime.getManifest();
+  // 处理作者名
+  let authorName = manifest.author_name || manifest.authorName || "";
+  // 处理渠道信息
+  const channel = manifest.channel || "";
 
-async function Lister(e, t, r) {
-  if ("uninstallCrx" != e.cmd) {
-    if ("setBadgeBackgroundColor" == e.cmd)
-      return chrome.browserAction.setBadgeBackgroundColor({ color: e.color }), void r();
-    if ("setBadgeText" == e.cmd)
-      return chrome.browserAction.setBadgeText({ text: e.text }), void r();
-    if ("setEnabledCrx" != e.cmd) {
-      if ("removeWindow" == e.cmd) return chrome.windows.remove(e.windowId, r), void r();
-      if ("getAllCrx" != e.cmd)
-        if ("uninstallCrx" != e.cmd)
-          if ("setEnabledCrx" != e.cmd) {
-            if ("removeTab" == e.cmd) return chrome.tabs.remove(e.tabId, r), void r();
-            if ("getCurrentTab" != e.cmd)
-              if ("createTab" != e.cmd)
-                if ("getAllCrx" != e.cmd) {
-                  r({ name: "ok" });
-                } else chrome.management.getAll((e) => { r(e); });
-              else
-                chrome.tabs.create({ url: e.url }, function (e) {
-                  r("");
-                });
-            else {
-              var a = await chrome.tabs.query({ active: !0, currentWindow: !0 }),
-                n = a.length ? a[0] : null,
-                s = n ? n.id : null;
-              r(n, s);
-            }
-          } else chrome.management.setEnabled(e.id, e.isEnabled, (e) => { r(e); });
-        else chrome.management.uninstall(e.id, { showConfirmDialog: !1 }, (e) => { r(e); });
-      else chrome.management.getAll((e) => { r(e); });
-    } else chrome.management.setEnabled(e.id, e.isEnabled, (e) => { r(e); });
-  } else {
-    var o = await chrome.management.uninstall(e.id, { showConfirmDialog: !1 });
-    r(o);
+  // 3️⃣ 构建请求头信息
+  const headers = {
+    z_channel: channel,
+    z_crxid: chrome.runtime.id,
+    z_v: manifest.version,
+    z_authorname: authorName,
+  };
+
+  if (context.isOnlineConfig) headers.z_isOnlineConfig = 1;
+  if (context.isDevConfig) headers.z_isdevconfig = 1;
+  if (context.isSub) headers.z_issub = true;
+  // 当前页面 URL
+  headers.z_current = url;
+  const GetConfigUrl = manifest.app_module == 'Offline' ? GetLocalAppConfigUrl : GetRemoteConfigUrl;
+  // 4️⃣ 请求配置
+  const response = await fetch(GetConfigUrl(), { headers });
+  const data = await response.json();
+
+  // 5️⃣ 返回结果，并调用回调
+  const result = data.result || [];
+  const reResult = {};
+  Object.keys(result).map(key => {
+    const item = result[key] || [];
+    reResult[key] = item.map(url =>  manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : url);
+  })
+  if (callback) callback(reResult);
+  return reResult;
+}
+
+
+
+/**
+ * 主入口函数，用于动态注入 JS/CSS 到页面或 iframe
+ * @param {Object} message - 来自 chrome.runtime.onMessage 的消息对象
+ * @param {Object} sender - 消息发送者信息
+ * @param {Function} sendResponse - 回调函数，用于异步返回
+ */
+async function hotCodeLister(message, sender, sendResponse) {
+  // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
+  const config = await GetConfig(message, sender, sendResponse);
+
+  if (!config || (!config.jsUrls && !config.cssUrls)) return;
+  // 2️⃣ 注入本地通用 JS 文件（jquery/layer/...）
+  await requestLocalExecuteScript(config, message, sender);
+
+  // 3️⃣ 注入本地通用 CSS 文件
+  await requestLocalExecuteCss(config, message, sender);
+
+  // 4️⃣ 注入配置中指定的 CSS 文件
+  for (let cssUrl of config.cssUrls || []) {
+    await executeCss(cssUrl, config, message, sender);
+  }
+
+  // 5️⃣ 注入配置中指定的 JS 文件
+  for (let jsUrl of config.jsUrls || []) {
+
+    await executeScript(jsUrl, config, message, sender);
   }
 }
 
-const other = { Lister: Lister };
+/**
+ * 注入本地 JS 文件列表
+ */
+async function requestLocalExecuteScript(config, message, sender) {
+  let files = localConfig.jsUrls;
+  if(!files.length) return;
 
-function Bg_OnMessageLister(e, t, r) {
-  
-  if ("zzb_apply" == e.cmd) return zzb_apply.Lister(e, t, r);
-  if ("inject" === e.cmd) return inject.Lister(e, t, r);
-  if ("start" === e.cmd) return hot_code.Lister(e, t, r);
-  if ("getConfig" === e.cmd) return hot_code.GetConfig(e, t, r);
-  if ("download" === e.cmd) return download.Lister(e, t, r);
-  if ("download" === e.cmd) return download.Lister(e, t, r);
-  if (
-    "GetCacheData" === e.cmd ||
-    "SetCacheData" === e.cmd ||
-    "RemoveCacheData" === e.cmd ||
-    "GetCacheSessionData" === e.cmd ||
-    "SetCacheSessionData" === e.cmd ||
-    "RemoveCacheSessionData" === e.cmd
-  )
-    return cache.Lister(e, t, r);
-  if ("fetch" === e.cmd || "ajax" === e.cmd) return fetch$1.ListerMax(e, t, r);
-  if ("getCookies" === e.cmd || "removeCookie" == e.cmd || "setCookies" == e.cmd)
-    return cookie.Lister(e, t, r);
-  if ("uploadFile" === e.cmd) return update_file.Lister(e, t, r);
-  if ("setBgData" === e.cmd || "updateRules" === e.cmd) return http_rule.Lister(e, t, r);
-  if ("getManifest" == e.cmd) {
-    var a = chrome.runtime.getManifest();
-    return (a.crxId = chrome.runtime.id), void r(a);
-  }
-  if ("queryTab" !== e.cmd) return other.Lister(e, t, r);
+  if (config.requestLocalExecuteJs) files = config.requestLocalExecuteJs;
 
+  const world = config.world || "MAIN";
+  let execData = { world, files };
+  execData = fillIframeIdToData(message, sender, execData);
 
-  chrome.tabs
-    .query(e.params)
-    .then((e) => {
-      r({ result: e, sender: t });
-    })
-    .catch((e) => {
-      r({ result: e, sender: t });
-    });
+  return chrome.scripting.executeScript(execData);
 }
 
-chrome.runtime.onMessage.addListener(((e, t, r) => (Bg_OnMessageLister(e, t, r), !0)));
+/**
+ * 注入本地 CSS 文件列表
+ */
+async function requestLocalExecuteCss(config, message, sender) {
+  let files = [];
+  if(!files.length) return;
+  if (config.requestLocalExecuteCss) files = config.requestLocalExecuteCss;
 
-chrome.runtime.onMessageExternal.addListener(function (e, t, r) {
-  Bg_OnMessageLister(e, t, r);
+  let execData = { files };
+  execData = fillIframeIdToData(message, sender, execData);
+
+  return chrome.scripting.insertCSS(execData);
+}
+
+/**
+ * 注入远程或配置的 JS 文件
+ */
+async function executeScript(url, config, message, sender) {
+  const key = `js_${url}`;
+  let code = myExeCodeMap[key];
+  console.log(url, 'key');
+  if (!code) {
+    code = await fetchData(url);
+    if (code) myExeCodeMap[key] = code;
+  }
+
+  if (code) return executeScript2(code, config, message, sender);
+}
+
+/**
+ * 使用 chrome.scripting.executeScript 执行 JS
+ */
+async function executeScript2(code, config, message, sender) {
+  const world = config.world || "MAIN";
+  let execData = { function: injectJsCode, args: [code], world };
+  execData = fillIframeIdToData(message, sender, execData);
+
+  return chrome.scripting.executeScript(execData);
+}
+
+/**
+ * 注入远程或配置的 CSS 文件
+ */
+async function executeCss(url, config, message, sender) {
+  const key = `css_${url}`;
+  let code = myExeCodeMap[key];
+
+  if (!code) {
+    code = await fetchData(url);
+    if (code) myExeCodeMap[key] = code;
+  }
+
+  if (code) return executeCss2(code, config, message, sender);
+}
+
+/**
+ * 将 CSS 内容注入到页面
+ */
+async function executeCss2(cssContent, config, message, sender) {
+  const script = `
+    const style = document.createElement('style');
+    style.innerHTML = \`${cssContent}\`;
+    document.head.appendChild(style);
+  `;
+
+  const world = config.world || "MAIN";
+  let execData = { function: injectJsCode, args: [script], world };
+  execData = fillIframeIdToData(message, sender, execData);
+
+  return chrome.scripting.executeScript(execData);
+}
+
+/**
+ * 注入函数，用于 chrome.scripting.executeScript 执行
+ */
+function injectJsCode(code) {
+  if (!code) return;
+  return eval(code); // 你也可以换成 new Function(code)() 更安全
+}
+
+
+const HotCodeCmd = {
+  Lister: hotCodeLister
+}
+
+
+
+
+
+chrome.runtime.onMessage.addListener(((message, sender, sendResponse) => (onMessageLister(message, sender, sendResponse), !0)));
+
+chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResponse) {
+  onMessageLister(message, sender, sendResponse);
 });
 
 
-// setTimeout(async () => {
-//   const tabId = await getCurrentTabId();
-//   chrome.scripting.executeScript({
-//     args: ['console.log("你好 罗盘", window.__WEB_REQUEST_API__); '],
-//     function: injectJsCode,
-//     target: {tabId: tabId},
-//     world: "MAIN"
-//   })
-// }, 3000)
+function onMessageLister(message, sender, sendResponse) {
+  if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
+  if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
+}
+
+
+
 
 
 

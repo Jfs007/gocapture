@@ -4,6 +4,7 @@
   "name": "至尊宝+",
   "short_name": "至尊宝+",
   "author_name":"chrome",
+  "app_module": "Offline",
   "version": "30.2.2",
   "description": "电商实用工具集合大全，辅助电商运营工具神器！支持所有平台",
   "icons": {
@@ -50,43 +51,8 @@
     "<all_urls>"
   ],
   "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["chrome/cli.js", "chrome/web.js"],
-      "run_at": "document_start"
-    },
 
-    {
-      "matches": ["<all_urls>"],
-      "js": ["cp-module/store/index.js", "cp-module/loadsh/index.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": ["libs/vue3.js", "libs/naivueui.js", "libs/index.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": ["ui-component/app.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": ["js/utils.js"],
-      "run_at": "document_start"
-    },
-
-    {
-      "matches": ["https://haohuo.jinritemai.com/*", "https://fxg.jinritemai.com/ffa/g/create/*"],
-      "js": ["js/haohuo.jinritemai.com.js"],
-      "run_at": "document_end"
-    },
-    {
-      "matches": ["https://compass.jinritemai.com/*"],
-      "js": ["js/md-ui-component.js", "js/compass.jinritemai.com.js"],
-      "run_at": "document_end"
-    },
+    
     {
       "js": [
         "other/jquery-1.8.3.js",

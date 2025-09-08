@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "main": "compare.js",
   "scripts": {
-    "dev": "vite build --watch --mode development",
-    "build": "NODE_ENV=production vite build --mode production",
-    "build:size": "NODE_ENV=production vite build --mode production && echo '构建完成！Chrome扩展包位置: ../chrome-extension/' && ls -lh ../chrome-extension/js/",
+    "dev": "node build/index.js --watch",
+    "build": "node build.js",
+    "build:watch": "BUILD_TARGET=compass.jinritemai.com vite build --watch --mode development",
+    "build:prod": "node build.js",
+    "build:single": "BUILD_TARGET=compass.jinritemai.com NODE_ENV=production vite build --mode production",
+    "hot:dev": "node build-hot.js --watch",
+    "hot:build": "node build-hot.js",
+    "hot:prod": "NODE_ENV=production node build-hot.js",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -10,7 +10,12 @@
       "Bash(npm init:*)",
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
-      "Bash(timeout 5 npm run dev)"
+      "Bash(timeout 5 npm run dev)",
+      "Bash(npx vite:*)",
+      "Bash(chmod:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run hot:build:*)",
+      "Bash(npm run hot:dev:*)"
     ],
     "deny": [],
     "ask": []

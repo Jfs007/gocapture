@@ -1,0 +1,11 @@
+{
+    "result": {
+        "cssUrls": [  
+        ],
+        "jsUrls": [
+            "common/index.js",
+            "compass.jinritemai.com/index.js"
+        ]
+    },
+    "success": true
+}
