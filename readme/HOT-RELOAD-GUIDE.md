@@ -9,7 +9,7 @@
 ## 🏗️ 系统架构
 
 ```
-chrome-extension/
+src/
 ├── app/                    # 热更新包目录
 │   ├── config.js          # 热更新配置
 │   ├── shared/            # 共享组件
@@ -128,7 +128,7 @@ const HotReloadConfig = {
    ```
 
 3. **安装Chrome扩展**
-   - 加载`chrome-extension`目录
+   - 加载`src`目录
    - service-worker会自动启动热更新监听
 
 4. **开发调试**
@@ -204,7 +204,7 @@ window.addEventListener('hot-reload-applied', (event) => {
 ### 开发模式输出
 
 ```
-chrome-extension/app/
+src/app/
 ├── shared/
 │   ├── md-ui-component.js      # 共享组件库（含source map）
 │   └── md-ui-component.js.map
@@ -216,7 +216,7 @@ chrome-extension/app/
 ### 生产模式输出
 
 ```
-chrome-extension/js/
+src/js/
 ├── md-ui-component.js          # 压缩版共享组件库
 └── compass.jinritemai.com.js   # 压缩版站点文件
 ```
@@ -258,7 +258,7 @@ chrome-extension/js/
 
 4. **更新热更新配置**
    ```javascript
-   // chrome-extension/app/config.js
+   // src/app/config.js
    local: {
      sites: {
        'compass.jinritemai.com': './sites/compass.jinritemai.com.js',

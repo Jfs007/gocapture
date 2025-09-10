@@ -102,7 +102,7 @@
             }, 300); // 等待动画结束后移除
         }, duration);
     }
-    _exports.module['mdLoadsh'] = {
+    _exports.module['loadsh'] = {
         showToast,
         getProperty,
         simulateInput,

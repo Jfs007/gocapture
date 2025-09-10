@@ -11,7 +11,7 @@
 ### 方案一：预加载共享库 (推荐)
 
 ```
-chrome-extension/
+src/
 ├── js/
 │   ├── md-ui-component.js      # 共享组件库 (~450KB) 
 │   ├── compass.jinritemai.com.js   # Compass站点逻辑 (~20KB)

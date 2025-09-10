@@ -1,6 +1,6 @@
 
 const localConfig = {
-  jsUrls: ['chrome/cli.js', 'chrome/web.js', "cp-module/store/index.js", "cp-module/loadsh/index.js"]
+  jsUrls: ['chrome/cli.js', 'chrome/web.js']
 }
 
 // 全局缓存对象

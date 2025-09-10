@@ -13,7 +13,7 @@ shop-chrome-plugins/
 │   ├── package.json              # 开发依赖
 │   ├── vite.config.js            # 构建配置
 │   └── node_modules/             # 开发依赖包
-├── chrome-extension/             # 📦 Chrome扩展包 (可直接使用)
+├── src/             # 📦 Chrome扩展包 (可直接使用)
 │   ├── js/                       # 脚本文件
 │   │   └── compass.jinritemai.com.js  # 构建输出
 │   ├── manifest.json             # 扩展清单
@@ -31,7 +31,7 @@ cd dev
 npm run dev
 ```
 - ✅ 自动监听文件变化
-- ✅ 实时编译到 `../chrome-extension/js/`
+- ✅ 实时编译到 `../src/js/`
 - ✅ 可直接在Chrome中测试扩展
 - ✅ 无需手动复制文件
 
@@ -47,13 +47,13 @@ npm run build:size
 ## 🔥 主要优势
 
 ### 1. 完全分离的开发环境
-- **开发代码** (`dev/`) 与 **扩展包** (`chrome-extension/`) 完全独立
+- **开发代码** (`dev/`) 与 **扩展包** (`src/`) 完全独立
 - 扩展包可以直接使用，无需删除开发文件
 - 项目结构清晰，维护方便
 
 ### 2. 实时开发体验
 - 保存即构建，无需手动复制
-- 在Chrome中加载 `chrome-extension/` 目录
+- 在Chrome中加载 `src/` 目录
 - 代码变更后刷新页面即可看到效果
 
 ### 3. 最小化文件体积
@@ -76,7 +76,7 @@ npm run build:size
 cd dev && npm run dev
 
 # 2. 在Chrome中加载扩展
-# 扩展管理 → 加载已解压的扩展程序 → 选择 chrome-extension/ 目录
+# 扩展管理 → 加载已解压的扩展程序 → 选择 src/ 目录
 
 # 3. 修改代码，自动构建到扩展包
 
@@ -89,7 +89,7 @@ cd dev && npm run dev
 cd dev && npm run build
 
 # 2. 打包扩展
-zip -r extension.zip chrome-extension/
+zip -r extension.zip src/
 
 # 3. 上传到Chrome商店
 ```
@@ -108,7 +108,7 @@ CompassApp.vue (主应用)
 
 ### 数据流
 ```
-web-request.js → eventBridge → useVideoData → Vue组件
+web-hook.js → eventBridge → useVideoData → Vue组件
 ```
 
 ### 第三方库集成
@@ -152,7 +152,7 @@ if (checkLibs(['JSZip', 'saveAs'])) {
 ## 🔧 配置说明
 
 ### Vite配置特点
-- 直接输出到 `chrome-extension/js/`
+- 直接输出到 `src/js/`
 - IIFE格式兼容Chrome扩展
 - 外部化mdChrome依赖
 - 针对Chrome89优化
@@ -167,7 +167,7 @@ if (checkLibs(['JSZip', 'saveAs'])) {
 
 ### 常见问题
 1. **构建失败**: 检查是否在 `dev/` 目录下运行命令
-2. **扩展不工作**: 确保在Chrome中加载 `chrome-extension/` 目录
+2. **扩展不工作**: 确保在Chrome中加载 `src/` 目录
 3. **库未加载**: 检查 `other/` 目录中的库文件
 
 ### 调试方法

@@ -58,12 +58,11 @@
             const res = await chrome.storage.local.get([moduleName]);
             const state = res[moduleName] || { ...mod.state };
             mutation(state, payload);
-            console.log(state, 'state', moduleName);
             await chrome.storage.local.set({ [moduleName]: state });
             return state;
         }
     };
-    _exports.module.chromeRedux = store;
+    _exports.module['store'] = store;
 
 }();
 

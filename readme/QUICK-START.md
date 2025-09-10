@@ -5,7 +5,7 @@
 ### 方法1：直接使用已构建的扩展包
 ```bash
 # Chrome扩展包已经准备就绪！
-# 直接在Chrome中加载 chrome-extension/ 目录即可
+# 直接在Chrome中加载 src/ 目录即可
 
 # 1. 打开 Chrome 扩展管理页面
 #    chrome://extensions/
@@ -14,7 +14,7 @@
 
 # 3. 点击"加载已解压的扩展程序"
 
-# 4. 选择项目中的 chrome-extension/ 目录
+# 4. 选择项目中的 src/ 目录
 
 # ✅ 完成！扩展已安装并可使用
 ```
@@ -27,7 +27,7 @@ cd dev
 # 2. 启动实时构建
 npm run dev
 
-# 3. 在Chrome中加载 ../chrome-extension/ 目录
+# 3. 在Chrome中加载 ../src/ 目录
 
 # ✅ 现在修改代码会自动重新构建到扩展包
 # ✅ 刷新页面即可看到最新效果
@@ -36,7 +36,7 @@ npm run dev
 ## 📁 关键目录说明
 
 ```
-📦 chrome-extension/          ← 🎯 这是完整的Chrome扩展包
+📦 src/          ← 🎯 这是完整的Chrome扩展包
 ├── js/
 │   └── compass.jinritemai.com.js  ← Vue构建输出 (481KB)
 ├── manifest.json
@@ -48,14 +48,14 @@ npm run dev
 ├── package.json
 └── vite.config.js
 
-# 🎉 直接打包 chrome-extension/ 目录就是完整的扩展包！
+# 🎉 直接打包 src/ 目录就是完整的扩展包！
 ```
 
 ## ⚡ 三种使用场景
 
 ### 1. 📦 只要扩展包 (推荐)
 ```bash
-# 直接使用 chrome-extension/ 目录
+# 直接使用 src/ 目录
 # 无需安装任何开发依赖
 # 文件大小最小
 ```
@@ -66,14 +66,14 @@ cd dev
 npm install          # 安装开发依赖
 npm run dev          # 启动开发模式
 # 修改 src/ 中的代码
-# 自动构建到 chrome-extension/
+# 自动构建到 src/
 ```
 
 ### 3. 🎁 打包发布
 ```bash
 cd dev
 npm run build        # 生产构建
-zip -r extension.zip chrome-extension/  # 打包
+zip -r extension.zip src/  # 打包
 # 上传到Chrome商店
 ```
 

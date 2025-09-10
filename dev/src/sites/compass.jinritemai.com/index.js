@@ -1,12 +1,29 @@
 // Compass站点 - 使用共享组件库
-const initCompassApp = () => {
+const initCompassApp = async () => {
   console.log('🚀 Compass站点初始化...')
   
   // 获取mdChrome依赖  
   const mdChrome = _require('mdChrome')
-  mdChrome.web.injectScript('hack_scripts/web-request.js')
-  mdChrome.web.injectScript('other/jszip.min.js')
-  mdChrome.web.injectScript('other/FileSaver.js')
+  
+  // 使用新的异步injectScript，并行加载依赖文件
+  try {
+    // await Promise.all([
+      
+    //   mdChrome.web.injectScript('other/jszip.min.js'), 
+    //   mdChrome.web.injectScript('other/FileSaver.js')
+    // ])
+    console.log('✅ 依赖文件注入成功')
+    // 加载cp_modules模块
+    await Promise.all([
+      mdChrome.web.requireModule('loadsh'),
+      mdChrome.web.requireModule('store')
+    ])
+    console.log('✅ cp_modules加载成功')
+    
+  } catch (error) {
+    console.error('❌ 依赖加载失败:', error)
+    return
+  }
 
   // 初始化全局变量
   window.__PRODUCT_INFO__ = window.__PRODUCT_INFO__ || {}
@@ -25,6 +42,22 @@ const initCompassApp = () => {
   // 等待DOM加载
   setTimeout(() => {
     console.log('🔧 开始创建Vue应用...')
+    
+    // 使用cp_modules中的工具函数
+    const loadsh = _require('loadsh') 
+    const store = _require('store')
+    
+    console.log('📦 cp_modules已可用:')
+    console.log('  - loadsh工具函数:', Object.keys(loadsh))
+    console.log('  - store状态管理:', typeof store)
+    
+    // 示例：使用loadsh工具函数
+    loadsh.showToast({ message: '🎉 Compass应用启动成功!' })
+    
+    // 示例：使用getProperty函数
+    const testData = { a: { b: { c: 'hello world' } } }
+    const value = loadsh.getProperty(testData, 'a.b.c')
+    console.log('📝 loadsh.getProperty示例:', value)
     
     // 创建应用容器
     const appContainer = document.createElement('div')
@@ -81,9 +114,9 @@ const initCompassApp = () => {
   }, 500)
 }
 
-// 页面加载完成后初始化
+// 页面加载完成后初始化 (支持异步)
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initCompassApp)
+  document.addEventListener('DOMContentLoaded', () => initCompassApp())
 } else {
   initCompassApp()
 }

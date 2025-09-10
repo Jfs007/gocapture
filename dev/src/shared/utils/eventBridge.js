@@ -1,4 +1,4 @@
-// 事件桥接器，用于处理 web-request.js 的消息通信
+// 事件桥接器，用于处理 web-hook.js 的消息通信
 
 import { reactive } from 'vue'
 
@@ -29,7 +29,7 @@ export class EventBridge {
       },
     };
 
-    // 监听web-request响应 - 完全复用现有逻辑
+    // 监听web-hook响应 - 完全复用现有逻辑
     window.addEventListener('message', (event) => {
       const { type, data } = event.data;
       if (type === 'WEB_REQUEST_RESPONSE') {

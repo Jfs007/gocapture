@@ -1,0 +1,21 @@
+{
+  "name": "chrome-extension-scaffold",
+  "version": "1.0.0",
+  "description": "Chrome Extension Development Scaffold",
+  "scripts": {
+    "build-modules": "node build-modules.js",
+    "build-modules:watch": "node build-modules.js --watch",
+    "dev": "npm run build-modules && cd dev && npm run dev",
+    "build": "npm run build-modules && cd dev && npm run build"
+  },
+  "keywords": [
+    "chrome-extension",
+    "scaffold",
+    "development"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "chokidar": "^3.6.0"
+  }
+}

@@ -1,11 +1,19 @@
 (function() {
   "use strict";
-  const initCompassApp = () => {
+  const initCompassApp = async () => {
     console.log("🚀 Compass站点初始化...");
     const mdChrome = _require("mdChrome");
-    mdChrome.web.injectScript("hack_scripts/web-request.js");
-    mdChrome.web.injectScript("other/jszip.min.js");
-    mdChrome.web.injectScript("other/FileSaver.js");
+    try {
+      console.log("✅ 依赖文件注入成功");
+      await Promise.all([
+        mdChrome.web.requireModule("loadsh"),
+        mdChrome.web.requireModule("store")
+      ]);
+      console.log("✅ cp_modules加载成功");
+    } catch (error) {
+      console.error("❌ 依赖加载失败:", error);
+      return;
+    }
     window.__PRODUCT_INFO__ = window.__PRODUCT_INFO__ || {};
     const MdUiComponent = window["MdUiComponent"];
     if (!MdUiComponent) {
@@ -16,6 +24,15 @@
     console.log("📦 可用组件:", Object.keys(MdUiComponent.Components));
     setTimeout(() => {
       console.log("🔧 开始创建Vue应用...");
+      const loadsh = _require("loadsh");
+      const store = _require("store");
+      console.log("📦 cp_modules已可用:");
+      console.log("  - loadsh工具函数:", Object.keys(loadsh));
+      console.log("  - store状态管理:", typeof store);
+      loadsh.showToast({ message: "🎉 Compass应用启动成功!" });
+      const testData = { a: { b: { c: "hello world" } } };
+      const value = loadsh.getProperty(testData, "a.b.c");
+      console.log("📝 loadsh.getProperty示例:", value);
       const appContainer = document.createElement("div");
       appContainer.id = "compass-vue-app";
       appContainer.style.cssText = `
@@ -59,7 +76,7 @@
     }, 500);
   };
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initCompassApp);
+    document.addEventListener("DOMContentLoaded", () => initCompassApp());
   } else {
     initCompassApp();
   }

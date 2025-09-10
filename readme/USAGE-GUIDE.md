@@ -31,7 +31,7 @@ template: `
 
 ### 📁 文件结构
 ```
-chrome-extension/
+src/
 ├── js/
 │   ├── md-ui-component.js          # 🔧 共享组件库 (493KB)
 │   └── compass.jinritemai.com.js   # 📱 Compass站点 (1.2KB)
@@ -66,7 +66,7 @@ input: {
 }
 
 npm run build
-# ✅ 生成: chrome-extension/js/md-ui-component.js (493KB)
+# ✅ 生成: src/js/md-ui-component.js (493KB)
 ```
 
 ### 步骤2: 开发新站点
@@ -77,7 +77,7 @@ input: {
 }
 
 npm run build
-# ✅ 生成: chrome-extension/js/new-site.com.js (~1-5KB)
+# ✅ 生成: src/js/new-site.com.js (~1-5KB)
 ```
 
 ### 步骤3: 配置manifest.json
