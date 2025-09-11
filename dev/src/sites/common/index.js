@@ -16,20 +16,7 @@ import {
   NSlider
 } from 'naive-ui'
 
-// 导入共享组件
-import FloatingToolbox from '../../shared/components/FloatingToolbox.vue'
-import VideoModal from '../../shared/components/VideoModal.vue'
-import VideoCard from '../../shared/components/VideoCard.vue'
-import ProductGroup from '../../shared/components/ProductGroup.vue'
-import SettingsModal from '../../shared/components/SettingsModal.vue'
-
-// 导入组合式函数
-import { useVideoData } from '../../shared/composables/useVideoData.js'
-import { useDownload } from '../../shared/composables/useDownload.js'
-
-// 导入工具函数
-import { useLibs } from '../../shared/utils/libs.js'
-import { EventBridge, eventBridge } from '../../shared/utils/eventBridge.js'
+// 导入共享组件 - 只有App是共享的
 
 // Provider包装组件
 const __NProvider = ({ slots, props }) => {
@@ -52,7 +39,6 @@ const App = ({ props, slots, options }) => {
   if (style) {
     div.style.cssText = style
   }
-  
   const app = createApp(__NProvider({
     slots,
     props
@@ -73,12 +59,6 @@ const App = ({ props, slots, options }) => {
   app.component('NSpace', NSpace)
   app.component('NSlider', NSlider)
   
-  // 全局注册业务组件
-  app.component('FloatingToolbox', FloatingToolbox)
-  app.component('VideoModal', VideoModal)
-  app.component('VideoCard', VideoCard)
-  app.component('ProductGroup', ProductGroup)
-  app.component('SettingsModal', SettingsModal)
   
   app.mount(div)
   app.__el__ = div
@@ -90,8 +70,6 @@ const MdUiComponent = {
   // Vue相关
   createApp,
   h,
-  App,
-  
   // NaiveUI组件
   NaiveUI: {
     NConfigProvider,
@@ -109,26 +87,9 @@ const MdUiComponent = {
     NSlider
   },
   
-  // 业务组件
+  // 共享组件
   Components: {
-    FloatingToolbox,
-    VideoModal,
-    VideoCard,
-    ProductGroup,
-    SettingsModal
-  },
-  
-  // 组合式函数
-  Composables: {
-    useVideoData,
-    useDownload
-  },
-  
-  // 工具函数
-  Utils: {
-    useLibs,
-    EventBridge,
-    eventBridge
+    App
   }
 }
 

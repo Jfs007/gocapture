@@ -5,6 +5,44 @@ const localConfig = {
 
 // 全局缓存对象
 const myExeCodeMap = {};
+
+// 简化的模块管理
+const moduleManager = {
+  // 模块代码缓存
+  moduleCache: new Map(),
+  
+  /**
+   * 加载模块
+   * @param {string} moduleName - 模块名
+   */
+  async loadModule(moduleName) {
+    // 检查缓存
+    if (this.moduleCache.has(moduleName)) {
+      return this.moduleCache.get(moduleName);
+    }
+    
+    try {
+      // 构建模块路径
+      const modulePath = `cp_modules/${moduleName}/index.js`;
+      const url = chrome.runtime.getURL(modulePath);
+      
+      // 获取模块代码
+      const code = await fetchData(url);
+      if (!code) {
+        throw new Error(`Failed to load module: ${moduleName}`);
+      }
+      
+      // 缓存代码
+      this.moduleCache.set(moduleName, code);
+      console.log(`✅ 模块加载成功: ${moduleName}`);
+      
+      return code;
+    } catch (error) {
+      console.error(`❌ 模块加载失败: ${moduleName}`, error);
+      throw error;
+    }
+  }
+};
 /**
  * 获取远程数据
  */
@@ -117,7 +155,7 @@ function GetRemoteConfigUrl() {
 
 function GetLocalAppConfigUrl() {
   try {
-    return chrome.runtime.getURL('app/config.json');
+    return chrome.runtime.getURL('app/config.json') + '?id=' + Date.now() ;
   } catch (error) {
     return ''
   }
@@ -272,9 +310,8 @@ async function requestLocalExecuteCss(config, message, sender) {
 async function executeScript(url, config, message, sender) {
   const key = `js_${url}`;
   let code = myExeCodeMap[key];
-  console.log(url, 'key');
   if (!code) {
-    code = await fetchData(url);
+    code = await fetchData(url+ '?id=' + Date.now());
     if (code) myExeCodeMap[key] = code;
   }
 
@@ -288,7 +325,6 @@ async function executeScript2(code, config, message, sender) {
   const world = config.world || "MAIN";
   let execData = { function: injectJsCode, args: [code], world };
   execData = fillIframeIdToData(message, sender, execData);
-
   return chrome.scripting.executeScript(execData);
 }
 
@@ -351,7 +387,37 @@ chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResp
 function onMessageLister(message, sender, sendResponse) {
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
+  if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
 }
+
+// 模块命令处理器
+const moduleCmd = {
+  async Lister(message, sender, sendResponse) {
+    try {
+      const { moduleName, action = 'import' } = message;
+      
+      if (action === 'import') {
+        // 加载模块代码
+        const moduleCode = await moduleManager.loadModule(moduleName);
+        
+        // 注入模块代码到目标页面
+        const execData = fillIframeTarget(
+          message,
+          sender,
+          { function: injectJsCode, args: [moduleCode], world: "MAIN" }
+        );
+        
+        const result = await chrome.scripting.executeScript(execData);
+        sendResponse({ success: true, result });
+      } else {
+        sendResponse({ success: false, error: `Unknown action: ${action}` });
+      }
+    } catch (error) {
+      console.error('Module command error:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+  }
+};
 
 
 

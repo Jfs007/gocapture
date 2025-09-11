@@ -77,19 +77,46 @@
 
         <!-- 分页设置 -->
         <div class="setting-item">
-          <div class="setting-title">每页显示视频数</div>
-          <div class="setting-desc">单页显示的视频数量，影响页面性能</div>
+          <div class="setting-title">每页显示商品数</div>
+          <div class="setting-desc">单页显示的商品数量，影响页面性能</div>
           <n-slider
-            v-model:value="localConfig.videosPerPage"
-            :min="20"
-            :max="100"
-            :step="10"
+            v-model:value="localConfig.productsPerPage"
+            :min="5"
+            :max="30"
+            :step="5"
             :marks="{
-              20: '20个',
-              50: '50个',
-              100: '100个'
+              5: '5个',
+              10: '10个',
+              30: '30个'
             }"
           />
+        </div>
+
+        <!-- 预设配置 -->
+        <div class="setting-item">
+          <div class="setting-title">快速配置</div>
+          <n-space>
+            <n-button
+              size="small"
+              @click="() => setPreset('speed')"
+            >
+              🚀 极速模式
+            </n-button>
+
+            <n-button
+              size="small"  
+              @click="() => setPreset('balance')"
+            >
+              ⚖️ 平衡模式
+            </n-button>
+
+            <n-button
+              size="small"
+              @click="() => setPreset('stable')"
+            >
+              🐌 稳定模式
+            </n-button>
+          </n-space>
         </div>
       </n-space>
     </div>
@@ -139,8 +166,33 @@ const defaultConfig = {
   compressionLevel: 6,
   maxFilesPerZip: 15,
   maxZipSize: 100 * 1024 * 1024,
-  videosPerPage: 50,
+  productsPerPage: 10,
   enableVirtualScroll: true
+}
+
+// 预设配置
+const presets = {
+  speed: {
+    concurrentLimit: 6,
+    batchDelay: 0,
+    compressionLevel: 1,
+    maxFilesPerZip: 10,
+    productsPerPage: 30
+  },
+  balance: {
+    concurrentLimit: 3,
+    batchDelay: 100,
+    compressionLevel: 5,
+    maxFilesPerZip: 15,
+    productsPerPage: 10
+  },
+  stable: {
+    concurrentLimit: 1,
+    batchDelay: 300,
+    compressionLevel: 9,
+    maxFilesPerZip: 20,
+    productsPerPage: 5
+  }
 }
 
 // 计算属性
@@ -168,6 +220,13 @@ const handleCancel = () => {
 
 const handleReset = () => {
   localConfig.value = { ...defaultConfig }
+}
+
+const setPreset = (presetName) => {
+  const preset = presets[presetName]
+  if (preset) {
+    localConfig.value = { ...localConfig.value, ...preset }
+  }
 }
 </script>
 

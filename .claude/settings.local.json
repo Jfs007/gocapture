@@ -17,7 +17,10 @@
       "Bash(npm run hot:build:*)",
       "Bash(npm run hot:dev:*)",
       "Bash(timeout 10 npm run dev)",
-      "Bash(gtimeout 10 npm run dev)"
+      "Bash(gtimeout 10 npm run dev)",
+      "Bash(find:*)",
+      "Bash(yarn install)",
+      "Bash(yarn dev)"
     ],
     "deny": [],
     "ask": []

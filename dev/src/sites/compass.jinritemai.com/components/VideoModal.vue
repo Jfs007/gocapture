@@ -22,30 +22,21 @@
                 🔍
               </template>
             </n-input>
-
-            <n-button
-              v-if="allVideos.length > 50"
-              size="small"
-              :type="uiState.showAllProducts ? 'warning' : 'default'"
-              @click="uiState.showAllProducts = !uiState.showAllProducts"
-            >
-              {{ uiState.showAllProducts ? `🔥 显示全部 (${allVideos.length})` : '⚡ 仅显示前100个商品 (性能优化)' }}
-            </n-button>
           </div>
           
           <div class="stats-and-actions">
             <span class="stats">
-              当前显示 {{ pagedGroupedVideos.reduce((sum, g) => sum + g.videos.length, 0) }} / 
-              共 {{ allVideos.length }} 个视频 (第 {{ uiState.currentPage }}/{{ totalPages }} 页)
+              当前显示 {{ pagedGroupedVideos.length }} / 
+              共 {{ groupedVideos.length }} 个商品 (第 {{ uiState.currentPage }}/{{ totalPages }} 页)
             </span>
             
             <div class="actions">
               <n-checkbox
-                :checked="selectedCount === allVideos.filter(v => v.has_play_url).length && allVideos.length > 0"
-                :indeterminate="selectedCount > 0 && selectedCount < allVideos.filter(v => v.has_play_url).length"
-                @update:checked="toggleSelectAll"
+                :checked="allSelectedChecked"
+                :indeterminate="allSelectedIndeterminate"
+                @update:checked="$emit('toggle-all-selection')"
               >
-                全选可下载
+                全选可下载 ({{ selectedCount }}/{{ downloadableCount }}{{ downloadableCount < totalCount ? `, 总共${totalCount}` : '' }})
               </n-checkbox>
 
               <n-button
@@ -53,7 +44,7 @@
                 size="small"
                 :loading="downloadProgress.isDownloading"
                 :disabled="selectedCount === 0 || downloadProgress.isDownloading"
-                @click="handleDownload"
+                @click="$emit('download-selected')"
               >
                 {{ getDownloadButtonText() }}
               </n-button>
@@ -61,7 +52,7 @@
               <n-button
                 type="default"
                 size="small"
-                @click="showSettingsModal = true"
+                @click="$emit('show-settings')"
               >
                 设置
               </n-button>
@@ -89,13 +80,36 @@
         </div>
         
         <div v-else class="video-content">
-          <product-group
-            v-for="group in pagedGroupedVideos"
-            :key="group.goodsId"
-            :group="group"
-            :selected-videos="selectedVideos"
-            @update:selected="handleVideoSelection"
-          />
+          <div v-for="group in pagedGroupedVideos" :key="group.goodsId" class="product-group">
+            <!-- 商品标题和全选 -->
+            <div class="product-header">
+              <span class="product-title">
+                📦 {{ group.productName }} ({{ group.videos.length }}个视频)
+              </span>
+              <n-checkbox
+                :checked="isProductAllSelected(group.goodsId)"
+                :indeterminate="isProductPartialSelected(group.goodsId)"
+                @update:checked="() => $emit('toggle-product-selection', group.goodsId)"
+              >
+                全选
+              </n-checkbox>
+            </div>
+
+            <!-- 视频卡片网格 -->
+            <div v-if="group.videos.length > 0" class="video-grid">
+              <video-card
+                v-for="video in group.videos"
+                :key="video.video_id"
+                :video="video"
+                :selected="isVideoSelected(video.video_id)"
+                @update:selected="(selected) => $emit('video-selection-change', video.video_id, selected)"
+              />
+            </div>
+            
+            <div v-else class="empty-state">
+              该商品暂无视频数据
+            </div>
+          </div>
         </div>
       </div>
 
@@ -107,16 +121,10 @@
           size="medium"
           :show-size-picker="false"
           :show-quick-jumper="true"
-          :prefix="() => `共 ${allVideos.length} 个视频`"
+          :prefix="() => `共 ${groupedVideos.length} 个商品`"
         />
       </div>
     </div>
-
-    <!-- 设置弹窗 -->
-    <settings-modal
-      v-model:show="showSettingsModal"
-      v-model:config="performanceConfig"
-    />
   </n-modal>
 </template>
 
@@ -125,38 +133,81 @@ import { ref, computed } from 'vue'
 import { 
   NModal, NInput, NButton, NCheckbox, NProgress, NPagination 
 } from 'naive-ui'
-import ProductGroup from './ProductGroup.vue'
-import SettingsModal from './SettingsModal.vue'
-import { useVideoData } from '../composables/useVideoData'
-import { useDownload } from '../composables/useDownload'
+import VideoCard from './VideoCard.vue'
 
 // Props
 const props = defineProps({
   show: {
     type: Boolean,
     default: false
+  },
+  groupedVideos: {
+    type: Array,
+    default: () => []
+  },
+  pagedGroupedVideos: {
+    type: Array,
+    default: () => []
+  },
+  allVideos: {
+    type: Array,
+    default: () => []
+  },
+  selectedVideos: {
+    type: Set,
+    default: () => new Set()
+  },
+  downloadProgress: {
+    type: Object,
+    default: () => ({
+      isDownloading: false,
+      current: 0,
+      total: 0,
+      currentFileName: '',
+      percentage: 0,
+      phase: 'download',
+      currentBatch: 0,
+      totalBatches: 0
+    })
+  },
+  uiState: {
+    type: Object,
+    default: () => ({
+      currentPage: 1,
+      searchKeyword: ''
+    })
+  },
+  totalPages: {
+    type: Number,
+    default: 1
+  },
+  selectedCount: {
+    type: Number,
+    default: 0
+  },
+  isProductAllSelected: {
+    type: Function,
+    default: () => false
+  },
+  isProductPartialSelected: {
+    type: Function,
+    default: () => false
+  },
+  isVideoSelected: {
+    type: Function,
+    default: () => false
   }
 })
 
 // Emits
-const emit = defineEmits(['update:show'])
-
-// Composables
-const {
-  allVideos,
-  pagedGroupedVideos,
-  selectedVideos,
-  uiState,
-  performanceConfig,
-  totalPages,
-  selectedCount,
-  toggleSelectAll
-} = useVideoData()
-
-const { downloadProgress, handleDownloadSelected } = useDownload()
-
-// 本地状态
-const showSettingsModal = ref(false)
+const emit = defineEmits([
+  'update:show',
+  'toggle-all-selection',
+  'toggle-product-selection', 
+  'video-selection-change',
+  'download-selected',
+  'show-settings'
+])
 
 // 计算属性
 const isVisible = computed({
@@ -164,38 +215,35 @@ const isVisible = computed({
   set: (value) => emit('update:show', value)
 })
 
+const downloadableCount = computed(() => {
+  return props.allVideos.filter(v => v.has_play_url).length
+})
+
+const totalCount = computed(() => {
+  return props.allVideos.length
+})
+
+const allSelectedChecked = computed(() => {
+  const downloadable = downloadableCount.value
+  return downloadable > 0 && props.selectedCount === downloadable
+})
+
+const allSelectedIndeterminate = computed(() => {
+  const downloadable = downloadableCount.value
+  return props.selectedCount > 0 && props.selectedCount < downloadable
+})
+
 // 方法
-const handleVideoSelection = (videoId, selected) => {
-  if (selected) {
-    selectedVideos.value.add(videoId)
-  } else {
-    selectedVideos.value.delete(videoId)
-  }
-}
-
-const handleDownload = () => {
-  const selectedVideoData = allVideos.value.filter(video => 
-    selectedVideos.value.has(video.video_id) && video.has_play_url
-  )
-  
-  if (selectedVideoData.length === 0) {
-    console.warn('请先选择可下载的视频')
-    return
-  }
-
-  handleDownloadSelected(selectedVideoData, performanceConfig.value)
-}
-
 const getDownloadButtonText = () => {
-  if (!downloadProgress.value.isDownloading) {
-    return `打包下载 (${selectedCount.value})`
+  if (!props.downloadProgress.isDownloading) {
+    return `打包下载 (${props.selectedCount})`
   }
   
-  const phase = downloadProgress.value.phase
+  const phase = props.downloadProgress.phase
   if (phase === 'download') {
-    return `下载中 (${downloadProgress.value.current}/${downloadProgress.value.total})`
+    return `下载中 (${props.downloadProgress.current}/${props.downloadProgress.total})`
   } else if (phase === 'compress') {
-    return `压缩中 (${downloadProgress.value.currentBatch}/${downloadProgress.value.totalBatches})`
+    return `压缩中 (${props.downloadProgress.currentBatch}/${props.downloadProgress.totalBatches})`
   } else {
     return '处理中...'
   }
@@ -273,6 +321,31 @@ const getDownloadButtonText = () => {
   border-radius: 8px;
 }
 
+.product-group {
+  margin-bottom: 24px;
+}
+
+.product-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.product-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
 .pagination-section {
   display: flex;
   justify-content: center;
@@ -292,6 +365,11 @@ const getDownloadButtonText = () => {
   
   .actions {
     justify-content: space-between;
+  }
+  
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
   }
 }
 </style>

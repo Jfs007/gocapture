@@ -1,7 +1,56 @@
 
+!function () {
+    _exports.module['md.storage'] = {
+        local: {
+            get(keys) {
+                return new Promise((resolve) => {
+                    const id = Date.now() + Math.random() + ':md.local.get';
+                    function handler(e) {
+                        const msg = e.data;
+                        const sender = msg.sender || { };
+                        if (sender.id === id && sender.name == 'content-script') {
+                            window.removeEventListener("message", handler);
+                            resolve(msg.result);
+                        }
+                    }
+                    window.addEventListener("message", handler);
+                    window.postMessage({
+                        params: [keys],
+                        cmd: "chrome",
+                        sender: { id, name: 'web-page' },
+                        call: 'storage.local.get'
+                    }, "*");
+                });
+            },
 
+            set(items) {
+                return new Promise((resolve) => {
+                    const id = Date.now() + Math.random() + ':md.local.set';
+                    function handler(e) {
+                        const msg = e.data;
+                        const sender = msg.sender || { };
+                        if (sender.id === id && sender.name == 'content-script') {
+                            window.removeEventListener("message", handler);
+                            resolve(msg.result);
+                        }
+                    }
+                    window.addEventListener("message", handler);
+                    window.postMessage({
+                        sender: { id, name: 'web-page' },
+                        params: [items],
+                        cmd: "chrome",
+                        call: 'storage.local.set'
+                    }, "*");
+                });
+            }
+        }
+    };
+
+
+}()
 
 !function () {
+    const storage = _require('md.storage');
     const _modules = {};
     const store = {
         registerModule(name, definition) {
@@ -15,7 +64,7 @@
             const mod = _modules[moduleName];
             if (!mod) throw new Error(`Module "${moduleName}" not registered`);
 
-            const res = await chrome.storage.local.get([moduleName]);
+            const res = await storage.local.get([moduleName]);
             const saved = res[moduleName] || {};
             const defaults = mod.state;
 
@@ -23,7 +72,7 @@
             const mergedState = Object.assign(defaults, saved);
             // 修复缺失字段
             if (JSON.stringify(saved) !== JSON.stringify(mergedState)) {
-                await chrome.storage.local.set({ [moduleName]: mergedState });
+                await storage.local.set({ [moduleName]: mergedState });
             }
 
             return key ? mergedState[key] : mergedState;
@@ -32,7 +81,7 @@
             const keys = Object.keys(_modules);
             if (keys.length === 0) return;
 
-            const localData = await chrome.storage.local.get(keys);
+            const localData = await storage.local.get(keys);
 
             const toInit = {};
             for (const name of keys) {
@@ -42,11 +91,11 @@
             }
 
             if (Object.keys(toInit).length > 0) {
-                await chrome.storage.local.set(toInit);
-                
+                await storage.local.set(toInit);
+
             }
         },
-        
+
 
         async commit(path, payload) {
             const [moduleName, mutationName] = path.split('/');
@@ -55,14 +104,14 @@
             const mutation = mod.mutations[mutationName];
             if (!mutation) throw new Error(`Mutation "${mutationName}" not found in "${moduleName}"`);
 
-            const res = await chrome.storage.local.get([moduleName]);
+            const res = await storage.local.get([moduleName]);
             const state = res[moduleName] || { ...mod.state };
             mutation(state, payload);
-            await chrome.storage.local.set({ [moduleName]: state });
+            await storage.local.set({ [moduleName]: state });
             return state;
         }
     };
-    _exports.module['store'] = store;
+    _exports.module['chromeRedux'] = store;
 
 }();
 

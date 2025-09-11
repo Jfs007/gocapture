@@ -89,7 +89,6 @@
         "cp_modules/loadsh/index.js",
         "cp_modules/store/index.js", 
         "cp_modules/web-hook/index.js",
-        "cp_modules/lodash/index.js",
         "cp_modules/**/index.js",
         "chrome/cli.js",
         "chrome/web.js",

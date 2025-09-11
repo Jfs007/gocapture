@@ -1,12 +1,17 @@
 // 视频数据管理组合式函数
 
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { eventBridge } from '../utils/eventBridge'
+import { CR } from '../utils/stateManager.js'
 
 export function useVideoData() {
   // 响应式数据
   const videoInfos = eventBridge.videoInfos
   const selectedVideos = ref(new Set())
+  
+  // 已下载的视频和商品记录
+  const downloadedVideos = ref({})
+  const downloadedProducts = ref({})
 
   // UI状态
   const uiState = ref({
@@ -24,6 +29,30 @@ export function useVideoData() {
     maxZipSize: 100 * 1024 * 1024,
     videosPerPage: 50,
     enableVirtualScroll: true
+  })
+
+  // 加载已下载记录
+  const loadDownloadedRecords = async () => {
+    try {
+      const videosData = await CR.get('DOWNLOADED_VIDEOS')
+      if (videosData?.downloadedVideoIds) {
+        downloadedVideos.value = videosData.downloadedVideoIds
+        console.log('📋 加载已下载视频记录:', Object.keys(downloadedVideos.value).length, '个')
+      }
+      
+      const productsData = await CR.get('DOWNLOADED_PRODUCTS')
+      if (productsData?.downloadedProductIds) {
+        downloadedProducts.value = productsData.downloadedProductIds
+        console.log('📋 加载已下载商品记录:', Object.keys(downloadedProducts.value).length, '个')
+      }
+    } catch (error) {
+      console.warn('加载下载记录失败:', error)
+    }
+  }
+
+  // 初始化时加载记录
+  onMounted(() => {
+    loadDownloadedRecords()
   })
 
   // 按商品分组的视频数据
@@ -56,7 +85,8 @@ export function useVideoData() {
           productName: productInfo.name || `商品 ${goodsId}`,
           ...video,
           video_url: videoUrl,
-          has_play_url: !!video.video_play_url
+          has_play_url: !!video.video_play_url,
+          is_downloaded: !!downloadedVideos.value[video.video_id]
         }
       })
 
@@ -189,6 +219,8 @@ export function useVideoData() {
     pagedGroupedVideos,
     allVideos,
     selectedVideos,
+    downloadedVideos,
+    downloadedProducts,
     
     // 状态
     uiState,
@@ -205,6 +237,7 @@ export function useVideoData() {
     isProductPartialSelected,
     toggleProductSelection,
     toggleSelectAll,
-    goToPage
+    goToPage,
+    loadDownloadedRecords
   }
 }
