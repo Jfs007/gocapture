@@ -32880,15 +32880,18 @@ ${style2}
       })
     });
   };
-  const App = ({ props, slots, options }) => {
+  const createBaseApp = (component, { props, options }) => {
     const { tag, id, style: style2 } = options || {};
+    const AppCommponent = h(component);
     const div = document.createElement(tag || "div");
     div.id = id || "chrome-app";
     if (style2) {
       div.style.cssText = style2;
     }
     const app = createApp(__NProvider({
-      slots,
+      slots: {
+        default: () => AppCommponent
+      },
       props
     }));
     app.component("NConfigProvider", NConfigProvider);
@@ -32906,6 +32909,7 @@ ${style2}
     app.component("NSlider", NSlider);
     app.mount(div);
     app.__el__ = div;
+    console.log(app, "app");
     return app;
   };
   const MdUiComponent = {
@@ -32930,7 +32934,7 @@ ${style2}
     },
     // 共享组件
     Components: {
-      App
+      createBaseApp
     }
   };
   window["MdUiComponent"] = MdUiComponent;

@@ -32,18 +32,20 @@ const __NProvider = ({ slots, props }) => {
 }
 
 // App创建函数，参考用户的模式
-const App = ({ props, slots, options }) => {
-  const { tag, id, style } = options || {}
-  const div = document.createElement(tag || 'div')
+const createBaseApp = (component, { props, options }) => {
+  const { tag, id, style } = options || {};
+  const AppCommponent = h(component);
+  const div = document.createElement(tag || 'div');
   div.id = id || 'chrome-app'
   if (style) {
     div.style.cssText = style
   }
   const app = createApp(__NProvider({
-    slots,
+    slots: {
+      default: () => AppCommponent
+    },
     props
-  }))
-  
+  }));
   // 全局注册NaiveUI组件
   app.component('NConfigProvider', NConfigProvider)
   app.component('NLoadingBarProvider', NLoadingBarProvider)
@@ -58,10 +60,9 @@ const App = ({ props, slots, options }) => {
   app.component('NPagination', NPagination)
   app.component('NSpace', NSpace)
   app.component('NSlider', NSlider)
-  
-  
-  app.mount(div)
-  app.__el__ = div
+  app.mount(div);
+  app.__el__ = div;
+  console.log(app, 'app');
   return app
 }
 
@@ -89,7 +90,7 @@ const MdUiComponent = {
   
   // 共享组件
   Components: {
-    App
+    createBaseApp: createBaseApp
   }
 }
 

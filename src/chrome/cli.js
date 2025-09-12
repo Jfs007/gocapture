@@ -4,6 +4,4 @@
    window._require = (name) => {return window._exports.module[name];} 
    window._exports.module['mdChrome'] = {};
 
-   console.log('cli信息注入', window._require, '_r');
-
 }())

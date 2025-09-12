@@ -4,45 +4,9 @@ const localConfig = {
 }
 
 // 全局缓存对象
-const myExeCodeMap = {};
+const ExeCodeAndFileMap = {};
 
-// 简化的模块管理
-const moduleManager = {
-  // 模块代码缓存
-  moduleCache: new Map(),
-  
-  /**
-   * 加载模块
-   * @param {string} moduleName - 模块名
-   */
-  async loadModule(moduleName) {
-    // 检查缓存
-    if (this.moduleCache.has(moduleName)) {
-      return this.moduleCache.get(moduleName);
-    }
-    
-    try {
-      // 构建模块路径
-      const modulePath = `cp_modules/${moduleName}/index.js`;
-      const url = chrome.runtime.getURL(modulePath);
-      
-      // 获取模块代码
-      const code = await fetchData(url);
-      if (!code) {
-        throw new Error(`Failed to load module: ${moduleName}`);
-      }
-      
-      // 缓存代码
-      this.moduleCache.set(moduleName, code);
-      console.log(`✅ 模块加载成功: ${moduleName}`);
-      
-      return code;
-    } catch (error) {
-      console.error(`❌ 模块加载失败: ${moduleName}`, error);
-      throw error;
-    }
-  }
-};
+
 /**
  * 获取远程数据
  */
@@ -87,12 +51,16 @@ function InjectLister(message, sender, sendResponse) {
   let world = message.world || "MAIN";
   // 如果 type === 2，执行文件注入
   if (message.type === 2) {
+    // message.fileNames = message.fileNames.filter(file => { return !ExeCodeAndFileMap[file] });
     const execData = fillIframeTarget(
       message,
       sender,
       { world, files: message.fileNames }
     );
+    // message.fileNames.map(file => { ExeCodeAndFileMap[file] = file });
+    // console.log('fileNames: ', message.fileNames);
     chrome.scripting.executeScript(execData).then(result => {
+      
       sendResponse(result);
     });
 
@@ -309,10 +277,10 @@ async function requestLocalExecuteCss(config, message, sender) {
  */
 async function executeScript(url, config, message, sender) {
   const key = `js_${url}`;
-  let code = myExeCodeMap[key];
+  let code = ExeCodeAndFileMap[key];
   if (!code) {
     code = await fetchData(url+ '?id=' + Date.now());
-    if (code) myExeCodeMap[key] = code;
+    if (code) ExeCodeAndFileMap[key] = code;
   }
 
   if (code) return executeScript2(code, config, message, sender);
@@ -333,11 +301,11 @@ async function executeScript2(code, config, message, sender) {
  */
 async function executeCss(url, config, message, sender) {
   const key = `css_${url}`;
-  let code = myExeCodeMap[key];
+  let code = ExeCodeAndFileMap[key];
 
   if (!code) {
     code = await fetchData(url);
-    if (code) myExeCodeMap[key] = code;
+    if (code) ExeCodeAndFileMap[key] = code;
   }
 
   if (code) return executeCss2(code, config, message, sender);
@@ -375,6 +343,90 @@ const HotCodeCmd = {
 
 
 
+// ---------------------------
+// 删除 Cookie
+// ---------------------------
+async function removeCookie(options, unused, callback) {
+  if (options.name) {
+    // 删除单个 Cookie
+    chrome.cookies.remove({ url: options.url, name: options.name }, callback);
+  } else if (options.names) {
+    // 删除多个 Cookie
+    options.names.forEach((name) => {
+      chrome.cookies.remove({ url: options.url, name });
+    });
+  } else if (options.removeInfos) {
+    // 删除自定义 Cookie 对象列表
+    options.removeInfos.forEach((cookieInfo) => {
+      chrome.cookies.remove(cookieInfo);
+    });
+  }
+
+  callback(); // 通知调用方操作完成
+}
+
+// ---------------------------
+// 设置 Cookie
+// ---------------------------
+function setCookies(options, unused, callback) {
+  const domainUrl = options?.domainUrl || "";
+  const cookieData = options.cookieData;
+
+  for (const cookieName in cookieData) {
+    const cookieValueOrDetail = cookieData[cookieName];
+    let cookieDetail = cookieValueOrDetail.detail || {
+      url: domainUrl,
+      name: cookieName,
+      value: cookieValueOrDetail,
+      secure: options.secure || false,
+      httpOnly: options.httpOnly || false,
+    };
+
+    if (options.domain) {
+      cookieDetail.domain = options.domain;
+    }
+
+    chrome.cookies.set(cookieDetail, () => {});
+  }
+
+  callback(); // 通知调用方设置完成
+}
+
+// ---------------------------
+// 消息处理分发器
+// ---------------------------
+async function cookieLister(message, sender, sendResponse) {
+  if (message.cmd === "removeCookie") {
+    return removeCookie(message, sender, sendResponse);
+  }
+
+  if (message.cmd === "setCookies") {
+    return setCookies(message, sender, sendResponse);
+  }
+
+  // 默认操作：获取指定域名下所有 Cookie
+  const allCookies = await chrome.cookies.getAll({ domain: message.myDomain });
+  const cookiesArray = [];
+  let cookiesString = "";
+
+  allCookies.forEach((cookie, index) => {
+    const cookieObj = { name: cookie.name, value: cookie.value };
+    cookiesArray.push(cookieObj);
+
+    cookiesString += `${cookieObj.name}=${cookieObj.value}`;
+    if (index < allCookies.length - 1) cookiesString += ";";
+  });
+
+  // 返回 Cookie 数据
+  sendResponse && sendResponse({ cookies: cookiesArray, cookiesStr: cookiesString });
+}
+
+
+const cookieCmd = {
+  Lister: cookieLister
+}
+
+
 
 
 chrome.runtime.onMessage.addListener(((message, sender, sendResponse) => (onMessageLister(message, sender, sendResponse), !0)));
@@ -387,37 +439,10 @@ chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResp
 function onMessageLister(message, sender, sendResponse) {
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
-  if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
+  if ("cookie" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
+  // if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
 }
 
-// 模块命令处理器
-const moduleCmd = {
-  async Lister(message, sender, sendResponse) {
-    try {
-      const { moduleName, action = 'import' } = message;
-      
-      if (action === 'import') {
-        // 加载模块代码
-        const moduleCode = await moduleManager.loadModule(moduleName);
-        
-        // 注入模块代码到目标页面
-        const execData = fillIframeTarget(
-          message,
-          sender,
-          { function: injectJsCode, args: [moduleCode], world: "MAIN" }
-        );
-        
-        const result = await chrome.scripting.executeScript(execData);
-        sendResponse({ success: true, result });
-      } else {
-        sendResponse({ success: false, error: `Unknown action: ${action}` });
-      }
-    } catch (error) {
-      console.error('Module command error:', error);
-      sendResponse({ success: false, error: error.message });
-    }
-  }
-};
 
 
 

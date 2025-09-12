@@ -4,7 +4,8 @@
         ],
         "jsUrls": [
             "common/index.js",
-            "compass.jinritemai.com/index.js"
+            "compass.jinritemai.com/index.js",
+            "jinritemai.com/index.js"
         ]
     },
     "success": true
