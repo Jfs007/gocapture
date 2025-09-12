@@ -31,7 +31,7 @@ export default defineConfig({
       external: ['mdChrome']
     },
     // 根据模式决定输出目录
-    outDir: '../src/app',
+    outDir: '../package/app',
     emptyOutDir: false,
     minify: process.env.NODE_ENV === 'production' ? 'esbuild' : false,
     target: 'chrome89',
