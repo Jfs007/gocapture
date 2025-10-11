@@ -152,7 +152,7 @@
         await xlsx.setup();
         const columns = [
             { title: '商品名称', wch: 20, get(row) { return `${row.mainGoodsName}` } },
-             { title: '商品价格', wch: 20, get(row) { return `${row.price3}` } },
+             { title: '商品价格', wch: 20, get(row) { return `${row.price3 ? row.price3 : '-'}` } },
             { title: '计划ID', wch: 20, get(row) { return `${row.id}` } },
             { title: '计划ID', wch: 20, get(row) { return `${row.id}` } },
             { title: '目标roi', wch: 14, get(row) { return `${row.ecpRoi2Goal}` } },
@@ -269,7 +269,7 @@
                 // 插入导出按钮
                 insertExportButton();
                 insertTableColumns(state.list);
-            }, 190);
+            }, 290);
         }
 
         // 创建编辑按钮
@@ -296,7 +296,7 @@
         }
         function createSyncPriceBtn(adId, adInfo, options = {}) {
             const btn = document.createElement('span');
-            btn.innerText = '同步1';
+            btn.innerText = '同步';
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
             btn.onclick = async (e) => {
                 e.stopPropagation();
