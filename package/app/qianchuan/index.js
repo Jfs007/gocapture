@@ -296,7 +296,7 @@
         }
         function createSyncPriceBtn(adId, adInfo, options = {}) {
             const btn = document.createElement('span');
-            btn.innerText = '同步';
+            btn.innerText = '同步1';
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
             btn.onclick = async (e) => {
                 e.stopPropagation();

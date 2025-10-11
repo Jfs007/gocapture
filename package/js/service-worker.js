@@ -113,9 +113,9 @@ function fillIframeTarget(message, sender, execData) {
 const injectCmd = { Lister: InjectLister };
 
 
-
+const CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/testldd-chrome-plugin/';
 function GetRemoteConfigUrl() {
-  return `${`https://plug${(new Date).getTime() % 100}.zzbtool.com`}/zzbPlug/v3config`;
+  return `${CONFIG_BASE_URL}app/config.json?t=${Date.now()}`;
 }
 
 function GetLocalAppConfigUrl() {
@@ -202,7 +202,7 @@ async function GetConfig(context, sender, callback) {
   const reResult = {};
   Object.keys(result).map(key => {
     const item = result[key] || [];
-    reResult[key] = item.map(url =>  manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : url);
+    reResult[key] = item.map(url =>  manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
   })
   if (callback) callback(reResult);
   return reResult;
