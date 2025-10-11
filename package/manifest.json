@@ -1,12 +1,12 @@
 
 {
   "manifest_version": 3,
-  "name": "至尊宝+",
-  "short_name": "至尊宝+",
+  "name": "超级量多多+",
+  "short_name": "超级量多多+",
   "author_name":"chrome",
   "app_module": "Offline",
   "version": "30.2.2",
-  "description": "电商实用工具集合大全，辅助电商运营工具神器！支持所有平台",
+  "description": "电商实用工具集合大全",
   "icons": {
     "16": "icons/icon.png",
     "19": "icons/icon.png",
@@ -15,7 +15,7 @@
     "128": "icons/icon.png"
   },
   "action": {
-    "default_title": "至尊宝+",
+    "default_title": "超级量多多+",
     "default_icon": "icons/icon.png",
     "default_popup": "popup/index.html"
   },

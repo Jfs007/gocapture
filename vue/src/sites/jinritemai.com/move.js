@@ -1,8 +1,45 @@
-const App = () => {
-   
+import App from "./components/app.vue";
+
+const App2 = () => {
+
     const CR = _require('chromeRedux');
     const loadsh = _require('loadsh');
-    console.log('安装move', CR);
+
+
+
+
+
+    const LoginInfo = {
+        state: {
+            douyin: {
+                cookie: ''
+            }
+        }
+
+    }
+
+
+
+    const { createBaseApp } = MdUiComponent.Components;
+    const app = createBaseApp(App, {
+        options: {
+            id: 'jinritemai-floating-toolbox',
+            style: 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;'
+        }
+    });
+    document.body.appendChild(app.__el__);
+    console.log('move app', app);
+
+    // 让悬浮窗内容可以交互
+    const style = document.createElement('style')
+    style.textContent = `
+        #jinritemai-floating-toolbox .jinritemai-floating-toolbox,
+        #jinritemai-floating-toolbox .jinritemai-floating-toolbox * {
+            pointer-events: auto !important;
+        }
+    `
+    document.head.appendChild(style)
+    console.log('✅ 悬浮窗创建成功', CR);
     const doSetBaseInfo = () => async function setBaseInfo(res) {
         try {
             const mediaList = loadsh.getProperty(res.result, 'promotion_h5.head_figure_data.media_list');
@@ -96,4 +133,4 @@ const App = () => {
     });
 }
 
-export default App;
+export default App2;

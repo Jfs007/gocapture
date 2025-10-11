@@ -1644,6 +1644,10 @@
       setter = getterOrOptions.set;
     }
     const cRef = new ComputedRefImpl(getter, setter, isSSR);
+    if (debugOptions && !isSSR) {
+      cRef.onTrack = debugOptions.onTrack;
+      cRef.onTrigger = debugOptions.onTrigger;
+    }
     return cRef;
   }
   const INITIAL_WATCHER_VALUE = {};
@@ -9965,7 +9969,7 @@ ${unwrappedProps}
   const internalSelectionMenuBodyInjectionKey = createInjectionKey("n-internal-select-menu-body");
   const drawerBodyInjectionKey = createInjectionKey("n-drawer-body");
   const modalBodyInjectionKey = createInjectionKey("n-modal-body");
-  const modalProviderInjectionKey = createInjectionKey("n-modal-provider");
+  const modalProviderInjectionKey$1 = createInjectionKey("n-modal-provider");
   const modalInjectionKey = createInjectionKey("n-modal");
   const popoverBodyInjectionKey = createInjectionKey("n-popover-body");
   const teleportDisabled = "__disabled__";
@@ -28221,6 +28225,9 @@ ${style2}
     },
     self: self$7
   });
+  const modalProviderInjectionKey = createInjectionKey("n-modal-provider");
+  const modalApiInjectionKey = createInjectionKey("n-modal-api");
+  const modalReactiveListInjectionKey = createInjectionKey("n-modal-reactive-list");
   const DRAGGABLE_CLASS = "n-draggable";
   function useDragModal(draggablePropsRef, options) {
     let cleanup;
@@ -28747,7 +28754,7 @@ ${style2}
       const clickedPositionRef = useClickPosition();
       const isMountedRef = isMounted();
       const NDialogProvider2 = props.internalDialog ? inject(dialogProviderInjectionKey, null) : null;
-      const NModalProvider = props.internalModal ? inject(modalProviderInjectionKey, null) : null;
+      const NModalProvider2 = props.internalModal ? inject(modalProviderInjectionKey$1, null) : null;
       const isComposingRef2 = useIsComposing();
       function doUpdateShow(show) {
         const {
@@ -28839,7 +28846,7 @@ ${style2}
       }
       provide(modalInjectionKey, {
         getMousePosition: () => {
-          const mergedProvider = NDialogProvider2 || NModalProvider;
+          const mergedProvider = NDialogProvider2 || NModalProvider2;
           if (mergedProvider) {
             const {
               clickedRef: clickedRef2,
@@ -30133,6 +30140,193 @@ ${style2}
           closable: message.closable === void 0 ? this.closable : message.closable
         }));
       }))) : null);
+    }
+  });
+  const NModalEnvironment = /* @__PURE__ */ defineComponent({
+    name: "ModalEnvironment",
+    props: Object.assign(Object.assign({}, modalProps), {
+      internalKey: {
+        type: String,
+        required: true
+      },
+      // private
+      onInternalAfterLeave: {
+        type: Function,
+        required: true
+      }
+    }),
+    setup(props) {
+      const showRef = ref(true);
+      function handleAfterLeave() {
+        const {
+          onInternalAfterLeave,
+          internalKey,
+          onAfterLeave
+        } = props;
+        if (onInternalAfterLeave) onInternalAfterLeave(internalKey);
+        if (onAfterLeave) onAfterLeave();
+      }
+      function handlePositiveClick() {
+        const {
+          onPositiveClick
+        } = props;
+        if (onPositiveClick) {
+          void Promise.resolve(onPositiveClick()).then((result) => {
+            if (result === false) return;
+            hide();
+          });
+        } else {
+          hide();
+        }
+      }
+      function handleNegativeClick() {
+        const {
+          onNegativeClick
+        } = props;
+        if (onNegativeClick) {
+          void Promise.resolve(onNegativeClick()).then((result) => {
+            if (result === false) return;
+            hide();
+          });
+        } else {
+          hide();
+        }
+      }
+      function handleCloseClick() {
+        const {
+          onClose
+        } = props;
+        if (onClose) {
+          void Promise.resolve(onClose()).then((result) => {
+            if (result === false) return;
+            hide();
+          });
+        } else {
+          hide();
+        }
+      }
+      function handleMaskClick(e) {
+        const {
+          onMaskClick,
+          maskClosable
+        } = props;
+        if (onMaskClick) {
+          onMaskClick(e);
+          if (maskClosable) {
+            hide();
+          }
+        }
+      }
+      function handleEsc() {
+        const {
+          onEsc
+        } = props;
+        if (onEsc) {
+          onEsc();
+        }
+      }
+      function hide() {
+        showRef.value = false;
+      }
+      function handleUpdateShow(value) {
+        showRef.value = value;
+      }
+      return {
+        show: showRef,
+        hide,
+        handleUpdateShow,
+        handleAfterLeave,
+        handleCloseClick,
+        handleNegativeClick,
+        handlePositiveClick,
+        handleMaskClick,
+        handleEsc
+      };
+    },
+    render() {
+      const {
+        handleUpdateShow,
+        handleAfterLeave,
+        handleMaskClick,
+        handleEsc,
+        show
+      } = this;
+      return h(NModal, Object.assign({}, this.$props, {
+        show,
+        onUpdateShow: handleUpdateShow,
+        onMaskClick: handleMaskClick,
+        onEsc: handleEsc,
+        onAfterLeave: handleAfterLeave,
+        internalAppear: true,
+        internalModal: true
+      }));
+    }
+  });
+  const modalProviderProps = {
+    to: [String, Object]
+  };
+  const NModalProvider = /* @__PURE__ */ defineComponent({
+    name: "ModalProvider",
+    props: modalProviderProps,
+    setup() {
+      const modalListRef = ref([]);
+      const modalInstRefs = {};
+      function create(options = {}) {
+        const key = createId();
+        const modalReactive = reactive(Object.assign(Object.assign({}, options), {
+          key,
+          destroy: () => {
+            var _a;
+            (_a = modalInstRefs[`n-modal-${key}`]) === null || _a === void 0 ? void 0 : _a.hide();
+          }
+        }));
+        modalListRef.value.push(modalReactive);
+        return modalReactive;
+      }
+      function handleAfterLeave(key) {
+        const {
+          value: modalList
+        } = modalListRef;
+        modalList.splice(modalList.findIndex((modal) => modal.key === key), 1);
+      }
+      function destroyAll() {
+        Object.values(modalInstRefs).forEach((modalInstRef) => {
+          modalInstRef === null || modalInstRef === void 0 ? void 0 : modalInstRef.hide();
+        });
+      }
+      const api = {
+        create,
+        destroyAll
+      };
+      provide(modalApiInjectionKey, api);
+      provide(modalProviderInjectionKey, {
+        clickedRef: useClicked(64),
+        clickedPositionRef: useClickPosition()
+      });
+      provide(modalReactiveListInjectionKey, modalListRef);
+      return Object.assign(Object.assign({}, api), {
+        modalList: modalListRef,
+        modalInstRefs,
+        handleAfterLeave
+      });
+    },
+    render() {
+      var _a, _b;
+      return h(Fragment, null, [this.modalList.map((modal) => {
+        var _a2;
+        return h(NModalEnvironment, omit(modal, ["destroy"], {
+          to: (_a2 = modal.to) !== null && _a2 !== void 0 ? _a2 : this.to,
+          ref: (inst) => {
+            if (inst === null) {
+              delete this.modalInstRefs[`n-modal-${modal.key}`];
+            } else {
+              this.modalInstRefs[`n-modal-${modal.key}`] = inst;
+            }
+          },
+          internalKey: modal.key,
+          onInternalAfterLeave: this.handleAfterLeave
+        }));
+      }), (_b = (_a = this.$slots).default) === null || _b === void 0 ? void 0 : _b.call(_a)]);
     }
   });
   const commonVars$1 = {
@@ -32869,12 +33063,16 @@ ${style2}
       }, typeof mark.label === "function" ? mark.label() : mark.label))) : null));
     }
   });
-  const __NProvider = ({ slots, props }) => {
+  const __NProvider = ({ slots }) => {
     return h(NConfigProvider, { theme: null }, {
-      default: () => h(NLoadingBarProvider, null, {
-        default: () => h(NMessageProvider, null, {
-          default: () => h(NDialogProvider, null, {
-            default: () => h(NNotificationProvider, null, slots)
+      default: () => h(NModalProvider, null, {
+        default: () => h(NLoadingBarProvider, null, {
+          default: () => h(NMessageProvider, null, {
+            default: () => h(NDialogProvider, null, {
+              default: () => h(NNotificationProvider, null, {
+                default: () => slots.default ? slots.default() : null
+              })
+            })
           })
         })
       })
@@ -32882,18 +33080,20 @@ ${style2}
   };
   const createBaseApp = (component, { props, options }) => {
     const { tag, id, style: style2 } = options || {};
-    const AppCommponent = h(component);
     const div = document.createElement(tag || "div");
     div.id = id || "chrome-app";
     if (style2) {
       div.style.cssText = style2;
     }
-    const app = createApp(__NProvider({
-      slots: {
-        default: () => AppCommponent
-      },
-      props
-    }));
+    const app = createApp({
+      render() {
+        return h(__NProvider, {
+          slots: {
+            default: () => h(component, props || {})
+          }
+        });
+      }
+    });
     app.component("NConfigProvider", NConfigProvider);
     app.component("NLoadingBarProvider", NLoadingBarProvider);
     app.component("NMessageProvider", NMessageProvider);
@@ -32909,13 +33109,18 @@ ${style2}
     app.component("NSlider", NSlider);
     app.mount(div);
     app.__el__ = div;
-    console.log(app, "app");
+    console.log("✅ Vue应用创建成功，响应式系统已启用", app);
     return app;
   };
   const MdUiComponent = {
-    // Vue相关
+    // Vue相关 - 确保使用同一个Vue实例的响应式系统
     createApp,
     h,
+    ref,
+    reactive,
+    computed,
+    onMounted,
+    onUnmounted,
     // NaiveUI组件
     NaiveUI: {
       NConfigProvider,

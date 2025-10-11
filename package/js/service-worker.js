@@ -4,7 +4,7 @@ const localConfig = {
 }
 
 // 全局缓存对象
-const ExeCodeAndFileMap = {};
+const ExeCodeMap = {};
 
 
 /**
@@ -51,14 +51,11 @@ function InjectLister(message, sender, sendResponse) {
   let world = message.world || "MAIN";
   // 如果 type === 2，执行文件注入
   if (message.type === 2) {
-    // message.fileNames = message.fileNames.filter(file => { return !ExeCodeAndFileMap[file] });
     const execData = fillIframeTarget(
       message,
       sender,
       { world, files: message.fileNames }
     );
-    // message.fileNames.map(file => { ExeCodeAndFileMap[file] = file });
-    // console.log('fileNames: ', message.fileNames);
     chrome.scripting.executeScript(execData).then(result => {
       
       sendResponse(result);
@@ -277,10 +274,10 @@ async function requestLocalExecuteCss(config, message, sender) {
  */
 async function executeScript(url, config, message, sender) {
   const key = `js_${url}`;
-  let code = ExeCodeAndFileMap[key];
+  let code = ExeCodeMap[key];
   if (!code) {
     code = await fetchData(url+ '?id=' + Date.now());
-    if (code) ExeCodeAndFileMap[key] = code;
+    if (code) ExeCodeMap[key] = code;
   }
 
   if (code) return executeScript2(code, config, message, sender);
@@ -301,11 +298,11 @@ async function executeScript2(code, config, message, sender) {
  */
 async function executeCss(url, config, message, sender) {
   const key = `css_${url}`;
-  let code = ExeCodeAndFileMap[key];
+  let code = ExeCodeMap[key];
 
   if (!code) {
     code = await fetchData(url);
-    if (code) ExeCodeAndFileMap[key] = code;
+    if (code) ExeCodeMap[key] = code;
   }
 
   if (code) return executeCss2(code, config, message, sender);
@@ -436,10 +433,177 @@ chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResp
 });
 
 
+
+// 提取正则匹配的第一个分组结果
+function matchFirstGroup(text, regex) {
+  if (!text) return false;
+  const match = regex.exec(text);
+  return !!(match && match.length > 1) && match[1];
+}
+var headerPre = "md-header-";
+// 更新请求头规则
+async function updateRequestRules(requestConfig) {
+  const headers = requestConfig.headers || requestConfig.header;
+  const preservedHeaders = {};
+  let hasCustomHeader = false;
+  let domainFilter = "";
+
+  // 提取 URL 域名
+  if (requestConfig.url) {
+    domainFilter = matchFirstGroup(requestConfig.url, /\/\/([^\/]+)/);
+  }
+
+  const customHeaderRules = [];
+  for (let headerKey in headers) {
+    const headerValue = headers[headerKey];
+    headerKey = String(headerKey).toLowerCase();
+
+    if (headerKey.includes(headerPre)) {
+      hasCustomHeader = true;
+      const cleanKey = headerKey.replace(headerPre, "");
+      customHeaderRules.push({ header: cleanKey, operation: "set", value: headerValue });
+    } else {
+      preservedHeaders[headerKey] = headerValue;
+    }
+  }
+
+  // 没有特殊 header 就直接返回
+  if (!hasCustomHeader) return preservedHeaders;
+
+  // 默认规则
+  let requestHeadersRule = [...customHeaderRules];
+  let condition = { urlFilter: domainFilter, resourceTypes: ["xmlhttprequest"] };
+
+  if (requestConfig.requestHeaders) {
+    requestHeadersRule = requestConfig.requestHeaders;
+  }
+  if (requestConfig.condition) {
+    condition = requestConfig.condition;
+  }
+
+  // 规则模板
+  let rulesToAdd = [
+    {
+      id: 14,
+      priority: 1,
+      action: { type: "modifyHeaders", requestHeaders: requestHeadersRule },
+      condition,
+    },
+  ];
+  let rulesToRemove = [14];
+
+  // 自定义规则替换
+  if (requestConfig.addRules && requestConfig.addRules.length > 0) {
+    rulesToAdd = requestConfig.addRules;
+  }
+  if (requestConfig.removeRuleIds && requestConfig.removeRuleIds.length > 0) {
+    rulesToRemove = requestConfig.removeRuleIds;
+  }
+
+  // 更新 session 规则
+  await chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: rulesToRemove,
+    addRules: rulesToAdd,
+  });
+
+  return preservedHeaders;
+}
+
+// 清理规则并设置默认 ping 请求头
+async function clearRequestRules() {
+  await chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: [14, 999],
+    addRules: [
+      {
+        id: 999,
+        priority: 1,
+        action: {
+          type: "modifyHeaders",
+          requestHeaders: [
+            { header: "referer", operation: "set", value: "https://aaabg.com" },
+            { header: "origin", operation: "set", value: "https://aaabg.com" },
+          ],
+        },
+        condition: { resourceTypes: ["ping"], urlFilter: "aaabg.com" },
+      },
+    ],
+  });
+}
+
+// 获取 Base64 内容
+function fetchAsBase64(url, callback) {
+  fetch(url)
+    .then((res) => res.blob())
+    .then((blob) => {
+      const reader = new FileReader();
+      reader.onload = (e) => callback(e.currentTarget.result);
+      reader.readAsDataURL(blob);
+    })
+    .catch(() => {});
+}
+
+// 请求规则工具
+const httpRule = {
+  update: updateRequestRules,
+  clear: clearRequestRules,
+};
+
+// 包装 fetch
+async function fetchWithRules(config, sender, callback) {
+  let fetchOptions = { headers: await httpRule.update(config) };
+  if (config.method) fetchOptions.method = config.method;
+  if (config.data) fetchOptions.body = config.data;
+  if (config.fetchParams) fetchOptions = config.fetchParams;
+  // base64 模式
+  if (config.type && config.type.toLowerCase() === "base64") {
+    return fetchAsBase64(config.url, callback);
+  }
+  fetch(config.url, fetchOptions)
+    .then(async (res) => {
+      if (!res.ok) throw await res.text();
+
+      if (config.textDecoderType) {
+        const decoder = new TextDecoder(config.textDecoderType);
+        const buffer = await res.arrayBuffer();
+        return decoder.decode(new Uint8Array(buffer));
+      }
+      return res.text();
+    })
+    .then((responseText) => {
+      let parsedResult = null;
+      try {
+        parsedResult = JSON.parse(responseText);
+      } catch (_) {}
+
+      const result = {
+        result: parsedResult || responseText,
+        resultContent: responseText,
+        success: true,
+      };
+
+      if (config.isNotNeedClearRules) return callback(result);
+
+      httpRule.clear().then(() => callback(result));
+    })
+    .catch((err) => {
+      const result = { result: err, success: false };
+
+      if (config.isNotNeedClearRules) return callback(result);
+
+      httpRule.clear().then(() => callback(result));
+    });
+}
+
+const fetchCmd = {
+  Lister: fetchWithRules,
+};
+
+
 function onMessageLister(message, sender, sendResponse) {
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
-  if ("cookie" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
+  if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);
+  if ("getCookie" === message.cmd || "removeCookie" === message.cmd || "setCookies" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
   // if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
 }
 

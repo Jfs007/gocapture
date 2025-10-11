@@ -1,9 +1,9 @@
-(function(){
+(function () {
     const mdChrome = _require('mdChrome');
-    
+
     // 模块加载缓存
     const filesCache = {};
-    
+
     /**
      * 注入脚本文件
      * @param {string|Array} scriptPath - 脚本路径或路径数组
@@ -30,27 +30,42 @@
                         }
                     });
                 });
-                
+
                 console.log(`✅ 脚本注入成功: ${path}`);
             } catch (error) {
                 console.error(`❌ 脚本注入失败: ${path}`, error);
-                 delete filesCache[path];
+                delete filesCache[path];
                 throw error;
             }
         }
     }
-    
-    
-   
-    
-   
-   
 
-   
-    
+    async function cmd(params) {
+        const mdPluginId = localStorage.getItem('MdPluginId');
+        return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage(mdPluginId, params, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+
+            });
+        })
+    }
+
+
+
+
+
+
+
+
+
     // 导出API
     mdChrome.web = {
+        cmd,
         injectScript,
-       
+
     };
 })();
