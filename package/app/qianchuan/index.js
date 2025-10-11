@@ -228,7 +228,7 @@
         async function savePlanInfo(adId, payload) {
             try {
                 planInfo[adId] = Object.assign(planInfo[adId] || {}, payload);
-                await CR.commit("QC_PLAN_DATA/SET_PLAN_INFO", { adId, ...payload });
+                await CR.commit("QC_PLAN_DATA/SET_PLAN_INFO", { adId, ...planInfo[adId] });
             } catch (error) {
                 console.error("保存成本失败:", error);
             }
