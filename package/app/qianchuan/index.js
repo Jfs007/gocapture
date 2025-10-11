@@ -269,7 +269,7 @@
                 // 插入导出按钮
                 insertExportButton();
                 insertTableColumns(state.list);
-            }, 290);
+            }, 90);
         }
 
         // 创建编辑按钮
