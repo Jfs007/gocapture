@@ -671,7 +671,7 @@
 
                 const { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                 console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
-                if (state.pagination.page != pagination.page) {
+                if (state.pagination.page && (state.pagination.page != pagination.page)) {
                     waits.UserConfAndDataSetReady = false;
                 };
                 state.list = adInfos;
