@@ -4,8 +4,6 @@
         ],
         "jsUrls": [
             "common/index.js",
-            "compass.jinritemai.com/index.js",
-            "jinritemai.com/index.js",
             "qianchuan/index.js"
         ]
     },

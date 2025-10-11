@@ -51,27 +51,11 @@
     "<all_urls>"
   ],
   "content_scripts": [
-
-    
     {
       "js": [
-        "other/jquery-1.8.3.js",
-        "other/base64.js",
-        "other/md5.js",
-        "other/layer.js",
-        "other/layui.all.js",
-        "other/clipboard.min.js",
-        "other/crypto-js.min.js",
-        "other/FileSaver.js",
-        "other/html2canvas.min.js",
-        "other/jsencrypt.min.js",
-        "other/jszip-utils.js",
-        "other/jszip.min.js",
-        "other/jquery.qrcode.min.js",
-        "other/jquery.hotkeys.min.js",
         "js/content.js"
       ],
-      "css": ["css/other/layui.css","css/font-awesome.min.css","css/index.css"],
+      "css": ["css/index.css"],
       "matches": [
         "<all_urls>"
       ],
@@ -86,9 +70,6 @@
         "<all_urls>"
       ],
       "resources": [
-        "cp_modules/loadsh/index.js",
-        "cp_modules/store/index.js", 
-        "cp_modules/web-hook/index.js",
         "cp_modules/**/index.js",
         "chrome/cli.js",
         "chrome/web.js",
@@ -102,20 +83,7 @@
         "<all_urls>"
       ],
       "resources": [
-        "other/jquery-1.8.3.js",
-        "other/base64.js",
-        "other/md5.js",
-        "other/layer.js",
-        "other/layui.all.js",
-        "other/clipboard.min.js",
-        "other/crypto-js.min.js",
-        "other/FileSaver.js",
-        "other/html2canvas.min.js",
-        "other/jsencrypt.min.js",
-        "other/jszip-utils.js",
-        "other/jszip.min.js",
-        "other/jquery.qrcode.min.js",
-        "other/jquery.hotkeys.min.js",
+        "other/*",
         "js/content.js"
       ],
       "use_dynamic_url": true
