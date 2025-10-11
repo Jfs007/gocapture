@@ -261,7 +261,7 @@
         async function handleAdList() {
             if (!waits.UserConfAndDataSetReady) return;
             if (state.list.length == 0) {
-                waits.UserConfAndDataSetReady = false;
+                // waits.UserConfAndDataSetReady = false;
                 return;
             }
             await waitTableLoadingDisappear();
@@ -671,7 +671,7 @@
 
                 const { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                 console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
-                if (state.pagination.page != pagination.page || state.pagination.pageSize !=pagination.pageSize) {
+                if (state.pagination.page != pagination.page) {
                     waits.UserConfAndDataSetReady = false;
                 };
                 state.list = adInfos;
@@ -688,6 +688,7 @@
                     _.totalEcomPlatformSubsidyAmountForRoi2Primary = stat?.metrics['totalEcomPlatformSubsidyAmountForRoi2Primary'] || {};
                 });
                 state.pagination = pagination;
+
                 // console.log(state.list, 'state.list');
                 handleAdList();
             },
