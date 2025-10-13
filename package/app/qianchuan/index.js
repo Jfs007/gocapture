@@ -186,7 +186,7 @@
             // const json = await res.json();
             const info = {};
             (res.result.data || []).map(_ => {
-                info[_.id] = Object.assign(_, {
+                info[_.campaignId] = Object.assign(_, {
                     price: (_.campaignPrice || '').split('-'),
                     cost: _.campaignCost
                 })
