@@ -182,13 +182,12 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 data: JSON.stringify(params)
-
             });
             // const json = await res.json();
             const info = {};
-            (res.result.data||[]).map(_ => {
+            (res.result.data || []).map(_ => {
                 info[_.id] = Object.assign(_, {
-                    price: (_.campaignPric || '').split('-'),
+                    price: (_.campaignPrice || '').split('-'),
                     cost: _.campaignCost
                 })
             });
@@ -200,6 +199,15 @@
             return { data: {} }
         }
 
+    }
+    async function savePlanInfo0(params) {
+        const res = await mdChrome.web.cmd({
+            url: api + "/api/qc/campaign/report/iu/save",
+            cmd: 'fetch',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify(params)
+        });
     }
 
     const initApp = async () => {
@@ -232,6 +240,13 @@
         async function savePlanInfo(adId, payload) {
             try {
                 state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, payload);
+                savePlanInfo0({
+                    campaignId: adId,
+                    campaignName: state.planInfo[adId].name,
+                    accountCode: '-',
+                    campaignPrice: payload.price ? payload.price.join('-') : undefined,
+                    campaignCost: payload.cost
+                })
             } catch (error) {
                 console.error("保存成本失败:", error);
             }
