@@ -295,6 +295,7 @@
                 // 插入导出按钮
                 insertExportButton();
                 insertTableColumns(state.list);
+                waits.UserConfAndDataSetReady = false;
             }, 120);
         }
 
