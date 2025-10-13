@@ -289,7 +289,7 @@
                 campaignIdList: state.list.map(_ => _.id)
             });
             
-            if(state.pagination.page!=page && page) return;
+            // if(state.pagination.page!=page && page) return;
             await waitTableLoadingDisappear();
             setTimeout(async () => {
                 // 插入导出按钮
