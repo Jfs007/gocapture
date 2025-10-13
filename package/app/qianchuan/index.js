@@ -511,7 +511,7 @@
             const colList = colRow.querySelectorAll('col');
             const summaryThList = summaryRow.querySelectorAll('th');
             // 假设在第N个th后面插入（可根据需求调整）
-            const insertIndex = 7;
+            const insertIndex = 6;
 
             if (thList.length < insertIndex) {
                 console.log("表头列数不足");
