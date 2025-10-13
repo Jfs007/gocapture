@@ -287,10 +287,10 @@
             await loadPlanInfo({
                 campaignIdList: state.list.map(_ => _.id)
             });
+            alert('list长度' + state.list.length);
             if(state.pagination.page!=page && page) return;
             await waitTableLoadingDisappear();
             setTimeout(async () => {
-
                 // 插入导出按钮
                 insertExportButton();
                 insertTableColumns(state.list);
@@ -506,10 +506,8 @@
 
         // 在表格中插入列
         function insertTableColumns(adInfos) {
-
             // 找到表头行
             const theadRow = document.querySelector('.ovui-thead .ovui-tr');
-            // const summaryRow = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary');
             const summaryRow = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary');
             const colRow = document.querySelector('.ovui-table__head-wrapper .ovui-table colgroup');
 
@@ -552,10 +550,6 @@
                 { text: '运营预估盈亏率', key: 'balance', width: 100 },
                 { text: '售价', key: 'price', width: 130 }
             ];
-
-            // 计算新插入列的总宽度
-            // const totalInsertedWidth = headers.reduce((sum, h) => sum + h.width, 0);
-
             let lastInsertedTh = targetTh;
             let lastInsertedCol = targetCol;
             let lastInsertedSummaryTh = targetSummaryTh;
@@ -563,7 +557,6 @@
             headers.forEach((header) => {
                 const th = document.createElement('th');
                 th.className = 'ovui-th ovui-table-cell ovui-table-cell--right ovui-th__no-left-border ovui-th__no-bottom-border';
-                // th.style.left = `${leftOffset}px`;
                 th.setAttribute('data-md-custom', header.key);
                 th.innerHTML = `<div class="ovui-table-cell-inner">${header.text}</div>`;
                 lastInsertedTh.insertAdjacentElement('afterend', th);
@@ -576,30 +569,10 @@
                 // 统计行
                 const summaryth = document.createElement('th');
                 summaryth.className = 'ovui-t-summary-cell ovui-table-cell ovui-table-cell--right';
-                // th.style.left = `${leftOffset}px`;
                 summaryth.setAttribute('data-md-custom', header.key);
                 lastInsertedSummaryTh.insertAdjacentElement('afterend', summaryth);
                 lastInsertedSummaryTh = summaryth;
-
-                // 累加当前列宽度，用于下一个th
-                // leftOffset += header.width;
             });
-
-            // 更新后面所有sticky列的left值
-            // let currentTh = lastInsertedTh.nextElementSibling;
-            // while (currentTh) {
-            //     if (currentTh.classList.contains('ovui-th--sticky-left') && currentTh.style.left) {
-            //         const currentLeft = parseInt(currentTh.style.left) || 0;
-            //         currentTh.style.left = `${currentLeft + totalInsertedWidth}px`;
-            //     }
-            //     currentTh = currentTh.nextElementSibling;
-            // }
-
-            // if (summaryRowTh) {
-            //     const colspan = +(summaryRowTh.getAttribute('colspan'))
-            //     summaryRowTh.setAttribute('colspan', colspan + headers.length);
-            // }
-
             // 给每个tbody的tr插入td
             const tbody = document.querySelector('.ovui-tbody');
             const bodyColRow = document.querySelector('.ovui-table__body-wrapper .ovui-table colgroup');
@@ -627,11 +600,9 @@
                 rows.forEach((row, rowIndex) => {
                     const adInfo = adInfos[rowIndex];
                     if (!adInfo) return;
-
                     const adId = adInfo.id;
                     // 给行添加标识
                     row.setAttribute('data-ad-id', adId);
-
                     const tdList = row.querySelectorAll('td');
                     if (tdList.length >= insertIndex) {
                         const targetTd = tdList[insertIndex - 1];
@@ -661,22 +632,10 @@
 
                                 lastInsertedTd.insertAdjacentElement('afterend', td);
                                 lastInsertedTd = td;
-                                // 累加当前列宽度
-                                // tdLeftOffset += header.width;
                             });
 
                             // 使用统一的渲染方法填充内容
                             renderCustomColumns(row, adInfo, computed);
-
-                            // 更新该行后面所有sticky列的left值
-                            // let currentTd = lastInsertedTd.nextElementSibling;
-                            // while (currentTd) {
-                            //     if (currentTd.classList.contains('ovui-td--sticky') && currentTd.style.left) {
-                            //         const currentLeft = parseInt(currentTd.style.left) || 0;
-                            //         currentTd.style.left = `${currentLeft + totalInsertedWidth}px`;
-                            //     }
-                            //     currentTd = currentTd.nextElementSibling;
-                            // }
                         }
                     }
                 });
@@ -689,10 +648,8 @@
         // API钩子配置
         const api_hook = {
             "creation/v1/product/product-detail-info|repeat": (res) => {
-
                 const { id, priceHigher, priceLower } = res?.result?.data?.productInfo || {};
                 state.goodsInfoMaps[id] = [priceLower / 100, priceHigher / 100];
-                console.log(id, state.goodsInfoMaps[id], 'res');
                 updateGoodsPrice({
                     goodsId: id,
                     price: state.goodsInfoMaps[id]
