@@ -658,12 +658,14 @@
             },
             "ad/api/pmc/v1/uni-promotion/ad/list-optional|repeat": (res) => {
 
-                const { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
+                let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                 console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
                 if (state.pagination.page && (state.pagination.page != pagination.page)) {
                     waits.UserConfAndDataSetReady = false;
                 };
                 state.list = adInfos;
+                adGoodsMap = adGoodsMap || {};
+                adStatsMap = adStatsMap || {};
                 state.list.map(_ => {
                     const stat = adStatsMap[_.id] || {};
                     _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
