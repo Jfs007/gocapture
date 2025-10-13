@@ -163,9 +163,9 @@
             { title: '整体成交订单成本', wch: 18, get(row) { return `${row.totalCostPerPayOrderForRoi2Primary?.value}` } },
             { title: '用户实际支付金额', wch: 18, get(row) { return `${row.totalPayOrderGmvForRoi2?.value}` } },
             { title: '电商平台补贴金额', wch: 18, get(row) { return `${row.totalEcomPlatformSubsidyAmountForRoi2Primary?.value}` } },
-            { title: '保本成本', wch: 14, get(row) { return `${row.cost3}` } },
-            { title: '运营预估盈亏', wch: 15, get(row) { return `${row.profit3.toFixed(2)}` } },
-            { title: '运营预估盈亏率', wch: 16, get(row) { return `${row.profitRate3.toFixed(2)}` } },
+            { title: '保本成本', wch: 14, get(row) { return `${row.cost3 || ''}` } },
+            { title: '运营预估盈亏', wch: 15, get(row) { return `${row.profit3 ? row.profit3.toFixed(2) : ''}` } },
+            { title: '运营预估盈亏率', wch: 16, get(row) { return `${row.profitRate3 ? row.profitRate3.toFixed(2) : ''}` } },
         ];
         xlsx.design({ sheetName: 'Sheet12', hpx: 30 }, columns).input(data);
         xlsx.download('计划列表.xlsx');
