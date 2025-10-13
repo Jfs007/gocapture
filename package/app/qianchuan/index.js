@@ -172,7 +172,7 @@
 
     }
 
-    const api = 'https://testad.itaored.com';
+    const api = 'https://ad.itaored.com';
     async function getPlanInfo(params) {
         const mdChrome = _require("mdChrome");
         try {
