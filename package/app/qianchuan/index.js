@@ -174,22 +174,27 @@
 
     const api = 'https://testad.itaored.com';
     async function getPlanInfo(params) {
+        const mdChrome = _require("mdChrome");
         try {
-            const res = await fetch(api + "/qc/campaign/report/iu/list", {
+            const res = await mdChrome.web.cmd({
+                url: api + "/qc/campaign/report/iu/list",
+                cmd: 'fetch',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params)
+
             });
-            const json = await res.json();
-            const info = {};
-            json.map(_ => {
-                info[_.id] = Object.assign(_, {
-                    price: (_.campaignPric || '').split('-'),
-                    cost: _.campaignCost
-                })
-            });
-            console.log('getPlanInfo:Success', info);
-            return { data: info };
+            console.log(res, 'getPlanInfo');
+            // const json = await res.json();
+            // const info = {};
+            // json.map(_ => {
+            //     info[_.id] = Object.assign(_, {
+            //         price: (_.campaignPric || '').split('-'),
+            //         cost: _.campaignCost
+            //     })
+            // });
+            // console.log('getPlanInfo:Success', info);
+            return { data: {} };
 
         } catch (error) {
             console.log('getPlanInfo:Error', error);
@@ -215,7 +220,7 @@
         }
         // 加载已保存的成本数据
         async function loadPlanInfo(params) {
-           
+
             try {
                 const { data } = await getPlanInfo(params);
                 state.planInfo = data;
