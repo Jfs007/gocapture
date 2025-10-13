@@ -152,7 +152,7 @@
         await xlsx.setup();
         const columns = [
             { title: '商品名称', wch: 20, get(row) { return `${row.mainGoodsName}` } },
-             { title: '商品价格', wch: 20, get(row) { return `${row.price3 ? row.price3 : '-'}` } },
+            { title: '商品价格', wch: 20, get(row) { return `${row.price3Label ? row.price3Label : '-'}` } },
             { title: '计划ID', wch: 20, get(row) { return `${row.id}` } },
             { title: '计划ID', wch: 20, get(row) { return `${row.id}` } },
             { title: '目标roi', wch: 14, get(row) { return `${row.ecpRoi2Goal}` } },
@@ -192,8 +192,8 @@
             },
             mutations: {
                 SET_PLAN_INFO(state, { adId, cost, price }) {
-                    state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, {cost, price});
-                   
+                    state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, { cost, price });
+
                 },
                 // LOAD_AD_COSTS(state, planInfos) {
                 //     state.planInfo = planInfos;
@@ -284,7 +284,7 @@
                 if (newValue !== null && newValue !== '') {
                     const val = parseFloat(newValue);
                     if (!isNaN(val)) {
-                        await savePlanInfo(adId, {[options.key]: val});
+                        await savePlanInfo(adId, { [options.key]: val });
                         // 重新渲染该行数据
                         updateRowData(adId, adInfo);
                     } else {
@@ -301,10 +301,10 @@
             btn.onclick = async (e) => {
                 e.stopPropagation();
                 const has = adInfo.aboutGoodsId.find(goodsId => goodsId == state.goodsInfoMaps[goodsId]);
-                if(has) return;
+                if (has) return;
                 const product = document.querySelector(`[data-ad-id="${adId}"] .oc-promotion-product-adinfo-product-img-wrap-pop img`);
                 product.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-                setTimeout(() => {product.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true })); }, 0)
+                setTimeout(() => { product.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true })); }, 0)
 
                 // const info = planInfo[adId] || {};
                 // const newValue = prompt(options.message, info[options.key]);
@@ -336,7 +336,12 @@
             adInfo.cost3 = cost;
             adInfo.profitRate3 = profitRate;
             adInfo.price3 = price;
+            if (Array.isArray(price)) {
+                adInfo.price3Label = price[0] != price[1] ? price.join('-') : price[0]
+            }
+
             return {
+                // price3Label,
                 price,
                 cost,
                 consume,
@@ -348,7 +353,7 @@
 
         // 渲染单行的三个自定义列（统一渲染逻辑）
         function renderCustomColumns(row, adInfo, computed) {
-            const { cost, profit, profitRate, price } = computed;
+            let { cost, profit, profitRate, price } = computed;
             const adId = adInfo.id;
 
             // 渲染保本成本列
@@ -392,6 +397,10 @@
                 const inner = PriceTd.querySelector('.ovui-table-cell-inner');
                 inner.innerHTML = '';
                 const priceSpan = document.createElement('span');
+                // price = Array.isArray(price) ? price.join('-') : price;
+                if (Array.isArray(price)) {
+                    price = price[0] != price[1] ? price.join('-') : price[0]
+                }
                 priceSpan.innerText = price ? price : '-';
                 inner.appendChild(priceSpan);
                 // inner.appendChild(createEditButton(adId, adInfo, {
@@ -406,22 +415,22 @@
         function updateRowData(adId, adInfo) {
             const row = document.querySelector(`.ovui-tr[data-ad-id="${adId}"]`);
             if (!row) return;
-            
+
             const payload = planInfo[adId] || {};
             const computed = calculateRowData(adInfo, payload);
             renderCustomColumns(row, adInfo, computed);
         }
 
         async function updateGoodsPrice(info = {}) {
-                const { goodsId, price} = info;
-              
-                state.list.map(async adInfo => {
-                    if(!(adInfo.aboutGoodsId||[]).find(id => id == goodsId)) return;
-                    const adId = adInfo.id;
-                    await savePlanInfo(adId, { price });
-                    updateRowData(adId, adInfo);
-                })
-                
+            const { goodsId, price } = info;
+
+            state.list.map(async adInfo => {
+                if (!(adInfo.aboutGoodsId || []).find(id => id == goodsId)) return;
+                const adId = adInfo.id;
+                await savePlanInfo(adId, { price });
+                updateRowData(adId, adInfo);
+            })
+
         }
         // 插入导出按钮
         function insertExportButton() {
@@ -658,10 +667,10 @@
         // API钩子配置
         const api_hook = {
             "creation/v1/product/product-detail-info|repeat": (res) => {
-               
+
                 const { id, priceHigher, priceLower } = res?.result?.data?.productInfo || {};
-                state.goodsInfoMaps[id] = [priceLower, priceHigher];
-                 console.log(id, state.goodsInfoMaps[id], 'res');
+                state.goodsInfoMaps[id] = [priceLower / 100, priceHigher / 100];
+                console.log(id, state.goodsInfoMaps[id], 'res');
                 updateGoodsPrice({
                     goodsId: id,
                     price: state.goodsInfoMaps[id]
