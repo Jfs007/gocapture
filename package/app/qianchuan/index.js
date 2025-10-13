@@ -657,12 +657,13 @@
                 })
             },
             "ad/api/pmc/v1/uni-promotion/ad/list-optional|repeat": (res) => {
-
-                let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
+                try {
+                     let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                 console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
                 if (state.pagination.page && (state.pagination.page != pagination.page)) {
                     waits.UserConfAndDataSetReady = false;
                 };
+
                 state.list = adInfos;
                 adGoodsMap = adGoodsMap || {};
                 adStatsMap = adStatsMap || {};
@@ -682,6 +683,12 @@
 
                 // console.log(state.list, 'state.list');
                 handleAdList(page, 'list-optional');
+                    
+                } catch (error) {
+                    console.log('list-optional-error', error);
+                }
+
+               
             },
             "standard/get_summary_info|repeat": (res) => {
                 console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
