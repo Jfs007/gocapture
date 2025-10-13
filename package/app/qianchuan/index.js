@@ -184,17 +184,16 @@
                 data: JSON.stringify(params)
 
             });
-            console.log(res, 'getPlanInfo');
             // const json = await res.json();
-            // const info = {};
-            // json.map(_ => {
-            //     info[_.id] = Object.assign(_, {
-            //         price: (_.campaignPric || '').split('-'),
-            //         cost: _.campaignCost
-            //     })
-            // });
-            // console.log('getPlanInfo:Success', info);
-            return { data: {} };
+            const info = {};
+            (res.result.data||[]).map(_ => {
+                info[_.id] = Object.assign(_, {
+                    price: (_.campaignPric || '').split('-'),
+                    cost: _.campaignCost
+                })
+            });
+            console.log('getPlanInfo:Success', info);
+            return { data: info };
 
         } catch (error) {
             console.log('getPlanInfo:Error', error);
