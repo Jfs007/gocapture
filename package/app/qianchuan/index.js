@@ -172,53 +172,50 @@
 
     }
 
+    const api = 'https://testad.itaored.com';
+    async function getPlanInfo(params) {
+        try {
+            const res = await fetch(api + "/qc/campaign/report/iu/list", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const json = await res.json();
+            const info = {};
+            json.map(_ => {
+                info[_.id] = Object.assign(_, {
+                    price: (_.campaignPric || '').split('-'),
+                    cost: _.campaignCost
+                })
+            });
+            return { data: info };
+
+        } catch (error) {
+            return { data: {} }
+        }
+
+    }
 
     const initApp = async () => {
         console.log("🚀 千川站点初始化...");
         const mdChrome = _require("mdChrome");
         await Promise.all([
-            mdChrome.web.injectScript("cp_modules/store/index.js"),
+            // mdChrome.web.injectScript("cp_modules/store/index.js"),
             mdChrome.web.injectScript("cp_modules/web-hook/index.js")
         ]);
-
-        const CR = _require("chromeRedux");
-
-        // 注册保本成本存储模块
-        const QC_PLAN_DATA = {
-            state: {
-                planInfo: {
-
-                }
-            },
-            mutations: {
-                SET_PLAN_INFO(state, { adId, cost, price }) {
-                    state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, { cost, price });
-
-                },
-                // LOAD_AD_COSTS(state, planInfos) {
-                //     state.planInfo = planInfos;
-                // }
-            }
-        };
-
-        CR.registerModule("QC_PLAN_DATA", QC_PLAN_DATA);
-        CR.init();
 
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
             list: [],
             pagination: { page: 0 },
             goodsInfoMaps: {},
+            planInfo: {}
         }
-        let planInfo = {};
         // 加载已保存的成本数据
-        async function loadPlanInfo() {
+        async function loadPlanInfo(params) {
             try {
-                const data = await CR.get("QC_PLAN_DATA");
-                if (data && data.planInfo) {
-                    planInfo = data.planInfo || {};
-                    console.log("📋 加载广告成本数据:", Object.keys(planInfo).length, "个");
-                }
+                const { data } = await getPlanInfo(params);
+                state.planInfo = data;
             } catch (error) {
                 console.log("加载成本数据失败:", error);
             }
@@ -227,14 +224,13 @@
         // 保存成本
         async function savePlanInfo(adId, payload) {
             try {
-                planInfo[adId] = Object.assign(planInfo[adId] || {}, payload);
-                await CR.commit("QC_PLAN_DATA/SET_PLAN_INFO", { adId, ...planInfo[adId] });
+                state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, payload);
             } catch (error) {
                 console.error("保存成本失败:", error);
             }
         }
 
-        loadPlanInfo();
+        // loadPlanInfo();
 
         function waitTableLoadingDisappear() {
             return new Promise((resolve) => {
@@ -265,7 +261,10 @@
                 return;
             }
             await waitTableLoadingDisappear();
-            setTimeout(() => {
+            setTimeout(async () => {
+                await loadPlanInfo({
+                    campaignIdList: state.list.map(_ => _.id)
+                });
                 // 插入导出按钮
                 insertExportButton();
                 insertTableColumns(state.list);
@@ -279,7 +278,7 @@
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
             btn.onclick = async (e) => {
                 e.stopPropagation();
-                const info = planInfo[adId] || {};
+                const info = state.planInfo[adId] || {};
                 const newValue = prompt(options.message, info[options.key]);
                 if (newValue !== null && newValue !== '') {
                     const val = parseFloat(newValue);
@@ -305,19 +304,6 @@
                 const product = document.querySelector(`[data-ad-id="${adId}"] .oc-promotion-product-adinfo-product-img-wrap-pop img`);
                 product.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
                 setTimeout(() => { product.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true })); }, 0)
-
-                // const info = planInfo[adId] || {};
-                // const newValue = prompt(options.message, info[options.key]);
-                // if (newValue !== null && newValue !== '') {
-                //     const val = parseFloat(newValue);
-                //     if (!isNaN(val)) {
-                //         await savePlanInfo(adId, {[options.key]: val});
-                //         // 重新渲染该行数据
-                //         updateRowData(adId, adInfo);
-                //     } else {
-                //         alert('请输入有效的数字');
-                //     }
-                // }
             };
             return btn;
         }
@@ -416,7 +402,7 @@
             const row = document.querySelector(`.ovui-tr[data-ad-id="${adId}"]`);
             if (!row) return;
 
-            const payload = planInfo[adId] || {};
+            const payload = state.planInfo[adId] || {};
             const computed = calculateRowData(adInfo, payload);
             renderCustomColumns(row, adInfo, computed);
         }
@@ -461,7 +447,7 @@
                 }
                 // 在导出前，先计算所有行的数据
                 state.list.forEach(adInfo => {
-                    const payload = planInfo[adInfo.id] || {};
+                    const payload = state.planInfo[adInfo.id] || {};
                     calculateRowData(adInfo, payload);
                 });
 
@@ -501,7 +487,7 @@
             const summaryRow = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary');
             const colRow = document.querySelector('.ovui-table__head-wrapper .ovui-table colgroup');
 
-            if (!theadRow || !colRow ||!summaryRow) {
+            if (!theadRow || !colRow || !summaryRow) {
                 console.log("未找到表头行，稍后重试");
                 return;
             }
@@ -633,7 +619,7 @@
                             }
 
                             // 计算数据
-                            const payload = planInfo[adId] || {};
+                            const payload = state.planInfo[adId] || {};
                             const computed = calculateRowData(adInfo, payload);
 
                             let lastInsertedTd = targetTd;
