@@ -498,10 +498,10 @@
             // 找到表头行
             const theadRow = document.querySelector('.ovui-thead .ovui-tr');
             // const summaryRow = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary');
-            const summaryRowTh = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary > th:first-child');
+            const summaryRow = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary');
             const colRow = document.querySelector('.ovui-table__head-wrapper .ovui-table colgroup');
 
-            if (!theadRow || !colRow) {
+            if (!theadRow || !colRow ||!summaryRow) {
                 console.log("未找到表头行，稍后重试");
                 return;
             }
@@ -509,8 +509,9 @@
             // 获取所有th，找到插入位置（第N个th后面）
             const thList = theadRow.querySelectorAll('th');
             const colList = colRow.querySelectorAll('col');
+            const summaryThList = summaryRow.querySelectorAll('th');
             // 假设在第N个th后面插入（可根据需求调整）
-            const insertIndex = 4;
+            const insertIndex = 7;
 
             if (thList.length < insertIndex) {
                 console.log("表头列数不足");
@@ -519,20 +520,19 @@
 
             const targetTh = thList[insertIndex - 1];
             const targetCol = colList[insertIndex - 1];
+            const targetSummaryTh = summaryThList[insertIndex - 1];
 
             // 检查是否已经插入过
             if (theadRow.querySelector('th[data-md-custom="budget"]')) {
                 console.log("已经插入过自定义列");
                 return;
             }
-
             // 计算插入位置的left值（累加前面所有col的宽度）
             let leftOffset = 0;
             for (let i = 0; i < insertIndex; i++) {
                 const width = parseInt(colList[i].getAttribute('width')) || 0;
                 leftOffset += width;
             }
-
             // 插入三个表头
             const headers = [
                 { text: '保本成本', key: 'budget', width: 100 },
@@ -542,14 +542,16 @@
             ];
 
             // 计算新插入列的总宽度
-            const totalInsertedWidth = headers.reduce((sum, h) => sum + h.width, 0);
+            // const totalInsertedWidth = headers.reduce((sum, h) => sum + h.width, 0);
 
             let lastInsertedTh = targetTh;
             let lastInsertedCol = targetCol;
+            let lastInsertedSummaryTh = targetSummaryTh;
+
             headers.forEach((header) => {
                 const th = document.createElement('th');
-                th.className = 'ovui-th ovui-th--sticky ovui-th--sticky-left ovui-table-cell ovui-table-cell--left ovui-th__no-left-border ovui-th__no-bottom-border';
-                th.style.left = `${leftOffset}px`;
+                th.className = 'ovui-th ovui-table-cell ovui-table-cell--right ovui-th__no-left-border ovui-th__no-bottom-border';
+                // th.style.left = `${leftOffset}px`;
                 th.setAttribute('data-md-custom', header.key);
                 th.innerHTML = `<div class="ovui-table-cell-inner">${header.text}</div>`;
                 lastInsertedTh.insertAdjacentElement('afterend', th);
@@ -559,24 +561,32 @@
                 lastInsertedCol.insertAdjacentElement('afterend', col);
                 lastInsertedCol = col;
 
+                // 统计行
+                const summaryth = document.createElement('th');
+                summaryth.className = 'ovui-t-summary-cell ovui-table-cell ovui-table-cell--right';
+                // th.style.left = `${leftOffset}px`;
+                summaryth.setAttribute('data-md-custom', header.key);
+                lastInsertedTh.insertAdjacentElement('afterend', summaryth);
+                lastInsertedTh = lastInsertedSummaryTh;
+
                 // 累加当前列宽度，用于下一个th
-                leftOffset += header.width;
+                // leftOffset += header.width;
             });
 
             // 更新后面所有sticky列的left值
-            let currentTh = lastInsertedTh.nextElementSibling;
-            while (currentTh) {
-                if (currentTh.classList.contains('ovui-th--sticky-left') && currentTh.style.left) {
-                    const currentLeft = parseInt(currentTh.style.left) || 0;
-                    currentTh.style.left = `${currentLeft + totalInsertedWidth}px`;
-                }
-                currentTh = currentTh.nextElementSibling;
-            }
+            // let currentTh = lastInsertedTh.nextElementSibling;
+            // while (currentTh) {
+            //     if (currentTh.classList.contains('ovui-th--sticky-left') && currentTh.style.left) {
+            //         const currentLeft = parseInt(currentTh.style.left) || 0;
+            //         currentTh.style.left = `${currentLeft + totalInsertedWidth}px`;
+            //     }
+            //     currentTh = currentTh.nextElementSibling;
+            // }
 
-            if (summaryRowTh) {
-                const colspan = +(summaryRowTh.getAttribute('colspan'))
-                summaryRowTh.setAttribute('colspan', colspan + headers.length);
-            }
+            // if (summaryRowTh) {
+            //     const colspan = +(summaryRowTh.getAttribute('colspan'))
+            //     summaryRowTh.setAttribute('colspan', colspan + headers.length);
+            // }
 
             // 给每个tbody的tr插入td
             const tbody = document.querySelector('.ovui-tbody');
@@ -629,8 +639,8 @@
                             let lastInsertedTd = targetTd;
                             headers.forEach((header) => {
                                 const td = document.createElement('td');
-                                td.className = 'ovui-td ovui-td--sticky ovui-table-cell ovui-table-cell--left';
-                                td.style.left = `${tdLeftOffset}px`;
+                                td.className = 'ovui-td ovui-table-cell ovui-table-cell--right';
+                                // td.style.left = `${tdLeftOffset}px`;
                                 td.setAttribute('data-md-custom', header.key);
 
                                 const inner = document.createElement('div');
@@ -640,21 +650,21 @@
                                 lastInsertedTd.insertAdjacentElement('afterend', td);
                                 lastInsertedTd = td;
                                 // 累加当前列宽度
-                                tdLeftOffset += header.width;
+                                // tdLeftOffset += header.width;
                             });
 
                             // 使用统一的渲染方法填充内容
                             renderCustomColumns(row, adInfo, computed);
 
                             // 更新该行后面所有sticky列的left值
-                            let currentTd = lastInsertedTd.nextElementSibling;
-                            while (currentTd) {
-                                if (currentTd.classList.contains('ovui-td--sticky') && currentTd.style.left) {
-                                    const currentLeft = parseInt(currentTd.style.left) || 0;
-                                    currentTd.style.left = `${currentLeft + totalInsertedWidth}px`;
-                                }
-                                currentTd = currentTd.nextElementSibling;
-                            }
+                            // let currentTd = lastInsertedTd.nextElementSibling;
+                            // while (currentTd) {
+                            //     if (currentTd.classList.contains('ovui-td--sticky') && currentTd.style.left) {
+                            //         const currentLeft = parseInt(currentTd.style.left) || 0;
+                            //         currentTd.style.left = `${currentLeft + totalInsertedWidth}px`;
+                            //     }
+                            //     currentTd = currentTd.nextElementSibling;
+                            // }
                         }
                     }
                 });
