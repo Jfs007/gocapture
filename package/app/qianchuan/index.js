@@ -231,7 +231,7 @@
 
             try {
                 const { data } = await getPlanInfo(params);
-                state.planInfo = data;
+                state.planInfo = Object.assign(state.planInfo, data);
             } catch (error) {
                 console.log("加载成本数据失败:", error);
             }
