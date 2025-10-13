@@ -188,9 +188,11 @@
                     cost: _.campaignCost
                 })
             });
+            console.log('getPlanInfo:Success', info);
             return { data: info };
 
         } catch (error) {
+            console.log('getPlanInfo:Error', error);
             return { data: {} }
         }
 
@@ -213,7 +215,7 @@
         }
         // 加载已保存的成本数据
         async function loadPlanInfo(params) {
-            console.log(params, '加载数据');
+           
             try {
                 const { data } = await getPlanInfo(params);
                 state.planInfo = data;
