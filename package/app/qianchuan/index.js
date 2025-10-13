@@ -201,6 +201,7 @@
 
     }
     async function savePlanInfo0(params) {
+        const mdChrome = _require("mdChrome");
         const res = await mdChrome.web.cmd({
             url: api + "/api/qc/campaign/report/iu/save",
             cmd: 'fetch',
