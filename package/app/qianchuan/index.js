@@ -278,7 +278,8 @@
 
 
         // 处理列表接口返回
-        async function handleAdList(page) {
+        async function handleAdList(page, handleName) {
+            alert('list长度' + state.list.length + handleName);
             if (!waits.UserConfAndDataSetReady) return;
             if (state.list.length == 0) {
                 // waits.UserConfAndDataSetReady = false;
@@ -287,7 +288,7 @@
             await loadPlanInfo({
                 campaignIdList: state.list.map(_ => _.id)
             });
-            alert('list长度' + state.list.length);
+            
             if(state.pagination.page!=page && page) return;
             await waitTableLoadingDisappear();
             setTimeout(async () => {
@@ -678,12 +679,12 @@
                 state.pagination = pagination;
 
                 // console.log(state.list, 'state.list');
-                handleAdList(page);
+                handleAdList(page, 'list-optional');
             },
             "standard/get_summary_info|repeat": (res) => {
                 console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
                 waits.UserConfAndDataSetReady = true;
-                handleAdList(state.pagination.page);
+                handleAdList(state.pagination.page, 'getUserConfAndDataSet');
             }
         };
 
