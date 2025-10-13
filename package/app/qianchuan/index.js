@@ -682,7 +682,7 @@
                 state.pagination = pagination;
 
                 // console.log(state.list, 'state.list');
-                handleAdList(page, 'list-optional');
+                handleAdList(pagination.page, 'list-optional');
                     
                 } catch (error) {
                     console.log('list-optional-error', error);
