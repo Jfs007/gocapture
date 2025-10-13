@@ -284,15 +284,16 @@
                 // waits.UserConfAndDataSetReady = false;
                 return;
             }
+            await loadPlanInfo({
+                campaignIdList: state.list.map(_ => _.id)
+            });
             await waitTableLoadingDisappear();
             setTimeout(async () => {
-                await loadPlanInfo({
-                    campaignIdList: state.list.map(_ => _.id)
-                });
+
                 // 插入导出按钮
                 insertExportButton();
                 insertTableColumns(state.list);
-            }, 90);
+            }, 120);
         }
 
         // 创建编辑按钮
