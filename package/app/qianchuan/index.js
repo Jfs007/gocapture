@@ -660,9 +660,9 @@
                 try {
                      let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                 console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
-                if (state.pagination.page && (state.pagination.page != pagination.page)) {
-                    waits.UserConfAndDataSetReady = false;
-                };
+                // if (state.pagination.page && (state.pagination.page != pagination.page)) {
+                //     waits.UserConfAndDataSetReady = false;
+                // };
 
                 state.list = adInfos;
                 adGoodsMap = adGoodsMap || {};
@@ -692,6 +692,7 @@
             },
             "standard/get_summary_info|repeat": (res) => {
                 console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
+                state.list = [];
                 waits.UserConfAndDataSetReady = true;
                 handleAdList(state.pagination.page, 'getUserConfAndDataSet');
             }
