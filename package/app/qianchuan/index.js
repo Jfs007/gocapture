@@ -303,7 +303,7 @@
             btn.onclick = async (e) => {
                 e.stopPropagation();
                 const info = state.planInfo[adId] || {};
-                const newValue = prompt(options.message, info[options.key]);
+                const newValue = prompt(options.message, info[options.key] || '');
                 if (newValue !== null && newValue !== '') {
                     const val = parseFloat(newValue);
                     if (!isNaN(val)) {
