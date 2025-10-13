@@ -566,8 +566,8 @@
                 summaryth.className = 'ovui-t-summary-cell ovui-table-cell ovui-table-cell--right';
                 // th.style.left = `${leftOffset}px`;
                 summaryth.setAttribute('data-md-custom', header.key);
-                lastInsertedTh.insertAdjacentElement('afterend', summaryth);
-                lastInsertedTh = lastInsertedSummaryTh;
+                lastInsertedSummaryTh.insertAdjacentElement('afterend', summaryth);
+                lastInsertedSummaryTh = summaryth;
 
                 // 累加当前列宽度，用于下一个th
                 // leftOffset += header.width;
