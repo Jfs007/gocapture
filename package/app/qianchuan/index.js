@@ -279,7 +279,6 @@
 
         // 处理列表接口返回
         async function handleAdList(page, handleName) {
-            alert('list长度' + state.list.length + handleName);
             if (!waits.UserConfAndDataSetReady) return;
             if (state.list.length == 0) {
                 // waits.UserConfAndDataSetReady = false;
