@@ -177,7 +177,7 @@
         const mdChrome = _require("mdChrome");
         try {
             const res = await mdChrome.web.cmd({
-                url: api + "/qc/campaign/report/iu/list",
+                url: api + "/api/qc/campaign/report/iu/list",
                 cmd: 'fetch',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
