@@ -241,9 +241,10 @@
         async function savePlanInfo(adId, payload) {
             try {
                 state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, payload);
+                const plan = state.list.find(_ => _.id == adId) || {};
                 savePlanInfo0({
                     campaignId: adId,
-                    campaignName: state.planInfo[adId].name,
+                    campaignName: plan.name,
                     accountCode: '-',
                     campaignPrice: payload.price ? payload.price.join('-') : undefined,
                     campaignCost: payload.cost
