@@ -532,7 +532,7 @@
 
             const targetTh = thList[insertIndex - 1];
             const targetCol = colList[insertIndex - 1];
-            const targetSummaryTh = summaryThList[insertIndex - 1];
+            const targetSummaryTh = summaryThList[1];
 
             // 检查是否已经插入过
             if (theadRow.querySelector('th[data-md-custom="budget"]')) {
