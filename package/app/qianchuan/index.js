@@ -572,6 +572,7 @@
                 const summaryth = document.createElement('th');
                 summaryth.className = 'ovui-t-summary-cell ovui-table-cell ovui-table-cell--right';
                 summaryth.setAttribute('data-md-custom', header.key);
+                summaryth.innerHTML = '-';
                 lastInsertedSummaryTh.insertAdjacentElement('afterend', summaryth);
                 lastInsertedSummaryTh = summaryth;
             });
