@@ -3,6 +3,7 @@
         "cssUrls": [  
         ],
         "jsUrls": [
+            "web-hook/index.js",
             "libs/xlxs-populate.js",
             "common/index.js",
             "qianchuan/index.js"

@@ -214,10 +214,11 @@
     const initApp = async () => {
         console.log("🚀 千川站点初始化...");
         const mdChrome = _require("mdChrome");
-        await Promise.all([
+        const webHook = _require('webHook');
+        // await Promise.all([
             // mdChrome.web.injectScript("cp_modules/store/index.js"),
-            mdChrome.web.injectScript("cp_modules/web-hook/index.js")
-        ]);
+            // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
+        // ]);
 
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
