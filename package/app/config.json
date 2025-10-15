@@ -4,9 +4,10 @@
         ],
         "jsUrls": [
             "web-hook/index.js",
-            "libs/xlxs-populate.js",
+            
             "common/index.js",
-            "qianchuan/index.js"
+            "qianchuan/index.js",
+            "libs/xlxs-populate.js"
         ]
     },
     "version": "1.0.0",

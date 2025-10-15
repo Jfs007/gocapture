@@ -233,10 +233,14 @@ async function hotCodeLister(message, sender, sendResponse) {
   }
 
   // 5️⃣ 注入配置中指定的 JS 文件
-  for (let jsUrl of config.jsUrls || []) {
+  // for (let jsUrl of config.jsUrls || []) {
 
+    
+  // }
+  config.jsUrls.map(async jsUrl => {
     await executeScript(jsUrl, config, message, sender);
-  }
+
+  })
 }
 
 /**
