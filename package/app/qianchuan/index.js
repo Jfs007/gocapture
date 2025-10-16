@@ -725,7 +725,7 @@
 
         // 监听请求响应
         window.addEventListener("message", listenMessage);
-        console.log(cache, 'cache', webHook);
+        console.log('cache', webHook);
         webHook.ready();
         webHook.cache.map(params => {
 
