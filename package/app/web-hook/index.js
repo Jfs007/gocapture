@@ -295,7 +295,6 @@
     // 暴露全局API
     window.__WEB_REQUEST_API__ = api;
     window.__WEB_REQUEST_VERSION__ = '2.0';
-
     _exports.module['webHook'] = api;
 
 
