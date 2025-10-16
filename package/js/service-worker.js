@@ -1,6 +1,6 @@
 
 const localConfig = {
-  jsUrls: ['chrome/cli.js', 'chrome/web.js', "app/web-hook/index.js"]
+  jsUrls: ['chrome/cli.js', 'chrome/web.js', "chrome/web-hook.js"]
 }
 
 // 全局缓存对象
@@ -218,7 +218,7 @@ async function GetConfig(context, sender, callback) {
  */
 async function hotCodeLister(message, sender, sendResponse) {
     // 2️⃣ 注入本地通用 JS 文件（jquery/layer/...）
-  await requestLocalExecuteScript(config, message, sender);
+  await requestLocalExecuteScript({}, message, sender);
 
   // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
   const config = await GetConfig(message, sender, sendResponse);
