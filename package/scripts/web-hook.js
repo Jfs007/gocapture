@@ -224,23 +224,11 @@
 
             return originalSend.call(this, modifiedBody);
         };
-        const locationReadyMaps = {};
-        const caches = [];
 
         console.log("✅ 增强版拦截器安装成功！");
 
         // 返回API对象
         return {
-            caches,
-            addCache(info) {
-                caches.push(info);
-            },
-            ready() {
-                locationReadyMaps[location.hostname] = true;
-            },
-            isReady() {
-                return locationReadyMaps[location.hostname];
-            },
             onResponse(callback = () => { }) {
                 responseQueue.push(callback);
             },
@@ -274,14 +262,10 @@
 
     // 监听响应
     api.onResponse(({ url, result, request, method, modified }) => {
-        const info = {
+        window.postMessage({
             type: 'WEB_REQUEST_RESPONSE',
             data: { url, result, request, method, modified }
-        }
-        window.postMessage(info, "*");
-        if (!api.isReady()) {
-            api.addCache(info);
-        }
+        }, "*");
     });
 
     // 监听请求修改
@@ -291,13 +275,4 @@
             data: { url, method, originalBody, modifiedBody, type }
         }, "*");
     });
-
-    // 暴露全局API
-    window.__WEB_REQUEST_API__ = api;
-    window.__WEB_REQUEST_VERSION__ = '2.0';
-
-    _exports.module['webHook'] = api;
-
-
-    console.log('🎉 Enhanced Web Request Interceptor Ready!');
 }();

@@ -1,4 +1,6 @@
 (function () {
+
+    
     chrome.runtime.sendMessage({ cmd: "start" });
     // 监听chrome的事件然后转发出去 background/popup/option -> content-script -> web page
     chrome.runtime.onMessage.addListener((function (e, t, m) {

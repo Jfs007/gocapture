@@ -216,8 +216,8 @@
         const mdChrome = _require("mdChrome");
         const webHook = _require('webHook');
         // await Promise.all([
-            // mdChrome.web.injectScript("cp_modules/store/index.js"),
-            // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
+        // mdChrome.web.injectScript("cp_modules/store/index.js"),
+        // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
         // ]);
 
         const waits = { 'UserConfAndDataSetReady': false }
@@ -288,7 +288,7 @@
             await loadPlanInfo({
                 campaignIdList: state.list.map(_ => _.id)
             });
-            
+
             // if(state.pagination.page!=page && page) return;
             await waitTableLoadingDisappear();
             setTimeout(async () => {
@@ -660,37 +660,37 @@
             },
             "ad/api/pmc/v1/uni-promotion/ad/list-optional|repeat": (res) => {
                 try {
-                     let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
-                console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
-                // if (state.pagination.page && (state.pagination.page != pagination.page)) {
-                //     waits.UserConfAndDataSetReady = false;
-                // };
+                    let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
+                    console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
+                    // if (state.pagination.page && (state.pagination.page != pagination.page)) {
+                    //     waits.UserConfAndDataSetReady = false;
+                    // };
 
-                state.list = adInfos;
-                adGoodsMap = adGoodsMap || {};
-                adStatsMap = adStatsMap || {};
-                state.list.map(_ => {
-                    const stat = adStatsMap[_.id] || {};
-                    _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
-                    _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
-                    _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
-                    _.statCostForRoi2 = stat?.metrics['statCostForRoi2'] || {};
-                    _.totalPayOrderGmvIncludeCouponForRoi2 = stat?.metrics['totalPayOrderGmvIncludeCouponForRoi2'] || {};
-                    _.totalPrepayAndPayOrderRoi2 = stat?.metrics['totalPrepayAndPayOrderRoi2'] || {};
-                    _.totalCostPerPayOrderForRoi2Primary = stat?.metrics['totalCostPerPayOrderForRoi2Primary'] || {};
-                    _.totalPayOrderGmvForRoi2 = stat?.metrics['totalPayOrderGmvForRoi2'] || {};
-                    _.totalEcomPlatformSubsidyAmountForRoi2Primary = stat?.metrics['totalEcomPlatformSubsidyAmountForRoi2Primary'] || {};
-                });
-                state.pagination = pagination;
+                    state.list = adInfos;
+                    adGoodsMap = adGoodsMap || {};
+                    adStatsMap = adStatsMap || {};
+                    state.list.map(_ => {
+                        const stat = adStatsMap[_.id] || {};
+                        _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
+                        _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
+                        _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
+                        _.statCostForRoi2 = stat?.metrics['statCostForRoi2'] || {};
+                        _.totalPayOrderGmvIncludeCouponForRoi2 = stat?.metrics['totalPayOrderGmvIncludeCouponForRoi2'] || {};
+                        _.totalPrepayAndPayOrderRoi2 = stat?.metrics['totalPrepayAndPayOrderRoi2'] || {};
+                        _.totalCostPerPayOrderForRoi2Primary = stat?.metrics['totalCostPerPayOrderForRoi2Primary'] || {};
+                        _.totalPayOrderGmvForRoi2 = stat?.metrics['totalPayOrderGmvForRoi2'] || {};
+                        _.totalEcomPlatformSubsidyAmountForRoi2Primary = stat?.metrics['totalEcomPlatformSubsidyAmountForRoi2Primary'] || {};
+                    });
+                    state.pagination = pagination;
 
-                // console.log(state.list, 'state.list');
-                handleAdList(pagination.page, 'list-optional');
-                    
+                    // console.log(state.list, 'state.list');
+                    handleAdList(pagination.page, 'list-optional');
+
                 } catch (error) {
                     console.log('list-optional-error', error);
                 }
 
-               
+
             },
             "standard/get_summary_info|repeat": (res) => {
                 console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
@@ -700,8 +700,7 @@
             }
         };
 
-        // 监听请求响应
-        window.addEventListener("message", function (event) {
+        function listenMessage(event) {
             const { type, data } = event.data;
             if (type === "WEB_REQUEST_RESPONSE") {
                 const url = data ? data.url : '-';
@@ -720,7 +719,18 @@
                 }
 
             }
-        });
+
+        };
+
+
+        // 监听请求响应
+        window.addEventListener("message", listenMessage);
+        console.log(cache, 'cache', webHook);
+        webHook.ready();
+        webHook.cache.map(params => {
+
+            listenMessage(params)
+        })
 
         console.log("✅ 千川站点初始化完成");
     };
