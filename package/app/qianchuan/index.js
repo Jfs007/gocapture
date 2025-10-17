@@ -280,11 +280,11 @@
 
         // 处理列表接口返回
         async function handleAdList(page, handleName) {
-            if (!waits.UserConfAndDataSetReady) return;
-            if (state.list.length == 0) {
-                // waits.UserConfAndDataSetReady = false;
-                return;
-            }
+            // if (!waits.UserConfAndDataSetReady) return;
+            // if (state.list.length == 0) {
+            //     // waits.UserConfAndDataSetReady = false;
+            //     return;
+            // }
             await loadPlanInfo({
                 campaignIdList: state.list.map(_ => _.id)
             });
@@ -663,10 +663,6 @@
                 try {
                     let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                     console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
-                    // if (state.pagination.page && (state.pagination.page != pagination.page)) {
-                    //     waits.UserConfAndDataSetReady = false;
-                    // };
-
                     state.list = adInfos;
                     adGoodsMap = adGoodsMap || {};
                     adStatsMap = adStatsMap || {};
