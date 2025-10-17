@@ -693,12 +693,12 @@
 
 
             },
-            "ad/adDetailSectional|repeat": (res) => {
-                console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
-                state.list = [];
-                waits.UserConfAndDataSetReady = true;
-                handleAdList(state.pagination.page, 'getUserConfAndDataSet');
-            }
+            // "ad/adDetailSectional|repeat": (res) => {
+            //     console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
+            //     state.list = [];
+            //     waits.UserConfAndDataSetReady = true;
+            //     handleAdList(state.pagination.page, 'getUserConfAndDataSet');
+            // }
         };
 
         function listenMessage(event) {
