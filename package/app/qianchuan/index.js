@@ -659,6 +659,7 @@
                 })
             },
             "ad/api/pmc/v1/uni-promotion/ad/list-optional|repeat": (res) => {
+                state.list = [];
                 try {
                     let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
                     console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
@@ -692,7 +693,7 @@
 
 
             },
-            "standard/get_summary_info|repeat": (res) => {
+            "ad/adDetailSectional|repeat": (res) => {
                 console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
                 state.list = [];
                 waits.UserConfAndDataSetReady = true;
