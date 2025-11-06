@@ -219,6 +219,24 @@
         // mdChrome.web.injectScript("cp_modules/store/index.js"),
         // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
         // ]);
+        mdChrome.web.injectScript("cp_modules/store/index.js");
+
+
+        const CR = _require("chromeRedux");
+
+        const CACHE_TEMP = {
+            state: {
+                planAndGoodsIdMaps: {}
+            },
+            mutations: {
+                SET_PLAN_GOODS_ID(state, payload) {
+                    
+                    state.planAndGoodsIdMaps = Object.assign(state.planAndGoodsIdMaps, payload);
+                }
+            }
+        };
+        CR.registerModule("CACHE_TEMP", CACHE_TEMP);
+        CR.init();
 
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
@@ -666,10 +684,13 @@
                     state.list = adInfos;
                     adGoodsMap = adGoodsMap || {};
                     adStatsMap = adStatsMap || {};
+                    const planAndGoodsIdMaps = {};
                     state.list.map(_ => {
+                        
                         const stat = adStatsMap[_.id] || {};
                         _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
                         _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
+                        planAndGoodsIdMaps[_.id] = _.aboutGoodsId[0];
                         _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
                         _.statCostForRoi2 = stat?.metrics['statCostForRoi2'] || {};
                         _.totalPayOrderGmvIncludeCouponForRoi2 = stat?.metrics['totalPayOrderGmvIncludeCouponForRoi2'] || {};
@@ -678,8 +699,9 @@
                         _.totalPayOrderGmvForRoi2 = stat?.metrics['totalPayOrderGmvForRoi2'] || {};
                         _.totalEcomPlatformSubsidyAmountForRoi2Primary = stat?.metrics['totalEcomPlatformSubsidyAmountForRoi2Primary'] || {};
                     });
-                    state.pagination = pagination;
 
+                    state.pagination = pagination;
+                    CR.commit('CACHE_TEMP/SET_PLAN_GOODS_ID', planAndGoodsIdMaps);
                     // console.log(state.list, 'state.list');
                     handleAdList(pagination.page, 'list-optional');
 
