@@ -618,7 +618,7 @@
                     const adInfo = adInfos[rowIndex];
                     if (!adInfo) return;
                     const adId = adInfo.id;
-                    const mainGoodsId = adIdInfo.mainGoodsId;
+                    const mainGoodsId = adInfo.mainGoodsId;
                     // 给行添加标识
                     row.setAttribute('data-ad-id', adId);
                     const tdList = row.querySelectorAll('td');
