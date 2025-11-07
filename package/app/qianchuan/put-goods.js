@@ -45,8 +45,9 @@
                                                 <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 12px;background-color: #f4f4f5;height: 32px;padding: 4px 12px;border-radius: 3px;border: none;outline: none;width: 120px;" />
                                             </div>
                                         </div>`;
+            const costInputDivInput = document.querySelector('#costInputDivInput');
             if (info.campaignCost) {
-                const costInputDivInput = document.querySelector('#costInputDivInput');
+                
                 costInputDivInput.value = info.campaignCost;
             }
 
@@ -57,7 +58,7 @@
                 console.log('保本成本变化了', value);
             });
 
-            costInputDiv.addEventListener('blur', async (e) => {
+            costInputDivInput.addEventListener('blur', async (e) => {
                 let value = e.target.value;
                 console.log('保本成本最终值', value);
                 try {
