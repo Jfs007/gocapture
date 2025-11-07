@@ -35,7 +35,7 @@
             costInputDiv.id = 'costInputDiv';
             // const target = document.querySelector('#overAllRoiBlock');
 
-            const target = document.querySelector('..oc-card.oc-card-bordered.oc-mb-24');
+            const target = document.querySelector('.oc-card.oc-card-bordered.oc-mb-24');
             target.appendChild(costInputDiv);
             costInputDiv.innerHTML = `<div class='oc-row'>
                                             <div class='oc-title'>
