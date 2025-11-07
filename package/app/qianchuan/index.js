@@ -173,7 +173,7 @@
         xlsx.download('计划列表.xlsx');
 
     }
-    const api = 'https://ad.itaored.com';
+    const api = 'https://testad.itaored.com';
     async function getProductInfo(params) {
         const mdChrome = _require("mdChrome");
         try {
