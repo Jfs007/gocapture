@@ -1,7 +1,7 @@
 
 !function () {
     if (location.href.indexOf('https://qianchuan.jinritemai.com/creation/uni-prom-product') < 0) return;
-    const api = 'https://testad.itaored.com';
+    const api = 'https://ad.itaored.com';
     const initApp = () => {
         const mdChrome = _require("mdChrome");
         const info = {
