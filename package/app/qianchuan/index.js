@@ -1,6 +1,8 @@
 !function () {
     "use strict";
 
+    if(location.href.indexOf('https://qianchuan.jinritemai.com/uni-prom') <0) return;
+
     /**
  *  await xlsx.setup();
  *  xlsx.design(columns, { name: 'Sheet1' }).sheet(data)
@@ -171,7 +173,6 @@
         xlsx.download('计划列表.xlsx');
 
     }
-
     const api = 'https://ad.itaored.com';
     async function getPlanInfo(params) {
         const mdChrome = _require("mdChrome");
@@ -215,27 +216,27 @@
         console.log("🚀 千川站点初始化...");
         const mdChrome = _require("mdChrome");
         const webHook = _require('webHook');
-        await Promise.all([
-        mdChrome.web.injectScript("cp_modules/store/index.js"),
-        // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
-        ]);
+        // await Promise.all([
+        // mdChrome.web.injectScript("cp_modules/store/index.js"),
+        // // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
+        // ]);
         
 
-        const CR = _require("chromeRedux");
+        // const CR = _require("chromeRedux");
 
-        const CACHE_TEMP = {
-            state: {
-                planAndGoodsIdMaps: {}
-            },
-            mutations: {
-                SET_PLAN_GOODS_ID(state, payload) {
+        // const CACHE_TEMP = {
+        //     state: {
+        //         planAndGoodsIdMaps: {}
+        //     },
+        //     mutations: {
+        //         SET_PLAN_GOODS_ID(state, payload) {
                     
-                    state.planAndGoodsIdMaps = Object.assign(state.planAndGoodsIdMaps, payload);
-                }
-            }
-        };
-        CR.registerModule("CACHE_TEMP", CACHE_TEMP);
-        CR.init();
+        //             state.planAndGoodsIdMaps = Object.assign(state.planAndGoodsIdMaps, payload);
+        //         }
+        //     }
+        // };
+        // CR.registerModule("CACHE_TEMP", CACHE_TEMP);
+        // CR.init();
 
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
@@ -690,6 +691,7 @@
                         _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
                         _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
                         planAndGoodsIdMaps[_.id] = _.aboutGoodsId[0];
+                        _.mainGoodsId = _.aboutGoodsId[0];
                         _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
                         _.statCostForRoi2 = stat?.metrics['statCostForRoi2'] || {};
                         _.totalPayOrderGmvIncludeCouponForRoi2 = stat?.metrics['totalPayOrderGmvIncludeCouponForRoi2'] || {};
@@ -700,7 +702,7 @@
                     });
 
                     state.pagination = pagination;
-                    CR.commit('CACHE_TEMP/SET_PLAN_GOODS_ID', planAndGoodsIdMaps);
+                    // CR.commit('CACHE_TEMP/SET_PLAN_GOODS_ID', planAndGoodsIdMaps);
                     // console.log(state.list, 'state.list');
                     handleAdList(pagination.page, 'list-optional');
 
