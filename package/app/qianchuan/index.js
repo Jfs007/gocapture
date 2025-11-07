@@ -174,11 +174,11 @@
 
     }
     const api = 'https://ad.itaored.com';
-    async function getPlanInfo(params) {
+    async function getProductInfo(params) {
         const mdChrome = _require("mdChrome");
         try {
             const res = await mdChrome.web.cmd({
-                url: api + "/api/qc/campaign/report/iu/list",
+                url: api + "/api/qc/campaign/report/iu/list/product",
                 cmd: 'fetch',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -187,24 +187,24 @@
             // const json = await res.json();
             const info = {};
             (res.result.data || []).map(_ => {
-                info[_.campaignId] = Object.assign(_, {
+                info[_.productId] = Object.assign(_, {
                     price: (_.campaignPrice || '').split('-'),
                     cost: _.campaignCost
                 })
             });
-            console.log('getPlanInfo:Success', info);
+            console.log('getProductInfo:Success', info);
             return { data: info };
 
         } catch (error) {
-            console.log('getPlanInfo:Error', error);
+            console.log('getProductInfo:Error', error);
             return { data: {} }
         }
 
     }
-    async function savePlanInfo0(params) {
+    async function saveProductInfo0(params) {
         const mdChrome = _require("mdChrome");
         const res = await mdChrome.web.cmd({
-            url: api + "/api/qc/campaign/report/iu/save",
+            url: api + "/api/qc/campaign/report/iu/save/product",
             cmd: 'fetch',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -243,27 +243,29 @@
             list: [],
             pagination: { page: 0 },
             goodsInfoMaps: {},
-            planInfo: {}
+            productInfo: {},
         }
         // 加载已保存的成本数据
-        async function loadPlanInfo(params) {
+        async function loadProductInfo(params) {
 
             try {
-                const { data } = await getPlanInfo(params);
-                state.planInfo = Object.assign(state.planInfo, data);
+                const { data } = await getProductInfo(params);
+                // state.list.map(plan => {
+                //     const mainGoodsId = plan.mainGoodsId;
+                //     const info = data[mainGoodsId] || {};
+                // })
+                state.productInfo = Object.assign(state.productInfo, data);
             } catch (error) {
                 console.log("加载成本数据失败:", error);
             }
         }
 
         // 保存成本
-        async function savePlanInfo(adId, payload) {
+        async function saveProductInfo(mainGoodsId, payload) {
             try {
-                state.planInfo[adId] = Object.assign(state.planInfo[adId] || {}, payload);
-                const plan = state.list.find(_ => _.id == adId) || {};
-                savePlanInfo0({
-                    campaignId: adId,
-                    campaignName: plan.name,
+                state.productInfo[mainGoodsId] = Object.assign(state.productInfo[mainGoodsId] || {}, payload);
+                saveProductInfo0({
+                    productId: mainGoodsId,
                     accountCode: '-',
                     campaignPrice: payload.price ? payload.price.join('-') : undefined,
                     campaignCost: payload.cost
@@ -273,7 +275,7 @@
             }
         }
 
-        // loadPlanInfo();
+        // loadProductInfo();
 
         function waitTableLoadingDisappear() {
             return new Promise((resolve) => {
@@ -303,8 +305,8 @@
             //     // waits.UserConfAndDataSetReady = false;
             //     return;
             // }
-            await loadPlanInfo({
-                campaignIdList: state.list.map(_ => _.id)
+            await loadProductInfo({
+                productIdList: state.list.map(_ => _.mainGoodsId)
             });
 
             // if(state.pagination.page!=page && page) return;
@@ -319,17 +321,18 @@
 
         // 创建编辑按钮
         function createEditButton(adId, adInfo, options = {}) {
+            const { mainGoodsId } = adInfo;
             const btn = document.createElement('span');
             btn.innerText = '编辑';
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
             btn.onclick = async (e) => {
                 e.stopPropagation();
-                const info = state.planInfo[adId] || {};
+                const info = state.productInfo[mainGoodsId] || {};
                 const newValue = prompt(options.message, info[options.key] || '');
                 if (newValue !== null && newValue !== '') {
                     const val = parseFloat(newValue);
                     if (!isNaN(val)) {
-                        await savePlanInfo(adId, { [options.key]: val });
+                        await saveProductInfo(mainGoodsId, { [options.key]: val });
                         // 重新渲染该行数据
                         updateRowData(adId, adInfo);
                     } else {
@@ -441,8 +444,8 @@
         function updateRowData(adId, adInfo) {
             const row = document.querySelector(`.ovui-tr[data-ad-id="${adId}"]`);
             if (!row) return;
-
-            const payload = state.planInfo[adId] || {};
+            const { mainGoodsId } = adInfo;
+            const payload = state.productInfo[mainGoodsId] || {};
             const computed = calculateRowData(adInfo, payload);
             renderCustomColumns(row, adInfo, computed);
         }
@@ -453,7 +456,7 @@
             state.list.map(async adInfo => {
                 if (!(adInfo.aboutGoodsId || []).find(id => id == goodsId)) return;
                 const adId = adInfo.id;
-                await savePlanInfo(adId, { price });
+                await saveProductInfo(adInfo.mainGoodsId, { price });
                 updateRowData(adId, adInfo);
             })
         }
@@ -486,7 +489,7 @@
                 }
                 // 在导出前，先计算所有行的数据
                 state.list.forEach(adInfo => {
-                    const payload = state.planInfo[adInfo.id] || {};
+                    const payload = state.productInfo[adInfo.mainGoodsId] || {};
                     calculateRowData(adInfo, payload);
                 });
 
@@ -615,6 +618,7 @@
                     const adInfo = adInfos[rowIndex];
                     if (!adInfo) return;
                     const adId = adInfo.id;
+                    const mainGoodsId = adIdInfo.mainGoodsId;
                     // 给行添加标识
                     row.setAttribute('data-ad-id', adId);
                     const tdList = row.querySelectorAll('td');
@@ -630,7 +634,7 @@
                             }
 
                             // 计算数据
-                            const payload = state.planInfo[adId] || {};
+                            const payload = state.productInfo[mainGoodsId] || {};
                             const computed = calculateRowData(adInfo, payload);
 
                             let lastInsertedTd = targetTd;
