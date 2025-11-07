@@ -33,8 +33,10 @@
             if (document.querySelector('#costInputDiv')) return;
             const costInputDiv = document.createElement('div');
             costInputDiv.id = 'costInputDiv';
-            const target = document.querySelector('#overAllRoiBlock');
-            target.parentNode.insertBefore(costInputDiv, target.nextSibling);
+            // const target = document.querySelector('#overAllRoiBlock');
+
+            const target = document.querySelector('..oc-card.oc-card-bordered.oc-mb-24');
+            target.appendChild(costInputDiv);
             costInputDiv.innerHTML = `<div class='oc-row'>
                                             <div class='oc-title'>
                                                 <div class='oc-title-prefix'>
@@ -42,14 +44,14 @@
                                                 </div>
                                             </div>
                                             <div class='oc-space oc-space-vertical' style='margin-top: 10px;'>
-                                                <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 18px;background-color: #f4f4f5;height: 42px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;width: 160px;" />
+                                                <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 18px;background-color: #f4f4f5;height: 42px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
 
                                       
             const costInputDivInput = document.querySelector('#costInputDivInput');
             if (info.campaignCost) {
-                
+            
                 costInputDivInput.value = info.campaignCost;
             }
 
