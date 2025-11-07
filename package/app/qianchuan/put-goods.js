@@ -5,7 +5,7 @@
 
 
         const api_hook = {
-            'qianchuan.jinritemai.com/ad/api/creation/v1/audit/async-check-product|repeat': function (data, fullData) {
+            'ad/api/creation/v1/audit/async-check-product|repeat': function (data, fullData) {
                 console.log(data, fullData, '数据来了');
             }
         }
