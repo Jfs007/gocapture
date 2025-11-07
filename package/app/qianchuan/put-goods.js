@@ -26,6 +26,7 @@
                 });
 
             } catch (error) {
+                console.log('获取保本成本失败', error);
 
             }
 
