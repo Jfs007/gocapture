@@ -31,7 +31,7 @@
 
         const api_hook = {
             'ad/api/creation/v1/audit/async-check-product|repeat': function (data) {
-                console.log(data, fullData, '数据来了');
+                console.log(data, '数据来了');
                 const { url } = data;
                 const [_, productid] = url.match(/.*product=([\d,]+)/) || [];
                 productid && insetCostInput();
