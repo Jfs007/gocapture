@@ -44,7 +44,7 @@
                                                     <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text'>保本成本</div>
                                                 </div>
                                             </div>
-                                            <div class='oc-space oc-space-vertical' style='margin-top: 10px;'>
+                                            <div class='oc-space oc-space-vertical' style='margin-top: 8px;'>
                                                 <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 18px;background-color: #f4f4f5;height: 44px;margin-left: 6px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
