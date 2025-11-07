@@ -17,7 +17,7 @@
                                                 </div>
                                             </div>
                                             <div class='oc-space oc-space-vertical' style='margin-top: 10px;'>
-                                                <input style="background-color: #f4f4f5;height: 32px;padding: 4px 12px;border-radius: 3px;border: none;outline: none;width: 120px;" />
+                                                <input placeholder='请输入保本成本' style="background-color: #f4f4f5;height: 32px;padding: 4px 12px;border-radius: 3px;border: none;outline: none;width: 120px;" />
                                             </div>
                                         </div>`;
             costInputDiv.addEventListener('input', (e) => {
