@@ -16,12 +16,14 @@
                                                     <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text'>保本成本</div>
                                                 </div>
                                             </div>
-                                            <div class='oc-space oc-space-vertical'>
-                                                <input style="background-color: #f4f4f5;height: 32px;padding: 4px 12px;border-radius: 3px;border: none;outline: none;" />
+                                            <div class='oc-space oc-space-vertical' style='margin-top: 10px;'>
+                                                <input style="background-color: #f4f4f5;height: 32px;padding: 4px 12px;border-radius: 3px;border: none;outline: none;width: 120px;" />
                                             </div>
                                         </div>`;
             costInputDiv.addEventListener('input', (e) => {
-                const value = e.target.value;
+                let value = e.target.value;
+                e.target.value = value.replace(/[^\d]/g, '');
+                value = e.target.value;
                 console.log('保本成本变化了', value);
             })
 
