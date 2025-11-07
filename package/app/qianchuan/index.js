@@ -371,7 +371,6 @@
             if (Array.isArray(price)) {
                 adInfo.price3Label = price[0] != price[1] ? price.join('-') : price[0]
             }
-
             return {
                 // price3Label,
                 price,
@@ -429,16 +428,11 @@
                 const inner = PriceTd.querySelector('.ovui-table-cell-inner');
                 inner.innerHTML = '';
                 const priceSpan = document.createElement('span');
-                // price = Array.isArray(price) ? price.join('-') : price;
                 if (Array.isArray(price)) {
                     price = price[0] != price[1] ? price.join('-') : price[0]
                 }
                 priceSpan.innerText = price ? price : '-';
                 inner.appendChild(priceSpan);
-                // inner.appendChild(createEditButton(adId, adInfo, {
-                //     message: '请输入售价:',
-                //     key: 'price'
-                // }));
                 inner.appendChild(createSyncPriceBtn(adId, adInfo, {}))
             }
         }
@@ -462,7 +456,6 @@
                 await savePlanInfo(adId, { price });
                 updateRowData(adId, adInfo);
             })
-
         }
         // 插入导出按钮
         function insertExportButton() {
@@ -702,8 +695,6 @@
                     });
 
                     state.pagination = pagination;
-                    // CR.commit('CACHE_TEMP/SET_PLAN_GOODS_ID', planAndGoodsIdMaps);
-                    // console.log(state.list, 'state.list');
                     handleAdList(pagination.page, 'list-optional');
 
                 } catch (error) {
