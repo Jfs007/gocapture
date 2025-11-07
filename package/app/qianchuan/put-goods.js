@@ -36,6 +36,7 @@
             // const target = document.querySelector('#overAllRoiBlock');
 
             const target = document.querySelector('.creation-suggest-budget-input');
+            target.style.display = 'flex';
             target.appendChild(costInputDiv);
             costInputDiv.innerHTML = `<div class='oc-row'>
                                             <div class='oc-title'>
@@ -44,7 +45,7 @@
                                                 </div>
                                             </div>
                                             <div class='oc-space oc-space-vertical' style='margin-top: 10px;'>
-                                                <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 18px;background-color: #f4f4f5;height: 42px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 18px;background-color: #f4f4f5;height: 44px;margin-left: 6px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
 
