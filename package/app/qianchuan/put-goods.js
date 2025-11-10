@@ -58,8 +58,8 @@
 
             costInputDiv.addEventListener('input', (e) => {
                 let value = e.target.value;
-                e.target.value = value.replace(/[^\d]/g, '');
-                value = e.target.value;
+                // e.target.value = value.replace(/[^\d]/g, '');
+                // value = e.target.value;
                 console.log('保本成本变化了', value);
             });
 
