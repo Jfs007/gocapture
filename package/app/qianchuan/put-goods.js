@@ -27,6 +27,7 @@
                 });
                 (res.result.data || []).map(_ => {
                     info.campaignCost = _.campaignCost;
+                    info.campaignSettleCost = _.campaignSettleCost;
                     costInputDivInput.value = _.campaignCost || '';
                     campaignSettlecostInputDivInput.value = _.campaignSettleCost || '';
                 });
