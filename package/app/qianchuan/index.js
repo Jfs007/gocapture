@@ -430,14 +430,14 @@
                 const costbox = document.createElement('div');
                 const campaignSettleCostbox = document.createElement('div');
                 if (cost > 0) {
-                    const color = campaignSettleprofitRate >= 0 ? '#52c41a' : '#ff4d4f';
-                    costbox.innerHTML = `<span style="color: ${color}">支付: ${campaignSettleprofitRate.toFixed(2)}%</span>`;
+                    const color = profitRate >= 0 ? '#52c41a' : '#ff4d4f';
+                    costbox.innerHTML = `<span style="color: ${color}">支付: ${profitRate.toFixed(2)}%</span>`;
                 } else {
                     costbox.innerText = '支付: -';
                 }
                 if (campaignSettleCost > 0) {
-                    const color = profitRate >= 0 ? '#52c41a' : '#ff4d4f';
-                    campaignSettleCostbox.innerHTML = `<span style="color: ${color}">净成交: ${profitRate.toFixed(2)}%</span>`;
+                    const color = campaignSettleprofitRate >= 0 ? '#52c41a' : '#ff4d4f';
+                    campaignSettleCostbox.innerHTML = `<span style="color: ${color}">净成交: ${campaignSettleprofitRate.toFixed(2)}%</span>`;
                 } else {
                     campaignSettleCostbox.innerText = '净成交: -';
                 }
