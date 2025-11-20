@@ -46,7 +46,8 @@
             costInputDiv.innerHTML = `<div class='oc-row' style='margin-left: 6px;'>
                                             <div class='oc-title'>
                                                 <div class='oc-title-prefix'>
-                                                    <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text'>保本成本</div>
+                                                    <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text'>净成交保本成本</div>
+                                                    <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text' style='margin-left: 67px'>支付保本成本</div>
                                                 </div>
                                             </div>
                                             <div class='oc-space oc-space-' style='margin-top: 8px;display:flex;align-item: center;'>
