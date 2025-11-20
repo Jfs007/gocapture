@@ -402,6 +402,7 @@
             const costTd = row.querySelector('td[data-md-custom="cost"]');
             if (costTd) {
                 const inner = costTd.querySelector('.ovui-table-cell-inner');
+                inner.innerHTML = '';
                 const costbox = document.createElement('div');
                 const campaignSettleCostbox = document.createElement('div');
                 if (campaignSettleCost > 0) {
@@ -424,6 +425,7 @@
             const balanceTd = row.querySelector('td[data-md-custom="balance"]');
             if (balanceTd) {
                 const inner = balanceTd.querySelector('.ovui-table-cell-inner');
+                inner.innerHTML = '';
                 const costbox = document.createElement('div');
                 const campaignSettleCostbox = document.createElement('div');
                 if (cost > 0) {
