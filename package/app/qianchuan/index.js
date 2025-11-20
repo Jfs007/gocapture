@@ -208,10 +208,15 @@
 
     const initApp = async () => {
         console.log("🚀 千川站点初始化...");
-        const manifest = await mdChrome.web.cmd({
-            cmd: "getManifest"
-        });
-        console.log("🚀 插件版本:", manifest, 'Manifest');
+        try {
+            const manifest = await mdChrome.web.cmd({
+                cmd: "getManifest"
+            });
+            console.log(manifest, 'Manifest');
+
+        } catch (error) {
+            console.log(error);
+        }
         const mdChrome = _require("mdChrome");
         const webHook = _require('webHook');
         const waits = { 'UserConfAndDataSetReady': false }

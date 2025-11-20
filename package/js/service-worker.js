@@ -604,10 +604,10 @@ function onMessageLister(message, sender, sendResponse) {
   if ("getCookie" === message.cmd || "removeCookie" === message.cmd || "setCookies" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
   // if ("hotCode" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse) { }
   // if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
-  if ("getManifest" === message.cmd) {
-    const manifest = chrome.runtime.getManifest();
-    sendResponse && sendResponse(manifest);
-  }
+  // if ("getManifest" === message.cmd) {
+  //   const manifest = chrome.runtime.getManifest();
+  //   sendResponse && sendResponse(manifest);
+  // }
 }
 
 
