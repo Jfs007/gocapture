@@ -36,6 +36,7 @@
             if (document.querySelector('#costInputDiv')) return;
             const costInputDiv = document.createElement('div');
             costInputDiv.id = 'costInputDiv';
+            costInputDiv.style.flex = 1;
             // const target = document.querySelector('#overAllRoiBlock');
             const target = document.querySelector('.creation-suggest-budget-input');
             target.style.display = 'flex';
@@ -46,9 +47,9 @@
                                                     <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text'>保本成本</div>
                                                 </div>
                                             </div>
-                                            <div class='oc-space oc-space-vertical' style='margin-top: 8px;display:flex;align-item: center;'>
+                                            <div class='oc-space oc-space-' style='margin-top: 8px;display:flex;align-item: center;'>
                                                 <input id="campaignSettlecostInputDivInput" placeholder='净成交' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
-                                                <input id="costInputDivInput" placeholder='支付' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input id="costInputDivInput" placeholder='支付' style="margin-left: 4px;font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
 
