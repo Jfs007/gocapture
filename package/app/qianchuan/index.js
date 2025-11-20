@@ -215,7 +215,7 @@
             console.log(manifest, 'Manifest');
 
         } catch (error) {
-            console.log(error);
+            console.log(error, 'ManifestError');
         }
         const mdChrome = _require("mdChrome");
         const webHook = _require('webHook');
