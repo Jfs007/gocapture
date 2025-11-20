@@ -527,7 +527,7 @@
             }
             // 插入三个表头
             const headers = [
-                { text: '保本成本', key: 'budget', width: 100 },
+                { text: '保本成本', key: 'budget', width: 130 },
                 { text: '运营预估盈亏', key: 'cost', width: 100 },
                 { text: '运营预估盈亏率', key: 'balance', width: 100 },
                 { text: '售价', key: 'price', width: 130 }
