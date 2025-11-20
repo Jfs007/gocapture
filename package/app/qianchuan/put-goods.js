@@ -28,6 +28,7 @@
                 (res.result.data || []).map(_ => {
                     info.campaignCost = _.campaignCost;
                     costInputDivInput.value = _.campaignCost || '';
+                    campaignSettlecostInputDivInput.value = _.campaignSettleCost || '';
                 });
 
             } catch (error) {
