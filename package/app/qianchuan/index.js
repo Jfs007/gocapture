@@ -159,6 +159,7 @@
             { title: '目标roi', wch: 14, get(row) { return `${row.ecpRoi2Goal}` } },
             { title: '整体消耗', wch: 14, get(row) { return `${row.statCostForRoi2?.value}` } },
             { title: '整体成交订单数', wch: 18, get(row) { return `${row.totalPayOrderCountForRoi2?.value}` } },
+            { title: '净成交订单数', wch: 18, get(row) { return `${row.totalOrderSettleCountForRoi21H?.value}` } },
             { title: '整体成交金额', wch: 18, get(row) { return `${row.totalPayOrderGmvIncludeCouponForRoi2?.value}` } },
             { title: '整体支付ROI', wch: 18, get(row) { return `${row.totalPrepayAndPayOrderRoi2?.value}` } },
             { title: '整体成交订单成本', wch: 18, get(row) { return `${row.totalCostPerPayOrderForRoi2Primary?.value}` } },
@@ -334,7 +335,7 @@
             const consume = parseFloat(adInfo.statCostForRoi2?.value) || 0; // 消耗
             const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0; // 整体成交订单数
             const totalOrderSettleCount = parseInt(adInfo.totalOrderSettleCountForRoi21H?.value) || 0;
-            console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost);
+            console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost, totalOrderSettleCount);
             // 运营预估盈亏 = 保本成本 × 整体成交订单数 - 消耗
             const profit = cost * totalOrderCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
