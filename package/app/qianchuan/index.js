@@ -1,7 +1,8 @@
 !function () {
     "use strict";
 
-    if(location.href.indexOf('https://qianchuan.jinritemai.com/uni-prom') <0) return;
+    if (location.href.indexOf('https://qianchuan.jinritemai.com/uni-prom') < 0) return;
+
 
     /**
  *  await xlsx.setup();
@@ -9,6 +10,7 @@
  *  xlsx.download('商品列表.xlsx');
  * 
  */
+
     function xlsxUltra() {
         let workbook = null;
         let sheetIndex = 0;
@@ -146,10 +148,7 @@
             empty
         };
     }
-
     const xlsx = xlsxUltra();
-
-
     async function exportPlans(data) {
         await xlsx.setup();
         const columns = [
@@ -171,7 +170,6 @@
         ];
         xlsx.design({ sheetName: 'Sheet12', hpx: 30 }, columns).input(data);
         xlsx.download('计划列表.xlsx');
-
     }
     const api = 'https://ad.itaored.com';
     async function getProductInfo(params) {
@@ -192,14 +190,10 @@
                     cost: _.campaignCost
                 })
             });
-            console.log('getProductInfo:Success', info);
             return { data: info };
-
         } catch (error) {
-            console.log('getProductInfo:Error', error);
             return { data: {} }
         }
-
     }
     async function saveProductInfo0(params) {
         const mdChrome = _require("mdChrome");
@@ -214,30 +208,12 @@
 
     const initApp = async () => {
         console.log("🚀 千川站点初始化...");
+        const manifest = await mdChrome.web.cmd({
+            cmd: "getManifest"
+        });
+        console.log("🚀 插件版本:", manifest, 'Manifest');
         const mdChrome = _require("mdChrome");
         const webHook = _require('webHook');
-        // await Promise.all([
-        // mdChrome.web.injectScript("cp_modules/store/index.js"),
-        // // mdChrome.web.injectScript("cp_modules/web-hook/index.js")
-        // ]);
-        
-
-        // const CR = _require("chromeRedux");
-
-        // const CACHE_TEMP = {
-        //     state: {
-        //         planAndGoodsIdMaps: {}
-        //     },
-        //     mutations: {
-        //         SET_PLAN_GOODS_ID(state, payload) {
-                    
-        //             state.planAndGoodsIdMaps = Object.assign(state.planAndGoodsIdMaps, payload);
-        //         }
-        //     }
-        // };
-        // CR.registerModule("CACHE_TEMP", CACHE_TEMP);
-        // CR.init();
-
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
             list: [],
@@ -247,19 +223,13 @@
         }
         // 加载已保存的成本数据
         async function loadProductInfo(params) {
-
             try {
                 const { data } = await getProductInfo(params);
-                // state.list.map(plan => {
-                //     const mainGoodsId = plan.mainGoodsId;
-                //     const info = data[mainGoodsId] || {};
-                // })
                 state.productInfo = Object.assign(state.productInfo, data);
             } catch (error) {
                 console.log("加载成本数据失败:", error);
             }
         }
-
         // 保存成本
         async function saveProductInfo(mainGoodsId, payload) {
             try {
@@ -276,7 +246,6 @@
         }
 
         // loadProductInfo();
-
         function waitTableLoadingDisappear() {
             return new Promise((resolve) => {
                 const container = document.querySelector('.table-container')
@@ -299,17 +268,10 @@
 
 
         // 处理列表接口返回
-        async function handleAdList(page, handleName) {
-            // if (!waits.UserConfAndDataSetReady) return;
-            // if (state.list.length == 0) {
-            //     // waits.UserConfAndDataSetReady = false;
-            //     return;
-            // }
+        async function handleAdList() {
             await loadProductInfo({
                 productIdList: state.list.map(_ => _.mainGoodsId)
             });
-
-            // if(state.pagination.page!=page && page) return;
             await waitTableLoadingDisappear();
             setTimeout(async () => {
                 // 插入导出按钮
@@ -318,7 +280,6 @@
                 waits.UserConfAndDataSetReady = false;
             }, 120);
         }
-
         // 创建编辑按钮
         function createEditButton(adId, adInfo, options = {}) {
             const { mainGoodsId } = adInfo;
@@ -342,7 +303,7 @@
             };
             return btn;
         }
-        function createSyncPriceBtn(adId, adInfo, options = {}) {
+        function createSyncPriceBtn(adId, adInfo) {
             const btn = document.createElement('span');
             btn.innerText = '同步';
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
@@ -356,7 +317,6 @@
             };
             return btn;
         }
-
         // 计算数据（纯函数，不涉及DOM操作）
         function calculateRowData(adInfo, payload = {}) {
             const { cost, price } = payload || {};
@@ -366,7 +326,6 @@
             const profit = cost * totalOrderCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
             const profitRate = consume > 0 ? (profit / consume) * 100 : 0;
-
             adInfo.profit3 = profit;
             adInfo.cost3 = cost;
             adInfo.profitRate3 = profitRate;
@@ -375,7 +334,6 @@
                 adInfo.price3Label = price[0] != price[1] ? price.join('-') : price[0]
             }
             return {
-                // price3Label,
                 price,
                 cost,
                 consume,
@@ -389,7 +347,6 @@
         function renderCustomColumns(row, adInfo, computed) {
             let { cost, profit, profitRate, price } = computed;
             const adId = adInfo.id;
-
             // 渲染保本成本列
             const budgetTd = row.querySelector('td[data-md-custom="budget"]');
             if (budgetTd) {
@@ -464,7 +421,6 @@
         function insertExportButton() {
             const targetContainer = document.querySelector('.oc-more-filter-tile-body.tile-filter-body .title-item-suffix .oc-space');
             if (!targetContainer) {
-                console.log('未找到导出按钮容器');
                 return;
             }
 
@@ -472,7 +428,6 @@
             if (targetContainer.querySelector('.export-plan-button')) {
                 return;
             }
-
             // 创建按钮容器
             const buttonWrapper = document.createElement('div');
             buttonWrapper.className = 'oc-space-item export-plan-button';
@@ -499,7 +454,6 @@
                 try {
                     await exportPlans(state.list);
                 } catch (error) {
-                    console.error('导出失败:', error);
                     alert('导出失败，请查看控制台');
                 } finally {
                     exportButton.disabled = false;
@@ -516,22 +470,16 @@
             } else {
                 targetContainer.appendChild(buttonWrapper);
             }
-
-            console.log('✅ 导出按钮插入完成');
         }
-
         // 在表格中插入列
         function insertTableColumns(adInfos) {
             // 找到表头行
             const theadRow = document.querySelector('.ovui-thead .ovui-tr');
             const summaryRow = document.querySelector('.ovui-thead .ovui-tr.ovui-t-summary');
             const colRow = document.querySelector('.ovui-table__head-wrapper .ovui-table colgroup');
-
             if (!theadRow || !colRow || !summaryRow) {
-                console.log("未找到表头行，稍后重试");
                 return;
             }
-
             // 获取所有th，找到插入位置（第N个th后面）
             const thList = theadRow.querySelectorAll('th');
             const colList = colRow.querySelectorAll('col');
@@ -540,7 +488,6 @@
             const insertIndex = 6;
 
             if (thList.length < insertIndex) {
-                console.log("表头列数不足");
                 return;
             }
 
@@ -550,7 +497,6 @@
 
             // 检查是否已经插入过
             if (theadRow.querySelector('th[data-md-custom="budget"]')) {
-                console.log("已经插入过自定义列");
                 return;
             }
             // 计算插入位置的left值（累加前面所有col的宽度）
@@ -607,7 +553,6 @@
                             lastInsertedBodyCol.insertAdjacentElement('afterend', col);
                             lastInsertedBodyCol = col;
                         });
-                        console.log('✅ tbody colgroup插入完成');
                     }
                 } else {
                     console.log('❌ 未找到bodyColRow');
@@ -658,11 +603,8 @@
                     }
                 });
             }
-
             console.log("✅ 表格列插入完成");
         }
-
-
         // API钩子配置
         const api_hook = {
             "creation/v1/product/product-detail-info|repeat": (res) => {
@@ -677,13 +619,11 @@
                 state.list = [];
                 try {
                     let { adInfos, adStatsMap, pagination, adGoodsMap } = res?.result?.data || { adInfos: [], adStatsMap: {}, pagination: {} };
-                    console.log('%接口-list-optional' + adInfos.length + waits.UserConfAndDataSetReady, 'color: #00C853');
                     state.list = adInfos;
                     adGoodsMap = adGoodsMap || {};
                     adStatsMap = adStatsMap || {};
                     const planAndGoodsIdMaps = {};
                     state.list.map(_ => {
-                        
                         const stat = adStatsMap[_.id] || {};
                         _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
                         _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
@@ -702,17 +642,9 @@
                     handleAdList(pagination.page, 'list-optional');
 
                 } catch (error) {
-                    console.log('list-optional-error', error);
+
                 }
-
-
             },
-            // "ad/adDetailSectional|repeat": (res) => {
-            //     console.log('%接口-getUserConfAndDataSet', 'color: #00C853');
-            //     state.list = [];
-            //     waits.UserConfAndDataSetReady = true;
-            //     handleAdList(state.pagination.page, 'getUserConfAndDataSet');
-            // }
         };
 
         function listenMessage(event) {
@@ -732,23 +664,15 @@
                     action != 'repeat' && (hook.isExec = true);
                     hook(data, event.data);
                 }
-
             }
-
         };
-
-
         // 监听请求响应
         window.addEventListener("message", listenMessage);
-        console.log('cache', __WEB_REQUEST_API__, );
         __WEB_REQUEST_API__.ready();
         __WEB_REQUEST_API__.cache.map(params => {
-
             listenMessage(params)
         })
-
         console.log("✅ 千川站点初始化完成");
     };
-
     initApp();
 }()

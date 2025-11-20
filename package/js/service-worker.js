@@ -2,11 +2,8 @@
 const localConfig = {
   jsUrls: ['chrome/cli.js', 'chrome/web.js', "chrome/web-hook.js"]
 }
-
 // 全局缓存对象
 const ExeCodeMap = {};
-
-
 /**
  * 获取远程数据
  */
@@ -57,7 +54,7 @@ function InjectLister(message, sender, sendResponse) {
       { world, files: message.fileNames }
     );
     chrome.scripting.executeScript(execData).then(result => {
-      
+
       sendResponse(result);
     });
 
@@ -111,24 +108,17 @@ function fillIframeTarget(message, sender, execData) {
 
 // 导出对象
 const injectCmd = { Lister: InjectLister };
-
-
-const CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/testldd-chrome-plugin/';
+let CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/ldd-chrome-plugin/';
 function GetRemoteConfigUrl() {
   return `${CONFIG_BASE_URL}app/config.json?t=${Date.now()}`;
 }
-
 function GetLocalAppConfigUrl() {
   try {
-    return chrome.runtime.getURL('app/config.json') + '?id=' + Date.now() ;
+    return chrome.runtime.getURL('app/config.json') + '?id=' + Date.now();
   } catch (error) {
     return ''
   }
-
 }
-
-
-
 /**
  * 检查给定 URL 是否在允许的子 URL 列表中
  * @param {string} url - 需要检查的 URL
@@ -174,6 +164,9 @@ async function GetConfig(context, sender, callback) {
   }
   // 2️⃣ 获取 manifest 信息
   const manifest = chrome.runtime.getManifest();
+  if (manifest.devlopment_env) {
+    CONFIG_BASE_URL = manifest.devlopment_env.source;
+  }
   // 处理作者名
   let authorName = manifest.author_name || manifest.authorName || "";
   // 处理渠道信息
@@ -202,7 +195,7 @@ async function GetConfig(context, sender, callback) {
   const reResult = {};
   Object.keys(result).map(key => {
     const item = result[key] || [];
-    reResult[key] = item.map(url =>  manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
+    reResult[key] = item.map(url => manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
   })
   if (callback) callback(reResult);
   return reResult;
@@ -217,7 +210,7 @@ async function GetConfig(context, sender, callback) {
  * @param {Function} sendResponse - 回调函数，用于异步返回
  */
 async function hotCodeLister(message, sender, sendResponse) {
-    // 2️⃣ 注入本地通用 JS 文件（jquery/layer/...）
+  // 2️⃣ 注入本地通用 JS 文件（jquery/layer/...）
   await requestLocalExecuteScript({}, message, sender);
 
   // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
@@ -236,7 +229,7 @@ async function hotCodeLister(message, sender, sendResponse) {
   // 5️⃣ 注入配置中指定的 JS 文件
   // for (let jsUrl of config.jsUrls || []) {
 
-    
+
   // }
   config.jsUrls.map(async jsUrl => {
     await executeScript(jsUrl, config, message, sender);
@@ -249,7 +242,7 @@ async function hotCodeLister(message, sender, sendResponse) {
  */
 async function requestLocalExecuteScript(config, message, sender) {
   let files = localConfig.jsUrls;
-  if(!files.length) return;
+  if (!files.length) return;
 
   if (config.requestLocalExecuteJs) files = config.requestLocalExecuteJs;
 
@@ -265,7 +258,7 @@ async function requestLocalExecuteScript(config, message, sender) {
  */
 async function requestLocalExecuteCss(config, message, sender) {
   let files = [];
-  if(!files.length) return;
+  if (!files.length) return;
   if (config.requestLocalExecuteCss) files = config.requestLocalExecuteCss;
 
   let execData = { files };
@@ -281,7 +274,7 @@ async function executeScript(url, config, message, sender) {
   const key = `js_${url}`;
   let code = ExeCodeMap[key];
   if (!code) {
-    code = await fetchData(url+ '?id=' + Date.now());
+    code = await fetchData(url + '?id=' + Date.now());
     if (code) ExeCodeMap[key] = code;
   }
 
@@ -388,7 +381,7 @@ function setCookies(options, unused, callback) {
       cookieDetail.domain = options.domain;
     }
 
-    chrome.cookies.set(cookieDetail, () => {});
+    chrome.cookies.set(cookieDetail, () => { });
   }
 
   callback(); // 通知调用方设置完成
@@ -544,7 +537,7 @@ function fetchAsBase64(url, callback) {
       reader.onload = (e) => callback(e.currentTarget.result);
       reader.readAsDataURL(blob);
     })
-    .catch(() => {});
+    .catch(() => { });
 }
 
 // 请求规则工具
@@ -578,7 +571,7 @@ async function fetchWithRules(config, sender, callback) {
       let parsedResult = null;
       try {
         parsedResult = JSON.parse(responseText);
-      } catch (_) {}
+      } catch (_) { }
 
       const result = {
         result: parsedResult || responseText,
@@ -609,7 +602,12 @@ function onMessageLister(message, sender, sendResponse) {
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
   if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);
   if ("getCookie" === message.cmd || "removeCookie" === message.cmd || "setCookies" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
+  // if ("hotCode" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse) { }
   // if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
+  if ("getManifest" === message.cmd) {
+    const manifest = chrome.runtime.getManifest();
+    sendResponse && sendResponse(manifest);
+  }
 }
 
 

@@ -1,9 +1,12 @@
-
 {
   "manifest_version": 3,
+  "devlopment_env": {
+    "source": "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
+    "api": "https://testad.itaored.com"
+  },
   "name": "超级量多多+",
   "short_name": "超级量多多+",
-  "author_name":"chrome",
+  "author_name": "chrome",
   "app_module": "oneline",
   "version": "30.2.2",
   "description": "电商实用工具集合大全",
@@ -25,7 +28,7 @@
   },
   "permissions": [
     "background",
-    "management",	
+    "management",
     "unlimitedStorage",
     "activeTab",
     "scripting",
@@ -55,7 +58,9 @@
       "js": [
         "js/content.js"
       ],
-      "css": ["css/index.css"],
+      "css": [
+        "css/index.css"
+      ],
       "matches": [
         "<all_urls>"
       ],
@@ -78,7 +83,6 @@
         "app/*"
       ]
     },
-    
     {
       "matches": [
         "<all_urls>"

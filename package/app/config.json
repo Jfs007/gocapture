@@ -3,7 +3,6 @@
         "cssUrls": [  
         ],
         "jsUrls": [
-          
             "common/index.js",
             "qianchuan/index.js",
             "qianchuan/put-goods.js",
@@ -11,5 +10,6 @@
         ]
     },
     "version": "1.0.0",
-    "success": true
+    "success": true,
+    "api": ""
 }
