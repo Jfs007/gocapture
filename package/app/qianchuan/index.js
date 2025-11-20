@@ -208,6 +208,7 @@
 
     const initApp = async () => {
         console.log("🚀 千川站点初始化...");
+        const mdChrome = _require("mdChrome");
         try {
             const manifest = await mdChrome.web.cmd({
                 cmd: "getManifest"
@@ -217,7 +218,6 @@
         } catch (error) {
             console.log(error, 'ManifestError');
         }
-        const mdChrome = _require("mdChrome");
         const webHook = _require('webHook');
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
