@@ -333,7 +333,7 @@
             const { cost, price, campaignSettleCost } = payload || {};
             const consume = parseFloat(adInfo.statCostForRoi2?.value) || 0; // 消耗
             const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0; // 整体成交订单数
-            console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount);
+            console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost);
             // 运营预估盈亏 = 保本成本 × 整体成交订单数 - 消耗
             const profit = cost * totalOrderCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
