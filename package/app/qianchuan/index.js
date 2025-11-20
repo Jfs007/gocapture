@@ -376,6 +376,8 @@
                      placceholader: '净成交',
                     key: 'cost'
                 }));
+                inner.appendChild(costDiv);
+                inner.appendChild(dealDiv);
 
             }
             // 渲染运营预估盈亏列
