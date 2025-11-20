@@ -89,7 +89,6 @@
 
         const api_hook = {
             'ad/api/creation/v1/audit/async-check-product|repeat': function (data) {
-                console.log(data, '数据来了');
                 const { url } = data;
                 const [_, productid] = url.match(/.*product=([\d,]+)/) || [];
                 info.productId = productid;
@@ -97,8 +96,6 @@
 
             }
         }
-
-
 
         function listenMessage(event) {
             const { type, data } = event.data;

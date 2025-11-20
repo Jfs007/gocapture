@@ -289,7 +289,7 @@
         function createEditButton(adId, adInfo, options = {}) {
             const { mainGoodsId } = adInfo;
             const btn = document.createElement('span');
-            btn.innerText = '编辑';
+            btn.innerText = `编辑${options.placceholader || ''}`;
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
             btn.onclick = async (e) => {
                 e.stopPropagation();
@@ -357,13 +357,26 @@
             if (budgetTd) {
                 const inner = budgetTd.querySelector('.ovui-table-cell-inner');
                 inner.innerHTML = '';
+                const costDiv = document.createElement('div');
                 const costSpan = document.createElement('span');
                 costSpan.innerText = cost > 0 ? cost.toFixed(2) : '-';
-                inner.appendChild(costSpan);
-                inner.appendChild(createEditButton(adId, adInfo, {
-                    message: '请输入保本成本:',
+                costDiv.appendChild(costSpan);
+                costDiv.appendChild(createEditButton(adId, adInfo, {
+                    message: '请输入支付的保本成本:',
+                    placceholader: '支付',
                     key: 'cost'
                 }));
+                const dealDiv = document.createElement('div');
+                const dealSpan = document.createElement('span');
+                dealSpan.innerText = cost > 0 ? cost.toFixed(2) : '-';
+
+                dealDiv.appendChild(dealSpan);
+                dealDiv.appendChild(createEditButton(adId, adInfo, {
+                    message: '请输入净成交的保本成本:',
+                     placceholader: '净成交',
+                    key: 'cost'
+                }));
+
             }
             // 渲染运营预估盈亏列
             const costTd = row.querySelector('td[data-md-custom="cost"]');

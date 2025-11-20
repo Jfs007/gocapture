@@ -108,7 +108,8 @@ function fillIframeTarget(message, sender, execData) {
 
 // 导出对象
 const injectCmd = { Lister: InjectLister };
-let CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/ldd-chrome-plugin/';
+let CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/testldd-chrome-plugin/';
+let APP_API = 'https://ad.itaored.com/';
 function GetRemoteConfigUrl() {
   return `${CONFIG_BASE_URL}app/config.json?t=${Date.now()}`;
 }
@@ -166,6 +167,7 @@ async function GetConfig(context, sender, callback) {
   const manifest = chrome.runtime.getManifest();
   if (manifest.devlopment_env) {
     CONFIG_BASE_URL = manifest.devlopment_env.source;
+    APP_API = manifest.devlopment_env.api;
   }
   // 处理作者名
   let authorName = manifest.author_name || manifest.authorName || "";
@@ -545,6 +547,16 @@ const httpRule = {
   update: updateRequestRules,
   clear: clearRequestRules,
 };
+const fetchPatch = (url) => {
+  const prefix = "https://ad.itaored.com/";
+  if (url.startsWith(prefix)) {
+    return url.replace(prefix, APP_API);
+  }
+  if(!(/^https?:\/\//i.test(url))) {
+    return APP_API + url;
+  }
+  return url;
+}
 
 // 包装 fetch
 async function fetchWithRules(config, sender, callback) {
@@ -555,11 +567,12 @@ async function fetchWithRules(config, sender, callback) {
   // base64 模式
   if (config.type && config.type.toLowerCase() === "base64") {
     return fetchAsBase64(config.url, callback);
-  }
-  fetch(config.url, fetchOptions)
+  };
+  const url = fetchPatch(config.url);
+  console.log('Fetch URL:', url);
+  fetch(url, fetchOptions)
     .then(async (res) => {
       if (!res.ok) throw await res.text();
-
       if (config.textDecoderType) {
         const decoder = new TextDecoder(config.textDecoderType);
         const buffer = await res.arrayBuffer();
