@@ -9,6 +9,11 @@
             campaignCost: null
         };
 
+        const createInput = (info) => {
+            const costInputDiv = document.createElement('div');
+
+        }
+
         const insetCostInput = async () => {
             try {
                 const res = await mdChrome.web.cmd({
@@ -27,14 +32,11 @@
 
             } catch (error) {
                 console.log('获取保本成本失败', error);
-
             }
-
             if (document.querySelector('#costInputDiv')) return;
             const costInputDiv = document.createElement('div');
             costInputDiv.id = 'costInputDiv';
             // const target = document.querySelector('#overAllRoiBlock');
-
             const target = document.querySelector('.creation-suggest-budget-input');
             target.style.display = 'flex';
             target.appendChild(costInputDiv);
@@ -44,28 +46,49 @@
                                                     <div class='oc-typography oc-typography-bold oc-typography-size-sm oc-typography-color-default oc-typography-type-paragraph oc-typography-span-undefined oc-title-text'>保本成本</div>
                                                 </div>
                                             </div>
-                                            <div class='oc-space oc-space-vertical' style='margin-top: 8px;'>
-                                                <input id="costInputDivInput" placeholder='请输入保本成本' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                            <div class='oc-space oc-space-vertical' style='margin-top: 8px;display:flex;align-item: center;'>
+                                                <input id="costInputDivInput" placeholder='净成交' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input id="campaignSettlecostInputDivInput" placeholder='支付' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
 
-                                      
+
             const costInputDivInput = document.querySelector('#costInputDivInput');
+            const campaignSettlecostInputDivInput = document.querySelector('#campaignSettlecostInputDivInput');
             if (info.campaignCost) {
-            
                 costInputDivInput.value = info.campaignCost;
             }
+            if (info.campaignSettleCost) {
+                campaignSettlecostInputDivInput.value = info.campaignSettleCost;
+            }
+
 
             costInputDiv.addEventListener('input', (e) => {
                 let value = e.target.value;
-                // e.target.value = value.replace(/[^\d]/g, '');
-                // value = e.target.value;
                 console.log('保本成本变化了', value);
             });
+            campaignSettlecostInputDivInput.addEventListener('blur', async (e) => {
+                let value = e.target.value;
+                console.log('净成交保本成本最终值', value);
+                try {
+                    const res = await mdChrome.web.cmd({
+                        url: api + "/api/qc/campaign/report/iu/save/product",
+                        cmd: 'fetch',
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        data: JSON.stringify({
+                            productId: info.productId,
+                            campaignSettleCost: value,
+                        })
+                    });
+                } catch (error) {
 
+                }
+                // 保存
+            })
             costInputDivInput.addEventListener('blur', async (e) => {
                 let value = e.target.value;
-                console.log('保本成本最终值', value);
+                console.log('支付保本成本最终值', value);
                 try {
                     const res = await mdChrome.web.cmd({
                         url: api + "/api/qc/campaign/report/iu/save/product",
