@@ -164,9 +164,13 @@
             { title: '整体成交订单成本', wch: 18, get(row) { return `${row.totalCostPerPayOrderForRoi2Primary?.value}` } },
             { title: '用户实际支付金额', wch: 18, get(row) { return `${row.totalPayOrderGmvForRoi2?.value}` } },
             { title: '电商平台补贴金额', wch: 18, get(row) { return `${row.totalEcomPlatformSubsidyAmountForRoi2Primary?.value}` } },
-            { title: '保本成本', wch: 14, get(row) { return `${row.cost3 || ''}` } },
-            { title: '运营预估盈亏', wch: 15, get(row) { return `${row.profit3 ? row.profit3.toFixed(2) : ''}` } },
-            { title: '运营预估盈亏率', wch: 16, get(row) { return `${row.profitRate3 ? row.profitRate3.toFixed(2) : ''}` } },
+            { title: '支付保本成本', wch: 14, get(row) { return `${row.cost3 || ''}` } },
+            { title: '净成交保本成本', wch: 14, get(row) { return `${row.campaignSettleCost || ''}` } },
+            // campaignSettleprofitRate3
+            { title: '支付运营预估盈亏', wch: 15, get(row) { return `${row.profit3 ? row.profit3.toFixed(2) : ''}` } },
+            { title: '支付运营预估盈亏率', wch: 16, get(row) { return `${row.profitRate3 ? row.profitRate3.toFixed(2) : ''}` } },
+            { title: '净成交运营预估盈亏', wch: 15, get(row) { return `${row.profit3 ? row.campaignSettleprofit3.toFixed(2) : ''}` } },
+            { title: '净成交运营预估盈亏率', wch: 16, get(row) { return `${row.profitRate3 ? row.campaignSettleprofitRate3.toFixed(2) : ''}` } },
         ];
         xlsx.design({ sheetName: 'Sheet12', hpx: 30 }, columns).input(data);
         xlsx.download('计划列表.xlsx');
@@ -187,7 +191,8 @@
             (res.result.data || []).map(_ => {
                 info[_.productId] = Object.assign(_, {
                     price: (_.campaignPrice || '').split('-'),
-                    cost: _.campaignCost
+                    cost: _.campaignCost,
+                    campaignSettleCost: _.campaignSettleCost,
                 })
             });
             return { data: info };
@@ -243,7 +248,8 @@
                     productId: mainGoodsId,
                     accountCode: '-',
                     campaignPrice: payload.price ? payload.price.join('-') : undefined,
-                    campaignCost: payload.cost
+                    campaignCost: payload.cost,
+                    campaignSettleCost: payload.campaignSettleCost,
                 })
             } catch (error) {
                 console.error("保存成本失败:", error);
@@ -324,16 +330,23 @@
         }
         // 计算数据（纯函数，不涉及DOM操作）
         function calculateRowData(adInfo, payload = {}) {
-            const { cost, price } = payload || {};
+            const { cost, price, campaignSettleCost } = payload || {};
             const consume = parseFloat(adInfo.statCostForRoi2?.value) || 0; // 消耗
             const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0; // 整体成交订单数
             // 运营预估盈亏 = 保本成本 × 整体成交订单数 - 消耗
             const profit = cost * totalOrderCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
             const profitRate = consume > 0 ? (profit / consume) * 100 : 0;
+
+            const campaignSettleprofit = campaignSettleCost * totalOrderCount - consume;
+            // 盈亏率 = (预估盈亏 / 消耗) × 100%
+            const campaignSettleprofitRate = consume > 0 ? (campaignSettleprofit / consume) * 100 : 0;
             adInfo.profit3 = profit;
+            adInfo.campaignSettleprofit3 = campaignSettleprofit;
             adInfo.cost3 = cost;
+            adInfo.campaignSettleCost = campaignSettleCost;
             adInfo.profitRate3 = profitRate;
+            adInfo.campaignSettleprofitRate3 = campaignSettleprofitRate;
             adInfo.price3 = price;
             if (Array.isArray(price)) {
                 adInfo.price3Label = price[0] != price[1] ? price.join('-') : price[0]
@@ -341,8 +354,11 @@
             return {
                 price,
                 cost,
+                campaignSettleCost,
                 consume,
                 totalOrderCount,
+                campaignSettleprofit,
+                campaignSettleprofitRate,
                 profit,
                 profitRate
             };
@@ -350,7 +366,8 @@
 
         // 渲染单行的三个自定义列（统一渲染逻辑）
         function renderCustomColumns(row, adInfo, computed) {
-            let { cost, profit, profitRate, price } = computed;
+            let { cost, profit, profitRate, price, campaignSettleCost, campaignSettleprofit,
+                campaignSettleprofitRate, } = computed;
             const adId = adInfo.id;
             // 渲染保本成本列
             const budgetTd = row.querySelector('td[data-md-custom="budget"]');
@@ -368,39 +385,61 @@
                 }));
                 const dealDiv = document.createElement('div');
                 const dealSpan = document.createElement('span');
-                dealSpan.innerText = cost > 0 ? cost.toFixed(2) : '-';
+                dealSpan.innerText = campaignSettleCost > 0 ? campaignSettleCost.toFixed(2) : '-';
 
                 dealDiv.appendChild(dealSpan);
                 dealDiv.appendChild(createEditButton(adId, adInfo, {
                     message: '请输入净成交的保本成本:',
-                     placceholader: '净成交',
-                    key: 'cost'
+                    placceholader: '净成交',
+                    key: 'campaignSettleCost'
                 }));
-                inner.appendChild(costDiv);
                 inner.appendChild(dealDiv);
+                inner.appendChild(costDiv);
+               
 
             }
             // 渲染运营预估盈亏列
             const costTd = row.querySelector('td[data-md-custom="cost"]');
             if (costTd) {
                 const inner = costTd.querySelector('.ovui-table-cell-inner');
+                const costbox = document.createElement('div');
+                const campaignSettleCostbox = document.createElement('div');
+                if (campaignSettleCost > 0) {
+                    const color = campaignSettleprofit >= 0 ? '#52c41a' : '#ff4d4f';
+                    campaignSettleCostbox.innerHTML = `<span style="color: ${color}">净成交: ${campaignSettleprofit.toFixed(2)}</span>`;
+                } else {
+                    campaignSettleCostbox.innerText = '净成交: -';
+                }
                 if (cost > 0) {
                     const color = profit >= 0 ? '#52c41a' : '#ff4d4f';
-                    inner.innerHTML = `<span style="color: ${color}">${profit.toFixed(2)}</span>`;
+                    costbox.innerHTML = `<span style="color: ${color}">支付: ${profit.toFixed(2)}</span>`;
                 } else {
-                    inner.innerText = '-';
+                    costbox.innerText = '支付: -';
                 }
+                inner.appendChild(campaignSettleCostbox);
+                inner.appendChild(costbox);
+
             }
             // 渲染预估盈亏率列
             const balanceTd = row.querySelector('td[data-md-custom="balance"]');
             if (balanceTd) {
                 const inner = balanceTd.querySelector('.ovui-table-cell-inner');
+                const costbox = document.createElement('div');
+                const campaignSettleCostbox = document.createElement('div');
                 if (cost > 0) {
-                    const color = profitRate >= 0 ? '#52c41a' : '#ff4d4f';
-                    inner.innerHTML = `<span style="color: ${color}">${profitRate.toFixed(2)}%</span>`;
+                    const color = campaignSettleprofitRate >= 0 ? '#52c41a' : '#ff4d4f';
+                    costbox.innerHTML = `<span style="color: ${color}">支付: ${campaignSettleprofitRate.toFixed(2)}%</span>`;
                 } else {
-                    inner.innerText = '-';
+                    costbox.innerText = '支付: -';
                 }
+                if (campaignSettleCost > 0) {
+                    const color = profitRate >= 0 ? '#52c41a' : '#ff4d4f';
+                    campaignSettleCostbox.innerHTML = `<span style="color: ${color}">净成交: ${profitRate.toFixed(2)}%</span>`;
+                } else {
+                    campaignSettleCostbox.innerText = '净成交: -';
+                }
+                inner.appendChild(campaignSettleCostbox);
+                inner.appendChild(costbox);
             }
             // 售价
             const PriceTd = row.querySelector('td[data-md-custom="price"]');
@@ -528,8 +567,8 @@
             // 插入三个表头
             const headers = [
                 { text: '保本成本', key: 'budget', width: 130 },
-                { text: '运营预估盈亏', key: 'cost', width: 100 },
-                { text: '运营预估盈亏率', key: 'balance', width: 100 },
+                { text: '运营预估盈亏', key: 'cost', width: 130 },
+                { text: '运营预估盈亏率', key: 'balance', width: 130 },
                 { text: '售价', key: 'price', width: 130 }
             ];
             let lastInsertedTh = targetTh;
