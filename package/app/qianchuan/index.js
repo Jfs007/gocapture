@@ -209,15 +209,15 @@
     const initApp = async () => {
         console.log("🚀 千川站点初始化...");
         const mdChrome = _require("mdChrome");
-        try {
-            const manifest = await mdChrome.web.cmd({
-                cmd: "getManifest"
-            });
-            console.log(manifest, 'Manifest');
+        // try {
+        //     const manifest = await mdChrome.web.cmd({
+        //         cmd: "getManifest"
+        //     });
+        //     console.log(manifest, 'Manifest');
 
-        } catch (error) {
-            console.log(error, 'ManifestError');
-        }
+        // } catch (error) {
+        //     console.log(error, 'ManifestError');
+        // }
         const webHook = _require('webHook');
         const waits = { 'UserConfAndDataSetReady': false }
         let state = {
