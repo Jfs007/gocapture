@@ -47,8 +47,8 @@
                                                 </div>
                                             </div>
                                             <div class='oc-space oc-space-vertical' style='margin-top: 8px;display:flex;align-item: center;'>
-                                                <input id="costInputDivInput" placeholder='净成交' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
-                                                <input id="campaignSettlecostInputDivInput" placeholder='支付' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input id="campaignSettlecostInputDivInput" placeholder='净成交' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input id="costInputDivInput" placeholder='支付' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
 
