@@ -333,13 +333,14 @@
             const { cost, price, campaignSettleCost } = payload || {};
             const consume = parseFloat(adInfo.statCostForRoi2?.value) || 0; // 消耗
             const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0; // 整体成交订单数
+            const totalOrderSettleCount = parseInt(adInfo.totalOrderSettleCountForRoi21H?.value) || 0;
             console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost);
             // 运营预估盈亏 = 保本成本 × 整体成交订单数 - 消耗
             const profit = cost * totalOrderCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
             const profitRate = consume > 0 ? (profit / consume) * 100 : 0;
 
-            const campaignSettleprofit = campaignSettleCost * totalOrderCount - consume;
+            const campaignSettleprofit = campaignSettleCost * totalOrderSettleCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
             const campaignSettleprofitRate = consume > 0 ? (campaignSettleprofit / consume) * 100 : 0;
             adInfo.profit3 = profit;
@@ -358,6 +359,7 @@
                 campaignSettleCost,
                 consume,
                 totalOrderCount,
+                totalOrderSettleCount,
                 campaignSettleprofit,
                 campaignSettleprofitRate,
                 profit,
@@ -692,6 +694,8 @@
                         planAndGoodsIdMaps[_.id] = _.aboutGoodsId[0];
                         _.mainGoodsId = _.aboutGoodsId[0];
                         _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
+                        _.totalOrderSettleCountForRoi21H = stat?.metrics['totalOrderSettleCountForRoi21H'] || {};
+
                         _.statCostForRoi2 = stat?.metrics['statCostForRoi2'] || {};
                         _.totalPayOrderGmvIncludeCouponForRoi2 = stat?.metrics['totalPayOrderGmvIncludeCouponForRoi2'] || {};
                         _.totalPrepayAndPayOrderRoi2 = stat?.metrics['totalPrepayAndPayOrderRoi2'] || {};
