@@ -6,7 +6,8 @@
             "common/index.js",
             "qianchuan/index.js",
             "qianchuan/put-goods.js",
-            "libs/xlxs-populate.js"
+            "libs/xlxs-populate.js",
+            "ldd/index.js"
         ]
     },
     "version": "1.0.0",
