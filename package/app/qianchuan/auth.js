@@ -92,9 +92,9 @@
         const el = document.querySelector('#header-user');
         if (el) {
             const webinfo = localStorage.getItem('__Garfish__bp-web____tea_cache_tokens_1892');
-            const { webid } = JSON.parse(webinfo || '{}');
-            console.log(webid, 'webid', webinfo);
-            await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: webid })
+            const { web_id } = JSON.parse(webinfo || '{}');
+            // console.log(web_id, 'webid', webinfo);
+            await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: web_id })
             mdChrome.web.cmd({
                 cmd: 'openPopup'
             });
