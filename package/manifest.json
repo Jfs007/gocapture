@@ -99,6 +99,8 @@
       "*"
     ],
     "matches": [
+      "http://localhost:9002/*",
+      "*://*.itaored.com/*",
       "*://*.kwaixiaodian.com/*",
       "*://*.taobao.com/*",
       "*://*.tmall.com/*",
