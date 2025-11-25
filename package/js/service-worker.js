@@ -611,6 +611,10 @@ const fetchCmd = {
 
 
 function onMessageLister(message, sender, sendResponse) {
+  if ("openPopup" === message.cmd) {
+    chrome.action.openPopup();
+    return;
+  }
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
   if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);
