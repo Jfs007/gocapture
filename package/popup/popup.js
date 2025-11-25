@@ -276,7 +276,6 @@ $(document).ready(function () {
             if (!user_unique_id && currentCount>=maxCount) {
                 currentCount++;
                 return chrome.tabs.reload(tab.id);
-                
             }
             chromeRedux.commit('APP/SET_TIKTOK_USERINFO', AppState.tiktok);
             // 无论是否捞到小助手的token都展示授权按钮
