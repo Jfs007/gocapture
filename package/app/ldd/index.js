@@ -1,12 +1,9 @@
 !async function () {
     if (!(location.href.indexOf('localhost') > -1 || location.href.indexOf('.itaored.com') > -1)) return;
-    const token = localStorage.getItem('TOKEN');
-    console.log(JSON.parse(token || '{}'), 'ldd-token');
     const mdChrome = _require("mdChrome");
     await mdChrome.web.injectScript('cp_modules/store/index.js');
     // 2. 使用模块
-    const store = _require('chromeRedux');
-    console.log(store, token);  
+    const store = _require('chromeRedux'); 
     const App = {
         state: {
             __response__: {},
@@ -15,7 +12,6 @@
                 accountCodeUin: '',
                 accountCode: '',
                 token: '',
-                // site: window.MPLG_IAD_API_URL,
             },
             tiktok: {
                 value: '',
