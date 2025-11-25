@@ -27,6 +27,7 @@
         mutations: {
             SET_ADITAOREAD_USERINFO(state, payload = {}) {
                 const { token } = payload;
+                console.log(token, 'payload', payload);
                 if (token != state.itaored.token) {
                     state.authLoss = true;
                 }
@@ -92,5 +93,5 @@
     store.registerModule('APP', App);
     store.init();
 
-    
+
 }()
