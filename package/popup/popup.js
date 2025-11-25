@@ -5,13 +5,10 @@ async function start() {
     // var r = await fetch(u)
     // var r2 = await r.text()
     // document.getElementsByTagName("body")[0].innerHTML = r2
-
-
-
 }
 start();
 const store = _require('chromeRedux');
-const App = {
+let App = {
     state: {
         __response__: {},
         itaored: {
@@ -28,12 +25,18 @@ const App = {
         authLoss: true
     },
     mutations: {
-        
+        SET_TIKTOK_USERINFO(state, payload = {}) {
+            if (payload.user_id != state.tiktok.user_id) {
+                state.authLoss = true;
+            }
+            state['tiktok'] = Object.assign(state.tiktok, payload);
+        },
+
     }
 }
 store.registerModule('APP', App);
 store.init();
-const AppState = App.state;
+let AppState = App.state;
 
 
 let appUpdateLink = '';
@@ -98,14 +101,6 @@ function authSuccess() {
             }, (tabs) => {
                 const tab = tabs[tabs.length - 1];
                 setTimeout(() => {
-                    // 待兼容
-                    // chrome.runtime.sendMessage({
-                    //     action: 'TAB_WAITING_CALLBACK',
-                    //     data: {
-                    //         tabId: tab.id,
-                    //         action: 'cookie:authed'
-                    //     }
-                    // });
                     setTimeout(() => {
                         chrome.tabs.update(tab.id, { active: true });
                     }, 100)
@@ -126,41 +121,40 @@ async function getCurrentTab() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return tab;
 }
-async function getLocalStorage(tab) {
-    return new Promise((resolve) => {
-        // 待兼容
-        // chrome.tabs.sendMessage(tab.id, { type: 'LOCALSTORAGE:GET' }, (response) => {
-        //     resolve(response);
-        // });
-    })
-}
-async function getUserInfo(tab) {
-    // 待兼容
-    // const storage = (await getLocalStorage(tab)) || {};
-    // const cache_tokens = storage['__Garfish__bp-web____tea_cache_tokens_1892'];
-    // let { user_unique_id } = JSON.parse(cache_tokens || "{}");
-    // return { user_unique_id };
-    return {}
-}
-
 // 根据域名类型处理逻辑
-async function authAccount() {
+async function authAccount(cookie, forceAuth = false) {
     try {
-        console.log(store, 'info');
         const info = await store.get('APP');
-        console.log(info, 'info');
-        return;
+        const { accountCode, accountCodeUin, token } = info.itaored;
+        const { user_id } = info.tiktok;
         // AppState = await chromeRedux.get('APP') || {};
-        // if (AppState.itaored.accountCodeUin != AppState.tiktok.user_id) {
-        //     $('#authConfirm').show();
-        //     $("#getCookie").hide();
-        //     $('#errorText').show();
-        //     return;
-        // }
-        // const state = await chromeRedux.commit('APP/AUTH', AppState);
-        // if (!state.__response__.success) {
-        //     return authError(state.__response__);
-        // }
+        if (accountCodeUin != user_id && !forceAuth) {
+            $('#authConfirm').show();
+            $("#getCookie").hide();
+            $('#errorText').show();
+            return;
+        }
+        const response = await chrome.runtime.sendMessage({
+            cmd: "fetch",
+            method: 'post',
+            url: 'api/dy/account/cookie',
+            headers: {
+                'Content-Type': 'application/json',
+                accesstoken: token
+            },
+            data: JSON.stringify({
+                value: cookie.value,
+                expire: cookie.expire,
+                userId: user_id,
+                channel: 10,
+                accountCode: accountCode
+            })
+        });
+        // console.log(response, 'response');
+        const { success } = response.result;
+        if (!success) {
+            return authError(response.result);
+        }
         authSuccess();
     } catch (error) {
         authError(error)
@@ -170,18 +164,11 @@ async function authAccount() {
 // 获取 Cookie 的通用函数
 async function getCookies(paramArr, host) {
     let expire = 10000000000000;
-    const { user_id } = AppState.tiktok;
-    if (!user_id) {
-        const tab = await getCurrentTab();
-        let { user_unique_id } = await getUserInfo(tab);
-        AppState.tiktok.user_id = user_unique_id;
-    }
     const cookies = await Promise.all(paramArr.map(name => {
         return new Promise((resolve, reject) => {
             chrome.cookies.get({ url: host, name: name }, function (cookies) {
                 if (cookies) {
                     if (name === 'trace_log_user_id') {
-                        AppState.tiktok.user_id = cookies.value ? cookies.value : AppState.tiktok.user_id;
                         resolve(null);
                     } else {
                         let currentExpire = name !== 'x-jupiter-uuid' ? (Math.floor(cookies.expirationDate * 1000) || 10000000000000) : expire;
@@ -197,10 +184,7 @@ async function getCookies(paramArr, host) {
     }));
     return {
         value: cookies.filter(cookie => cookie).join("; "),
-        expire,
-        user_id: AppState.tiktok.user_id
-
-
+        expire
     } // 返回过滤后的 cookies
 }
 const _URL_ = 'https://business.oceanengine.com';
@@ -218,10 +202,8 @@ async function changeAccount() {
     const tab = await getCurrentTab();
     removeCookie(() => {
         chrome.tabs.update(tab.id, { url: 'https://business.oceanengine.com/login?appKey=51' })
-
     })
 }
-
 async function getAppUpdateLink() {
     // const app = await chromeRedux.get('APP') || {};
     const response = await chrome.runtime.sendMessage({ cmd: "fetch", url: 'api/dictionary/iu/list?dictNames=CHROME_PLUGINS_LIST&_t=1747897789951' })
@@ -234,52 +216,6 @@ async function getAppUpdateLink() {
     })
 };
 
-async function auth() {
-    try {
-        const info = await store.get('APP');
-        console.log(info, 'info');
-        return;
-        // await chrome.runtime.sendMessage({
-        //     cmd: "fetch",
-        //     method: 'post',
-        //     headers: {
-        //         'Content-Type': 'application/json',
-        //         accesstoken: state['itaored'].token
-        //     },
-        //     body: JSON.stringify({
-        //         value: tiktok.value,
-        //         expire: tiktok.expire,
-        //         userId: tiktok.user_id,
-        //         accountCode: accountCode
-        //     })
-        // })
-        const response = await fetch(`${site}api/dy/account/cookie`, {
-            method: 'post',
-            headers: {
-                'Content-Type': 'application/json',
-                accesstoken: state['itaored'].token
-            },
-            body: JSON.stringify({
-                value: tiktok.value,
-                expire: tiktok.expire,
-                userId: tiktok.user_id,
-                accountCode: accountCode
-            })
-        });
-        const state = await chromeRedux.commit('APP/AUTH', AppState);
-        if (!state.__response__.success) {
-            return authError(state.__response__);
-        }
-        $('#authConfirm').hide();
-        authSuccess();
-    } catch (error) {
-        authError({})
-    }
-
-
-}
-const maxCount = 3;
-let currentCount = 0;
 // JS 监听逻辑
 $(document).ready(function () {
     getAppUpdateLink();
@@ -289,13 +225,11 @@ $(document).ready(function () {
         const text = _this.text();
         try {
             _this.text('授权中...');
-            authAccount();
-            return;
             // 获取 Cookie 并拼接成字符串
             const _cookie = await getCookies(paramArr, _URL_);
-            // await chromeRedux.commit('APP/SET_TIKTOK_USERINFO', _cookie);
+            await store.commit('APP/SET_TIKTOK_USERINFO', _cookie);
             // 根据类型处理后续逻辑
-            if (!_cookie.user_id || !_cookie.value) { authError({}); throw new Error() }
+            if (!_cookie.value) { authError({}); throw new Error() }
             await authAccount(_cookie);
             _this.text(text);
 
@@ -307,15 +241,31 @@ $(document).ready(function () {
     $("#changeAccount").click(async function () {
         changeAccount();
     });
-    $('#authAccount').click(function () {
+    $('#authAccount').click(async function () {
+        const _this = $(this);
+        const text = _this.text();
+        try {
+            _this.text('授权中...');
+            // 获取 Cookie 并拼接成字符串
+            const _cookie = await getCookies(paramArr, _URL_);
+            await store.commit('APP/SET_TIKTOK_USERINFO', _cookie);
+            // 根据类型处理后续逻辑
+            if (!_cookie.value) { authError({}); throw new Error() }
+            await authAccount(_cookie, true);
+            _this.text(text);
+        } catch (error) {
+            _this.text(text);
+            console.log("获取 Cookie 或处理逻辑时出错: " + error.message);
+        }
         // auth();
     })
-    $('#plugin-options').click(() => {
-        const url = chrome.runtime.getURL('options/index.html');
-        window.open(url, 'options');
-    });
+    // $('#plugin-options').click(() => {
+    //     const url = chrome.runtime.getURL('options/index.html');
+    //     window.open(url, 'options');
+    // });
     async function setup() {
-        // fetch('api/dictionary/iu/list?dictNames=CHROME_PLUGINS_LIST')
+        App.state = await store.get('APP');
+        AppState = App.state;
         const tab = await getCurrentTab();
         $("#getCookie").hide();
         $('#authConfirm').hide();

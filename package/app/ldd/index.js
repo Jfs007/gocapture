@@ -3,7 +3,7 @@
     const mdChrome = _require("mdChrome");
     await mdChrome.web.injectScript('cp_modules/store/index.js');
     // 2. 使用模块
-    const store = _require('chromeRedux'); 
+    const store = _require('chromeRedux');
     const App = {
         state: {
             __response__: {},
@@ -23,7 +23,6 @@
         mutations: {
             SET_ADITAOREAD_USERINFO(state, payload = {}) {
                 const { token } = payload;
-                console.log(token, 'payload', payload);
                 if (token != state.itaored.token) {
                     state.authLoss = true;
                 }
