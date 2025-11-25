@@ -3,6 +3,9 @@
     _exports.module['md.storage'] = {
         local: {
             get(keys) {
+                if(chrome && chrome.storage && chrome.storage.local) {
+                    return chrome.storage.local.get(keys);
+                }
                 return new Promise((resolve) => {
                     const id = Date.now() + Math.random() + ':md.local.get';
                     function handler(e) {
@@ -24,6 +27,9 @@
             },
 
             set(items) {
+                if(chrome && chrome.storage && chrome.storage.local) {
+                    return chrome.storage.local.set(items);
+                }
                 return new Promise((resolve) => {
                     const id = Date.now() + Math.random() + ':md.local.set';
                     function handler(e) {
