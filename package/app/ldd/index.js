@@ -1,7 +1,7 @@
 !async function () {
     if (!(location.href.indexOf('localhost') > -1 || location.href.indexOf('.itaored.com') > -1)) return;
     const token = localStorage.getItem('TOKEN');
-    console.log(JSON.parse, 'ldd-token');
+    console.log(JSON.parse(token || '{}'), 'ldd-token');
     const mdChrome = _require("mdChrome");
     await mdChrome.web.injectScript('cp_modules/store/index.js');
     // 2. 使用模块
