@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "devlopment_env": {
-    "source": "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
-    "api": "https://testad.itaored.com/"
+    "source": "https://cdn.itaored.com/static/fed/ldd-chrome-plugin/",
+    "api": "https://ad.itaored.com/"
   },
   "name": "超级量多多+",
   "short_name": "超级量多多+",
