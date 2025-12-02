@@ -101,15 +101,18 @@ function authSuccess() {
             }, (tabs) => {
                 const tab = tabs[tabs.length - 1];
                 setTimeout(() => {
+                    chrome.runtime.sendMessage({
+                        cmd: "inject",
+                        tabId: tab.id,
+                        params: {
+                            type: 'eval',
+                            value: `console.log('refresh');window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__ && window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__()` }
+                    });
                     setTimeout(() => {
-                        chrome.tabs.update(tab.id, { active: true });
-                        chrome.scripting.executeScript({
-                            target: { tabId: tab.id },
-                            func: () => {
-                                window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__ && window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__()
-                            }
-                        })
+                        chrome.tabs.update(tab.id, { active: true })
+
                     }, 100)
+
                 }, 800)
 
             });
