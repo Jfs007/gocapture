@@ -103,6 +103,12 @@ function authSuccess() {
                 setTimeout(() => {
                     setTimeout(() => {
                         chrome.tabs.update(tab.id, { active: true });
+                        chrome.scripting.executeScript({
+                            target: { tabId: tab.id },
+                            func: () => {
+                                window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__ && window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__()
+                            }
+                        })
                     }, 100)
                 }, 800)
 

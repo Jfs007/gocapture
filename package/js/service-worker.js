@@ -109,7 +109,7 @@ function fillIframeTarget(message, sender, execData) {
 // 导出对象
 const injectCmd = { Lister: InjectLister };
 // https://cdn.itaored.com/static/fed/testldd-chrome-plugin/install-package
-let CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/testldd-chrome-plugin/';
+let CONFIG_BASE_URL = 'https://cdn.itaored.com/static/fed/ldd-chrome-plugin/';
 let APP_API = 'https://ad.itaored.com/';
 function GetRemoteConfigUrl() {
   return `${CONFIG_BASE_URL}app/config.json?t=${Date.now()}`;
