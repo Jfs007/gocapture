@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "devlopment_env": {
-    "source": "https://cdn.itaored.com/static/fed/ldd-chrome-plugin/",
+    "source": "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
     "api": "https://testad.itaored.com/"
   },
   "name": "超级量多多+",
@@ -99,7 +99,7 @@
       "*"
     ],
     "matches": [
-       "*://*.oceanengine.com/*",
+      "*://*.oceanengine.com/*",
       "http://localhost:9002/*",
       "*://*.itaored.com/*",
       "*://*.kwaixiaodian.com/*",
