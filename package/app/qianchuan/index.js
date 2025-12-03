@@ -12,6 +12,15 @@
             { cmd: 'changeAccount', origins: ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"] },
         );
     }
+    function isHeaderUserCardItem(target) {
+        return target.className.indexOf('index_header-user-card-layout-item') > -1;
+    }
+
+    function getHeaderUserCardItem(target) {
+        if (isHeaderUserCardItem(target)) return target;
+        if (isHeaderUserCardItem(target.parentNode)) return target.parentNode;
+        return null;
+    }
     document.body.addEventListener('click', (e) => {
         const target = e.target;
         if (!headerCardUser) {
