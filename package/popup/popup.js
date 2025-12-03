@@ -1,6 +1,22 @@
 async function start() {
-    var config = await chrome.runtime.sendMessage({ cmd: "getConfig" })
-    var m = await chrome.runtime.sendMessage({ cmd: "getManifest" })
+    try {
+        // console.log('start', 'error', chrome.runtime, chrome.runtime.id);
+        // var config = await chrome.runtime.sendMessage({ cmd: "getConfig", c: 'popup' });
+        // console.log('start', 'error', config);
+        // var m = await chrome.runtime.sendMessage({ cmd: "getManifest" });
+
+        // chrome.runtime.sendMessage({
+        //     cmd: 'inject',
+        //     type: 2,
+        //     fileNames: ['https://cdn.itaored.com/static/fed/ldd-chrome-plugin/app/qianchuan/index.js?id=1764736586769']
+        // }, (response) => {
+        //     console.log(response, 'response');
+        // });
+
+    } catch (error) {
+        console.log(error, 'error');
+    }
+
     // var u = config.popUrl+"?crxId="+m.crxId+"&v="+m.version+"&time="+new Date().getTime()
     // var r = await fetch(u)
     // var r2 = await r.text()
@@ -62,7 +78,8 @@ function copyText(value) {
 function authError(error = {}) {
     document.getElementById("msg").style.display = "block";
     const textMaps = {
-        8001: ':请确保当前浏览器已登录量多多智投'
+        8001: ':请确保当前浏览器已登录量多多智投',
+        8002: ':相关cookie已过期，请重新登录巨量工作台',
     }
     document.getElementById("msg").innerHTML = "授权失败" + (textMaps[error.code] || '');
     document
@@ -106,7 +123,8 @@ function authSuccess() {
                         tabId: tab.id,
                         params: {
                             type: 'eval',
-                            value: `console.log('refresh');window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__ && window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__()` }
+                            value: `console.log('refresh');window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__ && window.__TEMP_OPEN_ACCOUNT_MANAGE_REFRESH__()`
+                        }
                     });
                     setTimeout(() => {
                         chrome.tabs.update(tab.id, { active: true })
@@ -192,6 +210,7 @@ async function getCookies(paramArr, host) {
         });
     }));
     return {
+        emptyExpire: 10000000000000,
         value: cookies.filter(cookie => cookie).join("; "),
         expire
     } // 返回过滤后的 cookies
@@ -236,6 +255,12 @@ $(document).ready(function () {
             _this.text('授权中...');
             // 获取 Cookie 并拼接成字符串
             const _cookie = await getCookies(paramArr, _URL_);
+            if (_cookie.emptyExpire == _cookie.expire) {
+                authError({
+                    code: 8002
+                });
+                throw new Error()
+            }
             await store.commit('APP/SET_TIKTOK_USERINFO', _cookie);
             // 根据类型处理后续逻辑
             if (!_cookie.value) { authError({}); throw new Error() }
@@ -257,6 +282,12 @@ $(document).ready(function () {
             _this.text('授权中...');
             // 获取 Cookie 并拼接成字符串
             const _cookie = await getCookies(paramArr, _URL_);
+            if (_cookie.emptyExpire == _cookie.expire) {
+                authError({
+                    code: 8002
+                });
+                throw new Error()
+            }
             await store.commit('APP/SET_TIKTOK_USERINFO', _cookie);
             // 根据类型处理后续逻辑
             if (!_cookie.value) { authError({}); throw new Error() }

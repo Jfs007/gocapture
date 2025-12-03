@@ -612,6 +612,7 @@ const fetchCmd = {
 
 
 function onMessageLister(message, sender, sendResponse) {
+  console.log(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
     chrome.action.openPopup();
     return;
