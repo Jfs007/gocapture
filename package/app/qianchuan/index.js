@@ -3,14 +3,17 @@
     "use strict";
     if (location.href.indexOf('https://business.oceanengine.com/site') < 0) return;
     let headerCardUser = null;
+    const mdChrome = _require("mdChrome");
     function changeAccount(e) {
         e.stopPropagation();
         e.preventDefault();
         e.stopImmediatePropagation();
+        mdChrome.web.cmd({ cmd: 'changeAccount', origins: ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"] },);
+
         // ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"]
-        chrome.runtime.sendMessage(
-            { cmd: 'changeAccount', origins: ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"] },
-        );
+        // chrome.runtime.sendMessage(
+        //     { cmd: 'changeAccount', origins: ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"] },
+        // );
     }
     function isHeaderUserCardItem(target) {
         return target.className.indexOf('index_header-user-card-layout-item') > -1;
