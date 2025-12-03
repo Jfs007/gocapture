@@ -553,7 +553,7 @@ const fetchPatch = (url) => {
   if (url.startsWith(prefix)) {
     return url.replace(prefix, APP_API);
   }
-  if(!(/^https?:\/\//i.test(url))) {
+  if (!(/^https?:\/\//i.test(url))) {
     return APP_API + url;
   }
   return url;
@@ -611,12 +611,39 @@ const fetchCmd = {
 };
 
 
+const removeCookie2 = async (options = {}, handle = () => { }) => {
+  chrome.browsingData.removeCookies({
+    origins: options.origins
+  }, function () {
+    handle && handle();
+    // chrome.tabs.reload(tab.id);
+  });
+};
+
+async function changeAccount(message, sender, sendResponse) {
+  let tabid = sender ? sender.tab.id : null;
+  if (!tabid) {
+    tabid = await getCurrentTab();
+  }
+  removeCookie2(message, () => {
+    chrome.tabs.reload(tabid);
+    sendResponse && sendResponse({})
+  })
+};
+
+const ChangeAccountCmd = {
+  Lister: (message, sender, sendResponse) => {
+    changeAccount(message, sender, sendResponse)
+  }
+}
+
 function onMessageLister(message, sender, sendResponse) {
   console.log(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
     chrome.action.openPopup();
     return;
   }
+  if ("changeAccount" === message.cmd) return ChangeAccountCmd.Lister(message, sender, sendResponse);
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
   if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);

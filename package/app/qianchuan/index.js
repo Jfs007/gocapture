@@ -1,5 +1,37 @@
+
 !function () {
     "use strict";
+    if (location.href.indexOf('https://business.oceanengine.com/site') < 0) return;
+    let headerCardUser = null;
+    function changeAccount(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        // ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"]
+        chrome.runtime.sendMessage(
+            { cmd: 'changeAccount', origins: ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"] },
+        );
+    }
+    document.body.addEventListener('click', (e) => {
+        const target = e.target;
+        if (!headerCardUser) {
+            headerCardUser = document.querySelector('#bp-header-user-card');
+        }
+        if (headerCardUser.contains(target)) {
+            const itemEle = getHeaderUserCardItem(target);
+            if (itemEle) {
+                const text = itemEle.innerText;
+                if (text.indexOf('退出账号') > -1) {
+                    changeAccount(e);
+                }
+            }
+        }
+
+
+    }, true);
+}();
+!function () {
+    "use strict"; e
 
     if (location.href.indexOf('https://qianchuan.jinritemai.com/uni-prom') < 0) return;
 
@@ -399,7 +431,7 @@
                 }));
                 inner.appendChild(dealDiv);
                 inner.appendChild(costDiv);
-               
+
 
             }
             // 渲染运营预估盈亏列
