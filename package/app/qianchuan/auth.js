@@ -109,6 +109,7 @@
         subtree: true
     });
     function xorDecrypt(encoded, key = "DKJGJEDKJDJEJEKE") {
+        console.log('xorDecrypt', encoded);
         const data = atob(encoded);
         let res = [];
         for (let i = 0; i < data.length; i++) {
@@ -119,12 +120,12 @@
     try {
         const url = new URL(location.href);
         const ldd_authorization = url.searchParams.get("ldd_authorization");
-        console.log(ldd_authorization, 'ldd_authorization');
+        // console.log(ldd_authorization, 'ldd_authorization');
         let [accountCodeUin, accountCode, token] = (ldd_authorization || '').split('_');
-        console.log(accountCodeUin, accountCode, 'ldd_authorization');
+        // console.log(accountCodeUin, accountCode, 'ldd_authorization');
         if (accountCodeUin) {
             const appState = await store.get('APP');
-            console.log(appState, 'ldd_authorization');
+            // console.log(appState, 'ldd_authorization');
             appState.itaored.token = xorDecrypt(token);
             appState.itaored.accountCodeUin = accountCodeUin;
             appState.itaored.accountCode = accountCode;
