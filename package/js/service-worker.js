@@ -22,7 +22,7 @@ async function fetchData(url) {
  */
 function fillIframeIdToData(message, sender, execData) {
   // iframe id 优先使用 message.myIframeId，否则用 sender.frameId
-  let frameId = message.myIframeId || sender.frameId;
+  let frameId = message.myIframeId || (sender && sender.frameId);
   let frameIds = frameId ? [frameId] : undefined;
 
   // tab id
@@ -213,6 +213,7 @@ async function GetConfig(context, sender, callback) {
  * @param {Function} sendResponse - 回调函数，用于异步返回
  */
 async function hotCodeLister(message, sender, sendResponse) {
+  console.log('注入代码', sender, message);
   // 2️⃣ 注入本地通用 JS 文件（jquery/layer/...）
   await requestLocalExecuteScript({}, message, sender);
 
@@ -638,7 +639,6 @@ const ChangeAccountCmd = {
 }
 
 function onMessageLister(message, sender, sendResponse) {
-  console.log(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
     chrome.action.openPopup();
     return;
@@ -656,6 +656,58 @@ function onMessageLister(message, sender, sendResponse) {
   // }
 }
 
+
+let INSTALLER_RELOAD = false;
+chrome.runtime.onInstalled.addListener((details) => {
+  INSTALLER_RELOAD = true;
+});
+
+
+chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
+  if (INSTALLER_RELOAD) {
+    // chrome.tabs.reload(tabId); 
+    // INSTALLER_RELOAD = false;
+  }
+    // const runtimeId = chrome.runtime.id;
+    // console.log('runtimeId', runtimeId);
+    // await HotCodeCmd.Lister({
+    //   cmd: 'inject',
+    //   // type: 1,
+    //   params: {
+    //     type: 'eval',
+    //     value: `console.log('iune');localStorage.setItem("MdPluginId", ${runtimeId});`
+    //   }
+    // }, { tab: { id: tabId } })
+
+  //   chrome.scripting.executeScript({
+  //     target: { tabId },
+  //     function: () => {
+  //       console.log('iune');
+  //       localStorage.setItem("MdPluginId", runtimeId);
+  //     }
+  //   })
+  //   await HotCodeCmd.Lister({ cmd: 'start' }, { tab: { id: tabId } });
+
+  //   injectCmd.Lister({
+  //     cmd: 'inject',
+  //     type: 2,
+  //     fileNames: ['js/reload.js']
+  //   }, { tab: { id: tabId } }, (response) => {
+  //     console.log(response, 'response');
+  //   });
+  //   INSTALLER_RELOAD = false;
+
+  // }
+
+
+  // chrome.runtime.sendMessage({ cmd: "start" });
+  // const tab = await getCurrentTab();
+  // injectCmd.Lister
+  // HotCodeCmd.Lister({ cmd: 'start'}, { tab: { id: tabId } });
+  // chrome.runtime.sendMessage({ cmd: "start" });
+  // const tab = await chrome.tabs.get(tabId);
+  // console.log("切换到 tab:", tabId, tab.url);
+});
 
 
 

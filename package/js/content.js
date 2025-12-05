@@ -32,8 +32,7 @@
 
     const _chrome = {
         async do({ params, call }) {
-            const func = getPropertyCall(chrome, call);
-            
+            const func = getPropertyCall(chrome, call); 
             return await func(...params);
         }
     }

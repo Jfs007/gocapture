@@ -88,6 +88,7 @@
     }
     store.registerModule('APP', App);
     store.init();
+
     const observer = new MutationObserver(async () => {
         const el = document.querySelector('#header-user');
         if (el) {
@@ -101,6 +102,13 @@
             observer.disconnect(); // 释放
         }
     });
+    const url = new URL(location.href);
+    const ldd_authorization = url.searchParams.get("ldd_authorization");
+    const [accountCodeUin, accountCode] = (ldd_authorization || '').join('_');
+    const appState = await store.get('APP');
+    appState.itaored.accountCodeUin = accountCodeUin;
+    appState.itaored.accountCode = accountCode;
+    await store.commit('APP/SET_ADITAOREAD_USERINFO', Object.assign(appState))
     observer.observe(document.body, {
         childList: true,
         subtree: true
