@@ -108,14 +108,20 @@
         childList: true,
         subtree: true
     });
-    function xorDecrypt(encoded, key = "DKJGJEDKJDJEJEKE") {
-        console.log('xorDecrypt', encoded);
-        const data = atob(encoded);
-        let res = [];
+    function base64UrlDecode(str) {
+        str = str
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+        while (str.length % 4) str += "=";
+        return atob(str);
+    }
+    function xorDecryptUrlSafe(encoded, key = "LDLDKJKDJKFJDDKJD") {
+        const data = base64UrlDecode(encoded);
+        let arr = [];
         for (let i = 0; i < data.length; i++) {
-            res.push(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+            arr.push(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
         }
-        return String.fromCharCode(...res);
+        return String.fromCharCode(...arr);
     }
     try {
         const url = new URL(location.href);
@@ -126,7 +132,7 @@
         if (accountCodeUin) {
             const appState = await store.get('APP');
             // console.log(appState, 'ldd_authorization');
-            appState.itaored.token = xorDecrypt(token);
+            appState.itaored.token = xorDecryptUrlSafe(token);
             appState.itaored.accountCodeUin = accountCodeUin;
             appState.itaored.accountCode = accountCode;
             await store.commit('APP/SET_ADITAOREAD_USERINFO', Object.assign(appState.itaored))
