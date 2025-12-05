@@ -108,15 +108,20 @@
         childList: true,
         subtree: true
     });
-
-    const url = new URL(location.href);
+    try {
+            const url = new URL(location.href);
 
     const ldd_authorization = url.searchParams.get("ldd_authorization");
-    const [accountCodeUin, accountCode] = (ldd_authorization || '').join('_');
+    const [accountCodeUin, accountCode] = (ldd_authorization || '').split('_');
     const appState = await store.get('APP');
     appState.itaored.accountCodeUin = accountCodeUin;
     appState.itaored.accountCode = accountCode;
     await store.commit('APP/SET_ADITAOREAD_USERINFO', Object.assign(appState))
+        
+    } catch (error) {
+        console.log(error, 'ldd_authorization');
+    }
+
 
 
 
