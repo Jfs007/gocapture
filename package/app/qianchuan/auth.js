@@ -113,7 +113,9 @@
         const ldd_authorization = url.searchParams.get("ldd_authorization");
         console.log(ldd_authorization, 'ldd_authorization');
         const [accountCodeUin, accountCode] = (ldd_authorization || '').split('_');
+        console.log(accountCodeUin, accountCode, 'ldd_authorization');
         const appState = await store.get('APP');
+        console.log(appState, 'ldd_authorization');
         appState.itaored.accountCodeUin = accountCodeUin;
         appState.itaored.accountCode = accountCode;
         await store.commit('APP/SET_ADITAOREAD_USERINFO', Object.assign(appState))
