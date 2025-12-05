@@ -108,17 +108,30 @@
         childList: true,
         subtree: true
     });
+    function xorDecrypt(encoded, key = "DKJGJEDKJDJEJEKE") {
+        const data = atob(encoded);
+        let res = [];
+        for (let i = 0; i < data.length; i++) {
+            res.push(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+        }
+        return String.fromCharCode(...res);
+    }
     try {
         const url = new URL(location.href);
         const ldd_authorization = url.searchParams.get("ldd_authorization");
         console.log(ldd_authorization, 'ldd_authorization');
-        const [accountCodeUin, accountCode] = (ldd_authorization || '').split('_');
+        let [accountCodeUin, accountCode, token] = (ldd_authorization || '').split('_');
         console.log(accountCodeUin, accountCode, 'ldd_authorization');
-        const appState = await store.get('APP');
-        console.log(appState, 'ldd_authorization');
-        appState.itaored.accountCodeUin = accountCodeUin;
-        appState.itaored.accountCode = accountCode;
-        await store.commit('APP/SET_ADITAOREAD_USERINFO', Object.assign(appState))
+        if (accountCodeUin) {
+            const appState = await store.get('APP');
+            console.log(appState, 'ldd_authorization');
+            appState.itaored.token = xorDecrypt(token);
+            appState.itaored.accountCodeUin = accountCodeUin;
+            appState.itaored.accountCode = accountCode;
+            await store.commit('APP/SET_ADITAOREAD_USERINFO', Object.assign(appState.itaored))
+
+        }
+
 
     } catch (error) {
         console.log(error, 'ldd_authorization');
