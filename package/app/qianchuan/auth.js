@@ -127,7 +127,7 @@
         const url = new URL(location.href);
         const ldd_authorization = url.searchParams.get("ldd_authorization");
         // console.log(ldd_authorization, 'ldd_authorization');
-        const parts = 'ldd_authorization'.split("_");
+        const parts = ldd_authorization.split("_");
         // 前两个字段固定
         const accountCodeUin = parts[0];
         const accountCode = parts[1];
