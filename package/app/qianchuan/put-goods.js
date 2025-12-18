@@ -1,5 +1,6 @@
 
 !function () {
+    return;
     if (location.href.indexOf('https://qianchuan.jinritemai.com/creation/uni-prom-product') < 0) return;
     const api = 'https://ad.itaored.com';
     const initApp = () => {
@@ -51,8 +52,8 @@
                                                 </div>
                                             </div>
                                             <div class='oc-space oc-space-' style='margin-top: 8px;display:flex;align-item: center;'>
-                                                <input id="campaignSettlecostInputDivInput" placeholder='净成交' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
-                                                <input id="costInputDivInput" placeholder='支付' style="margin-left: 4px;font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input disabled id="campaignSettlecostInputDivInput" placeholder='净成交' style="font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
+                                                <input disabled id="costInputDivInput" placeholder='支付' style="margin-left: 4px;font-size: 18px;background-color: #f4f4f5;height: 44px;padding: 5px 16px;border-radius: 3px;border: none;outline: none;max-width: 160px;" />
                                             </div>
                                         </div>`;
 

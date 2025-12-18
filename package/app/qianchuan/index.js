@@ -221,7 +221,7 @@
         xlsx.download('计划列表.xlsx');
     }
     const api = 'https://ad.itaored.com';
-    async function getProductInfo(params) {
+    async function getDataInfo(params) {
         const mdChrome = _require("mdChrome");
         try {
             const res = await mdChrome.web.cmd({
@@ -245,8 +245,9 @@
             return { data: {} }
         }
     }
-    async function saveProductInfo0(params) {
+    async function saveCurrentRowInfoApi(params) {
         const mdChrome = _require("mdChrome");
+        params.productId = params.UniqueId;
         const res = await mdChrome.web.cmd({
             url: api + "/api/qc/campaign/report/iu/save/product",
             cmd: 'fetch',
@@ -274,23 +275,23 @@
             list: [],
             pagination: { page: 0 },
             goodsInfoMaps: {},
-            productInfo: {},
+            dataInfo: {},
         }
         // 加载已保存的成本数据
-        async function loadProductInfo(params) {
+        async function loadDataInfo(params) {
             try {
-                const { data } = await getProductInfo(params);
-                state.productInfo = Object.assign(state.productInfo, data);
+                const { data } = await getDataInfo(params);
+                state.dataInfo = Object.assign(state.dataInfo, data);
             } catch (error) {
                 console.log("加载成本数据失败:", error);
             }
         }
         // 保存成本
-        async function saveProductInfo(mainGoodsId, payload) {
+        async function saveCurrentRowInfo(UniqueId, payload) {
             try {
-                state.productInfo[mainGoodsId] = Object.assign(state.productInfo[mainGoodsId] || {}, payload);
-                saveProductInfo0({
-                    productId: mainGoodsId,
+                state.dataInfo[UniqueId] = Object.assign(state.dataInfo[UniqueId] || {}, payload);
+                saveCurrentRowInfoApi({
+                    UniqueId: UniqueId,
                     accountCode: '-',
                     campaignPrice: payload.price ? payload.price.join('-') : undefined,
                     campaignCost: payload.cost,
@@ -301,7 +302,6 @@
             }
         }
 
-        // loadProductInfo();
         function waitTableLoadingDisappear() {
             return new Promise((resolve) => {
                 const container = document.querySelector('.table-container')
@@ -325,8 +325,8 @@
 
         // 处理列表接口返回
         async function handleAdList() {
-            await loadProductInfo({
-                productIdList: state.list.map(_ => _.mainGoodsId)
+            await loadDataInfo({
+                productIdList: state.list.map(_ => _.UniqueId)
             });
             await waitTableLoadingDisappear();
             setTimeout(async () => {
@@ -338,18 +338,18 @@
         }
         // 创建编辑按钮
         function createEditButton(adId, adInfo, options = {}) {
-            const { mainGoodsId } = adInfo;
+            const { UniqueId } = adInfo;
             const btn = document.createElement('span');
             btn.innerText = `编辑${options.placceholader || ''}`;
             btn.style.cssText = 'margin-left: 8px; color: #2a55e5; cursor: pointer; font-size: 12px;';
             btn.onclick = async (e) => {
                 e.stopPropagation();
-                const info = state.productInfo[mainGoodsId] || {};
+                const info = state.dataInfo[UniqueId] || {};
                 const newValue = prompt(options.message, info[options.key] || '');
                 if (newValue !== null && newValue !== '') {
                     const val = parseFloat(newValue);
                     if (!isNaN(val)) {
-                        await saveProductInfo(mainGoodsId, { [options.key]: val });
+                        // await saveCurrentRowInfo(UniqueId, { [options.key]: val });
                         // 重新渲染该行数据
                         updateRowData(adId, adInfo);
                     } else {
@@ -426,21 +426,21 @@
                 const costSpan = document.createElement('span');
                 costSpan.innerText = cost > 0 ? cost.toFixed(2) : '-';
                 costDiv.appendChild(costSpan);
-                costDiv.appendChild(createEditButton(adId, adInfo, {
-                    message: '请输入支付的保本成本:',
-                    placceholader: '支付',
-                    key: 'cost'
-                }));
+                // costDiv.appendChild(createEditButton(adId, adInfo, {
+                //     message: '请输入支付的保本成本:',
+                //     placceholader: '支付',
+                //     key: 'cost'
+                // }));
                 const dealDiv = document.createElement('div');
                 const dealSpan = document.createElement('span');
                 dealSpan.innerText = campaignSettleCost > 0 ? campaignSettleCost.toFixed(2) : '-';
 
                 dealDiv.appendChild(dealSpan);
-                dealDiv.appendChild(createEditButton(adId, adInfo, {
-                    message: '请输入净成交的保本成本:',
-                    placceholader: '净成交',
-                    key: 'campaignSettleCost'
-                }));
+                // dealDiv.appendChild(createEditButton(adId, adInfo, {
+                //     message: '请输入净成交的保本成本:',
+                //     placceholader: '净成交',
+                //     key: 'campaignSettleCost'
+                // }));
                 inner.appendChild(dealDiv);
                 inner.appendChild(costDiv);
 
@@ -510,8 +510,8 @@
         function updateRowData(adId, adInfo) {
             const row = document.querySelector(`.ovui-tr[data-ad-id="${adId}"]`);
             if (!row) return;
-            const { mainGoodsId } = adInfo;
-            const payload = state.productInfo[mainGoodsId] || {};
+            const { UniqueId } = adInfo;
+            const payload = state.dataInfo[UniqueId] || {};
             const computed = calculateRowData(adInfo, payload);
             renderCustomColumns(row, adInfo, computed);
         }
@@ -522,7 +522,7 @@
             state.list.map(async adInfo => {
                 if (!(adInfo.aboutGoodsId || []).find(id => id == goodsId)) return;
                 const adId = adInfo.id;
-                await saveProductInfo(adInfo.mainGoodsId, { price });
+                await saveCurrentRowInfo(adInfo.UniqueId, { price });
                 updateRowData(adId, adInfo);
             })
         }
@@ -553,7 +553,7 @@
                 }
                 // 在导出前，先计算所有行的数据
                 state.list.forEach(adInfo => {
-                    const payload = state.productInfo[adInfo.mainGoodsId] || {};
+                    const payload = state.dataInfo[adInfo.UniqueId] || {};
                     calculateRowData(adInfo, payload);
                 });
 
@@ -672,7 +672,7 @@
                     const adInfo = adInfos[rowIndex];
                     if (!adInfo) return;
                     const adId = adInfo.id;
-                    const mainGoodsId = adInfo.mainGoodsId;
+                    const UniqueId = adInfo.UniqueId;
                     // 给行添加标识
                     row.setAttribute('data-ad-id', adId);
                     const tdList = row.querySelectorAll('td');
@@ -688,7 +688,7 @@
                             }
 
                             // 计算数据
-                            const payload = state.productInfo[mainGoodsId] || {};
+                            const payload = state.dataInfo[UniqueId] || {};
                             const computed = calculateRowData(adInfo, payload);
 
                             let lastInsertedTd = targetTd;
@@ -737,6 +737,7 @@
                         _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
                         _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
                         planAndGoodsIdMaps[_.id] = _.aboutGoodsId[0];
+                        _.UniqueId = _.aboutGoodsId[0] || _.id;
                         _.mainGoodsId = _.aboutGoodsId[0];
                         _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
                         _.totalOrderSettleCountForRoi21H = stat?.metrics['totalOrderSettleCountForRoi21H'] || {};
