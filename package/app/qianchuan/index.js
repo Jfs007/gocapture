@@ -225,7 +225,7 @@
         const mdChrome = _require("mdChrome");
         try {
             const res = await mdChrome.web.cmd({
-                url: api + "/api/qc/campaign/report/iu/list/product",
+                url: api + "/api/qc/campaign/report/iu/cost/list",
                 cmd: 'fetch',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -234,10 +234,10 @@
             // const json = await res.json();
             const info = {};
             (res.result.data || []).map(_ => {
-                info[_.productId] = Object.assign(_, {
+                info[_.campaignId] = Object.assign(_, {
                     price: (_.campaignPrice || '').split('-'),
                     cost: _.campaignCost,
-                    campaignSettleCost: _.campaignSettleCost,
+                    // campaignSettleCost: _.campaignSettleCost,
                 })
             });
             return { data: info };
@@ -326,7 +326,7 @@
         // 处理列表接口返回
         async function handleAdList() {
             await loadDataInfo({
-                productIdList: state.list.map(_ => _.UniqueId)
+                campaignIdList: state.list.map(_ => _.UniqueId)
             });
             await waitTableLoadingDisappear();
             setTimeout(async () => {
@@ -375,10 +375,12 @@
         }
         // 计算数据（纯函数，不涉及DOM操作）
         function calculateRowData(adInfo, payload = {}) {
-            const { cost, price, campaignSettleCost } = payload || {};
+            const { cost, price } = payload || {};
+            const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0;
             const consume = parseFloat(adInfo.statCostForRoi2?.value) || 0; // 消耗
-            const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0; // 整体成交订单数
+            const totalOrderSettleCountRateForRoi21H = parseInt(adInfo.totalOrderSettleCountRateForRoi21H?.value) || 0; // 订单结算率
             const totalOrderSettleCount = parseInt(adInfo.totalOrderSettleCountForRoi21H?.value) || 0;
+            let campaignSettleCost = totalOrderSettleCountRateForRoi21H == 0 ? 0 : (cost / (totalOrderSettleCountRateForRoi21H / 100))
             console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost, totalOrderSettleCount);
             // 运营预估盈亏 = 保本成本 × 整体成交订单数 - 消耗
             const profit = cost * totalOrderCount - consume;
@@ -616,10 +618,10 @@
             }
             // 插入三个表头
             const headers = [
-                { text: '保本成本', key: 'budget', width: 130 },
+                { text: '预估保本成本', key: 'budget', width: 130 },
                 { text: '运营预估盈亏', key: 'cost', width: 130 },
-                { text: '运营预估盈亏率', key: 'balance', width: 130 },
-                { text: '售价', key: 'price', width: 130 }
+                { text: '消耗盈亏率', key: 'balance', width: 130 },
+                // { text: '售价', key: 'price', width: 130 }
             ];
             let lastInsertedTh = targetTh;
             let lastInsertedCol = targetCol;
@@ -737,10 +739,13 @@
                         _.mainGoodsName = ((adGoodsMap[_.id] || [])[0] || {}).name;
                         _.aboutGoodsId = (adGoodsMap[_.id] || []).map(_ => _.id);
                         planAndGoodsIdMaps[_.id] = _.aboutGoodsId[0];
-                        _.UniqueId = _.aboutGoodsId[0] || _.id;
+                        _.UniqueId = _.id;
                         _.mainGoodsId = _.aboutGoodsId[0];
                         _.totalPayOrderCountForRoi2 = stat?.metrics['totalPayOrderCountForRoi2'] || {};
                         _.totalOrderSettleCountForRoi21H = stat?.metrics['totalOrderSettleCountForRoi21H'] || {};
+
+                        _.totalOrderSettleCountRateForRoi21H = stat?.metrics['totalOrderSettleCountRateForRoi21H'] || {};
+                        _.totalOrderSettleCountRateForRoi21HPrimary = stat?.metrics['totalOrderSettleCountRateForRoi21HPrimary'] || {};
 
                         _.statCostForRoi2 = stat?.metrics['statCostForRoi2'] || {};
                         _.totalPayOrderGmvIncludeCouponForRoi2 = stat?.metrics['totalPayOrderGmvIncludeCouponForRoi2'] || {};

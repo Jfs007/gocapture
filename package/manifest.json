@@ -7,7 +7,7 @@
   "name": "超级量多多+",
   "short_name": "超级量多多+",
   "author_name": "chrome",
-  "app_module": "Offline",
+  "app_module": "Online",
   "version": "30.2.2",
   "description": "电商实用工具集合大全",
   "icons": {
