@@ -1,8 +1,31 @@
 
 !function () {
     "use strict";
-    if (location.href.indexOf('https://business.oceanengine.com/site') < 0) return;
+    if (!(location.href.indexOf('https://business.oceanengine.com/site') >= 0 || location.href.indexOf('https://agent.oceanengine.com/') >= 0)) return;
     let headerCardUser = null;
+    const getPlateform = () => {
+        const host = window.location.hostname
+        const match = host.match(/^([^.]+)\.oceanengine\.com$/)
+        const platform = match ? match[1] : '';
+        return platform;
+    }
+
+    const NET_INFO = {
+        platform: getPlateform(),
+        origin: [],
+        url: `https://${location.host}`,
+        loginUrl: `https://${location.host}/login`,
+        cookieParams: []
+
+    }
+
+    if (NET_INFO.platform === 'business') {
+        NET_INFO.origin = ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"];
+    }
+    if (NET_INFO.platform === 'agent') {
+        NET_INFO.origin = ['https://agent.oceanengine.com', "https://oceanengine.com", "https://api.feelgood.cn"];
+    }
+    console.log('当前平台信息qianchuan/index.js:', NET_INFO);
     const mdChrome = _require("mdChrome");
     function changeAccount(e) {
         e.stopPropagation();
@@ -26,17 +49,27 @@
     }
     document.body.addEventListener('click', (e) => {
         const target = e.target;
-        if (!headerCardUser) {
-            headerCardUser = document.querySelector('#bp-header-user-card');
-        }
-        if (headerCardUser.contains(target)) {
-            const itemEle = getHeaderUserCardItem(target);
-            if (itemEle) {
-                const text = itemEle.innerText;
-                if (text.indexOf('退出账号') > -1) {
-                    changeAccount(e);
+        // 巨量
+        if (NET_INFO.platform == 'business') {
+            if (!headerCardUser) {
+                headerCardUser = document.querySelector('#bp-header-user-card');
+            }
+            if (headerCardUser.contains(target)) {
+                const itemEle = getHeaderUserCardItem(target);
+                if (itemEle) {
+                    const text = itemEle.innerText;
+                    if (text.indexOf('退出账号') > -1) {
+                        changeAccount(e);
+                    }
                 }
             }
+        }
+        // 方舟代理
+        if (NET_INFO.platform == 'agent') {
+            if (target.innerText.indexOf('退出登录') > -1) {
+                changeAccount(e);
+            }
+
         }
 
 

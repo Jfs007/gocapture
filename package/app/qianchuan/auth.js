@@ -1,6 +1,25 @@
 !async function () {
+    if (!(location.href.indexOf('https://business.oceanengine.com/site/index') >= 0 || location.href.indexOf('https://agent.oceanengine.com/admin/optimizeModule/dataSummary/bidding/bidding-company') >= 0)) return;
+    const getPlateform = () => {
+        const host = window.location.hostname
+        const match = host.match(/^([^.]+)\.oceanengine\.com$/)
+        const platform = match ? match[1] : '';
+        return platform;
+    }
 
-    if (location.href.indexOf('https://business.oceanengine.com/site/index') < 0) return;
+    const NET_INFO = {
+        platform: getPlateform(),
+        origin: [],
+        url: `https://${location.host}`,
+        loginUrl: `https://${location.host}/login`,
+        cookieParams: []
+
+    }
+
+
+    console.log('当前平台信息qianchuan/auth.js:', NET_INFO);
+
+
     const mdChrome = _require("mdChrome");
     await mdChrome.web.injectScript('cp_modules/store/index.js');
     // 2. 使用模块
@@ -89,25 +108,42 @@
     store.registerModule('APP', App);
     store.init();
 
-    const observer = new MutationObserver(async () => {
+    const observerBusiness = new MutationObserver(async () => {
         const el = document.querySelector('#header-user');
         if (el) {
-            const webinfo = localStorage.getItem('__Garfish__bp-web____tea_cache_tokens_1892');
+            const webinfo = localStorage.getItem('__Garfish__ap-web____tea_cache_tokens_1892');
             const { user_unique_id } = JSON.parse(webinfo || '{}');
-            // console.log(web_id, 'webid', webinfo);
             await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: user_unique_id })
             mdChrome.web.cmd({
                 cmd: 'openPopup'
             });
-            observer.disconnect(); // 释放
+            agentObserver.disconnect(); // 释放
         }
     });
-
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+    const agentObserver = {
+        _callback: () => { },
+        observe: (call) => {
+            agentObserver._callback = call;
+        },
+        do: (info) => {
+            agentObserver._callback(info);
+        }
+    }
+    if (NET_INFO.platform === 'business') {
+        observerBusiness.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    };
+    if (NET_INFO.platform == 'agent') {
+        agentObserver.observe(async info => {
+            console.log('agentObserver info', info);
+            await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: info.userId })
+            mdChrome.web.cmd({
+                cmd: 'openPopup'
+            });
+        })
+    }
     function base64UrlDecode(str) {
         str = str
             .replace(/-/g, '+')
@@ -147,7 +183,40 @@
 
     } catch (error) {
         console.log(error, 'ldd_authorization');
+    };
+
+    const api_hook = {
+        'agent/user/user-info/': async (res) => {
+            const info = res?.result?.data || {};
+            agentObserver.do(info);
+        }
     }
+    function listenMessage(event) {
+        const { type, data } = event.data;
+        console.log(type, data, '接受');
+        if (type === "WEB_REQUEST_RESPONSE") {
+            const url = data ? data.url : '-';
+            const regex = /^([^|]+)(?:\|([a-zA-Z]+))?$/;
+            let action = '';
+            const matchUrl = Object.keys(api_hook).find(matchUrl => {
+                const match = matchUrl.match(regex);
+                const [_, originUrl, matchAction] = match || [];
+                action = matchAction;
+                if (url.indexOf(originUrl) > -1) return true;
+            });
+            const hook = api_hook[matchUrl] || (() => { });
+            if (!hook.isExec) {
+                action != 'repeat' && (hook.isExec = true);
+                hook(data, event.data);
+            }
+        }
+    };
+    // 监听请求响应
+    window.addEventListener("message", listenMessage);
+    __WEB_REQUEST_API__.ready();
+    __WEB_REQUEST_API__.cache.map(params => {
+        listenMessage(params)
+    })
 
 
 
