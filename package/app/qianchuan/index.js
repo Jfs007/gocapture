@@ -408,12 +408,12 @@
         // 计算数据（纯函数，不涉及DOM操作）
         function calculateRowData(adInfo, payload = {}) {
             const { cost, price } = payload || {};
-            const totalOrderCount = parseInt(adInfo.totalPayOrderCountForRoi2?.value) || 0;
+            const totalOrderCount = +(adInfo.totalPayOrderCountForRoi2?.value) || 0;
             const consume = parseFloat(adInfo.statCostForRoi2?.value) || 0; // 消耗
-            const totalOrderSettleCountRateForRoi21H = parseInt(adInfo.totalOrderSettleCountRateForRoi21H?.value) || 0; // 订单结算率
+            const totalOrderSettleCountRateForRoi21H = +(adInfo.totalOrderSettleCountRateForRoi21H?.value) || 0; // 订单结算率
             const totalOrderSettleCount = parseInt(adInfo.totalOrderSettleCountForRoi21H?.value) || 0;
             let campaignSettleCost = totalOrderSettleCountRateForRoi21H == 0 ? 0 : (cost / (totalOrderSettleCountRateForRoi21H / 100))
-            console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost, totalOrderSettleCount);
+            console.log('告诉我订单的数据', 'consume: ', consume, 'totalOrderCount: ', totalOrderCount, cost, totalOrderSettleCount, campaignSettleCost, totalOrderSettleCountRateForRoi21H);
             // 运营预估盈亏 = 保本成本 × 整体成交订单数 - 消耗
             const profit = cost * totalOrderCount - consume;
             // 盈亏率 = (预估盈亏 / 消耗) × 100%
