@@ -35,8 +35,7 @@
         const tab = await getCurrentTab();
         const _location = new URL(tab.url);
         const host = _location.hostname;
-        const match = host.match(/^([^.]+)\.oceanengine\.com$/)
-        const platform = match ? match[1] : '';
+        const [platform] = host.split('.') || '';
         return platform;
     }
 
@@ -60,49 +59,51 @@
         NET_INFO.origin = ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"];
         NET_INFO.cookieParams = ['sessionid', 'sessionid_ss', 'sid_ucp_sso_v1', 'ssid_ucp_sso_v1', 'uid_tt', 'sid_tt', 'trace_log_user_id', 'csrftoken', 'd_ticket', 'is_hit_partitioned_cookie_canary', 'csrf_session_id', 'is_hit_partitioned_cookie_canary_ss', 'is_staff_user', 'n_mh', 'odin_tt', 'passport_csrf_token', 'passport_csrf_token_default', 'passport_mfa_token', 'sid_guard', 'sid_ucp_v1', 'ssid_ucp_v1', 'sso_uid_tt', 'sso_uid_tt_ss', 'toutiao_sso_user', 'toutiao_sso_user_ss', 'ttwid', 'uid_tt_ss', 'x-jupiter-uuid'];
     } else {
-        NET_INFO.url = 'https://agent.oceanengine.com';
+        NET_INFO.url = 'https://qianchuan.jinritemai.com';
         NET_INFO.loginUrl = 'https://agent.oceanengine.com/login';
         NET_INFO.origin = ['https://agent.oceanengine.com', "https://oceanengine.com", "https://api.feelgood.cn"];
         NET_INFO.cookieParams = [
-            "__security_mc_61_s_sdk_crypt_sdk",
-            "__security_mc_61_s_sdk_cert_key",
-            "__security_mc_61_s_sdk_sign_data_key_web_protect",
-            "bd_ticket_guard_client_data",
-            "bd_ticket_guard_client_web_domain",
-            "passport_csrf_token",
-            "passport_csrf_token_default",
-            "toutiao_sso_user",
-            "toutiao_sso_user_ss",
-            "__security_mc_61_s_sdk_sign_data_key_sso",
-            "passport_auth_status",
-            "passport_auth_status_ss",
-            "uid_tt_ss",
-            "is_hit_partitioned_cookie_canary_ss",
-            "sessionid_ss",
-            "session_tlb_tag",
-            "is_staff_user",
-            "sid_ucp_v1",
-            "is_hit_partitioned_cookie_canary",
-            "ssid_ucp_v1",
-            "gd_random",
-            "ttwid",
-            "s_v_web_id",
-            "passport_mfa_token",
-            "d_ticket",
-            "n_mh",
-            "sso_uid_tt",
-            "sso_uid_tt_ss",
-            "sid_ucp_sso_v1",
-            "ssid_ucp_sso_v1",
-            "odin_tt",
-            "bd_ticket_guard_server_data",
-            "bd_ticket_guard_web_domain",
-            "sid_guard",
-            "uid_tt",
-            "sid_tt",
-            "sessionid",
-            "tt_scid"
-        ];
+  "is_staff_user",
+  "d_ticket",
+  "n_mh",
+  "qc_tt_tag",
+  "bd_ticket_guard_web_domain",
+  "passport_csrf_token",
+  "passport_csrf_token_default",
+  "__security_mc_1_s_sdk_crypt_sdk",
+  "__security_mc_1_s_sdk_cert_key",
+  "__security_mc_1_s_sdk_sign_data_key_web_protect",
+  "bd_ticket_guard_client_web_domain",
+  "bd_ticket_guard_client_data",
+  "s_v_web_id",
+  "Hm_lvt_55b6f6890a6937842cef785d95ea99d7",
+  "Hm_lvt_ed0a6497a1fdcdb3cdca291a7692408d",
+  "Hm_lvt_729f63f2a2cf56cd38fff0220c787b4a",
+  "passport_auth_status",
+  "passport_auth_status_ss",
+  "ucas_c0",
+  "ucas_c0_ss",
+  "COMPASS_LUOPAN_DT",
+  "ttwid",
+  "session_tlb_tag_bk",
+  "_tea_utm_cache_2906",
+  "uid_tt",
+  "uid_tt_ss",
+  "sid_tt",
+  "sessionid",
+  "sessionid_ss",
+  "gfkadpd",
+  "gd_random",
+  "odin_tt",
+  "bd_ticket_guard_server_data",
+  "sid_guard",
+  "session_tlb_tag",
+  "sid_ucp_v1",
+  "ssid_ucp_v1",
+  "acsessionid",
+  "csrftoken"
+]
+
 
     }
 
@@ -358,7 +359,7 @@
             $("#getCookie").hide();
             $('#authConfirm').hide();
             $('#errorText').hide();
-            if (tab.url.indexOf('oceanengine.com') < 0) return;
+            if (!(NET_INFO.platform == 'business' || NET_INFO.platform == 'qianchuan')) return;
             try {
                 // 无论是否捞到小助手的token都展示授权按钮
                 $("#getCookie").show();

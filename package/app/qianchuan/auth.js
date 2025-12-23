@@ -1,9 +1,8 @@
 !async function () {
-    if (!(location.href.indexOf('https://business.oceanengine.com/site/index') >= 0 || location.href.indexOf('https://agent.oceanengine.com/admin/optimizeModule/dataSummary/bidding/bidding-company') >= 0)) return;
+    if (!(location.href.indexOf('https://business.oceanengine.com/site/index') >= 0 || location.href.indexOf('https://qianchuan.jinritemai.com/home') >= 0)) return;
     const getPlateform = () => {
-        const host = window.location.hostname
-        const match = host.match(/^([^.]+)\.oceanengine\.com$/)
-        const platform = match ? match[1] : '';
+        const host = window.location.hostname;
+        const [platform] = host.split('.') || '';
         return platform;
     }
 
@@ -135,7 +134,7 @@
             subtree: true
         });
     };
-    if (NET_INFO.platform == 'agent') {
+    if (NET_INFO.platform == 'qianchuan') {
         agentObserver.observe(async info => {
             console.log('agentObserver info', info);
             await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: info.userId })
@@ -186,14 +185,16 @@
     };
 
     const api_hook = {
-        'agent/user/user-info/': async (res) => {
+        'ad/api/v1/account/user/info': async (res) => {
+            console.log('获取到agent用户信息:',res);
             const info = res?.result?.data || {};
-            agentObserver.do(info);
+            const userInfo = info.userInfo || {};
+            console.log('获取到agent用户信息:',userInfo);
+            agentObserver.do(userInfo);
         }
     }
     function listenMessage(event) {
         const { type, data } = event.data;
-        console.log(type, data, '接受');
         if (type === "WEB_REQUEST_RESPONSE") {
             const url = data ? data.url : '-';
             const regex = /^([^|]+)(?:\|([a-zA-Z]+))?$/;

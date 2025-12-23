@@ -1,12 +1,11 @@
 
 !function () {
     "use strict";
-    if (!(location.href.indexOf('https://business.oceanengine.com/site') >= 0 || location.href.indexOf('https://agent.oceanengine.com/') >= 0)) return;
+    if (!(location.href.indexOf('https://business.oceanengine.com/site') >= 0 || location.href.indexOf('https://qianchuan.jinritemai.com/home') >= 0)) return;
     let headerCardUser = null;
     const getPlateform = () => {
-        const host = window.location.hostname
-        const match = host.match(/^([^.]+)\.oceanengine\.com$/)
-        const platform = match ? match[1] : '';
+        const host = window.location.hostname;
+        const [platform] = host.split('.') || '';
         return platform;
     }
 
@@ -22,7 +21,7 @@
     if (NET_INFO.platform === 'business') {
         NET_INFO.origin = ["https://business.oceanengine.com", "https://oceanengine.com", "https://ad.oceanengine.com", "https://api.feelgood.cn"];
     }
-    if (NET_INFO.platform === 'agent') {
+    if (NET_INFO.platform === 'qianchuan') {
         NET_INFO.origin = ['https://agent.oceanengine.com', "https://oceanengine.com", "https://api.feelgood.cn"];
     }
     console.log('当前平台信息qianchuan/index.js:', NET_INFO);
@@ -65,7 +64,7 @@
             }
         }
         // 方舟代理
-        if (NET_INFO.platform == 'agent') {
+        if (NET_INFO.platform == 'qianchuan') {
             if (target.innerText.indexOf('退出登录') > -1) {
                 changeAccount(e);
             }
