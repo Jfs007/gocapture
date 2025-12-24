@@ -7,6 +7,7 @@
             "qianchuan/index.js",
             "qianchuan/put-goods.js",
             "qianchuan/auth.js",
+            "qianchuan/auth-modal.js",
             "libs/xlxs-populate.js",
             "ldd/index.js"
         ]
