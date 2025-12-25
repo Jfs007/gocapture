@@ -135,9 +135,10 @@
         });
     };
     if (NET_INFO.platform == 'qianchuan') {
+        
         agentObserver.observe(async info => {
-            console.log('agentObserver info', info);
-            await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: info.userId })
+            
+            await store.commit('APP/SET_TIKTOK_USERINFO', { user_id: info.userId });
             mdChrome.web.cmd({
                 cmd: 'openPopup'
             });
