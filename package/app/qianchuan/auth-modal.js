@@ -1,7 +1,8 @@
 !async function () {
     "use strict";
+  
     if (window.__MD_QC_AUTH_MODAL__) return;
-    if (!(location.href.indexOf('https://business.oceanengine.com/site') >= 0 || location.href.indexOf('https://qianchuan.jinritemai.com/home') >= 0)) return;
+    if (!(location.href.indexOf('https://qianchuan.jinritemai.com/home') >= 0)) return;
 
     const mdChrome = _require("mdChrome");
     if (!mdChrome || !mdChrome.web || !mdChrome.web.cmd) return;
@@ -78,7 +79,6 @@
     await mdChrome.web.injectScript('cp_modules/store/index.js');
     const store = _require('chromeRedux');
     if (!store) return;
-
     const App = {
         state: {
             __response__: {},
@@ -516,6 +516,5 @@
         }
     };
     window.__MD_QC_AUTH_MODAL__ = api;
-
-    api.open()
+    
 }();
