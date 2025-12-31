@@ -405,6 +405,7 @@ async function cookieLister(message, sender, sendResponse) {
 
   // 默认操作：获取指定域名下所有 Cookie
   const allCookies = await chrome.cookies.getAll({ domain: message.myDomain });
+  console.log('获取 Cookie:', allCookies, message);
   const cookiesArray = [];
   let cookiesString = "";
 

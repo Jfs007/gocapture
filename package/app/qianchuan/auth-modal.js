@@ -31,7 +31,7 @@
     } else {
         NET_INFO.url = 'https://qianchuan.jinritemai.com';
         NET_INFO.loginUrl = 'https://agent.oceanengine.com/login';
-        NET_INFO.origin = ['https://agent.oceanengine.com', "https://oceanengine.com", "https://api.feelgood.cn", "https://qianchuan.jinritemai.com", "https://*.jinritemai.com", "https://*.qianchuan.jinritemai.com"];
+        NET_INFO.origin = ['agent.oceanengine.com', "oceanengine.com", "api.feelgood.cn", "qianchuan.jinritemai.com", ".jinritemai.com", ".qianchuan.jinritemai.com"];
         NET_INFO.cookieParams = [
             "is_staff_user",
             "d_ticket",
@@ -405,8 +405,15 @@
     }
 
     async function getCookiesByDomain() {
-        const res = await mdChrome.web.cmd({ cmd: 'getCookie', myDomain: NET_INFO.cookieDomain });
-        const cookiesArr = (res && res.cookies) ? res.cookies : [];
+        const cookieAwait = NET_INFO.origin.map(origin => {
+            return mdChrome.web.cmd({ cmd: 'getCookie', myDomain: origin });
+        });
+        const cookiesGroupRes = await Promise.all(cookieAwait);
+        let cookiesArr = [];
+        cookiesGroupRes.map(res => { cookiesArr.push(...((res && res.cookies) ? res.cookies : [])) });
+        // const res = await mdChrome.web.cmd({ cmd: 'getCookie', myDomain: NET_INFO.cookieDomain });
+        // const cookiesArr = (res && res.cookies) ? res.cookies : [];
+        // console.log(cookiesArr, cookiesGroupRes);
         const map = {};
         cookiesArr.forEach(c => {
             map[c.name] = c.value;
