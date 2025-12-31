@@ -195,7 +195,7 @@
 #__md_qc_auth_modal__{position:fixed;z-index:2147483647;display:block;right:16px;top:160px;width:340px;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);overflow:hidden;font-family:PingFangSC-Regular,PingFang SC,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;}
 #__md_qc_auth_modal__.__md_left{left:16px;right:auto;}
 #__md_qc_auth_modal__.__md_hidden{display:none;}
-#__md_qc_auth_modal__.__md_collapsed{width:52px;}
+#__md_qc_auth_modal__.__md_collapsed{width:74px;}
 #__md_qc_auth_modal__ .__md_header{padding:10px 10px;background:rgba(55,119,255,.12);color:#323335;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;user-select:none;cursor:grab;}
 #__md_qc_auth_modal__ .__md_header:active{cursor:grabbing;}
 #__md_qc_auth_modal__ .__md_title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
