@@ -31,7 +31,7 @@
     } else {
         NET_INFO.url = 'https://qianchuan.jinritemai.com';
         NET_INFO.loginUrl = 'https://agent.oceanengine.com/login';
-        NET_INFO.origin = ['https://agent.oceanengine.com', "https://oceanengine.com", "https://api.feelgood.cn", "https://qianchuan.jinritemai.com", "https://jinritemai.com"];
+        NET_INFO.origin = ['https://agent.oceanengine.com', "https://oceanengine.com", "https://api.feelgood.cn", "https://qianchuan.jinritemai.com", ".jinritemai.com"];
         NET_INFO.cookieParams = [
             "is_staff_user",
             "d_ticket",
