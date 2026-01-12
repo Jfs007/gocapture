@@ -664,51 +664,140 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 
-chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
-  if (INSTALLER_RELOAD) {
-    // chrome.tabs.reload(tabId); 
-    // INSTALLER_RELOAD = false;
-  }
-    // const runtimeId = chrome.runtime.id;
-    // console.log('runtimeId', runtimeId);
-    // await HotCodeCmd.Lister({
-    //   cmd: 'inject',
-    //   // type: 1,
-    //   params: {
-    //     type: 'eval',
-    //     value: `console.log('iune');localStorage.setItem("MdPluginId", ${runtimeId});`
-    //   }
-    // }, { tab: { id: tabId } })
-
-  //   chrome.scripting.executeScript({
-  //     target: { tabId },
-  //     function: () => {
-  //       console.log('iune');
-  //       localStorage.setItem("MdPluginId", runtimeId);
-  //     }
-  //   })
-  //   await HotCodeCmd.Lister({ cmd: 'start' }, { tab: { id: tabId } });
-
-  //   injectCmd.Lister({
-  //     cmd: 'inject',
-  //     type: 2,
-  //     fileNames: ['js/reload.js']
-  //   }, { tab: { id: tabId } }, (response) => {
-  //     console.log(response, 'response');
-  //   });
-  //   INSTALLER_RELOAD = false;
-
-  // }
 
 
-  // chrome.runtime.sendMessage({ cmd: "start" });
-  // const tab = await getCurrentTab();
-  // injectCmd.Lister
-  // HotCodeCmd.Lister({ cmd: 'start'}, { tab: { id: tabId } });
-  // chrome.runtime.sendMessage({ cmd: "start" });
-  // const tab = await chrome.tabs.get(tabId);
-  // console.log("切换到 tab:", tabId, tab.url);
-});
+
+
+
+
+
+
+
+
+// let attachedTabId = null;
+
+// chrome.action.onClicked.addListener(async () => {
+//   console.log('Service Worker loaded');
+//   // 1. 拿当前 tab
+//   const tabs = await chrome.tabs.query({
+//     active: true,
+//     currentWindow: true
+//   })
+
+//   const tab = tabs[0]
+//   if (!tab || !tab.id) {
+//     console.log('no active tab')
+//     return
+//   }
+
+//   // 2. 如果已经 attach 在这个 tab，直接返回
+//   if (attachedTabId === tab.id) {
+//     console.log('already attached')
+//     return
+//   }
+
+//   // 3. 如果 attach 在别的 tab，先 detach
+//   if (attachedTabId !== null) {
+//     chrome.debugger.detach({ tabId: attachedTabId })
+//     attachedTabId = null
+//   }
+
+//   // 4. attach debugger
+//   chrome.debugger.attach({ tabId: tab.id }, '1.3', () => {
+//     if (chrome.runtime.lastError) {
+//       console.error('attach failed:', chrome.runtime.lastError.message)
+//       return
+//     }
+
+//     attachedTabId = tab.id
+//     console.log('debugger attached:', tab.id)
+
+//     // 5. 打开 Network 域
+//     chrome.debugger.sendCommand(
+//       { tabId: tab.id },
+//       'Network.enable'
+//     )
+//   })
+// })
+
+// // base64 → Uint8Array
+// function base64ToUint8Array(base64) {
+//   const bin = atob(base64);
+//   const arr = new Uint8Array(bin.length);
+//   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+//   return arr;
+// }
+
+// // Blob → Uint8Array
+// async function blobToUint8Array(blob) {
+//   return new Uint8Array(await blob.arrayBuffer());
+// }
+
+// // ArrayBuffer → Uint8Array
+// function bufferToUint8Array(buffer) {
+//   return new Uint8Array(buffer);
+// }
+
+// // Uint8Array → string（尽最大可能解码）
+// function uint8ArrayToString(bytes) {
+//   return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+// }
+
+// // 万能 WS 解码
+// async function decodeWsData(data) {
+//   if (typeof data === 'string') {
+//     try {
+//       return uint8ArrayToString(base64ToUint8Array(data));
+//     } catch {
+//       return data;
+//     }
+//   }
+
+//   if (data instanceof Blob) {
+//     return uint8ArrayToString(await blobToUint8Array(data));
+//   }
+
+//   if (data instanceof ArrayBuffer) {
+//     return uint8ArrayToString(bufferToUint8Array(data));
+//   }
+
+//   return data;
+// }
+
+// // 6. 监听所有 debugger 事件
+// chrome.debugger.onEvent.addListener(async (source, method, params) => {
+//   if (source.tabId !== attachedTabId) return
+
+//   // WebSocket 收消息
+//   if (method === 'Network.webSocketFrameReceived') {
+//     try {
+//           const raw =  await decodeWsData(params.response.payloadData);
+//     console.log(
+//       '[WS recv]',
+//       raw
+//     )
+//     } catch (error) {
+//       console.log('[WS recv] decode error:', error);
+//     }
+
+//   }
+
+//   // WebSocket 发消息
+//   if (method === 'Network.webSocketFrameSent') {
+//     console.log(
+//       '[WS sent]',
+//       params.response.payloadData
+//     )
+//   }
+// })
+
+// // 7. 扩展休眠时自动 detach
+// chrome.runtime.onSuspend.addListener(() => {
+//   if (attachedTabId !== null) {
+//     chrome.debugger.detach({ tabId: attachedTabId })
+//     attachedTabId = null
+//   }
+// })
 
 
 

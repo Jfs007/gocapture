@@ -3,14 +3,7 @@
         "cssUrls": [  
         ],
         "jsUrls": [
-            "common/index.js",
-            "qianchuan/index.js",
-            "qianchuan/put-goods.js",
-            "qianchuan/auth-modal.js",
-            "qianchuan/auth.js",
-            "qianchuan/fangzhou.js",
-            "libs/xlxs-populate.js",
-            "ldd/index.js"
+            "qianchuan/index.js"
         ]
     },
     "version": "1.0.0",

@@ -1,6 +1,4 @@
 (function () {
-
-    
     chrome.runtime.sendMessage({ cmd: "start" });
     // 监听chrome的事件然后转发出去 background/popup/option -> content-script -> web page
     chrome.runtime.onMessage.addListener((function (e, t, m) {
@@ -8,8 +6,6 @@
     }));
     chrome.runtime.id && localStorage.setItem("MdPluginId", chrome.runtime.id);
     chrome.runtime.id && localStorage.setItem("MdPluginName", chrome.runtime.getManifest().name);
-
-
     function getPropertyCall(obj, path) {
         const parts = Array.isArray(path) ? path : String(path).split(".");
         let ctx = obj;
@@ -27,8 +23,6 @@
 
         return fn; // 如果是属性值，不是函数，就直接返回
     }
-
-
 
     const _chrome = {
         async do({ params, call }) {
