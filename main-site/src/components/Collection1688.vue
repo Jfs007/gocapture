@@ -287,6 +287,7 @@ const loadTaskList = async () => {
     if (res.success || res.code === '200') {
       // 转换后端数据为前端格式
       tasks.value = res.data.map((task: any) => ({
+        ...task,
         id: task.id.toString(),
         taskName: task.taskNo,
         count: task.daqCount,
@@ -490,7 +491,7 @@ const getStatusText = (status: CollectionTask['status']) => {
 const columns: DataTableColumns<CollectionTask> = [
   {
     title: '采集任务',
-    key: 'id',
+    key: 'taskNo',
     width: 120
   },
   {
