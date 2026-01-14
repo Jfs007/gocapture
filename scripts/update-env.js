@@ -43,7 +43,7 @@ const manifestPath = path.join(__dirname, '../package/manifest.json');
 function zipPackage() {
   return new Promise((resolve, reject) => {
     const packageDir = path.join(__dirname, '../package');
-    const distDir = path.join(__dirname, '../dist');
+    const distDir = path.join(__dirname, '../package/app');
     const outputPath = path.join(distDir, 'package.zip');
 
     // 确保 dist 目录存在
@@ -88,6 +88,8 @@ try {
   // 线上环境
   if(env!="local"){
     manifest.app_module = 'Online';
+  }else {
+    manifest.app_module = 'Offline';
   }
 
   // 写回文件,保持格式化
