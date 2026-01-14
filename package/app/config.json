@@ -3,7 +3,8 @@
         "cssUrls": [  
         ],
         "jsUrls": [
-            "qianchuan/index.js"
+            "ldd/index.js",
+            "1688/index.js"
         ]
     },
     "version": "1.0.0",

@@ -2,7 +2,9 @@
   "manifest_version": 3,
   "devlopment_env": {
     "source": "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
-    "api": "https://testad.itaored.com/"
+    "api": "https://testad.itaored.com/",
+    "site": "https://ad-cdn.itaored.com/ad/index.html",
+    "env": "dev"
   },
   "name": "超级量多多+",
   "short_name": "超级量多多+",
@@ -18,9 +20,7 @@
     "128": "icons/icon.png"
   },
   "action": {
-    "default_title": "超级量多多+",
-    "default_icon": "icons/icon.png",
-    "default_popup": "popup/index.html"
+    "default_title": "超级量多多+"
   },
   "background": {
     "service_worker": "js/service-worker.js",

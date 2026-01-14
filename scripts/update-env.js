@@ -11,18 +11,28 @@ const env = process.argv[2];
 const envConfigs = {
   prod: {
     source: "https://cdn.itaored.com/static/fed/ldd-chrome-plugin/",
-    api: "https://ad.itaored.com/"
+    api: "https://ad.itaored.com/",
+    "site": "https://ad-cdn.itaored.com/ad/index.html",
+    "env": "prod"
   },
   dev: {
     source: "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
-    api: "https://testad.itaored.com/"
+    api: "https://testad.itaored.com/",
+    "site": "https://ad-cdn.itaored.com/ad/index.html",
+    "env": "dev"
+  },
+  local: {
+    source: "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
+    api: "https://testad.itaored.com/",
+    "site": "http://localhost:3000/",
+    "env": "local"
   }
 };
 
 // 验证参数
 if (!env || !envConfigs[env]) {
-  console.error('错误: 请提供有效的环境参数 (prod 或 dev)');
-  console.error('用法: node scripts/update-env.js <prod|dev>');
+  console.error('错误: 请提供有效的环境参数 (prod 或 dev 或 local)');
+  console.error('用法: node scripts/update-env.js <prod|dev|local>');
   process.exit(1);
 }
 

@@ -1,58 +1,56 @@
 <template>
-  <n-config-provider :theme="theme">
-    <n-space vertical>
-      <n-layout>
-        <n-layout-header style="padding: 24px">
-          <n-space align="center" justify="space-between">
-            <n-h1 style="margin: 0">Main Site</n-h1>
-            <n-button @click="toggleTheme">
-              切换主题
-            </n-button>
-          </n-space>
-        </n-layout-header>
-        <n-layout-content style="padding: 24px">
-          <n-card title="欢迎使用 Vue3 + Naive UI">
-            <n-space vertical>
-              <n-text>这是一个基于 Vue3 + TypeScript + Naive UI 的项目</n-text>
-              <n-divider />
-              <n-space>
-                <n-button type="primary">主要按钮</n-button>
-                <n-button type="info">信息按钮</n-button>
-                <n-button type="success">成功按钮</n-button>
-                <n-button type="warning">警告按钮</n-button>
-                <n-button type="error">错误按钮</n-button>
-              </n-space>
-            </n-space>
-          </n-card>
-        </n-layout-content>
-      </n-layout>
-    </n-space>
+  <n-config-provider :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
+    <n-message-provider>
+      <LoginPage v-if="!isLogin" />
+      <MainLayout v-else />
+    </n-message-provider>
   </n-config-provider>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import {
-  NConfigProvider,
-  NSpace,
-  NLayout,
-  NLayoutHeader,
-  NLayoutContent,
-  NH1,
-  NButton,
-  NCard,
-  NText,
-  NDivider,
-  darkTheme,
-  type GlobalTheme
-} from 'naive-ui'
-
-const theme = ref<GlobalTheme | null>(null)
-
-const toggleTheme = () => {
-  theme.value = theme.value === null ? darkTheme : null
+import { NConfigProvider, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
+import { useLogin } from './hooks/useLogin'
+import LoginPage from './components/LoginPage.vue'
+import MainLayout from './components/MainLayout.vue'
+// 获取 CSS 变量的计算值
+const getCssVar = (name: string): string => {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '';
 }
+
+// 使用 ref 来存储主题配置，以便在 onMounted 后更新
+const themeOverrides = ref({
+  common: {
+    successColor: getCssVar('--success-color') || '#22B46B',
+    warningColor: '#FDAA29',
+    errorColor: getCssVar('--error-color') || '#FD494D',
+    textColorBase: getCssVar('--text-color-base') || '#1F2225',
+    textColorDisabled: '#888',
+    infoColor: getCssVar('--n-color') || "#3777FF",
+    primaryColor: getCssVar('--primary-color') || '#3777FF',
+    primaryColorHover: getCssVar('--primary-color-hover') || 'rgba(55, 119, 255, 0.9)',
+    primaryColorPressed: getCssVar('--primary-color') || '#3777FF',
+    primaryColorSuppl: getCssVar('--primary-color-hover') || 'rgba(55, 119, 255, 0.9)',
+  },
+  Input: {
+    height: 30
+  }
+});
+const { isLogin, login } = useLogin()
+const url = new URL(location.href)
+
+const token = url.searchParams.get('token') as string
+login({ token })
 </script>
 
-<style scoped>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
 </style>

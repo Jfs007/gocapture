@@ -159,13 +159,16 @@ async function checkHasSubUrl(url) {
 async function GetConfig(context, sender, callback) {
   const url = sender.url;
   // 1️⃣ 判断是否子 iframe
-  context.isSub = sender.frameId && sender.frameId > 0;
-  if (context.isSub) {
-    if (!url) return; // 没有 url 就不请求
-    if (!(await checkHasSubUrl(url))) return; // url 不在允许列表
-  }
   // 2️⃣ 获取 manifest 信息
+  context.isSub = sender.frameId && sender.frameId > 0;
+
   const manifest = chrome.runtime.getManifest();
+  const { site } = manifest.devlopment_env || {};
+  if (context.isSub) {
+    if (url.indexOf(site) < 0) return;
+    // if (!url) return; // 没有 url 就不请求
+    // if (!(await checkHasSubUrl(url))) return; // url 不在允许列表
+  }
   if (manifest.devlopment_env) {
     CONFIG_BASE_URL = manifest.devlopment_env.source;
     APP_API = manifest.devlopment_env.api;
@@ -214,7 +217,7 @@ async function GetConfig(context, sender, callback) {
  */
 async function hotCodeLister(message, sender, sendResponse) {
   console.log('注入代码', sender, message);
-  // 2️⃣ 注入本地通用 JS 文件（jquery/layer/...）
+  // 2️⃣ 注入本地通用 JS 文件
   await requestLocalExecuteScript({}, message, sender);
 
   // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
@@ -237,7 +240,6 @@ async function hotCodeLister(message, sender, sendResponse) {
   // }
   config.jsUrls.map(async jsUrl => {
     await executeScript(jsUrl, config, message, sender);
-
   })
 }
 
@@ -561,34 +563,93 @@ const fetchPatch = (url) => {
   return url;
 }
 
+export function appendParams(
+  url,
+  params = {}
+) {
+  if (!params || Object.keys(params).length === 0) return url
+
+  // 1. 拆 hash
+  const [urlWithoutHash, hash = ''] = url.split('#')
+  const hashPart = hash ? `#${hash}` : ''
+  // 2. 拆 query
+  const [path, query = ''] = urlWithoutHash.split('?')
+
+  const queryMap = {}
+
+  // 3. 解析原有 query
+  if (query) {
+    query.split('&').forEach(pair => {
+      if (!pair) return
+      const [k, v = ''] = pair.split('=')
+      queryMap[decodeURIComponent(k)] = decodeURIComponent(v)
+    })
+  }
+
+  // 4. 合并新 params（覆盖）
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null) return
+
+    if (typeof value === 'object') {
+      queryMap[key] = JSON.stringify(value)
+    } else {
+      queryMap[key] = String(value)
+    }
+  })
+
+  // 5. 重新拼 query
+  const newQuery = Object.entries(queryMap)
+    .map(
+      ([k, v]) =>
+        `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
+    )
+    .join('&')
+
+  return newQuery
+    ? `${path}?${newQuery}${hashPart}`
+    : `${path}${hashPart}`
+}
+
+
+
 // 包装 fetch
 async function fetchWithRules(config, sender, callback) {
   let fetchOptions = { headers: await httpRule.update(config) };
   if (config.method) fetchOptions.method = config.method;
-  if (config.data) fetchOptions.body = config.data;
+
+  if (config.data) fetchOptions.body = JSON.stringify(config.data);
+
   if (config.fetchParams) fetchOptions = config.fetchParams;
   // base64 模式
   if (config.type && config.type.toLowerCase() === "base64") {
     return fetchAsBase64(config.url, callback);
   };
-  const url = fetchPatch(config.url);
-  console.log('Fetch URL:', url);
+  let url = fetchPatch(config.url);
+
+  if (config.method && config.method.toLowerCase() == 'get') {
+    url = appendParams(url, config.data);
+    fetchOptions.body = undefined;
+  }
+
+  console.log('Fetch URL:', url, fetchOptions);
+
   fetch(url, fetchOptions)
     .then(async (res) => {
-      if (!res.ok) throw await res.text();
-      if (config.textDecoderType) {
-        const decoder = new TextDecoder(config.textDecoderType);
+      if (config.buffer) {
+        // 👇 关键一步：转 ArrayBuffer
         const buffer = await res.arrayBuffer();
-        return decoder.decode(new Uint8Array(buffer));
+        return buffer;
       }
+      if (!res.ok) throw await res.text();
       return res.text();
     })
     .then((responseText) => {
       let parsedResult = null;
       try {
         parsedResult = JSON.parse(responseText);
-      } catch (_) { }
-
+      } catch (_) { 
+        parsedResult = responseText;
+      }
       const result = {
         result: parsedResult || responseText,
         resultContent: responseText,
@@ -596,7 +657,7 @@ async function fetchWithRules(config, sender, callback) {
       };
 
       if (config.isNotNeedClearRules) return callback(result);
-
+      console.log('clear rules', result);
       httpRule.clear().then(() => callback(result));
     })
     .catch((err) => {
@@ -644,17 +705,15 @@ function onMessageLister(message, sender, sendResponse) {
     chrome.action.openPopup();
     return;
   }
+  if ("get-manifest" === message.cmd) {
+    sendResponse && sendResponse(chrome.runtime.getManifest());
+    return;
+  }
   if ("changeAccount" === message.cmd) return ChangeAccountCmd.Lister(message, sender, sendResponse);
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
   if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);
   if ("getCookie" === message.cmd || "removeCookie" === message.cmd || "setCookies" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
-  // if ("hotCode" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse) { }
-  // if ("importModule" === message.cmd) return moduleCmd.Lister(message, sender, sendResponse);
-  // if ("getManifest" === message.cmd) {
-  //   const manifest = chrome.runtime.getManifest();
-  //   sendResponse && sendResponse(manifest);
-  // }
 }
 
 
@@ -662,145 +721,3 @@ let INSTALLER_RELOAD = false;
 chrome.runtime.onInstalled.addListener((details) => {
   INSTALLER_RELOAD = true;
 });
-
-
-
-
-
-
-
-
-
-
-
-
-// let attachedTabId = null;
-
-// chrome.action.onClicked.addListener(async () => {
-//   console.log('Service Worker loaded');
-//   // 1. 拿当前 tab
-//   const tabs = await chrome.tabs.query({
-//     active: true,
-//     currentWindow: true
-//   })
-
-//   const tab = tabs[0]
-//   if (!tab || !tab.id) {
-//     console.log('no active tab')
-//     return
-//   }
-
-//   // 2. 如果已经 attach 在这个 tab，直接返回
-//   if (attachedTabId === tab.id) {
-//     console.log('already attached')
-//     return
-//   }
-
-//   // 3. 如果 attach 在别的 tab，先 detach
-//   if (attachedTabId !== null) {
-//     chrome.debugger.detach({ tabId: attachedTabId })
-//     attachedTabId = null
-//   }
-
-//   // 4. attach debugger
-//   chrome.debugger.attach({ tabId: tab.id }, '1.3', () => {
-//     if (chrome.runtime.lastError) {
-//       console.error('attach failed:', chrome.runtime.lastError.message)
-//       return
-//     }
-
-//     attachedTabId = tab.id
-//     console.log('debugger attached:', tab.id)
-
-//     // 5. 打开 Network 域
-//     chrome.debugger.sendCommand(
-//       { tabId: tab.id },
-//       'Network.enable'
-//     )
-//   })
-// })
-
-// // base64 → Uint8Array
-// function base64ToUint8Array(base64) {
-//   const bin = atob(base64);
-//   const arr = new Uint8Array(bin.length);
-//   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-//   return arr;
-// }
-
-// // Blob → Uint8Array
-// async function blobToUint8Array(blob) {
-//   return new Uint8Array(await blob.arrayBuffer());
-// }
-
-// // ArrayBuffer → Uint8Array
-// function bufferToUint8Array(buffer) {
-//   return new Uint8Array(buffer);
-// }
-
-// // Uint8Array → string（尽最大可能解码）
-// function uint8ArrayToString(bytes) {
-//   return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-// }
-
-// // 万能 WS 解码
-// async function decodeWsData(data) {
-//   if (typeof data === 'string') {
-//     try {
-//       return uint8ArrayToString(base64ToUint8Array(data));
-//     } catch {
-//       return data;
-//     }
-//   }
-
-//   if (data instanceof Blob) {
-//     return uint8ArrayToString(await blobToUint8Array(data));
-//   }
-
-//   if (data instanceof ArrayBuffer) {
-//     return uint8ArrayToString(bufferToUint8Array(data));
-//   }
-
-//   return data;
-// }
-
-// // 6. 监听所有 debugger 事件
-// chrome.debugger.onEvent.addListener(async (source, method, params) => {
-//   if (source.tabId !== attachedTabId) return
-
-//   // WebSocket 收消息
-//   if (method === 'Network.webSocketFrameReceived') {
-//     try {
-//           const raw =  await decodeWsData(params.response.payloadData);
-//     console.log(
-//       '[WS recv]',
-//       raw
-//     )
-//     } catch (error) {
-//       console.log('[WS recv] decode error:', error);
-//     }
-
-//   }
-
-//   // WebSocket 发消息
-//   if (method === 'Network.webSocketFrameSent') {
-//     console.log(
-//       '[WS sent]',
-//       params.response.payloadData
-//     )
-//   }
-// })
-
-// // 7. 扩展休眠时自动 detach
-// chrome.runtime.onSuspend.addListener(() => {
-//   if (attachedTabId !== null) {
-//     chrome.debugger.detach({ tabId: attachedTabId })
-//     attachedTabId = null
-//   }
-// })
-
-
-
-
-
-

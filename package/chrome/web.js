@@ -63,6 +63,7 @@
         try {
             console.log(`💉 注入脚本: ${path}`);
             const res = await new Promise((resolve, reject) => {
+                
                 chrome.runtime.sendMessage(mdPluginId, {
                     cmd: 'inject',
                     type: 2,
