@@ -6,7 +6,7 @@
     "site": "http://localhost:3000/",
     "env": "local"
   },
-  "name": "量多多采集+",
+  "name": "量多多采集(测试)+",
   "short_name": "量多多采集+",
   "author_name": "chrome",
   "app_module": "Offline",

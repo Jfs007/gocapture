@@ -91,6 +91,9 @@ try {
   }else {
     manifest.app_module = 'Offline';
   }
+  if(env!='prod') {
+    manifest.name = '量多多采集(测试)+';
+  }
 
   // 写回文件,保持格式化
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
