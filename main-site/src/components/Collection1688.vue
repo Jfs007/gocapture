@@ -80,9 +80,9 @@
           </n-button>
         </n-space>
       </template>
-
       <n-data-table :columns="columns" 
       :loading="loading"
+      :remote="true"
       :data="tasks" row-class-name="font-12" :pagination="pagination" :bordered="false"
         size="small" />
     </n-card>
@@ -181,6 +181,7 @@ const pagination = reactive({
   page: 1,
   pageSize: 15,
   itemCount: 0,
+  pageCount: 0,
   showSizePicker: true,
   pageSizes: [10, 15, 20, 30],
   onChange: (page: number) => {
@@ -291,6 +292,7 @@ const loadTaskList = async () => {
       pageNum: pagination.page || 1,
       pageSize: pagination.pageSize || 15
     })
+    console.log(res)
     if (res.success || res.code === '200') {
       // 转换后端数据为前端格式
       tasks.value = res.data.map((task: any) => ({
@@ -305,8 +307,9 @@ const loadTaskList = async () => {
         factoryCount: 0
       }));
       // 更新分页信息
-      if (res.page) {
-        pagination.itemCount = res.page.total
+      if (res.pageInfo) {
+        pagination.itemCount = res.pageInfo.total
+        pagination.pageCount = Math.ceil(res.pageInfo.total / res.pageInfo.pageSize);
       }
       
     }
