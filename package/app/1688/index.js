@@ -16,11 +16,12 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 999999;
+            z-index: 21474836471;
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
+            
         `;
 
         // 创建弹窗内容
@@ -36,12 +37,13 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             max-width: 500px;
             cursor: default;
+            
         `;
         modal.textContent = message;
 
         // 阻止点击弹窗内容时关闭
         modal.addEventListener('click', (e) => {
-            e.stopPropagation();
+            document.body.removeChild(overlay);
         });
 
         // 点击遮罩层关闭弹窗
@@ -126,7 +128,7 @@
     }
     const info = await getUserInfo();
 
-    const triggerScroller = () => {
+    const triggerSLIDINGBLOCK = () => {
         createModal('访问受限，请解锁滑块验证码');
 
         // 滚动到页面底部
@@ -134,7 +136,7 @@
             top: document.documentElement.scrollHeight,
             behavior: 'smooth'
         });
-       
+
     }
 
     const triggerLogin = () => {
@@ -144,12 +146,53 @@
         createModal('请登录');
     }
 
-    if (authType === 'SLIDING_BLOCK') {
-        triggerScroller();
-    }
+
 
     if (authType === 'LOGIN') {
         triggerLogin();
     }
+
+    function waitForDialog(selector, callback) {
+        const el = document.querySelector(selector)
+        if (el) {
+            callback(el)
+            return
+        }
+
+        const observer = new MutationObserver(() => {
+            const el = document.querySelector(selector)
+            if (el) {
+                observer.disconnect()
+                callback(el)
+            }
+        })
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        })
+    }
+
+    // 使用
+    waitForDialog('.baxia-dialog', (dialog) => {
+        if (authType === 'SLIDING_BLOCK') {
+            triggerSLIDINGBLOCK();
+        }
+    });
+    if (authType !== 'SLIDING_BLOCK') return;
+    const nav = performance.getEntriesByType('navigation')[0]
+    // 表示滑块成功了;
+    if (nav?.type === 'reload') {
+        createModal('请稍等...');
+        setTimeout(() => {
+            
+            updateUrlAndReload({
+                __AUTH_TYPE__: 'TOKEN'
+            });
+        }, 2000)
+
+    }
+
+
 
 }()
