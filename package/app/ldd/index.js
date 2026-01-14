@@ -1,6 +1,6 @@
 !async function () {
     if (window.top !== window.self) return;
-    if (location.href.indexOf('localhost') < 0) return;
+    if (!(location.href.indexOf('localhost') >= 0 || location.href.indexOf('ad.itaored.com') >= 0)) return;
 
     /**
      * 创建可拖拽、可收起的容器包裹器
