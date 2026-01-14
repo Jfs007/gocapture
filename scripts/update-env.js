@@ -10,19 +10,19 @@ const env = process.argv[2];
 // 定义环境配置
 const envConfigs = {
   prod: {
-    source: "https://cdn.itaored.com/static/fed/ldd-chrome-plugin/",
+    source: "https://cdn.itaored.com/static/fed/ldd-pro-chrome-plugin/",
     api: "https://ad.itaored.com/",
     "site": "https://ad-cdn.itaored.com/ad/index.html",
     "env": "prod"
   },
   dev: {
-    source: "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
+    source: "https://cdn.itaored.com/static/fed/testldd-pro-chrome-plugin/",
     api: "https://testad.itaored.com/",
     "site": "https://ad-cdn.itaored.com/ad/index.html",
     "env": "dev"
   },
   local: {
-    source: "https://cdn.itaored.com/static/fed/testldd-chrome-plugin/",
+    source: "https://cdn.itaored.com/static/fed/testldd-pro-chrome-plugin/",
     api: "https://testad.itaored.com/",
     "site": "http://localhost:3000/",
     "env": "local"
@@ -85,6 +85,10 @@ try {
 
   // 更新 devlopment_env
   manifest.devlopment_env = envConfigs[env];
+  // 线上环境
+  if(env!="local"){
+    manifest.app_module = 'Online';
+  }
 
   // 写回文件,保持格式化
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
