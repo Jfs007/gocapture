@@ -263,6 +263,13 @@ const set1688UserInfo = async () => {
   return info;
 }
 
+const remove1688UserInfo = async() => {
+  user1688Info.value = {
+    object: {},
+    cookie: ''
+  };
+}
+
 // 将榜单时效转换为 dayType
 const getDayTypeValue = (rankingTime: string): number => {
   const map: Record<string, number> = {
@@ -335,6 +342,7 @@ const handleStartCollection = async () => {
     cookie: info.cookie
   });
   if (res.code != 200) {
+    remove1688UserInfo();
     // cookie无效，去滑块验证吧
     window.open('https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK');
     isCollecting.value = false;
