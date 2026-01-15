@@ -12,13 +12,13 @@ const envConfigs = {
   prod: {
     source: "https://cdn.itaored.com/static/fed/ldd-pro-chrome-plugin/",
     api: "https://ad.itaored.com/",
-    "site": "https://ad-cdn.itaored.com/ad/index.html",
+    "site": "https://ad-cdn.itaored.com/prod/ad/index.html",
     "env": "prod"
   },
   dev: {
     source: "https://cdn.itaored.com/static/fed/testldd-pro-chrome-plugin/",
     api: "https://testad.itaored.com/",
-    "site": "https://ad-cdn.itaored.com/ad/index.html",
+    "site": "https://ad-cdn.itaored.com/dev/ad/index.html",
     "env": "dev"
   },
   local: {
