@@ -93,6 +93,8 @@ try {
   }
   if(env!='prod') {
     manifest.name = '量多多采集(测试)+';
+  } else {
+    manifest.name = '量多多采集+';
   }
 
   // 写回文件,保持格式化
