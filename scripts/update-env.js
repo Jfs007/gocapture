@@ -83,8 +83,8 @@ try {
   const manifestContent = fs.readFileSync(manifestPath, 'utf8');
   const manifest = JSON.parse(manifestContent);
 
-  // 更新 devlopment_env
-  manifest.devlopment_env = envConfigs[env];
+  // 更新 env
+  manifest.env = envConfigs[env];
   // 线上环境
   if(env!="local"){
     manifest.app_module = 'Online';

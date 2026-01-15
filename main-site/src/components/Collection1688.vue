@@ -130,7 +130,7 @@ const rankingTimeOptions = RANKING_TIME_OPTIONS
 //   })
 // }
 const STORAGE_KEY = 'collection1688_default_config'
-
+console.log(window.__PLG__ENV__, 'plg_env');
 // 从 localStorage 加载默认配置
 const loadDefaultConfig = () => {
   try {
@@ -159,7 +159,10 @@ const saveDefaultConfig = () => {
   }
 }
 
-const defaultConfig = loadDefaultConfig()
+const defaultConfig = loadDefaultConfig();
+if(defaultConfig?.rankingTime == '3days') {
+  defaultConfig.rankingTime = 3;
+}
 
 const currentCategory = ref<string | null>(null)
 const selectedCategories = ref<SelectedCategory[]>(defaultConfig?.selectedCategories || [])
@@ -168,7 +171,7 @@ const isCollecting = ref(false)
 
 const settings = ref<CollectionSettings>({
   categories: [],
-  rankingTime: defaultConfig?.rankingTime || '3days',
+  rankingTime: defaultConfig?.rankingTime || 3,
   maxProductsPerCategory: defaultConfig?.maxProductsPerCategory || 100,
   maxFactoriesPerProduct: defaultConfig?.maxFactoriesPerProduct || 50
 })
@@ -280,15 +283,8 @@ const remove1688UserInfo = async () => {
 }
 
 // 将榜单时效转换为 dayType
-const getDayTypeValue = (rankingTime: string): number => {
-  const map: Record<string, number> = {
-    '当天': 1,
-    '近2天': 2,
-    '近3天': 3,
-    '近7天': 2, // 默认映射到近2天
-    '近30天': 3  // 默认映射到近3天
-  }
-  return map[rankingTime] || 2
+const getDayTypeValue = (rankingTime: number): number => {
+  return rankingTime;
 }
 
 // 加载任务列表

@@ -49,7 +49,7 @@ export const CATEGORY_OPTIONS: CategoryOption[] = [
 ]
 
 export const RANKING_TIME_OPTIONS = [
-  { label: '近3天', value: '3days' },
-  { label: '近7天', value: '7days' },
-  { label: '近30天', value: '30days' }
+  { label: '近3天', value: 3 },
+  { label: '近2天', value: 2 },
+  { label: '当天', value: 1 }
 ]

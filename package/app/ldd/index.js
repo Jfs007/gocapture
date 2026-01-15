@@ -288,12 +288,13 @@
     const token = tokenInfo.value;
     if (!token) return;
 
-    const { env, site } = manifest.devlopment_env || {};
+    const { env, site } = manifest.env || {};
 
     const iframe = document.createElement("iframe");
     iframe.src = `${site}?env=${env}&token=${token}&t=${Date.now()}`;
 
     createDraggableCollapsibleWrapper(iframe, {
+        env,
         title: '线索采集器',
         width: '460px',
         height: '480px',

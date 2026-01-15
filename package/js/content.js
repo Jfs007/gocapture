@@ -6,9 +6,9 @@
     const manifest = chrome.runtime.getManifest();
     chrome.runtime.id && localStorage.setItem("MdPluginId", chrome.runtime.id);
     chrome.runtime.id && localStorage.setItem("MdPluginName", manifest.name);
-    const { env, site } = manifest.devlopment_env || {};
+    const { env, site } = manifest.env || {};
     chrome.runtime.sendMessage({ cmd: "start" }, () => {
-        window.postMessage({ cmd: "install-setup", url: site }, site);
+        window.postMessage({ cmd: "install-setup", url: site, env: manifest.env }, site);
     });
 
 })();

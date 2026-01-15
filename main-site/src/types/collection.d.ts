@@ -24,7 +24,7 @@ export interface CollectionTask {
 
 export interface CollectionSettings {
   categories: SelectedCategory[];
-  rankingTime: string;
+  rankingTime: number;
   maxProductsPerCategory: number;
   maxFactoriesPerProduct: number;
 }

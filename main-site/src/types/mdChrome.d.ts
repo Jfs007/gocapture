@@ -1,5 +1,6 @@
 declare global {
   interface Window {
+    __PLG__ENV__: Record<string, any>;
     _exports: {
       module: Record<string, any>;
     };

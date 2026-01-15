@@ -163,15 +163,15 @@ async function GetConfig(context, sender, callback) {
   context.isSub = sender.frameId && sender.frameId > 0;
 
   const manifest = chrome.runtime.getManifest();
-  const { site } = manifest.devlopment_env || {};
+  const { site } = manifest.env || {};
   if (context.isSub) {
     if (url.indexOf(site) < 0) return;
     // if (!url) return; // 没有 url 就不请求
     // if (!(await checkHasSubUrl(url))) return; // url 不在允许列表
   }
-  if (manifest.devlopment_env) {
-    CONFIG_BASE_URL = manifest.devlopment_env.source;
-    APP_API = manifest.devlopment_env.api;
+  if (manifest.env) {
+    CONFIG_BASE_URL = manifest.env.source;
+    APP_API = manifest.env.api;
   }
   // 处理作者名
   let authorName = manifest.author_name || manifest.authorName || "";
