@@ -133,6 +133,8 @@
         document.body.appendChild(container);
         document.body.appendChild(edgeBar);
 
+
+
         // 拖拽功能和自动吸边
         let isDragging = false;
         let isHidden = false;
@@ -195,6 +197,8 @@
             container.style.bottom = 'auto';
         };
 
+        const defaultConfig = JSON.parse(localStorage.getItem('LDD_WRAPPER_CONFIG') || '{}');
+
         const hideToEdge = () => {
             isHidden = true;
             container.style.transition = 'all 0.3s ease';
@@ -203,6 +207,8 @@
             edgeBar.style.display = 'block';
             edgeBar.style.right = `${hideMargin}px`;
             edgeBar.style.top = parseInt(container.style.top) + 200 + 'px';
+            defaultConfig.packUp = 1;
+            localStorage.setItem('LDD_WRAPPER_CONFIG', JSON.stringify(defaultConfig));
 
             setTimeout(() => {
                 container.style.transition = '';
@@ -215,10 +221,19 @@
             container.style.right = '20px';
             container.style.left = 'auto';
             edgeBar.style.display = 'none';
+            defaultConfig.packUp = 0;
+            localStorage.setItem('LDD_WRAPPER_CONFIG', JSON.stringify(defaultConfig));
+
 
             setTimeout(() => {
                 container.style.transition = '';
             }, 300);
+        };
+
+
+        
+        if (defaultConfig.packUp == 1) {
+           hideToEdge();
         };
 
         const stopDrag = (e) => {
