@@ -3,6 +3,19 @@
 .font-12 {
     font-size: 12px;
 }
+.font-weight-bold {
+    font-weight: bold;
+}
+
+.text-underline {
+    text-decoration: underline;
+}
+
+
+.cusor-pointer {
+    cursor: pointer;
+}
+
 
 
 .flex {

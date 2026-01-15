@@ -407,12 +407,12 @@ async function cookieLister(message, sender, sendResponse) {
 
   // 默认操作：获取指定域名下所有 Cookie
   const allCookies = await chrome.cookies.getAll({ domain: message.myDomain });
-  console.log('获取 Cookie:', allCookies, message);
+  // console.log('获取 Cookie:', allCookies, message);
   const cookiesArray = [];
   let cookiesString = "";
 
   allCookies.forEach((cookie, index) => {
-    const cookieObj = { name: cookie.name, value: cookie.value };
+    const cookieObj = { ...cookie, name: cookie.name, value: cookie.value };
     cookiesArray.push(cookieObj);
 
     cookiesString += `${cookieObj.name}=${cookieObj.value}`;
@@ -553,10 +553,10 @@ const httpRule = {
   clear: clearRequestRules,
 };
 const fetchPatch = (url) => {
-  const prefix = "https://ad.itaored.com/";
-  if (url.startsWith(prefix)) {
-    return url.replace(prefix, APP_API);
-  }
+  // const prefix = "https://ad.itaored.com/";
+  // if (url.startsWith(prefix)) {
+  //   return url.replace(prefix, APP_API);
+  // }
   if (!(/^https?:\/\//i.test(url))) {
     return APP_API + url;
   }
@@ -610,10 +610,7 @@ export function appendParams(
     : `${path}${hashPart}`
 }
 
-
-
-// 包装 fetch
-async function fetchWithRules(config, sender, callback) {
+async function fetchInspectConfig(config) {
   let fetchOptions = { headers: await httpRule.update(config) };
   if (config.method) fetchOptions.method = config.method;
 
@@ -630,15 +627,41 @@ async function fetchWithRules(config, sender, callback) {
     url = appendParams(url, config.data);
     fetchOptions.body = undefined;
   }
+  return {
+    url,
+    fetchOptions
+  }
+
+}
+
+// 包装 fetch
+async function fetchWithRules(config, sender, callback) {
+  // let fetchOptions = { headers: await httpRule.update(config) };
+  // if (config.method) fetchOptions.method = config.method;
+
+  // if (config.data) fetchOptions.body = JSON.stringify(config.data);
+
+  // if (config.fetchParams) fetchOptions = config.fetchParams;
+  // // base64 模式
+  // if (config.type && config.type.toLowerCase() === "base64") {
+  //   return fetchAsBase64(config.url, callback);
+  // };
+  // let url = fetchPatch(config.url);
+
+  // if (config.method && config.method.toLowerCase() == 'get') {
+  //   url = appendParams(url, config.data);
+  //   fetchOptions.body = undefined;
+  // }
+  const { url, fetchOptions } = await fetchInspectConfig(config)
 
   console.log('Fetch URL:', url, fetchOptions);
 
   fetch(url, fetchOptions)
     .then(async (res) => {
-      if (config.buffer) {
-        // 👇 关键一步：转 ArrayBuffer
-        const buffer = await res.arrayBuffer();
-        return buffer;
+      if (config.blob) {
+        // 👇 关键一步：转 blob
+        const blob = await res.blob();
+        return blob;
       }
       if (!res.ok) throw await res.text();
       return res.text();
@@ -647,7 +670,7 @@ async function fetchWithRules(config, sender, callback) {
       let parsedResult = null;
       try {
         parsedResult = JSON.parse(responseText);
-      } catch (_) { 
+      } catch (_) {
         parsedResult = responseText;
       }
       const result = {
@@ -700,7 +723,38 @@ const ChangeAccountCmd = {
   }
 }
 
+async function ensureOffscreen() {
+  const exists = await chrome.offscreen.hasDocument()
+  if (exists) return;
+  try {
+    await chrome.offscreen.createDocument({
+      url: 'js/offscreen.html',
+      reasons: ['BLOBS'],
+      justification: 'download binary file'
+    });
+  } catch (error) {
+  }
+
+}
+
+const DownFileCmd = {
+  Lister: async (message, sender, sendResponse) => {
+    message.blob = true;
+    message.method = message.method || 'post';
+    const { url, fetchOptions } = await fetchInspectConfig(message);
+    // await ensureOffscreen();
+    // chrome.runtime.sendMessage({
+    //   cmd: 'downFile',
+    //   url,
+    //   fetchOptions,
+    //   filename: message.filename
+    // });
+
+  }
+}
+
 function onMessageLister(message, sender, sendResponse) {
+  if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
     chrome.action.openPopup();
     return;

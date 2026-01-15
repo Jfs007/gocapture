@@ -40,6 +40,7 @@
     "storage",
     "session",
     "blocking",
+    "offscreen",
     "debugger",
     "requestHeaders",
     "browsingData",
@@ -71,6 +72,10 @@
     }
   ],
   "web_accessible_resources": [
+    {
+      "resources": ["js/offscreen.js"],
+      "matches": ["<all_urls>"]
+    },
     {
       "matches": [
         "<all_urls>"

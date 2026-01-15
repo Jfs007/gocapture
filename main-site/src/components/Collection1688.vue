@@ -1,7 +1,8 @@
 <template>
   <n-space vertical :size="16">
     <!-- 金牛行业分类 -->
-    <n-card title="金牛行业分类" size="small">
+    <n-card title="金牛行业分类" size="small" :content-style="{ padding: '0 10px 10px 10px' }"
+      :header-style="{ padding: '10px' }">
       <template #header-extra>
         <n-text depth="3" class="font-12">
           将自动获取该分类下的商品信息
@@ -13,8 +14,8 @@
         <n-space align="center">
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">商品分类</n-text>
-            <n-cascader v-model:value="currentCategory" :options="categoryOptions" size="small" placeholder="商品分类"
-              style="width: 130px" @update:value="handleCategorySelect" />
+            <n-cascader :max-tag-count="1" v-model:value="currentCategory" :options="categoryOptions" size="small"
+              placeholder="商品分类" style="width: 130px" @update:value="handleCategorySelect" />
             <n-text depth="3" class="font-12">{{ selectedCategories.length }}/10</n-text>
           </n-space>
 
@@ -40,15 +41,14 @@
         <n-space align="center" :size="12">
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">单类目最多采集</n-text>
-            <n-input-number size="small" v-model:value="settings.maxProductsPerCategory" :min="1" :max="200"
-              :show-button="false" style="width: 100px" />
+            <n-input-number size="small" v-model:value="settings.maxProductsPerCategory" :min="1" :max="40000/settings.maxFactoriesPerProduct"
+              :show-button="false" style="width: 60px" />
             <n-text class="font-12">条商品</n-text>
           </n-space>
-
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">单商品最多采集</n-text>
-            <n-input-number size="small" v-model:value="settings.maxFactoriesPerProduct" :min="1" :max="200"
-              :show-button="false" style="width: 100px" />
+            <n-input-number size="small" v-model:value="settings.maxFactoriesPerProduct" :min="1" :max="40000/settings.maxProductsPerCategory"
+              :show-button="false" style="width: 60px" />
             <n-text class="font-12">条工厂信息</n-text>
           </n-space>
         </n-space>
@@ -66,10 +66,11 @@
     </n-card>
 
     <!-- 采集记录 -->
-    <n-card title="采集记录" size="small">
+    <n-card title="采集记录" size="small" :content-style="{ padding: '0 10px 10px 10px' }"
+      :header-style="{ padding: '10px' }">
       <template #header-extra>
-        <n-space>
-          <n-button size="small" text type="primary" @click="loadTaskList">
+        <n-space align="center">
+          <n-button size="small" text type="primary" @click="loadTaskList" :disabled="loading">
             刷新
           </n-button>
           <n-button size="small" text type="primary" :disabled="tasks.length === 0" @click="handleClearAll">
@@ -80,11 +81,8 @@
           </n-button>
         </n-space>
       </template>
-      <n-data-table :columns="columns" 
-      :loading="loading"
-      :remote="true"
-      :data="tasks" row-class-name="font-12" :pagination="pagination" :bordered="false"
-        size="small" />
+      <n-data-table :columns="columns" :loading="loading" :remote="true" :data="tasks" row-class-name="font-12"
+        :pagination="pagination" :bordered="false" size="small" />
     </n-card>
   </n-space>
 </template>
@@ -104,12 +102,14 @@ import {
   NAlert,
   NDataTable,
   NPopconfirm,
+  NTooltip,
   useMessage,
   type DataTableColumns
 } from 'naive-ui'
 import type { CollectionTask, SelectedCategory, CollectionSettings } from '../types/collection'
 import { RANKING_TIME_OPTIONS } from '../data/categories'
 import { common, collection1688 } from '../api'
+// import { download } from '../utils/request'
 import { use1688 } from './use1688'
 import useExport from '../hooks/useExport'
 
@@ -119,7 +119,16 @@ const { exportSheets } = useExport()
 const loading = ref(false);
 const categoryOptions = ref([]);
 const rankingTimeOptions = RANKING_TIME_OPTIONS
-
+// const down2 = () => {
+//   download({
+//     data: { "campaignTimeRange": [1768320000000, 1768320000000], "statCostFlag": 0, "pnlExceptionFlag": 0, "balanceInsufficientFlag": 0, "startDate": "2026-01-14", "endDate": "2026-01-14", "columns": ["optStatus", "campaignId", "campaignStatusMark", "campaignBudget", "costChart", "operate", "statCost", "pnlDealAmount", "dealPnlRate", "gmvDealPnlRate", "totalReturnRate", "totalOrderSettleCountRate", "totalRefundOrderGmvRate", "totalRefundOrderCount", "totalPayOrderCount", "totalPayOrderRoi", "totalPayOrderCost", "costDealAmount", "operatorName", "campaignCreateTime", "totalRefundOrderGmv", "totalPayOrderGmv", "actualPayOrderGmv", "totalPayOrderCouponAmount", "totalEcomPlatformSubsidyAmount", "accountCode", "costRate", "materialCount", "costPayAmount"] },
+//     url: 'https://ad.itaored.com/api/qc/campaign/info/download',
+//     filename: 'campaign_info.xlsx',
+//     headers: {
+//       'x-permission': 'YWRzLWR5LXFj'
+//     }
+//   })
+// }
 const STORAGE_KEY = 'collection1688_default_config'
 
 // 从 localStorage 加载默认配置
@@ -222,7 +231,6 @@ const handleCategorySelect = (value: string, option: any) => {
     currentCategory.value = null
     return
   }
-
   const exists = selectedCategories.value.find(cat => cat.value === value)
   if (exists) {
     message.warning('该类目已选择')
@@ -264,7 +272,7 @@ const set1688UserInfo = async () => {
   return info;
 }
 
-const remove1688UserInfo = async() => {
+const remove1688UserInfo = async () => {
   user1688Info.value = {
     object: {},
     cookie: ''
@@ -287,35 +295,35 @@ const getDayTypeValue = (rankingTime: string): number => {
 const loadTaskList = async () => {
   try {
     loading.value = true;
+    tasks.value = [];
     const res = await collection1688.getTaskList({
       // userId: info.object.unb,
       pageNum: pagination.page || 1,
       pageSize: pagination.pageSize || 15
-    })
-    console.log(res)
-    if (res.success || res.code === '200') {
-      // 转换后端数据为前端格式
-      tasks.value = res.data.map((task: any) => ({
-        ...task,
-        id: task.id.toString(),
-        taskName: task.taskNo,
-        count: task.daqCount,
-        status: task.taskStatus === 1 ? 'completed' : 'collecting',
-        createTime: task.createdAt,
-        categories: [],
-        productCount: 0,
-        factoryCount: 0
-      }));
-      // 更新分页信息
-      if (res.pageInfo) {
-        pagination.itemCount = res.pageInfo.total
-        pagination.pageCount = Math.ceil(res.pageInfo.total / res.pageInfo.pageSize);
-      }
-      
+    });
+
+    // 转换后端数据为前端格式
+    tasks.value = res.data.map((task: any) => ({
+      ...task,
+      id: task.id.toString(),
+      taskName: task.taskNo,
+      count: task.daqCount,
+      status: task.taskStatus === 1 ? 'completed' : 'collecting',
+      createTime: task.createdAt,
+      categories: [],
+      productCount: 0,
+      factoryCount: 0
+    }));
+    // 更新分页信息
+    if (res.pageInfo) {
+      pagination.itemCount = res.pageInfo.total
+      pagination.pageCount = Math.ceil(res.pageInfo.total / res.pageInfo.pageSize);
     }
+
+
     loading.value = false;
   } catch (error) {
-     loading.value = false;
+    loading.value = false;
     console.error('加载任务列表失败', error)
   }
 }
@@ -497,24 +505,83 @@ const getStatusText = (status: CollectionTask['status']) => {
   }
   return statusMap[status]
 }
+function formatDatetime(datetime: string, options: { removeYear?: boolean, removeSecond?: boolean } = {}) {
+  const {
+    removeYear = true,
+    removeSecond = true
+  } = options
 
+  if (!datetime) return '-';
+
+  const [datePart, timePart = ''] = datetime.split(' ')
+  let [year, month, day] = datePart.split('-')
+  let [hour = '00', minute = '00', second = '00'] = timePart.split(':')
+
+  let date = removeYear ? `${month}-${day}` : `${year}-${month}-${day}`
+  let time = removeSecond ? `${hour}:${minute}` : `${hour}:${minute}:${second}`
+
+  return time ? `${date} ${time}` : date
+}
+
+
+/**
+ * 计算两个时间的耗时，显示为「X分Y秒」
+ * @param {string | null | undefined} start
+ * @param {string | null | undefined} end
+ * @returns {string}
+ */
+function calcDurationMinSecText(start, end) {
+  if (!start || !end) return '--'
+
+  const startTime = Date.parse(start.replace(/-/g, '/'))
+  const endTime = Date.parse(end.replace(/-/g, '/'))
+
+  if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
+    return '--'
+  }
+
+  const diffSeconds = Math.floor(Math.abs(endTime - startTime) / 1000)
+  const minutes = Math.floor(diffSeconds / 60)
+  const seconds = diffSeconds % 60
+
+  // 始终显示 分 + 秒（哪怕为 0）
+  return `耗时: ${minutes}m${seconds}s`
+}
 
 const columns: DataTableColumns<CollectionTask> = [
   {
     title: '采集任务',
     key: 'taskNo',
-    width: 120
+    width: 120,
+    render(row: any) {
+      return h(
+        NTooltip,
+        {
+          trigger: 'hover'
+        },
+        {
+          trigger: () => h('div', {}, [
+            h('div', { class: 'font-weight-bold' }, row.taskNo),
+            h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, calcDurationMinSecText(row.createdAt, row.finishedAt))
+          ]),
+          default: () => h('div', {}, [
+            h('div', `开始: ${formatDatetime(row.createdAt, { removeYear: false, removeSecond: false })}`),
+            h('div', `结束: ${formatDatetime(row.finishedAt, { removeYear: false, removeSecond: false })}`)
+          ])
+        }
+      )
+    }
   },
   {
     title: '采集条数',
     key: 'count',
-    width: 100,
-    render: (row) => row.count || '--'
+    width: 80,
+    render: (row: any) => row.count || '--'
   },
   {
     title: '采集状态',
     key: 'status',
-    width: 80,
+    width: 70,
     render: (row) => {
       return getStatusText(row.status);
     }
@@ -522,6 +589,7 @@ const columns: DataTableColumns<CollectionTask> = [
   {
     title: '操作',
     key: 'actions',
+    align: 'left',
     width: 100,
     render: (row) => {
       return h(NSpace, { size: 8, align: 'center', justify: 'center' }, () => [

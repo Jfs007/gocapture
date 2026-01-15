@@ -16,7 +16,6 @@ function use1688() {
             map[c.name] = c.value;
             keys.push(c.name);
         });
-
         const filtered = keys.map(name => {
             const val = map[name];
             if (!val) return null;
@@ -24,7 +23,6 @@ function use1688() {
         }).filter(Boolean);
 
         const cookie = filtered.join('; ');
-        console.log('cookie', map);
         return {
             cookie,
             object: map,
