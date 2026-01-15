@@ -41,14 +41,14 @@
         <n-space align="center" :size="12">
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">单类目最多采集</n-text>
-            <n-input-number size="small" v-model:value="settings.maxProductsPerCategory" :min="1" :max="40000/settings.maxFactoriesPerProduct"
-              :show-button="false" style="width: 60px" />
+            <n-input-number size="small" v-model:value="settings.maxProductsPerCategory" :min="1"
+              :max="40000 / settings.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
             <n-text class="font-12">条商品</n-text>
           </n-space>
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">单商品最多采集</n-text>
-            <n-input-number size="small" v-model:value="settings.maxFactoriesPerProduct" :min="1" :max="40000/settings.maxProductsPerCategory"
-              :show-button="false" style="width: 60px" />
+            <n-input-number size="small" v-model:value="settings.maxFactoriesPerProduct" :min="1"
+              :max="40000 / settings.maxProductsPerCategory" :show-button="false" style="width: 60px" />
             <n-text class="font-12">条工厂信息</n-text>
           </n-space>
         </n-space>
@@ -104,7 +104,8 @@ import {
   NPopconfirm,
   NTooltip,
   useMessage,
-  type DataTableColumns
+  type DataTableColumns,
+  NScrollbar
 } from 'naive-ui'
 import type { CollectionTask, SelectedCategory, CollectionSettings } from '../types/collection'
 import { RANKING_TIME_OPTIONS } from '../data/categories'
@@ -160,7 +161,7 @@ const saveDefaultConfig = () => {
 }
 
 const defaultConfig = loadDefaultConfig();
-if(defaultConfig?.rankingTime == '3days') {
+if (defaultConfig?.rankingTime == '3days') {
   defaultConfig.rankingTime = 3;
 }
 
@@ -290,6 +291,7 @@ const getDayTypeValue = (rankingTime: number): number => {
 // 加载任务列表
 const loadTaskList = async () => {
   try {
+    // pagination.page = 1;
     loading.value = true;
     tasks.value = [];
     const res = await collection1688.getTaskList({
@@ -322,6 +324,11 @@ const loadTaskList = async () => {
     loading.value = false;
     console.error('加载任务列表失败', error)
   }
+}
+
+const refresh = () => {
+  pagination.page = 1;
+  loadTaskList();
 }
 
 const handleStartCollection = async () => {
@@ -550,6 +557,7 @@ const columns: DataTableColumns<CollectionTask> = [
     key: 'taskNo',
     width: 120,
     render(row: any) {
+      let industryName = JSON.parse(row.industryName || '[]');
       return h(
         NTooltip,
         {
@@ -561,6 +569,9 @@ const columns: DataTableColumns<CollectionTask> = [
             h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, calcDurationMinSecText(row.createdAt, row.finishedAt))
           ]),
           default: () => h('div', {}, [
+            h(NScrollbar, { class: 'font-12', style: 'margin-bottom: 4px;max-width: 240px;', xScrollable: true }, h('div', { style: 'white-space: nowrap'}, industryName.map(_ => {
+              return h(NTag, { size: 'small', style: 'margin-right: 4px' }, _)
+            }))),
             h('div', `开始: ${formatDatetime(row.createdAt, { removeYear: false, removeSecond: false })}`),
             h('div', `结束: ${formatDatetime(row.finishedAt, { removeYear: false, removeSecond: false })}`)
           ])
