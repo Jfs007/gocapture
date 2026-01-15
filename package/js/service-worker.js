@@ -553,12 +553,11 @@ const httpRule = {
   clear: clearRequestRules,
 };
 const fetchPatch = (url) => {
-  // const prefix = "https://ad.itaored.com/";
-  // if (url.startsWith(prefix)) {
-  //   return url.replace(prefix, APP_API);
-  // }
+  const manifest = chrome.runtime.getManifest();
+  const { api } = manifest.env || {};
+  console.log(api, 'api');
   if (!(/^https?:\/\//i.test(url))) {
-    return APP_API + url;
+    return api + url;
   }
   return url;
 }

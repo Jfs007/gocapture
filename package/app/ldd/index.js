@@ -291,6 +291,7 @@
     const { env, site } = manifest.env || {};
 
     const iframe = document.createElement("iframe");
+    console.log(env, 'site', site);
     iframe.src = `${site}?env=${env}&token=${token}&t=${Date.now()}`;
 
     createDraggableCollapsibleWrapper(iframe, {

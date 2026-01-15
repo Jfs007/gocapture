@@ -3,13 +3,13 @@
   "env": {
     "source": "https://cdn.itaored.com/static/fed/testldd-pro-chrome-plugin/",
     "api": "https://testad.itaored.com/",
-    "site": "https://ad-cdn.itaored.com/ad/index.html",
-    "env": "dev"
+    "site": "http://localhost:3000/",
+    "env": "local"
   },
   "name": "量多多采集(测试)+",
   "short_name": "量多多采集+",
   "author_name": "chrome",
-  "app_module": "Online",
+  "app_module": "Offline",
   "version": "30.2.2",
   "description": "电商实用工具集合大全",
   "icons": {
