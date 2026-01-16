@@ -1,13 +1,69 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Main Site</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Main Site</title>
+</head>
+<script>
+  !function () {
+    // 1️⃣ 打标记，后面所有逻辑都能感知「首屏阶段」
+    let __APP_BOOTING__ = true
+
+    // 2️⃣ 注入 loading DOM（同步执行）
+    var loader = document.createElement('div');
+    loader.id = '__global_loader__'
+    loader.innerHTML = `
+      <style>
+        #__global_loader__ {
+          position: fixed;
+          inset: 0;
+          background: #fff;
+          z-index: 999999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: system-ui, -apple-system;
+        }
+        #__global_loader__ .spinner {
+          width: 36px;
+          height: 36px;
+          border: 3px solid #eee;
+          border-top-color: #1677ff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+      <div class="spinner"></div>
+    `
+    document.documentElement.appendChild(loader)
+
+    // 3️⃣ 暴露关闭方法
+    let __HIDE_GLOBAL_LOADER__ = function () {
+      if (!loader) return
+      loader.style.opacity = '0'
+      loader.style.transition = 'opacity .2s'
+      setTimeout(function () {
+        loader.remove()
+        loader = null
+        __APP_BOOTING__ = false
+      }, 200)
+    }
+    window.__HIDE_GLOBAL_LOADER__ = __HIDE_GLOBAL_LOADER__
+
+  }()
+
+
+</script>
+
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>
