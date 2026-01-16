@@ -155,7 +155,6 @@ async function uploadDirectory(env) {
     const localPath = path.join(distPath, file);
     // 移除开头的斜杠，确保路径格式正确
     const remotePath = path.join(envConf.uploadPath, file).replace(/\\/g, '/');
-    console.log(localPath, remotePath);
     const success = await uploadFile(client, localPath, remotePath);
     if (success) {
       successCount++;
