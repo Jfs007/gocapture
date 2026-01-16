@@ -169,7 +169,7 @@ async function uploadDirectory(env) {
   if (failCount > 0) {
     console.log(`❌ 失败: ${failCount} 个文件`);
   }
-  console.log(`\n🌐 访问地址: https://ad-cdn.itaored.com${envConf.uploadPath}index.html\n`);
+  console.log(`\n🌐 访问地址: https://ad-cdn.itaored.com/${envConf.uploadPath}index.html\n`);
 }
 
 // 主函数
