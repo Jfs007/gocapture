@@ -1,7 +1,7 @@
 
 
 function use1688() {
-    
+
     const mdChrome = _require('mdChrome');
     const getUserInfo = async () => {
         const cookieAwait = ['.1688.com', '.mmstat.com'].map(origin => {
@@ -12,7 +12,9 @@ function use1688() {
         cookiesGroupRes.map(res => { cookiesArr.push(...((res && res.cookies) ? res.cookies : [])) });
         const map: any = {};
         const keys: any = [];
+
         cookiesArr.forEach(c => {
+            if (map[c.name]) return;
             map[c.name] = c.value;
             keys.push(c.name);
         });

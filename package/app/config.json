@@ -1,11 +1,26 @@
 {
     "result": {
-        "cssUrls": [  
-        ],
+        "cssUrls": [],
         "jsUrls": [
+            "common/index.js",
             "ldd/index.js",
             "1688/index.js"
         ]
+    },
+    "rules": {
+        "ldd/index.js": {
+            "supportIframe": false,
+            "matches": [
+                "*localhost:9002",
+                "*ad.itaored.com"
+            ]
+        },
+        "1688/index.js": {
+            "supportIframe": false,
+            "matches": [
+                "*.1688.com"
+            ]
+        }
     },
     "version": "1.0.0",
     "success": true,

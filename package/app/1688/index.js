@@ -1,6 +1,5 @@
 !async function () {
-    if (window.top !== window.self) return;
-    if (location.href.indexOf('https://s.1688.com/') < 0) return;
+    // if (window.top !== window.self) return;
     const mdChrome = _require('mdChrome');
     const authType = new URLSearchParams(window.location.search)
         .get('__AUTH_TYPE__');

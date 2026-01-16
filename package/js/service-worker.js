@@ -17,6 +17,115 @@ async function fetchData(url) {
   }
 }
 
+
+function isUrlMatch(url, matches) {
+  const patterns = Array.isArray(matches) ? matches : [matches];
+  if (!patterns.length) return true;
+  return patterns.some(p => matchOne(url, normalizePattern(p)))
+}
+
+function matchPort(actual, expected) {
+  if (!expected) return true
+  return actual === expected
+}
+
+function splitHostPort(patternHost) {
+  const idx = patternHost.lastIndexOf(':')
+  if (idx > -1 && /^\d+$/.test(patternHost.slice(idx + 1))) {
+    return {
+      host: patternHost.slice(0, idx),
+      port: patternHost.slice(idx + 1)
+    }
+  }
+  return { host: patternHost, port: null }
+}
+
+
+function normalizePattern(pattern) {
+  if (pattern === '<all_urls>') return pattern
+
+  let p = pattern.trim()
+
+  // 1️⃣ 没有 scheme
+  if (!p.includes('://')) {
+    p = '*://' + p
+  }
+
+  // 2️⃣ 没有 path
+  const idx = p.indexOf('/', p.indexOf('://') + 3)
+  if (idx === -1) {
+    p += '/*'
+  }
+
+  // 3️⃣ 只有 / 结尾
+  if (p.endsWith('/')) {
+    p += '*'
+  }
+
+  return p
+}
+
+function matchOne(url, pattern) {
+  if (pattern === '<all_urls>') return true
+
+  let urlObj
+  try {
+    urlObj = new URL(url)
+  } catch {
+    return false
+  }
+
+  const [scheme, rest] = pattern.split('://')
+  const [hostPart, ...pathParts] = rest.split('/')
+  const pathPattern = '/' + pathParts.join('/')
+
+  const { host: hostPattern, port: portPattern } = splitHostPort(hostPart)
+
+  return (
+    matchScheme(urlObj.protocol.slice(0, -1), scheme) &&
+    matchHost(urlObj.hostname, hostPattern) &&
+    matchPort(urlObj.port, portPattern) &&
+    matchPath(urlObj.pathname, pathPattern)
+  )
+}
+
+
+function matchScheme(protocol, scheme) {
+  return scheme === '*' || scheme === protocol
+}
+
+function matchHost(host, pattern) {
+  if (pattern === '*') return true
+
+  // *.example.com
+  if (pattern.startsWith('*.')) {
+    const bare = pattern.slice(2)
+    return host === bare || host.endsWith('.' + bare)
+  }
+
+  return wildcardMatch(host, pattern)
+}
+
+function matchPath(path, pattern) {
+  return wildcardMatch(path, pattern)
+}
+
+function wildcardMatch(str, pattern) {
+  const regex = new RegExp(
+    '^' +
+    pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*/g, '.*') +
+    '$'
+  )
+  return regex.test(str)
+}
+
+
+async function getCurrentTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
 /**
  * 填充iframe target信息
  */
@@ -196,13 +305,27 @@ async function GetConfig(context, sender, callback) {
   const response = await fetch(GetConfigUrl(), { headers });
   const data = await response.json();
 
+
+
+
   // 5️⃣ 返回结果，并调用回调
   const result = data.result || [];
+  const rules = data.rules || {};
   const reResult = {};
+  // console.log('配置', result);
   Object.keys(result).map(key => {
-    const item = result[key] || [];
+    let item = result[key] || [];
+    item = item.filter(url => {
+      const urlRule = rules[url];
+
+      const { matches, supportIframe } = urlRule || {};
+      // 如果是iframe 且不支持iframe 则不注入
+      if (context.isSub && !supportIframe) return false;
+      const isMatch = isUrlMatch(sender?.url || '', matches || []);
+      return isMatch;
+    });
     reResult[key] = item.map(url => manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
-  })
+  });
   if (callback) callback(reResult);
   return reResult;
 }
@@ -238,6 +361,7 @@ async function hotCodeLister(message, sender, sendResponse) {
 
 
   // }
+  const rules = config.rules || {};
   config.jsUrls.map(async jsUrl => {
     await executeScript(jsUrl, config, message, sender);
   })
@@ -708,7 +832,8 @@ const removeCookie2 = async (options = {}, handle = () => { }) => {
 async function changeAccount(message, sender, sendResponse) {
   let tabid = sender ? sender.tab.id : null;
   if (!tabid) {
-    tabid = await getCurrentTab();
+    const tab = await getCurrentTab() || {};
+    tabid = tab.id;
   }
   removeCookie2(message, () => {
     chrome.tabs.reload(tabid);
