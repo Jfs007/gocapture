@@ -4,10 +4,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { glob } from 'glob';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const accessToken = '';
+const accessToken = '0209b0fc3be0c707512b3cd325de19d6';
 // 配置
 const config = {
   accessKeyId: '',
@@ -171,6 +175,33 @@ async function uploadDirectory(env) {
   console.log(`\n🌐 访问地址: https://ad-cdn.itaored.com/${envConf.uploadPath}index.html\n`);
 }
 
+// 构建项目
+async function buildProject() {
+  console.log('\n📦 开始构建项目...\n');
+  
+  try {
+    const mainSitePath = path.resolve(__dirname, '../main-site');
+    
+    // 执行 yarn build
+    const { stdout, stderr } = await execAsync('yarn build', {
+      cwd: mainSitePath,
+      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+    });
+    
+    if (stdout) {
+      console.log(stdout);
+    }
+    if (stderr) {
+      console.error(stderr);
+    }
+    
+    console.log('\n✅ 项目构建完成\n');
+  } catch (error) {
+    console.error('❌ 构建失败:', error.message);
+    throw error;
+  }
+}
+
 // 主函数
 async function main() {
   const env = process.argv[2] || 'dev';
@@ -183,6 +214,10 @@ async function main() {
     process.exit(1);
   }
 
+  // 先构建项目
+  await buildProject();
+  
+  // 再上传文件
   await uploadDirectory(env);
 }
 

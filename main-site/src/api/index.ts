@@ -11,7 +11,10 @@ import request from '../utils/request'
 
 export const common = {
     getJnCategories: () => {
-        return request({ url: '/api/dictionary/iu/list', method: 'get', data: { dictNames: 'KS_SYT_CATEGORY' } })
+        return request({ url: 'api/dictionary/iu/list', method: 'get', data: { dictNames: 'KS_SYT_CATEGORY' } })
+    },
+    getDouyinIndustryList: (params: { scene: number }) => {
+        return request({ url: 'api/material/industry/list', method: 'get', data: params, headers: { 'x-permission': 'bWVkaWEtbGliLWhvdA==' } })
     }
 }
 
@@ -19,17 +22,22 @@ export const common = {
 export const collection1688 = {
     // 创建采集任务
     saveTask: (data: {
-        industryNameList: string[]
-        dayType: number
-        productCountPerIndustry: number
-        factoryCountPerProduct: number
-        userId: string
-        cookie: string
+        taskList: Array<{
+            userId: string
+            cookie: string
+            taskType: string | number
+            industryNameList: string[]
+            dayType: number
+            productCountPerIndustry: number
+            factoryCountPerProduct: number
+        }>
+
     }) => {
-        return request({ 
-            url: '/api/upload/daq/task/save', 
-            method: 'post', 
-            data 
+        return request({
+            url: 'api/upload/daq/task/batch/save',
+            method: 'post',
+            data,
+            headers: { 'x-permission': 'bWVkaWEtbGliLWhvdA==' }
         })
     },
 
@@ -39,10 +47,10 @@ export const collection1688 = {
         pageNum: number
         pageSize: number
     }) => {
-        return request({ 
-            url: '/api/daq/task/list', 
-            method: 'get', 
-            data: params 
+        return request({
+            url: 'api/daq/task/list',
+            method: 'get',
+            data: params
         })
     },
 
@@ -51,10 +59,10 @@ export const collection1688 = {
         taskIdList: number[]
         userId: string
     }) => {
-        return request({ 
+        return request({
             // buffer: true,
-            url: '/api/daq/task/export', 
-            method: 'post', 
+            url: 'api/daq/task/export',
+            method: 'post',
             data,
             // headers: {
             //     'x-permission': 'YWxpcGF5LWRo'
@@ -67,10 +75,10 @@ export const collection1688 = {
         taskIdList: number[]
         userId: string
     }) => {
-        return request({ 
-            url: '/api/daq/task/delete', 
-            method: 'post', 
-            data 
+        return request({
+            url: 'api/daq/task/delete',
+            method: 'post',
+            data
         })
     },
     // 停止任务
@@ -78,19 +86,19 @@ export const collection1688 = {
         taskIdList: number[]
         userId: string
     }) => {
-        return request({ 
-            url: '/api/daq/task/stop', 
-            method: 'post', 
-            data 
+        return request({
+            url: 'api/daq/task/stop',
+            method: 'post',
+            data
         })
     },
     checkCookie: (data: {
-       cookie: string
+        cookie: string
     }) => {
-        return request({ 
-            url: '/api/daq/task/check/cookie', 
-            method: 'post', 
-            data 
+        return request({
+            url: 'api/daq/task/check/cookie',
+            method: 'post',
+            data
         })
     }
 }

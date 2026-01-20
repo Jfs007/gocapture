@@ -1,36 +1,57 @@
 <template>
   <n-space vertical :size="16">
-    <!-- 金牛行业分类 -->
-    <n-card title="金牛行业分类" size="small" :content-style="{ padding: '0 10px 10px 10px' }"
-      :header-style="{ padding: '10px' }">
+    <!-- 采集榜单 -->
+    <n-card size="small" :content-style="{ padding: '0 6px 10px 6px' }"
+      :header-style="{ padding: '0 10px 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }">
+      <template #header>
+        <n-space align="center" :size="12">
+          <n-text style="font-size: 14px">采集榜单</n-text>
+          <n-space :size="0" align="center" class="ranking-type-tabs">
+            <div v-for="type in rankingTypeOptions" :key="type.value"
+              :class="['ranking-tab', { 'ranking-tab-active': activeRankingType === type.value }]"
+              @click="switchRankingType(type.value)">
+              <n-checkbox :checked="isRankingEnabled(type.value)"
+                @update:checked="(checked) => toggleRankingEnabled(type.value, checked)" @click.stop size="small" />
+              <span class="tab-label">{{ type.label }}</span>
+            </div>
+          </n-space>
+        </n-space>
+      </template>
       <template #header-extra>
         <n-text depth="3" class="font-12">
-          将自动获取该分类下的商品信息
+          (支持多选一起采集)
         </n-text>
       </template>
 
       <n-space vertical>
-        <!-- 商品分类和榜单时效 -->
-        <n-space align="center">
+
+        <!-- 榜单类目和榜单时效 -->
+        <n-space align="center" v-if="activeRankingType">
           <n-space align="center" :size="[4, 8]">
-            <n-text class="font-12">商品分类</n-text>
-            <n-cascader :max-tag-count="1" v-model:value="currentCategory" :options="categoryOptions" size="small"
-              placeholder="商品分类" style="width: 130px" @update:value="handleCategorySelect" />
-            <n-text depth="3" class="font-12">{{ selectedCategories.length }}/10</n-text>
+            <n-text class="font-12">榜单类目</n-text>
+            <n-cascader filterable :loading="loadins.jnCate" v-if="activeRankingType === 'jinniu'" :max-tag-count="1"
+              v-model:value="currentCategory" :options="categoryOptions" size="small" placeholder="榜单类目"
+              style="width: 130px" @update:value="handleCategorySelect" />
+            <n-select 
+              filterable
+              :loading="loadins.dyCate" v-else-if="activeRankingType === 'douyin'"
+              v-model:value="currentCategory" :options="douyinCategoryOptions" size="small" placeholder="榜单类目"
+              :consistent-menu-width="false" style="width: 130px" @update:value="handleCategorySelect" />
+            <n-text depth="3" class="font-12">{{ currentSelectedCategories.length }}/10</n-text>
           </n-space>
 
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">榜单时效</n-text>
-            <n-select size="small" v-model:value="settings.rankingTime" :options="rankingTimeOptions"
+            <n-select size="small" v-model:value="currentSettings.rankingTime" :options="rankingTimeOptions"
               style="width: 120px" />
           </n-space>
         </n-space>
 
         <!-- 已选类目 -->
-        <div v-if="selectedCategories.length > 0" class="flex">
+        <div v-if="currentSelectedCategories.length > 0" class="flex">
           <n-text class="font-12 flex-none mr-4">已选类目</n-text>
           <n-space :size="8">
-            <n-tag v-for="cat in selectedCategories" :key="cat.value" size="small" closable
+            <n-tag v-for="cat in currentSelectedCategories" :key="cat.value" size="small" closable
               @close="handleRemoveCategory(cat.value)">
               {{ cat.label }}
             </n-tag>
@@ -38,23 +59,24 @@
         </div>
 
         <!-- 采集设置 -->
-        <n-space align="center" :size="12">
+        <n-space align="center" :size="12" v-if="activeRankingType">
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">单类目最多采集</n-text>
-            <n-input-number size="small" v-model:value="settings.maxProductsPerCategory" :min="1"
-              :max="40000 / settings.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
+            <n-input-number size="small" v-model:value="currentSettings.maxProductsPerCategory" :min="1"
+              :max="40000 / currentSettings.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
             <n-text class="font-12">条商品</n-text>
           </n-space>
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">单商品最多采集</n-text>
-            <n-input-number size="small" v-model:value="settings.maxFactoriesPerProduct" :min="1"
-              :max="40000 / settings.maxProductsPerCategory" :show-button="false" style="width: 60px" />
+            <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
+              :max="40000 / currentSettings.maxProductsPerCategory" :show-button="false" style="width: 60px" />
             <n-text class="font-12">条工厂信息</n-text>
           </n-space>
         </n-space>
 
         <!-- 开始采集按钮 -->
-        <n-button size="small" type="primary" block :disabled="selectedCategories.length === 0 || isCollecting"
+        <n-button size="small" type="primary" block
+          :disabled="!activeRankingType || currentSelectedCategories.length === 0 || isCollecting"
           :loading="isCollecting" @click="handleStartCollection">
           开始采集
         </n-button>
@@ -66,8 +88,11 @@
     </n-card>
 
     <!-- 采集记录 -->
-    <n-card title="采集记录" size="small" :content-style="{ padding: '0 10px 10px 10px' }"
+    <n-card size="small" :content-style="{ padding: '0 6px 10px 6px' }"
       :header-style="{ padding: '10px' }">
+      <template #header>
+        <n-text style="font-size: 14px;">采集记录</n-text>
+      </template>
       <template #header-extra>
         <n-space align="center">
           <n-button size="small" text type="primary" @click="loadTaskList" :disabled="loading">
@@ -96,13 +121,12 @@ import {
   NCascader,
   NSelect,
   NTag,
-  NFlex,
   NInputNumber,
   NButton,
-  NAlert,
   NDataTable,
   NPopconfirm,
   NTooltip,
+  NCheckbox,
   useMessage,
   type DataTableColumns,
   NScrollbar
@@ -119,7 +143,67 @@ const { getUserInfo } = use1688()
 const { exportSheets } = useExport()
 const loading = ref(false);
 const categoryOptions = ref([]);
+const douyinCategoryOptions = ref([]);
 const rankingTimeOptions = RANKING_TIME_OPTIONS
+
+// 榜单类型选项
+const rankingTypeOptions = [
+  { label: '抖音榜单', value: 'douyin' },
+  { label: '金牛榜单', value: 'jinniu' }
+]
+
+// 当前激活的榜单类型（单选）- 用于编辑
+const activeRankingType = ref<string>('')
+
+// 已启用的榜单类型（多选）- 用于采集
+const enabledRankings = ref<string[]>([])
+
+// 每个榜单类型的独立数据
+const rankingData = ref<Record<string, {
+  selectedCategories: SelectedCategory[],
+  settings: CollectionSettings
+}>>({
+  douyin: {
+    selectedCategories: [],
+    settings: {
+      categories: [],
+      rankingTime: 3,
+      maxProductsPerCategory: 100,
+      maxFactoriesPerProduct: 50
+    }
+  },
+  jinniu: {
+    selectedCategories: [],
+    settings: {
+      categories: [],
+      rankingTime: 3,
+      maxProductsPerCategory: 100,
+      maxFactoriesPerProduct: 50
+    }
+  }
+})
+
+// 当前激活榜单的选中类目
+const currentSelectedCategories = computed(() => {
+  if (!activeRankingType.value) return []
+  return rankingData.value[activeRankingType.value]?.selectedCategories || []
+})
+
+// 当前激活榜单的设置
+const currentSettings = computed(() => {
+  if (!activeRankingType.value) return {
+    categories: [],
+    rankingTime: 3,
+    maxProductsPerCategory: 100,
+    maxFactoriesPerProduct: 50
+  }
+  return rankingData.value[activeRankingType.value]?.settings || {
+    categories: [],
+    rankingTime: 3,
+    maxProductsPerCategory: 100,
+    maxFactoriesPerProduct: 50
+  }
+})
 // const down2 = () => {
 //   download({
 //     data: { "campaignTimeRange": [1768320000000, 1768320000000], "statCostFlag": 0, "pnlExceptionFlag": 0, "balanceInsufficientFlag": 0, "startDate": "2026-01-14", "endDate": "2026-01-14", "columns": ["optStatus", "campaignId", "campaignStatusMark", "campaignBudget", "costChart", "operate", "statCost", "pnlDealAmount", "dealPnlRate", "gmvDealPnlRate", "totalReturnRate", "totalOrderSettleCountRate", "totalRefundOrderGmvRate", "totalRefundOrderCount", "totalPayOrderCount", "totalPayOrderRoi", "totalPayOrderCost", "costDealAmount", "operatorName", "campaignCreateTime", "totalRefundOrderGmv", "totalPayOrderGmv", "actualPayOrderGmv", "totalPayOrderCouponAmount", "totalEcomPlatformSubsidyAmount", "accountCode", "costRate", "materialCount", "costPayAmount"] },
@@ -149,10 +233,9 @@ const loadDefaultConfig = () => {
 const saveDefaultConfig = () => {
   try {
     const config = {
-      selectedCategories: selectedCategories.value,
-      rankingTime: settings.value.rankingTime,
-      maxProductsPerCategory: settings.value.maxProductsPerCategory,
-      maxFactoriesPerProduct: settings.value.maxFactoriesPerProduct
+      activeRankingType: activeRankingType.value,
+      enabledRankings: enabledRankings.value,
+      rankingData: rankingData.value
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
   } catch (error) {
@@ -160,26 +243,12 @@ const saveDefaultConfig = () => {
   }
 }
 
-const defaultConfig = loadDefaultConfig();
-if (defaultConfig?.rankingTime == '3days') {
-  defaultConfig.rankingTime = 3;
-}
-
 const currentCategory = ref<string | null>(null)
-const selectedCategories = ref<SelectedCategory[]>(defaultConfig?.selectedCategories || [])
 const isCollecting = ref(false)
 
-
-const settings = ref<CollectionSettings>({
-  categories: [],
-  rankingTime: defaultConfig?.rankingTime || 3,
-  maxProductsPerCategory: defaultConfig?.maxProductsPerCategory || 100,
-  maxFactoriesPerProduct: defaultConfig?.maxFactoriesPerProduct || 50
-})
-
-// 监听设置变化，自动保存配置
+// 监听榜单数据变化，自动保存配置
 watch(
-  () => settings.value,
+  () => rankingData.value,
   () => {
     saveDefaultConfig()
   },
@@ -227,25 +296,108 @@ const handleAllDownload = async () => {
 
 }
 
-const handleCategorySelect = (value: string, option: any) => {
-  if (!value || !option) return
+// 检查榜单是否启用
+const isRankingEnabled = (type: string) => {
+  return enabledRankings.value.includes(type)
+}
 
-  if (selectedCategories.value.length >= 10) {
-    message.warning('最多只能选择10个行业类目')
+// 切换榜单启用状态
+const toggleRankingEnabled = (type: string, enabled: boolean) => {
+  if (enabled) {
+    if (!enabledRankings.value.includes(type)) {
+      enabledRankings.value.push(type)
+    }
+  } else {
+    enabledRankings.value = enabledRankings.value.filter(t => t !== type)
+  }
+}
+
+const loadins = reactive({
+  dyCate: false,
+  jnCate: false,
+})
+
+// 切换榜单类型（用于编辑）
+const switchRankingType = async (type: string) => {
+  // 单选模式，直接切换到编辑模式
+  activeRankingType.value = type
+  currentCategory.value = null
+
+
+  // 如果选择了抖音榜单，加载抖音类目
+  if (type === 'douyin' && douyinCategoryOptions.value.length === 0) {
+    await loadDouyinCategories()
+  }
+
+  // 如果选择了金牛榜单，加载金牛类目
+  if (type === 'jinniu' && categoryOptions.value.length === 0) {
+    await loadJinniuCategories()
+  }
+}
+
+// 加载抖音类目
+const loadDouyinCategories = async () => {
+  if (loadins.dyCate) return;
+  try {
+    loadins.dyCate = true
+    const res = await common.getDouyinIndustryList({
+      scene: 1
+    })
+    const categories = res.data || []
+    // 将字符串数组转换为 select options
+    douyinCategoryOptions.value = categories.map((cat: string) => ({
+      label: cat,
+      value: cat
+    }));
+    loadins.dyCate = false;
+  } catch (error) {
+    loadins.dyCate = false;
+    console.error('加载抖音类目失败:', error)
+    // message.error('加载抖音类目失败')
+  }
+}
+
+// 加载金牛类目
+const loadJinniuCategories = async () => {
+  if (loadins.jnCate) return;
+  try {
+    loadins.jnCate = true
+    const res = await common.getJnCategories()
+    const categories = res.data[0]?.children || []
+    categoryOptions.value = categories;
+    loadins.jnCate = false;
+  } catch (error) {
+    loadins.jnCate = false;
+    console.error('加载金牛类目失败:', error)
+    // message.error('加载金牛类目失败')
+  }
+}
+
+const handleCategorySelect = (value: string, option: any) => {
+  if (!value || !activeRankingType.value) return
+
+  const currentData = rankingData.value[activeRankingType.value]
+
+  if (currentData.selectedCategories.length >= 10) {
+    message.warning('最多只能选择10个榜单类目')
     currentCategory.value = null
     return
   }
-  const exists = selectedCategories.value.find(cat => cat.value === value)
+
+  const exists = currentData.selectedCategories.find(cat => cat.value === value)
   if (exists) {
     message.warning('该类目已选择')
     currentCategory.value = null
     return
   }
 
-  selectedCategories.value.push({
-    label: option.label,
+  // 处理抖音榜单（字符串）和金牛榜单（级联）
+  const label = activeRankingType.value === 'douyin' ? value : (option?.label || value)
+
+  currentData.selectedCategories.push({
+    label: label,
     value: value,
-    path: option.path || []
+    path: option?.path || []
   })
 
   // 保存配置
@@ -255,7 +407,11 @@ const handleCategorySelect = (value: string, option: any) => {
 }
 
 const handleRemoveCategory = (value: string) => {
-  selectedCategories.value = selectedCategories.value.filter(cat => cat.value !== value)
+  if (!activeRankingType.value) return
+
+  const currentData = rankingData.value[activeRankingType.value]
+  currentData.selectedCategories = currentData.selectedCategories.filter(cat => cat.value !== value)
+
   // 保存配置
   saveDefaultConfig()
 }
@@ -332,8 +488,24 @@ const refresh = () => {
 }
 
 const handleStartCollection = async () => {
-  if (selectedCategories.value.length === 0) {
-    message.warning('请至少选择一个商品分类')
+  // 检查是否有启用的榜单
+  if (enabledRankings.value.length === 0) {
+    message.warning('请至少勾选一个榜单类型')
+    return
+  }
+
+  // 验证所有启用的榜单都有选择类目
+  const invalidRankings = enabledRankings.value.filter(type => {
+    const data = rankingData.value[type]
+    return !data || data.selectedCategories.length === 0
+  })
+
+  if (invalidRankings.length > 0) {
+    const rankingNames = invalidRankings.map(type => {
+      const option = rankingTypeOptions.find(opt => opt.value === type)
+      return option?.label || type
+    }).join('、')
+    message.warning(`${rankingNames} 还未选择榜单类目`)
     return
   }
 
@@ -365,23 +537,27 @@ const handleStartCollection = async () => {
 
 
   try {
-    // 调用创建任务接口
-    const res = await collection1688.saveTask({
-      industryNameList: selectedCategories.value.map(cat => cat.label),
-      dayType: getDayTypeValue(settings.value.rankingTime),
-      productCountPerIndustry: settings.value.maxProductsPerCategory,
-      factoryCountPerProduct: settings.value.maxFactoriesPerProduct,
-      userId: info.object.unb,
-      cookie: info.cookie
+    // 构建所有启用榜单的任务数据数组
+    const taskList = enabledRankings.value.map(type => {
+      const data = rankingData.value[type]
+      return {
+        userId: info.object.unb,
+        cookie: info.cookie,
+        taskType: type == 'douyin' ? 2 : 1, // 榜单类型：douyin 或 jinniu
+        industryNameList: data.selectedCategories.map(cat => cat.label),
+        dayType: getDayTypeValue(data.settings.rankingTime),
+        productCountPerIndustry: data.settings.maxProductsPerCategory,
+        factoryCountPerProduct: data.settings.maxFactoriesPerProduct
+      }
     })
 
-    if (res.success || res.code === '200') {
-      message.success('采集任务已创建')
-      // 刷新任务列表
-      await loadTaskList()
-    } else {
-      message.error(res.message || '创建任务失败')
-    }
+    // 调用创建任务接口（提交数组）
+    const res = await collection1688.saveTask({
+      taskList: taskList,
+    });
+    if(res?.code!=200) throw new Error(res?.msg)
+    // 刷新任务列表
+    await loadTaskList()
   } catch (error: any) {
     message.error(error.message || '创建任务失败')
   } finally {
@@ -533,23 +709,26 @@ function formatDatetime(datetime: string, options: { removeYear?: boolean, remov
  * @param {string | null | undefined} end
  * @returns {string}
  */
-function calcDurationMinSecText(start, end) {
-  if (!start || !end) return '--'
+function calcDurationMinSecText(start?: string, end?: string) {
+  if (!start) return '--'
 
   const startTime = Date.parse(start.replace(/-/g, '/'))
-  const endTime = Date.parse(end.replace(/-/g, '/'))
+  if (Number.isNaN(startTime)) return '--'
 
-  if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
-    return '--'
-  }
+  const endTime = end
+    ? Date.parse(end.replace(/-/g, '/'))
+    : Date.now()
+
+  if (Number.isNaN(endTime)) return '--'
 
   const diffSeconds = Math.floor(Math.abs(endTime - startTime) / 1000)
+
   const minutes = Math.floor(diffSeconds / 60)
   const seconds = diffSeconds % 60
 
-  // 始终显示 分 + 秒（哪怕为 0）
   return `耗时: ${minutes}m${seconds}s`
 }
+
 
 const columns: DataTableColumns<CollectionTask> = [
   {
@@ -566,10 +745,10 @@ const columns: DataTableColumns<CollectionTask> = [
         {
           trigger: () => h('div', {}, [
             h('div', { class: 'font-weight-bold' }, row.taskNo),
-            h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, calcDurationMinSecText(row.createdAt, row.finishedAt))
+            h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, () => [calcDurationMinSecText(row.createdAt, row.finishedAt), row.status == 'collecting' ? h('span', { class: 'dot-loading'}) : null]),
           ]),
           default: () => h('div', {}, [
-            h(NScrollbar, { class: 'font-12', style: 'margin-bottom: 4px;max-width: 240px;', xScrollable: true }, h('div', { style: 'white-space: nowrap'}, industryName.map(_ => {
+            h(NScrollbar, { class: 'font-12', style: 'margin-bottom: 4px;max-width: 240px;', xScrollable: true }, h('div', { style: 'white-space: nowrap' }, industryName.map(_ => {
               return h(NTag, { size: 'small', style: 'margin-right: 4px' }, _)
             }))),
             h('div', `开始: ${formatDatetime(row.createdAt, { removeYear: false, removeSecond: false })}`),
@@ -580,15 +759,33 @@ const columns: DataTableColumns<CollectionTask> = [
     }
   },
   {
+    title: '榜单类型',
+    key: 'count',
+    width: 80,
+    render: (row: any) => { 
+      return [
+        h('div', row.taskType == 1 ? '金牛' : '抖音'),
+        // h('span', '' + (row.count || '--')),
+      ]
+      
+    }
+  },
+  {
     title: '采集条数',
     key: 'count',
     width: 80,
-    render: (row: any) => row.count || '--'
+    render: (row: any) => { 
+      return [
+        // h('div', row.taskType == 1 ? '金牛' : '抖音'),
+        h('span', '' + (row.count || '--')),
+      ]
+      
+    }
   },
   {
     title: '采集状态',
     key: 'status',
-    width: 70,
+    width: 80,
     render: (row) => {
       return getStatusText(row.status);
     }
@@ -596,7 +793,8 @@ const columns: DataTableColumns<CollectionTask> = [
   {
     title: '操作',
     key: 'actions',
-    align: 'left',
+    align: 'center',
+    fixed: 'right',
     width: 100,
     render: (row) => {
       return h(NSpace, { size: 8, align: 'center', justify: 'center' }, () => [
@@ -646,18 +844,78 @@ const columns: DataTableColumns<CollectionTask> = [
 ]
 
 const setup = async () => {
-  const res = await common.getJnCategories();
-  const categories = res.data[0]?.children || [];
-  categoryOptions.value = categories;
+  // 加载保存的配置
+  const savedConfig = loadDefaultConfig()
+  if (savedConfig) {
+    if (savedConfig.activeRankingType) {
+      activeRankingType.value = savedConfig.activeRankingType
+    }
+    if (savedConfig.enabledRankings) {
+      enabledRankings.value = savedConfig.enabledRankings
+    }
+    if (savedConfig.rankingData) {
+      rankingData.value = savedConfig.rankingData
+    }
+  }
+
   await set1688UserInfo();
   if (!isLoggedTo1688.value) {
     message.warning('请登录1688.com')
   }
   // 加载任务列表
   loadTaskList();
-
 };
 setup()
 </script>
 
-<style scoped></style>
+<style scoped>
+.ranking-type-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid #e0e0e6;
+}
+
+.ranking-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  position: relative;
+}
+
+.ranking-tab:hover {
+  background-color: #f5f5f5;
+}
+
+.ranking-tab-active {
+  border-bottom-color: var(--n-bar-color);
+  color: var(--n-bar-color);
+}
+
+.ranking-tab .tab-label {
+  font-size: 13px;
+  user-select: none;
+}
+
+.ranking-tab-active .tab-label {
+  font-weight: 500;
+  color: var(--n-bar-color);
+}
+
+.ranking-tab :deep(.n-checkbox) {
+  cursor: pointer;
+}
+
+.ranking-tab :deep(.n-checkbox .n-checkbox-box) {
+  border-radius: 3px;
+}
+
+
+
+
+</style>

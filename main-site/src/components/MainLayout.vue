@@ -1,6 +1,6 @@
 <template>
   <n-layout style="height: 100vh;">
-    <n-layout-content style="padding: 0 12px;">
+    <n-layout-content style="padding: 0 8px;">
       <n-tabs v-model:value="activeTab" type="line" animated>
         <n-tab-pane name="1688" tab="1688厂家收集">
           <Collection1688 />

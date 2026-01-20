@@ -38,3 +38,24 @@
     color: red;
 }
 
+
+.dot-loading {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #000;
+  display: inline-block;
+  animation: pulse 1.2s ease-in-out infinite;
+  margin: 0 4px;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
