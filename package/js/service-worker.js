@@ -2,8 +2,9 @@
 const localConfig = {
   jsUrls: ['chrome/cli.js', 'chrome/web.js', "chrome/web-hook.js"]
 }
+let _VERSION_ = '';
 // 全局缓存对象
-const ExeCodeMap = {};
+let ExeCodeMap = {};
 /**
  * 获取远程数据
  */
@@ -310,8 +311,15 @@ async function GetConfig(context, sender, callback) {
 
   // 5️⃣ 返回结果，并调用回调
   const result = data.result || [];
+  const version = data.version || '';
   const rules = data.rules || {};
   const reResult = {};
+  if (version !== _VERSION_) {
+    console.log(version, _VERSION_, '版本更新，清理缓存');
+    _VERSION_ = version;
+    ExeCodeMap = {};
+
+  }
   // console.log('配置', result);
   Object.keys(result).map(key => {
     let item = result[key] || [];

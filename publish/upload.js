@@ -7,7 +7,7 @@ import { glob } from 'glob';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
+const accessToken = '';
 // 配置
 const config = {
   accessKeyId: '',
@@ -36,7 +36,7 @@ async function getStsToken(apiUrl) {
   try {
     const response = await axios.get(`${apiUrl}/api/dy/project/sts/token`, {
       headers: {
-        'accessToken': `7282a6e6985d91ac2c880ede23e12729`
+        'accessToken': accessToken
       }
     });
     const credentials = response.data?.data?.credentials || {};
