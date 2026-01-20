@@ -11,7 +11,7 @@ const execAsync = promisify(exec);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const accessToken = '0209b0fc3be0c707512b3cd325de19d6';
+const accessToken = '7253d41458a52d07db2b82e9b42128bb';
 // 配置
 const config = {
   accessKeyId: '',
@@ -104,6 +104,83 @@ async function uploadFile(client, localPath, remotePath) {
   }
 }
 
+// 获取远程文件列表（从 file-path.json）
+async function getRemoteFileList(client, uploadPath) {
+  const filePathJsonKey = `${uploadPath}file-path.json`;
+  
+  try {
+    const { data } = await client.getObjectV2({
+      bucket: config.bucket,
+      key: filePathJsonKey,
+    });
+    
+    // 读取文件内容
+    const chunks = [];
+    for await (const chunk of data.content) {
+      chunks.push(chunk);
+    }
+    const content = Buffer.concat(chunks).toString('utf-8');
+    const fileList = JSON.parse(content);
+    
+    console.log(`✅ 获取到远程文件列表: ${fileList.length} 个文件`);
+    return fileList;
+  } catch (error) {
+    if (error.statusCode === 404) {
+      console.log('📁 file-path.json 不存在，这是第一次上传');
+      return [];
+    }
+    console.error('❌ 获取远程文件列表失败:', error.message);
+    return [];
+  }
+}
+
+// 删除旧文件（基于 file-path.json）
+async function deleteOldFiles(client, oldFileList) {
+  if (oldFileList.length === 0) {
+    console.log('\n📁 没有旧文件需要删除\n');
+    return;
+  }
+  
+  console.log(`\n🗑️ 开始删除旧文件: ${oldFileList.length} 个`);
+  
+  let deletedCount = 0;
+  let failedCount = 0;
+  
+  for (const filePath of oldFileList) {
+    try {
+      await client.deleteObject({
+        bucket: config.bucket,
+        key: filePath,
+      });
+      deletedCount++;
+      console.log(`  ✓ 已删除: ${filePath}`);
+    } catch (error) {
+      failedCount++;
+      console.error(`  ✗ 删除失败: ${filePath} - ${error.message}`);
+    }
+  }
+  
+  console.log(`\n✅ 删除完成: 成功 ${deletedCount} 个, 失败 ${failedCount} 个\n`);
+}
+
+// 上传文件路径清单
+async function uploadFilePathJson(client, uploadPath, fileList) {
+  const filePathJsonKey = `${uploadPath}file-path.json`;
+  const content = JSON.stringify(fileList, null, 2);
+  
+  try {
+    await client.putObject({
+      bucket: config.bucket,
+      key: filePathJsonKey,
+      body: Buffer.from(content, 'utf-8'),
+      contentType: 'application/json',
+    });
+    console.log(`\n✅ 已更新 file-path.json (${fileList.length} 个文件)`);
+  } catch (error) {
+    console.error('❌ 上传 file-path.json 失败:', error.message);
+  }
+}
+
 // 上传整个目录
 async function uploadDirectory(env) {
   const envConf = envConfig[env];
@@ -130,6 +207,12 @@ async function uploadDirectory(env) {
     region: config.region,
     endpoint: config.endpoint
   });
+
+  // 获取远程文件列表
+  const oldFileList = await getRemoteFileList(client, envConf.uploadPath);
+  
+  // 删除旧文件
+  await deleteOldFiles(client, oldFileList);
 
   // dist 目录路径
   const distPath = path.resolve(__dirname, '../main-site/dist');
@@ -167,6 +250,12 @@ async function uploadDirectory(env) {
     }
   }
 
+  // 生成新的文件路径列表
+  const newFileList = files.map(file => path.join(envConf.uploadPath, file).replace(/\\/g, '/'));
+  
+  // 上传文件路径清单
+  await uploadFilePathJson(client, envConf.uploadPath, newFileList);
+  
   console.log(`\n✨ 发布完成!`);
   console.log(`✅ 成功: ${successCount} 个文件`);
   if (failCount > 0) {
