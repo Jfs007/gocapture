@@ -15,7 +15,10 @@ export const common = {
     },
     getDouyinIndustryList: (params: { scene: number }) => {
         return request({ url: 'api/material/industry/list', method: 'get', data: params, headers: { 'x-permission': 'bWVkaWEtbGliLWhvdA==' } })
-    }
+    },
+    getIdustryNameList: (params: { platform: 1 | 2, dayType: number }) => {
+        return request({ url: 'api/daq/task/industry/name/list', method: 'get', data: params })
+    },
 }
 
 // 1688 采集相关接口

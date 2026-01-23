@@ -15,7 +15,7 @@ export interface CollectionTask {
   id: string;
   taskName: string;
   count: number;
-  status: 'collecting' | 'completed' | 'failed' | 'stopped';
+  taskStatus: 0 | 1 | 2;
   createTime: string;
   categories: string[];
   productCount: number;

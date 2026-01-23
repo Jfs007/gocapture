@@ -29,12 +29,12 @@
         <n-space align="center" v-if="activeRankingType">
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">榜单类目</n-text>
-            <n-cascader filterable :loading="loadins.jnCate" v-if="activeRankingType === 'jinniu'" :max-tag-count="1"
-              v-model:value="currentCategory" :options="categoryOptions" size="small" placeholder="榜单类目"
+            <n-select filterable :loading="loadins.jnCate" v-if="activeRankingType === 'jinniu'" 
+              v-model:value="currentCategory" 
+              :consistent-menu-width="false"
+              :options="categoryOptions" size="small" placeholder="榜单类目"
               style="width: 130px" @update:value="handleCategorySelect" />
-            <n-select 
-              filterable
-              :loading="loadins.dyCate" v-else-if="activeRankingType === 'douyin'"
+            <n-select filterable :loading="loadins.dyCate" v-else-if="activeRankingType === 'douyin'"
               v-model:value="currentCategory" :options="douyinCategoryOptions" size="small" placeholder="榜单类目"
               :consistent-menu-width="false" style="width: 130px" @update:value="handleCategorySelect" />
             <n-text depth="3" class="font-12">{{ currentSelectedCategories.length }}/10</n-text>
@@ -43,7 +43,7 @@
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">榜单时效</n-text>
             <n-select size="small" v-model:value="currentSettings.rankingTime" :options="rankingTimeOptions"
-              style="width: 120px" />
+              style="width: 120px" @update:value="refreshCategories" />
           </n-space>
         </n-space>
 
@@ -88,8 +88,7 @@
     </n-card>
 
     <!-- 采集记录 -->
-    <n-card size="small" :content-style="{ padding: '0 6px 10px 6px' }"
-      :header-style="{ padding: '10px' }">
+    <n-card size="small" :content-style="{ padding: '0 6px 10px 6px' }" :header-style="{ padding: '10px' }">
       <template #header>
         <n-text style="font-size: 14px;">采集记录</n-text>
       </template>
@@ -113,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h, reactive, computed, watch } from 'vue'
+import { ref, h, reactive, computed, watch, nextTick } from 'vue'
 import {
   NSpace,
   NCard,
@@ -316,32 +315,43 @@ const loadins = reactive({
   dyCate: false,
   jnCate: false,
 })
-
+const loadCategories = () => {
+  if (activeRankingType.value === 'douyin' && douyinCategoryOptions.value.length === 0) {
+    loadDouyinCategories()
+  } else if (activeRankingType.value === 'jinniu' && categoryOptions.value.length === 0) {
+    loadJinniuCategories()
+  }
+}
 // 切换榜单类型（用于编辑）
 const switchRankingType = async (type: string) => {
   // 单选模式，直接切换到编辑模式
   activeRankingType.value = type
   currentCategory.value = null
 
-
-  // 如果选择了抖音榜单，加载抖音类目
-  if (type === 'douyin' && douyinCategoryOptions.value.length === 0) {
-    await loadDouyinCategories()
-  }
-
-  // 如果选择了金牛榜单，加载金牛类目
-  if (type === 'jinniu' && categoryOptions.value.length === 0) {
-    await loadJinniuCategories()
-  }
+  loadCategories();
 }
+
+const refreshCategories = () => {
+  douyinCategoryOptions.value = [];
+  categoryOptions.value = [];
+  nextTick(() => {
+    loadCategories();
+  })
+
+
+}
+
+
 
 // 加载抖音类目
 const loadDouyinCategories = async () => {
   if (loadins.dyCate) return;
   try {
-    loadins.dyCate = true
-    const res = await common.getDouyinIndustryList({
-      scene: 1
+    loadins.dyCate = true;
+    const dayType = rankingData.value[activeRankingType.value]?.settings?.rankingTime;
+    const res = await common.getIdustryNameList({
+      platform: 2,
+      dayType: dayType
     })
     const categories = res.data || []
     // 将字符串数组转换为 select options
@@ -352,8 +362,6 @@ const loadDouyinCategories = async () => {
     loadins.dyCate = false;
   } catch (error) {
     loadins.dyCate = false;
-    console.error('加载抖音类目失败:', error)
-    // message.error('加载抖音类目失败')
   }
 }
 
@@ -362,9 +370,16 @@ const loadJinniuCategories = async () => {
   if (loadins.jnCate) return;
   try {
     loadins.jnCate = true
-    const res = await common.getJnCategories()
-    const categories = res.data[0]?.children || []
-    categoryOptions.value = categories;
+    const dayType = rankingData.value[activeRankingType.value]?.settings?.rankingTime;
+    const res = await common.getIdustryNameList({
+      platform: 1,
+      dayType: dayType
+    });
+    const categories = res.data || []
+    categoryOptions.value = categories.map((cat: string) => ({
+      label: cat,
+      value: cat
+    }));
     loadins.jnCate = false;
   } catch (error) {
     loadins.jnCate = false;
@@ -455,14 +470,15 @@ const loadTaskList = async () => {
       pageNum: pagination.page || 1,
       pageSize: pagination.pageSize || 15
     });
-
+    // const
     // 转换后端数据为前端格式
     tasks.value = res.data.map((task: any) => ({
       ...task,
       id: task.id.toString(),
       taskName: task.taskNo,
       count: task.daqCount,
-      status: task.taskStatus === 1 ? 'completed' : 'collecting',
+      taskStatus: task.taskStatus,
+
       createTime: task.createdAt,
       categories: [],
       productCount: 0,
@@ -555,7 +571,7 @@ const handleStartCollection = async () => {
     const res = await collection1688.saveTask({
       taskList: taskList,
     });
-    if(res?.code!=200) throw new Error(res?.msg)
+    if (res?.code != 200) throw new Error(res?.msg)
     // 刷新任务列表
     await loadTaskList()
   } catch (error: any) {
@@ -675,14 +691,15 @@ const handleClearAll = async () => {
   }
 }
 
-const getStatusText = (status: CollectionTask['status']) => {
-  const statusMap = {
-    collecting: '采集中',
-    completed: '已完成',
-    failed: '失败',
-    stopped: '已停止'
-  }
-  return statusMap[status]
+
+const statusMap = {
+  0: '采集中',
+  1: '已完成',
+  2: '失败',
+}
+const getStatusText = (taskStatus: CollectionTask['taskStatus']) => {
+
+  return statusMap[taskStatus]
 }
 function formatDatetime(datetime: string, options: { removeYear?: boolean, removeSecond?: boolean } = {}) {
   const {
@@ -745,7 +762,7 @@ const columns: DataTableColumns<CollectionTask> = [
         {
           trigger: () => h('div', {}, [
             h('div', { class: 'font-weight-bold' }, row.taskNo),
-            h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, () => [calcDurationMinSecText(row.createdAt, row.finishedAt), row.status == 'collecting' ? h('span', { class: 'dot-loading'}) : null]),
+            h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, () => [calcDurationMinSecText(row.createdAt, row.finishedAt), row.taskStatus == 0 ? h('span', { class: 'dot-loading' }) : null]),
           ]),
           default: () => h('div', {}, [
             h(NScrollbar, { class: 'font-12', style: 'margin-bottom: 4px;max-width: 240px;', xScrollable: true }, h('div', { style: 'white-space: nowrap' }, industryName.map(_ => {
@@ -762,24 +779,24 @@ const columns: DataTableColumns<CollectionTask> = [
     title: '榜单类型',
     key: 'count',
     width: 80,
-    render: (row: any) => { 
+    render: (row: any) => {
       return [
         h('div', row.taskType == 1 ? '金牛' : '抖音'),
         // h('span', '' + (row.count || '--')),
       ]
-      
+
     }
   },
   {
     title: '采集条数',
     key: 'count',
     width: 80,
-    render: (row: any) => { 
+    render: (row: any) => {
       return [
         // h('div', row.taskType == 1 ? '金牛' : '抖音'),
         h('span', '' + (row.count || '--')),
       ]
-      
+
     }
   },
   {
@@ -787,7 +804,7 @@ const columns: DataTableColumns<CollectionTask> = [
     key: 'status',
     width: 80,
     render: (row) => {
-      return getStatusText(row.status);
+      return getStatusText(row.taskStatus);
     }
   },
   {
@@ -798,7 +815,7 @@ const columns: DataTableColumns<CollectionTask> = [
     width: 100,
     render: (row) => {
       return h(NSpace, { size: 8, align: 'center', justify: 'center' }, () => [
-        row.status === 'collecting' && h(
+        row.taskStatus == 0 && h(
           NPopconfirm,
           {
             onPositiveClick: () => handleStopTask(row.id)
@@ -812,7 +829,7 @@ const columns: DataTableColumns<CollectionTask> = [
             default: () => '确定停止该任务吗？'
           }
         ),
-        (row.status === 'completed' || row.status === 'stopped') && h(
+        (row.taskStatus == 1) && h(
           NButton,
           {
             text: true,
@@ -824,7 +841,7 @@ const columns: DataTableColumns<CollectionTask> = [
           },
           { default: () => '下载' }
         ),
-        (row.status === 'completed' || row.status === 'stopped' || row.status === 'failed') && h(
+        (row.taskStatus == 1 || row.taskStatus == 2) && h(
           NPopconfirm,
           {
             onPositiveClick: () => handleDelete(row.id)
@@ -862,6 +879,7 @@ const setup = async () => {
   if (!isLoggedTo1688.value) {
     message.warning('请登录1688.com')
   }
+  switchRankingType(activeRankingType.value)
   // 加载任务列表
   loadTaskList();
 };
@@ -914,8 +932,4 @@ setup()
 .ranking-tab :deep(.n-checkbox .n-checkbox-box) {
   border-radius: 3px;
 }
-
-
-
-
 </style>
