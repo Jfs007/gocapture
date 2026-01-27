@@ -74,6 +74,16 @@
           </n-space>
         </n-space>
 
+        <!-- 附加选项 -->
+        <n-space align="center" :size="[12, 8]" v-if="activeRankingType">
+          <n-checkbox v-model:checked="dropShippingEnabled" size="small">
+            <n-text class="font-12">一键代发</n-text>
+          </n-checkbox>
+          <n-checkbox v-model:checked="douyinLabelEnabled" size="small">
+            <n-text class="font-12">支持抖音面单</n-text>
+          </n-checkbox>
+        </n-space>
+
         <!-- 开始采集按钮 -->
         <n-button size="small" type="primary" block
           :disabled="!activeRankingType || currentSelectedCategories.length === 0 || isCollecting"
@@ -156,6 +166,10 @@ const activeRankingType = ref<string>('')
 
 // 已启用的榜单类型（多选）- 用于采集
 const enabledRankings = ref<string[]>([])
+
+// 附加选项
+const dropShippingEnabled = ref(false) // 一键代发
+const douyinLabelEnabled = ref(false)  // 支持抖音面单
 
 // 每个榜单类型的独立数据
 const rankingData = ref<Record<string, {
@@ -563,7 +577,9 @@ const handleStartCollection = async () => {
         industryNameList: data.selectedCategories.map(cat => cat.label),
         dayType: getDayTypeValue(data.settings.rankingTime),
         productCountPerIndustry: data.settings.maxProductsPerCategory,
-        factoryCountPerProduct: data.settings.maxFactoriesPerProduct
+        factoryCountPerProduct: data.settings.maxFactoriesPerProduct,
+        dropShipping: dropShippingEnabled.value ? '1988226' : '', // 一键代发
+        taskTags: douyinLabelEnabled.value ? '386434' : ''        // 抖音面单
       }
     })
 
