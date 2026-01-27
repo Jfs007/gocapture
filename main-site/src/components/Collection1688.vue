@@ -340,7 +340,8 @@ const loadCategories = () => {
 const switchRankingType = async (type: string) => {
   // 单选模式，直接切换到编辑模式
   activeRankingType.value = type
-  currentCategory.value = null
+  currentCategory.value = null;
+  toggleRankingEnabled(type, true)
 
   loadCategories();
 }
