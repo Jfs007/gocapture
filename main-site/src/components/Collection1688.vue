@@ -1,11 +1,11 @@
 <template>
   <n-space vertical :size="16">
-    <!-- 采集榜单 -->
+    <!-- 采集方式 -->
     <n-card size="small" :content-style="{ padding: '0 6px 10px 6px' }"
       :header-style="{ padding: '0 10px 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }">
       <template #header>
         <n-space align="center" :size="12">
-          <n-text style="font-size: 14px">采集榜单</n-text>
+          <n-text style="font-size: 14px">采集方式</n-text>
           <n-space :size="0" align="center" class="ranking-type-tabs">
             <div v-for="type in rankingTypeOptions" :key="type.value"
               :class="['ranking-tab', { 'ranking-tab-active': activeRankingType === type.value }]"
@@ -18,22 +18,20 @@
         </n-space>
       </template>
       <template #header-extra>
-        <n-text depth="3" class="font-12">
+        <!-- <n-text depth="3" class="font-12">
           (支持多选一起采集)
-        </n-text>
+        </n-text> -->
       </template>
 
       <n-space vertical>
 
         <!-- 榜单类目和榜单时效 -->
-        <n-space align="center" v-if="activeRankingType">
+        <n-space align="center" v-if="activeRankingType && activeRankingType !== 'search1688'">
           <n-space align="center" :size="[4, 8]">
             <n-text class="font-12">榜单类目</n-text>
-            <n-select filterable :loading="loadins.jnCate" v-if="activeRankingType === 'jinniu'" 
-              v-model:value="currentCategory" 
-              :consistent-menu-width="false"
-              :options="categoryOptions" size="small" placeholder="榜单类目"
-              style="width: 130px" @update:value="handleCategorySelect" />
+            <n-select filterable :loading="loadins.jnCate" v-if="activeRankingType === 'jinniu'"
+              v-model:value="currentCategory" :consistent-menu-width="false" :options="categoryOptions" size="small"
+              placeholder="榜单类目" style="width: 130px" @update:value="handleCategorySelect" />
             <n-select filterable :loading="loadins.dyCate" v-else-if="activeRankingType === 'douyin'"
               v-model:value="currentCategory" :options="douyinCategoryOptions" size="small" placeholder="榜单类目"
               :consistent-menu-width="false" style="width: 130px" @update:value="handleCategorySelect" />
@@ -46,47 +44,68 @@
               style="width: 120px" @update:value="refreshCategories" />
           </n-space>
         </n-space>
-
-        <!-- 已选类目 -->
-        <div v-if="currentSelectedCategories.length > 0" class="flex">
-          <n-text class="font-12 flex-none mr-4">已选类目</n-text>
-          <n-space :size="8">
-            <n-tag v-for="cat in currentSelectedCategories" :key="cat.value" size="small" closable
-              @close="handleRemoveCategory(cat.value)">
-              {{ cat.label }}
-            </n-tag>
+        <template v-if="activeRankingType && activeRankingType === 'search1688'">
+          <!-- 1688 搜索结果采集指导 -->
+          <n-space vertical :size="8" style="width: 100%">
+            <n-tooltip trigger="hover" placement="bottom-start" :show-arrow="true" style="max-width: 440px;">
+              <template #trigger>
+                <n-button text type="primary" size="small" class="font-12">
+                  📸 如何获取
+                </n-button>
+              </template>
+              <div>
+                <img :src="img1688step1" style="width: 100%; margin-bottom: 12px; border-radius: 4px" />
+                <img :src="img1688step2" style="width: 100%; border-radius: 4px" />
+              </div>
+            </n-tooltip>
+            <n-input size="small" v-model:value="currentSettings.url" placeholder="支持找货源/找工厂/供应商三种类型搜索结果地址"
+              style="width: 100%" />
+            <div v-if="currentSettings.url && !isValid1688Url(currentSettings.url)" class="color-error font-12">
+              地址格式不正确，请使用上方支持的 1688 搜索结果链接（可包含 query 参数）
+            </div>
           </n-space>
-        </div>
+        </template>
+        <template v-if="activeRankingType && activeRankingType !== 'search1688'">
+          <!-- 已选类目 -->
+          <div v-if="currentSelectedCategories.length > 0" class="flex">
+            <n-text class="font-12 flex-none mr-4">已选类目</n-text>
+            <n-space :size="8">
+              <n-tag v-for="cat in currentSelectedCategories" :key="cat.value" size="small" closable
+                @close="handleRemoveCategory(cat.value)">
+                {{ cat.label }}
+              </n-tag>
+            </n-space>
+          </div>
 
-        <!-- 采集设置 -->
-        <n-space align="center" :size="12" v-if="activeRankingType">
-          <n-space align="center" :size="[4, 8]">
-            <n-text class="font-12">单类目最多采集</n-text>
-            <n-input-number size="small" v-model:value="currentSettings.maxProductsPerCategory" :min="1"
-              :max="40000 / currentSettings.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
-            <n-text class="font-12">条商品</n-text>
+          <!-- 采集设置 -->
+          <n-space align="center" :size="12">
+            <n-space align="center" :size="[4, 8]">
+              <n-text class="font-12">单类目最多采集</n-text>
+              <n-input-number size="small" v-model:value="currentSettings.maxProductsPerCategory" :min="1"
+                :max="40000 / currentSettings?.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
+              <n-text class="font-12">条商品</n-text>
+            </n-space>
+            <n-space align="center" :size="[4, 8]">
+              <n-text class="font-12">单商品最多采集</n-text>
+              <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
+                :max="40000 / currentSettings?.maxProductsPerCategory" :show-button="false" style="width: 60px" />
+              <n-text class="font-12">条工厂信息</n-text>
+            </n-space>
           </n-space>
-          <n-space align="center" :size="[4, 8]">
-            <n-text class="font-12">单商品最多采集</n-text>
-            <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
-              :max="40000 / currentSettings.maxProductsPerCategory" :show-button="false" style="width: 60px" />
-            <n-text class="font-12">条工厂信息</n-text>
+
+          <!-- 附加选项 -->
+          <n-space align="center" :size="[12, 8]">
+            <n-checkbox v-model:checked="dropShippingEnabled" size="small">
+              <n-text class="font-12">一键代发</n-text>
+            </n-checkbox>
+            <n-checkbox v-model:checked="douyinLabelEnabled" size="small">
+              <n-text class="font-12">支持抖音面单</n-text>
+            </n-checkbox>
           </n-space>
-        </n-space>
-
-        <!-- 附加选项 -->
-        <n-space align="center" :size="[12, 8]" v-if="activeRankingType">
-          <n-checkbox v-model:checked="dropShippingEnabled" size="small">
-            <n-text class="font-12">一键代发</n-text>
-          </n-checkbox>
-          <n-checkbox v-model:checked="douyinLabelEnabled" size="small">
-            <n-text class="font-12">支持抖音面单</n-text>
-          </n-checkbox>
-        </n-space>
-
+        </template>
         <!-- 开始采集按钮 -->
         <n-button size="small" type="primary" block
-          :disabled="!activeRankingType || currentSelectedCategories.length === 0 || isCollecting"
+          :disabled="!activeRankingType || (activeRankingType !== 'search1688' && currentSelectedCategories.length === 0) || isCollecting"
           :loading="isCollecting" @click="handleStartCollection">
           开始采集
         </n-button>
@@ -127,10 +146,10 @@ import {
   NSpace,
   NCard,
   NText,
-  NCascader,
   NSelect,
   NTag,
   NInputNumber,
+  NInput,
   NButton,
   NDataTable,
   NPopconfirm,
@@ -143,13 +162,12 @@ import {
 import type { CollectionTask, SelectedCategory, CollectionSettings } from '../types/collection'
 import { RANKING_TIME_OPTIONS } from '../data/categories'
 import { common, collection1688 } from '../api'
-// import { download } from '../utils/request'
 import { use1688 } from './use1688'
-import useExport from '../hooks/useExport'
+import img1688step1 from '../images/1688search1_compressed.jpg'
+import img1688step2 from '../images/1688search2_compressed.jpg'
 
 const message = useMessage()
 const { getUserInfo } = use1688()
-const { exportSheets } = useExport()
 const loading = ref(false);
 const categoryOptions = ref([]);
 const douyinCategoryOptions = ref([]);
@@ -158,7 +176,8 @@ const rankingTimeOptions = RANKING_TIME_OPTIONS
 // 榜单类型选项
 const rankingTypeOptions = [
   { label: '抖音榜单', value: 'douyin' },
-  { label: '金牛榜单', value: 'jinniu' }
+  { label: '金牛榜单', value: 'jinniu' },
+  { label: '1688结果采集', value: 'search1688' }
 ]
 
 // 当前激活的榜单类型（单选）- 用于编辑
@@ -193,8 +212,29 @@ const rankingData = ref<Record<string, {
       maxProductsPerCategory: 100,
       maxFactoriesPerProduct: 50
     }
+  },
+  search1688: {
+    // selectedCategories: [],
+    settings: {
+      // maxProductsPerCategory: 100,
+      // maxFactoriesPerProduct: 50,
+      url: ''
+    }
   }
 })
+
+
+// 校验 1688 搜索结果地址（允许携带 query params）
+const isValid1688Url = (url: string) => {
+  if (!url) return false
+  try {
+    const u = url.trim()
+    const re = /^https:\/\/s\.1688\.com(?:\/company\/company_search\.htm|\/company\/pc\/factory_search\.htm|\/selloffer\/offer_search\.htm)(?:[?#].*)?$/i
+    return re.test(u)
+  } catch (e) {
+    return false
+  }
+}
 
 // 当前激活榜单的选中类目
 const currentSelectedCategories = computed(() => {
@@ -525,10 +565,15 @@ const handleStartCollection = async () => {
     return
   }
 
-  // 验证所有启用的榜单都有选择类目
+  // 验证所有启用的榜单都有选择类目或有效 URL（针对 1688 搜索结果采集）
   const invalidRankings = enabledRankings.value.filter(type => {
     const data = rankingData.value[type]
-    return !data || data.selectedCategories.length === 0
+    if (!data) return true
+    if (type === 'search1688') {
+      const u = data.settings?.url || ''
+      return !u || !isValid1688Url(u)
+    }
+    return data.selectedCategories.length === 0
   })
 
   if (invalidRankings.length > 0) {
@@ -536,7 +581,7 @@ const handleStartCollection = async () => {
       const option = rankingTypeOptions.find(opt => opt.value === type)
       return option?.label || type
     }).join('、')
-    message.warning(`${rankingNames} 还未选择榜单类目`)
+    message.warning(`${rankingNames} 配置不完整（请检查类目或 URL）`)
     return
   }
 
@@ -571,10 +616,20 @@ const handleStartCollection = async () => {
     // 构建所有启用榜单的任务数据数组
     const taskList = enabledRankings.value.map(type => {
       const data = rankingData.value[type]
+      if (type === 'search1688') {
+        // 按要求：1688 结果采集只提交链接
+        return {
+          taskType: 3,
+          cookie: info.cookie,
+          userId: info.object.unb,
+          taskUrl: data.settings?.url || ''
+        }
+      }
+      const taskType = type === 'douyin' ? 2 : 1
       return {
         userId: info.object.unb,
         cookie: info.cookie,
-        taskType: type == 'douyin' ? 2 : 1, // 榜单类型：douyin 或 jinniu
+        taskType: taskType,
         industryNameList: data.selectedCategories.map(cat => cat.label),
         dayType: getDayTypeValue(data.settings.rankingTime),
         productCountPerIndustry: data.settings.maxProductsPerCategory,
@@ -797,7 +852,9 @@ const columns: DataTableColumns<CollectionTask> = [
     key: 'count',
     width: 80,
     render: (row: any) => {
+      if(row.taskType == 3) return h('div', '1688s结果采集');
       return [
+        
         h('div', row.taskType == 1 ? '金牛' : '抖音'),
         // h('span', '' + (row.count || '--')),
       ]
@@ -888,7 +945,11 @@ const setup = async () => {
       enabledRankings.value = savedConfig.enabledRankings
     }
     if (savedConfig.rankingData) {
-      rankingData.value = savedConfig.rankingData
+      // 合并保存的配置与默认值，防止新增采集方式丢失
+      rankingData.value = {
+        ...rankingData.value,
+        ...savedConfig.rankingData
+      }
     }
   }
 
