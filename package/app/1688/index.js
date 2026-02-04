@@ -152,6 +152,7 @@
     }
 
     function waitForDialog(selector, callback) {
+        let timer = null;
         const el = document.querySelector(selector)
         if (el) {
             callback(el)
@@ -161,6 +162,8 @@
         const observer = new MutationObserver(() => {
             const el = document.querySelector(selector)
             if (el) {
+                clearTimeout(timer);
+                timer = null;
                 observer.disconnect()
                 callback(el)
             }
@@ -169,11 +172,21 @@
         observer.observe(document.body, {
             childList: true,
             subtree: true
-        })
+        });
+
+        timer = setTimeout(() => {
+            observer.disconnect();
+            callback();
+        }, 1500)
     }
 
     // 使用
     waitForDialog('.baxia-dialog', (dialog) => {
+        if (!dialog) {
+            window.close();
+            window.open('https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85')
+            return;
+        }
         if (authType === 'SLIDING_BLOCK') {
             triggerSLIDINGBLOCK();
         }
@@ -184,7 +197,7 @@
     if (nav?.type === 'reload') {
         createModal('请稍等...');
         setTimeout(() => {
-            
+
             updateUrlAndReload({
                 __AUTH_TYPE__: 'TOKEN'
             });

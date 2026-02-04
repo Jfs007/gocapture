@@ -11,7 +11,7 @@ const execAsync = promisify(exec);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const accessToken = 'f76f0cbd63949be297f2cfde167362d7';
+const accessToken = 'd9d0ccc6930294552decb2afe079287a';
 // 配置
 const config = {
   accessKeyId: '',

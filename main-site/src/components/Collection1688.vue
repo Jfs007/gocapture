@@ -76,23 +76,31 @@
               </n-tag>
             </n-space>
           </div>
+        </template>
 
-          <!-- 采集设置 -->
-          <n-space align="center" :size="12">
-            <n-space align="center" :size="[4, 8]">
-              <n-text class="font-12">单类目最多采集</n-text>
-              <n-input-number size="small" v-model:value="currentSettings.maxProductsPerCategory" :min="1"
-                :max="40000 / currentSettings?.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
-              <n-text class="font-12">条商品</n-text>
-            </n-space>
-            <n-space align="center" :size="[4, 8]">
-              <n-text class="font-12">单商品最多采集</n-text>
-              <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
-                :max="40000 / currentSettings?.maxProductsPerCategory" :show-button="false" style="width: 60px" />
-              <n-text class="font-12">条工厂信息</n-text>
-            </n-space>
+        <!-- 采集设置 -->
+        <n-space align="center" :size="12">
+          <n-space align="center" :size="[4, 8]" v-if="activeRankingType && activeRankingType !== 'search1688'">
+            <n-text class="font-12">单类目最多采集</n-text>
+            <n-input-number size="small" v-model:value="currentSettings.maxProductsPerCategory" :min="1"
+              :max="40000 / currentSettings?.maxFactoriesPerProduct" :show-button="false" style="width: 60px" />
+            <n-text class="font-12">条商品</n-text>
+          </n-space>
+          <n-space align="center" :size="[4, 8]" v-if="activeRankingType && activeRankingType !== 'search1688'">
+            <n-text class="font-12">单商品最多采集</n-text>
+            <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
+              :max="40000 / currentSettings?.maxProductsPerCategory" :show-button="false" style="width: 60px" />
+            <n-text class="font-12">条工厂信息</n-text>
           </n-space>
 
+           <n-space align="center" :size="[4, 8]" v-if="activeRankingType && activeRankingType == 'search1688'">
+            <n-text class="font-12">本次最多采集前</n-text>
+            <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
+              :max="40000 / currentSettings?.maxProductsPerCategory" :show-button="false" style="width: 60px" />
+            <n-text class="font-12">条公司</n-text>
+          </n-space>
+        </n-space>
+        <template v-if="activeRankingType && activeRankingType !== 'search1688'">
           <!-- 附加选项 -->
           <n-space align="center" :size="[12, 8]">
             <n-checkbox v-model:checked="dropShippingEnabled" size="small">
@@ -103,6 +111,7 @@
             </n-checkbox>
           </n-space>
         </template>
+
         <!-- 开始采集按钮 -->
         <n-button size="small" type="primary" block
           :disabled="!activeRankingType || (activeRankingType !== 'search1688' && currentSelectedCategories.length === 0) || isCollecting"
@@ -217,7 +226,7 @@ const rankingData = ref<Record<string, {
     // selectedCategories: [],
     settings: {
       // maxProductsPerCategory: 100,
-      // maxFactoriesPerProduct: 50,
+      maxFactoriesPerProduct: 100,
       url: ''
     }
   }
@@ -227,10 +236,25 @@ const rankingData = ref<Record<string, {
 // 校验 1688 搜索结果地址（允许携带 query params）
 const isValid1688Url = (url: string) => {
   if (!url) return false
+  // return true;
   try {
-    const u = url.trim()
-    const re = /^https:\/\/s\.1688\.com(?:\/company\/company_search\.htm|\/company\/pc\/factory_search\.htm|\/selloffer\/offer_search\.htm)(?:[?#].*)?$/i
-    return re.test(u)
+    const u = url.trim().toLowerCase()
+    // 检查是否以 https://s.1688.com 开头
+    if (!u.startsWith('https://s.1688.com/')) return false
+    
+    // 提取路径部分（移除 query 和 hash）
+    const pathMatch = u.match(/^https:\/\/s\.1688\.com(\/[^?#]+)/)
+    if (!pathMatch || !pathMatch[1]) return false
+    
+    const path = pathMatch[1]
+    // 检查路径是否匹配允许的三种类型
+    const allowedPaths = [
+      '/company/company_search.htm',
+      '/company/pc/factory_search.htm',
+      '/selloffer/offer_search.htm'
+    ]
+    
+    return allowedPaths.some(allowedPath => path === allowedPath || path.startsWith(allowedPath + '?') || path.startsWith(allowedPath + '#'))
   } catch (e) {
     return false
   }
@@ -567,14 +591,16 @@ const handleStartCollection = async () => {
 
   // 验证所有启用的榜单都有选择类目或有效 URL（针对 1688 搜索结果采集）
   const invalidRankings = enabledRankings.value.filter(type => {
-    const data = rankingData.value[type]
+    const data = rankingData.value[type];
     if (!data) return true
     if (type === 'search1688') {
       const u = data.settings?.url || ''
       return !u || !isValid1688Url(u)
     }
     return data.selectedCategories.length === 0
-  })
+  }).filter(Boolean);
+
+  // console.log('invalidRankings', invalidRankings, );
 
   if (invalidRankings.length > 0) {
     const rankingNames = invalidRankings.map(type => {
@@ -603,10 +629,13 @@ const handleStartCollection = async () => {
   const res = await collection1688.checkCookie({
     cookie: info.cookie
   });
+  const hasUse1688Link = enabledRankings.value.includes('search1688');
+  const data = rankingData.value['search1688'];
   if (res.code != 200) {
     remove1688UserInfo();
     // cookie无效，去滑块验证吧
-    window.open('https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK');
+    const cookieUrl = 0 ? data.settings?.url + '&__AUTH_TYPE__=SLIDING_BLOCK' : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
+    window.open(cookieUrl);
     isCollecting.value = false;
     return;
   }
@@ -622,7 +651,8 @@ const handleStartCollection = async () => {
           taskType: 3,
           cookie: info.cookie,
           userId: info.object.unb,
-          taskUrl: data.settings?.url || ''
+          taskUrl: data.settings?.url || '',
+          factoryCountPerProduct: data.settings.maxFactoriesPerProduct,
         }
       }
       const taskType = type === 'douyin' ? 2 : 1
@@ -630,7 +660,7 @@ const handleStartCollection = async () => {
         userId: info.object.unb,
         cookie: info.cookie,
         taskType: taskType,
-        industryNameList: data.selectedCategories.map(cat => cat.label),
+        industryNameList: (data.selectedCategories||[]).map(cat => cat.label).filter(Boolean),
         dayType: getDayTypeValue(data.settings.rankingTime),
         productCountPerIndustry: data.settings.maxProductsPerCategory,
         factoryCountPerProduct: data.settings.maxFactoriesPerProduct,
@@ -852,9 +882,9 @@ const columns: DataTableColumns<CollectionTask> = [
     key: 'count',
     width: 80,
     render: (row: any) => {
-      if(row.taskType == 3) return h('div', '1688s结果采集');
+      if (row.taskType == 3) return h('div', '1688s结果采集');
       return [
-        
+
         h('div', row.taskType == 1 ? '金牛' : '抖音'),
         // h('span', '' + (row.count || '--')),
       ]
@@ -942,7 +972,7 @@ const setup = async () => {
       activeRankingType.value = savedConfig.activeRankingType
     }
     if (savedConfig.enabledRankings) {
-      enabledRankings.value = savedConfig.enabledRankings
+      enabledRankings.value = savedConfig.enabledRankings.filter(Boolean)
     }
     if (savedConfig.rankingData) {
       // 合并保存的配置与默认值，防止新增采集方式丢失

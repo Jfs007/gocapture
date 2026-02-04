@@ -23,10 +23,11 @@ export interface CollectionTask {
 }
 
 export interface CollectionSettings {
-  categories: SelectedCategory[];
-  rankingTime: number;
+  categories?: SelectedCategory[];
+  rankingTime?: number;
   maxProductsPerCategory: number;
   maxFactoriesPerProduct: number;
+  url?: string;
 }
 
 export {};
