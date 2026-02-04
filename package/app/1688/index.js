@@ -1,8 +1,9 @@
 !async function () {
     // if (window.top !== window.self) return;
     const mdChrome = _require('mdChrome');
-    const authType = new URLSearchParams(window.location.search)
-        .get('__AUTH_TYPE__');
+    const search = new URLSearchParams(window.location.search);
+    const authType = search.get('__AUTH_TYPE__');
+    const notToRedirect = search.get('__NOT_TO__REDIRECT__')
 
     // 创建居中弹窗
     const createModal = (message) => {
@@ -173,18 +174,18 @@
             childList: true,
             subtree: true
         });
-
+        if (notToRedirect == 'YES') return;
+        if (authType != 'SLIDING_BLOCK') return;
         timer = setTimeout(() => {
             observer.disconnect();
             callback();
-        }, 1500)
+        }, 1700)
     }
 
     // 使用
     waitForDialog('.baxia-dialog', (dialog) => {
         if (!dialog) {
-            window.close();
-            window.open('https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85&__AUTH_TYPE__=SLIDING_BLOCK')
+            location.href = 'https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85&__AUTH_TYPE__=SLIDING_BLOCK&__NOT_TO__REDIRECT__=YES'
             return;
         }
         if (authType === 'SLIDING_BLOCK') {
