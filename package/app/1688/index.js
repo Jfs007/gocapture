@@ -184,7 +184,7 @@
     waitForDialog('.baxia-dialog', (dialog) => {
         if (!dialog) {
             window.close();
-            window.open('https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85')
+            window.open('https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85&__AUTH_TYPE__=SLIDING_BLOCK')
             return;
         }
         if (authType === 'SLIDING_BLOCK') {
