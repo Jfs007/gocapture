@@ -184,6 +184,7 @@
 
     // 使用
     waitForDialog('.baxia-dialog', (dialog) => {
+        console.log(dialog, 'dialog去哪了');
         if (!dialog) {
             location.href = 'https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85&__AUTH_TYPE__=SLIDING_BLOCK&__NOT_TO__REDIRECT__=YES'
             return;
