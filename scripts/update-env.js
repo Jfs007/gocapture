@@ -38,6 +38,8 @@ if (!env || !envConfigs[env]) {
 
 // manifest.json 文件路径
 const manifestPath = path.join(__dirname, '../package/manifest.json');
+// config.json 文件路径
+const configPath = path.join(__dirname, '../package/app/config.json');
 
 // 压缩 package 文件夹为 zip
 function zipPackage() {
@@ -100,9 +102,23 @@ try {
   // 写回文件,保持格式化
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
 
+  // 更新 config.json 的 version (使用时间戳)
+  const configContent = fs.readFileSync(configPath, 'utf8');
+  const config = JSON.parse(configContent);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  config.version = `${year}${month}${day}.${hours}${minutes}${seconds}`;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 4), 'utf8');
+
   console.log(`✅ 成功更新环境配置为: ${env}`);
   console.log(`   source: ${envConfigs[env].source}`);
   console.log(`   api: ${envConfigs[env].api}`);
+  console.log(`   config.json version: ${config.version}`);
 
   // 压缩 package 文件夹
   zipPackage().then(() => {
