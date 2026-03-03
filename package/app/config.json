@@ -22,7 +22,10 @@
             ]
         }
     },
-    "version": "20260206.095031",
+    "canInjectIframeList": [
+        "https://search.1688.com"
+    ],
+    "version": "20260303.140613",
     "success": true,
     "api": ""
 }

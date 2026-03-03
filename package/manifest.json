@@ -64,7 +64,8 @@
         "css/index.css"
       ],
       "matches": [
-        "<all_urls>"
+        "<all_urls>",
+        "https://search.1688.com/*"
       ],
       "all_frames": true,
       "run_at": "document_start",
@@ -252,6 +253,7 @@
       "*://*.zhizunbao668.com/*",
       "*://*.chuangyujie.com/*",
       "*://*.m.1688.com/*",
+      "*://*.1688.com/*",
       "*://*.laipuhuo.com/*",
       "*://*.jsyxli.com/*",
       "*://*.weixin.qq.com/*"

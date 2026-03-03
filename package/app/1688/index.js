@@ -5,6 +5,15 @@
     const authType = search.get('__AUTH_TYPE__');
     const notToRedirect = search.get('__NOT_TO__REDIRECT__')
 
+    if (authType == 'SLIDING_BLOCK') {
+        if (window.localStorage) {
+            localStorage.clear();
+        }
+        if (window.sessionStorage) {
+            sessionStorage.clear();
+        }
+    }
+
     // 创建居中弹窗
     const createModal = (message) => {
         // 创建遮罩层

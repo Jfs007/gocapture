@@ -272,13 +272,11 @@ async function GetConfig(context, sender, callback) {
   // 2️⃣ 获取 manifest 信息
   context.isSub = sender.frameId && sender.frameId > 0;
 
+
   const manifest = chrome.runtime.getManifest();
   const { site } = manifest.env || {};
-  if (context.isSub) {
-    if (url.indexOf(site) < 0) return;
-    // if (!url) return; // 没有 url 就不请求
-    // if (!(await checkHasSubUrl(url))) return; // url 不在允许列表
-  }
+
+
   if (manifest.env) {
     CONFIG_BASE_URL = manifest.env.source;
     APP_API = manifest.env.api;
@@ -305,6 +303,13 @@ async function GetConfig(context, sender, callback) {
   // 4️⃣ 请求配置
   const response = await fetch(GetConfigUrl(), { headers });
   const data = await response.json();
+  const canInjectIframeList = data.canInjectIframeList || [];
+  if (context.isSub) {
+    const canInjectIframe = canInjectIframeList.find(frameUrl => {
+      if (url.indexOf(frameUrl) > -1) return true;
+    });
+    if (!(url.indexOf(site) >= 0 || canInjectIframe)) return;
+  }
 
 
 
@@ -320,7 +325,8 @@ async function GetConfig(context, sender, callback) {
     ExeCodeMap = {};
 
   }
-  // console.log('配置', result);
+
+  console.log('========sender=======', sender);
   Object.keys(result).map(key => {
     let item = result[key] || [];
     item = item.filter(url => {
@@ -347,7 +353,6 @@ async function GetConfig(context, sender, callback) {
  * @param {Function} sendResponse - 回调函数，用于异步返回
  */
 async function hotCodeLister(message, sender, sendResponse) {
-  console.log('注入代码', sender, message);
   // 2️⃣ 注入本地通用 JS 文件
   await requestLocalExecuteScript({}, message, sender);
 
@@ -539,7 +544,6 @@ async function cookieLister(message, sender, sendResponse) {
 
   // 默认操作：获取指定域名下所有 Cookie
   const allCookies = await chrome.cookies.getAll({ domain: message.myDomain });
-  // console.log('获取 Cookie:', allCookies, message);
   const cookiesArray = [];
   let cookiesString = "";
 
@@ -687,7 +691,6 @@ const httpRule = {
 const fetchPatch = (url) => {
   const manifest = chrome.runtime.getManifest();
   const { api } = manifest.env || {};
-  console.log(api, 'api');
   if (!(/^https?:\/\//i.test(url))) {
     return api + url;
   }
@@ -785,8 +788,6 @@ async function fetchWithRules(config, sender, callback) {
   // }
   const { url, fetchOptions } = await fetchInspectConfig(config)
 
-  console.log('Fetch URL:', url, fetchOptions);
-
   fetch(url, fetchOptions)
     .then(async (res) => {
       if (config.blob) {
@@ -811,7 +812,6 @@ async function fetchWithRules(config, sender, callback) {
       };
 
       if (config.isNotNeedClearRules) return callback(result);
-      console.log('clear rules', result);
       httpRule.clear().then(() => callback(result));
     })
     .catch((err) => {
