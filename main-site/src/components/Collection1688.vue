@@ -582,22 +582,23 @@ const refresh = () => {
   loadTaskList();
 }
 
-function appendParams(rawUrl, params) {
-  if (!rawUrl) return rawUrl
+function appendParams(url, rawQuery) {
+  if (!url) return url
 
-  let url
+  const hashIndex = url.indexOf('#')
 
-  try {
-    url = new URL(rawUrl)
-  } catch {
-    url = new URL(rawUrl, 'http://dummy.com')
+  let base = url
+  let hash = ''
+
+  if (hashIndex !== -1) {
+    base = url.slice(0, hashIndex)
+    hash = url.slice(hashIndex)
   }
 
-  Object.entries(params).forEach(([k, v]) => {
-    url.searchParams.set(k, v)
-  })
+  const hasQuery = base.includes('?')
+  const connector = hasQuery ? '&' : '?'
 
-  return url.href
+  return base + connector + rawQuery + hash
 }
 const continueCollection = async (row: any = {}) => {
 
@@ -621,14 +622,15 @@ const continueCollection = async (row: any = {}) => {
     // isCollecting.value = true;
     let res = await collection1688.checkCookie({
       cookie: info.cookie,
-      taskUrl: row.taskUrl
+      taskUrl: row.taskUrl,
+      userId: info.object.unb,
 
     });
     if (res.code != 200) {
       remove1688UserInfo();
       const data = rankingData.value['search1688'];
       // cookie无效，去滑块验证吧
-      const cookieUrl = data.settings?.url ?  appendParams(data.settings?.url, { __AUTH_TYPE__: 'SLIDING_BLOCK'}) : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
+      const cookieUrl = data.settings?.url ?  appendParams(data.settings?.url, '__AUTH_TYPE__=SLIDING_BLOCK') : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
       window.open(cookieUrl);
        exportLoading.value[row.id] = false;
       // isCollecting.value = false;
@@ -707,14 +709,15 @@ const handleStartCollection = async () => {
   }).filter(Boolean);
   const res = await collection1688.checkCookie({
     cookie: info.cookie,
-    taskUrl: urls.join(',')
+    taskUrl: urls.join(','),
+    userId: info.object.unb,
   });
   const hasUse1688Link = enabledRankings.value.includes('search1688');
   const data = rankingData.value['search1688'];
   if (res.code != 200) {
     remove1688UserInfo();
     // cookie无效，去滑块验证吧
-    const cookieUrl = data.settings?.url ? appendParams(data.settings?.url, { __AUTH_TYPE__: 'SLIDING_BLOCK'}) : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
+    const cookieUrl = data.settings?.url ? appendParams(data.settings?.url, '__AUTH_TYPE__=SLIDING_BLOCK') : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
     window.open(cookieUrl);
     isCollecting.value = false;
     return;
@@ -735,6 +738,7 @@ const handleStartCollection = async () => {
           factoryCountPerProduct: data.settings.maxFactoriesPerProduct,
         }
       }
+      if(!data) return null;
       const taskType = type === 'douyin' ? 2 : 1
       return {
         userId: info.object.unb,
@@ -747,7 +751,7 @@ const handleStartCollection = async () => {
         dropShipping: dropShippingEnabled.value ? '1988226' : '', // 一键代发
         taskTags: douyinLabelEnabled.value ? '386434' : ''        // 抖音面单
       }
-    })
+    }).filter(Boolean)
 
     // 调用创建任务接口（提交数组）
     const res = await collection1688.saveTask({

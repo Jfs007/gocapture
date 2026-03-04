@@ -70,7 +70,7 @@ function use1688() {
             const cache1688 = info && info['BROWSER_CACHE'] && info['BROWSER_CACHE']['1688'];
            
             const patchCookie = transformCookieStr(cache1688.cookie);
-            cookiesGroupRes.push(patchCookie);
+            // cookiesGroupRes.push(patchCookie);
         } catch (error) {
 
         }

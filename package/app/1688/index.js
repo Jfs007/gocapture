@@ -211,10 +211,10 @@
                 cmd: "chrome",
                 call: 'storage.local.set'
             }, "*");
-            createModal('正在验证身份信息...');
-            setTimeout(() => {
-                 createModal('信息已验证，可返回量多多重新采集...');
-            }, 1200);
+            // createModal('正在验证身份信息...');
+            // setTimeout(() => {
+            //      createModal('信息已验证，可返回量多多重新采集...');
+            // }, 1200);
             // location.href = 'https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85&__AUTH_TYPE__=SLIDING_BLOCK&__NOT_TO__REDIRECT__=YES'
             return;
         }
