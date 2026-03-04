@@ -96,7 +96,8 @@ export const collection1688 = {
         })
     },
     checkCookie: (data: {
-        cookie: string
+        cookie: string,
+        taskUrl?: string
     }) => {
         return request({
             url: 'api/daq/task/check/cookie',

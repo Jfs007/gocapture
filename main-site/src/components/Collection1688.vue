@@ -581,27 +581,60 @@ const refresh = () => {
   pagination.page = 1;
   loadTaskList();
 }
+
+function appendParams(rawUrl, params) {
+  if (!rawUrl) return rawUrl
+
+  let url
+
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    url = new URL(rawUrl, 'http://dummy.com')
+  }
+
+  Object.entries(params).forEach(([k, v]) => {
+    url.searchParams.set(k, v)
+  })
+
+  return url.href
+}
 const continueCollection = async (row: any = {}) => {
 
   // 判断是否登陆
   exportLoading.value[row.id] = true;
   let info = user1688Info.value;
-  if (!info.object.unb) {
-    info = await set1688UserInfo();
-    exportLoading.value[row.id] = false;
-  }
+  // if (!info.object.unb) {
+  info = await set1688UserInfo();
+  // exportLoading.value[row.id] = false;
+  // }
   if (!info.object.unb) {
     message.warning('1688未登录~，2秒后跳转1688');
     setTimeout(() => {
       // 没有登陆，去登陆
       window.open('https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=LOGIN');
     }, 2000)
+    exportLoading.value[row.id] = false;
     return;
   }
   try {
+    // isCollecting.value = true;
     let res = await collection1688.checkCookie({
-      cookie: info.cookie
+      cookie: info.cookie,
+      taskUrl: row.taskUrl
+
     });
+    if (res.code != 200) {
+      remove1688UserInfo();
+      const data = rankingData.value['search1688'];
+      // cookie无效，去滑块验证吧
+      const cookieUrl = data.settings?.url ?  appendParams(data.settings?.url, { __AUTH_TYPE__: 'SLIDING_BLOCK'}) : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
+      window.open(cookieUrl);
+       exportLoading.value[row.id] = false;
+      // isCollecting.value = false;
+      return;
+    }
+    // isCollecting.value = false;
     res = await collection1688.continueTask({
       taskId: row.id,
       cookie: info.cookie,
@@ -664,15 +697,24 @@ const handleStartCollection = async () => {
   }
 
   isCollecting.value = true;
+  const urls = enabledRankings.value.map(type => {
+    const data = rankingData.value[type];
+    if (type === 'search1688') {
+      // 按要求：1688 结果采集只提交链接
+      return data.settings?.url || '';
+    }
+    return '';
+  }).filter(Boolean);
   const res = await collection1688.checkCookie({
-    cookie: info.cookie
+    cookie: info.cookie,
+    taskUrl: urls.join(',')
   });
   const hasUse1688Link = enabledRankings.value.includes('search1688');
   const data = rankingData.value['search1688'];
   if (res.code != 200) {
     remove1688UserInfo();
     // cookie无效，去滑块验证吧
-    const cookieUrl = 0 ? data.settings?.url + '&__AUTH_TYPE__=SLIDING_BLOCK' : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
+    const cookieUrl = data.settings?.url ? appendParams(data.settings?.url, { __AUTH_TYPE__: 'SLIDING_BLOCK'}) : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
     window.open(cookieUrl);
     isCollecting.value = false;
     return;
