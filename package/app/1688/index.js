@@ -4,7 +4,6 @@
     const search = new URLSearchParams(window.location.search);
     const authType = search.get('__AUTH_TYPE__');
     const notToRedirect = search.get('__NOT_TO__REDIRECT__')
-
     if (authType == 'SLIDING_BLOCK') {
         if (window.localStorage) {
             localStorage.clear();
@@ -135,7 +134,13 @@
 
         window.location.href = url.toString(); // ✅ 会触发 load
     }
-    const info = await getUserInfo();
+    let info = { object: {} }
+    try {
+        info = await getUserInfo();
+    } catch (error) {
+
+    }
+
 
     const triggerSLIDINGBLOCK = () => {
         createModal('访问受限，请解锁滑块验证码');
@@ -162,12 +167,15 @@
     }
 
     function waitForDialog(selector, callback) {
+
         let timer = null;
-        const el = document.querySelector(selector)
+        const el = document.querySelector(selector);
+
         if (el) {
             callback(el)
             return
         }
+
 
         const observer = new MutationObserver(() => {
             const el = document.querySelector(selector)
@@ -193,8 +201,8 @@
 
     // 使用
     waitForDialog('.baxia-dialog', (dialog) => {
-        console.log(dialog, 'dialog去哪了');
         if (!dialog) {
+
             location.href = 'https://s.1688.com/selloffer/offer_search.htm?spm=a260k.home2025.category.dL4.762a3597VSkAnW&charset=utf8&keywords=%E6%B1%89%E6%9C%8D%E5%A5%97%E8%A3%85&__AUTH_TYPE__=SLIDING_BLOCK&__NOT_TO__REDIRECT__=YES'
             return;
         }

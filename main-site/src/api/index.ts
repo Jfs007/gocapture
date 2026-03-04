@@ -103,6 +103,13 @@ export const collection1688 = {
             method: 'post',
             data
         })
+    },
+    continueTask: (data: any) => {
+        return request({
+            url: 'api/upload/daq/task/continue',
+            method: 'post',
+            data
+        })
     }
 }
 

@@ -93,7 +93,7 @@
             <n-text class="font-12">条工厂信息</n-text>
           </n-space>
 
-           <n-space align="center" :size="[4, 8]" v-if="activeRankingType && activeRankingType == 'search1688'">
+          <n-space align="center" :size="[4, 8]" v-if="activeRankingType && activeRankingType == 'search1688'">
             <n-text class="font-12">本次最多采集前</n-text>
             <n-input-number size="small" v-model:value="currentSettings.maxFactoriesPerProduct" :min="1"
               :max="40000 / currentSettings?.maxProductsPerCategory" :show-button="false" style="width: 60px" />
@@ -241,11 +241,11 @@ const isValid1688Url = (url: string) => {
     const u = url.trim().toLowerCase()
     // 检查是否以 https://s.1688.com 开头
     if (!u.startsWith('https://s.1688.com/')) return false
-    
+
     // 提取路径部分（移除 query 和 hash）
     const pathMatch = u.match(/^https:\/\/s\.1688\.com(\/[^?#]+)/)
     if (!pathMatch || !pathMatch[1]) return false
-    
+
     const path = pathMatch[1]
     // 检查路径是否匹配允许的三种类型
     const allowedPaths = [
@@ -253,7 +253,7 @@ const isValid1688Url = (url: string) => {
       '/company/pc/factory_search.htm',
       '/selloffer/offer_search.htm'
     ]
-    
+
     return allowedPaths.some(allowedPath => path === allowedPath || path.startsWith(allowedPath + '?') || path.startsWith(allowedPath + '#'))
   } catch (e) {
     return false
@@ -581,7 +581,45 @@ const refresh = () => {
   pagination.page = 1;
   loadTaskList();
 }
+const continueCollection = async (row: any = {}) => {
 
+  // 判断是否登陆
+  exportLoading.value[row.id] = true;
+  let info = user1688Info.value;
+  if (!info.object.unb) {
+    info = await set1688UserInfo();
+    exportLoading.value[row.id] = false;
+  }
+  if (!info.object.unb) {
+    message.warning('1688未登录~，2秒后跳转1688');
+    setTimeout(() => {
+      // 没有登陆，去登陆
+      window.open('https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=LOGIN');
+    }, 2000)
+    return;
+  }
+  try {
+    let res = await collection1688.checkCookie({
+      cookie: info.cookie
+    });
+    res = await collection1688.continueTask({
+      taskId: row.id,
+      cookie: info.cookie,
+    });
+    exportLoading.value[row.id] = false;
+    if (res?.code != 200) throw new Error(res?.msg);
+    message.success('操作成功!');
+    // 刷新任务列表
+    await loadTaskList()
+
+
+  } catch (error) {
+    exportLoading.value[row.id] = false;
+  }
+
+
+
+}
 const handleStartCollection = async () => {
   // 检查是否有启用的榜单
   if (enabledRankings.value.length === 0) {
@@ -660,7 +698,7 @@ const handleStartCollection = async () => {
         userId: info.object.unb,
         cookie: info.cookie,
         taskType: taskType,
-        industryNameList: (data.selectedCategories||[]).map(cat => cat.label).filter(Boolean),
+        industryNameList: (data.selectedCategories || []).map(cat => cat.label).filter(Boolean),
         dayType: getDayTypeValue(data.settings.rankingTime),
         productCountPerIndustry: data.settings.maxProductsPerCategory,
         factoryCountPerProduct: data.settings.maxFactoriesPerProduct,
@@ -798,6 +836,7 @@ const statusMap = {
   0: '采集中',
   1: '已完成',
   2: '失败',
+  3: '中断'
 }
 const getStatusText = (taskStatus: CollectionTask['taskStatus']) => {
 
@@ -933,6 +972,14 @@ const columns: DataTableColumns<CollectionTask> = [
             default: () => '确定停止该任务吗？'
           }
         ),
+        (row.taskStatus == 3) && h(NButton, {
+          text: true,
+          type: 'primary',
+          size: 'small',
+          class: 'font-12',
+          loading: exportLoading.value[row.id],
+          onClick: () => continueCollection(row)
+        }, { default: () => '继续' }),
         (row.taskStatus == 1) && h(
           NButton,
           {

@@ -7,6 +7,12 @@ function use1688() {
         const cookieAwait = ['.1688.com', '.mmstat.com'].map(origin => {
             return mdChrome.web.cmd({ cmd: 'getCookie', myDomain: origin });
         });
+
+
+        // const cookieAwait = ['https://s.1688.com/'].map(origin => {
+        //     return mdChrome.web.cmd({ cmd: 'getCookie' });
+        // });
+        
         const cookiesGroupRes = await Promise.all(cookieAwait);
         let cookiesArr: any[] = [];
         cookiesGroupRes.map(res => { cookiesArr.push(...((res && res.cookies) ? res.cookies : [])) });
