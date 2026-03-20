@@ -4,6 +4,16 @@
     const search = new URLSearchParams(window.location.search);
     const authType = search.get('__AUTH_TYPE__');
     const notToRedirect = search.get('__NOT_TO__REDIRECT__')
+
+    // if(location.href.includes('https://s.1688.com/selloffer/offer_search')) {
+    //    console.log(__WEB_REQUEST_API__, '__WEB_REQUEST_API__');
+    //    __WEB_REQUEST_API__.onResponse(({ url, result }) => {
+    //     if(url.includes('mtop.relationrecommend.wirelessrecommend.recommend')) {
+    //       console.log(url, result, 'onResponse');
+    //     }
+    //    });
+    // }
+
     if (authType == 'SLIDING_BLOCK') {
         if (window.localStorage) {
             localStorage.clear();

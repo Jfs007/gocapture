@@ -112,6 +112,21 @@
           </n-space>
         </template>
 
+        <!-- Cookie 配置 -->
+        <n-space vertical :size="8">
+          <n-checkbox v-model:checked="manualCookieEnabled" size="small">
+            <n-text class="font-12">手动输入 Cookie</n-text>
+          </n-checkbox>
+          <n-input
+            v-if="manualCookieEnabled"
+            v-model:value="manualCookieInput"
+            type="textarea"
+            size="small"
+            placeholder="请输入 Cookie 字符串，格式如: aa=xx; bb=yy;"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+          />
+        </n-space>
+
         <!-- 开始采集按钮 -->
         <n-button size="small" type="primary" block
           :disabled="!activeRankingType || (activeRankingType !== 'search1688' && currentSelectedCategories.length === 0) || isCollecting"
@@ -119,7 +134,7 @@
           开始采集
         </n-button>
         <!-- 提示信息 -->
-        <div v-if="!isLoggedTo1688" type="warning" class="color-error font-12">
+        <div v-if="!isLoggedTo1688 && !manualCookieEnabled" type="warning" class="color-error font-12">
           请确保此刻浏览器已登录1688.com
         </div>
       </n-space>
@@ -198,6 +213,8 @@ const enabledRankings = ref<string[]>([])
 // 附加选项
 const dropShippingEnabled = ref(false) // 一键代发
 const douyinLabelEnabled = ref(false)  // 支持抖音面单
+const manualCookieEnabled = ref(false) // 手动输入 Cookie
+const manualCookieInput = ref('')      // 手动输入的 Cookie 字符串
 
 // 每个榜单类型的独立数据
 const rankingData = ref<Record<string, {
@@ -521,8 +538,16 @@ const isLoggedTo1688 = computed(() => {
 })
 const set1688UserInfo = async () => {
   const info = await getUserInfo();
+  
+  if (manualCookieEnabled.value && manualCookieInput.value) {
+    user1688Info.value = {
+      object: info.object,
+      cookie: manualCookieInput.value
+    };
+    return user1688Info.value;
+  }
+  
   user1688Info.value = info;
-
   return info;
 }
 
@@ -602,17 +627,18 @@ function appendParams(url, rawQuery) {
 }
 const continueCollection = async (row: any = {}) => {
 
-  // 判断是否登陆
   exportLoading.value[row.id] = true;
   let info = user1688Info.value;
-  // if (!info.object.unb) {
   info = await set1688UserInfo();
-  // exportLoading.value[row.id] = false;
-  // }
+  
   if (!info.object.unb) {
+    if (manualCookieEnabled.value) {
+      message.warning('请输入有效的 Cookie');
+      exportLoading.value[row.id] = false;
+      return;
+    }
     message.warning('1688未登录~，2秒后跳转1688');
     setTimeout(() => {
-      // 没有登陆，去登陆
       window.open('https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=LOGIN');
     }, 2000)
     exportLoading.value[row.id] = false;
@@ -640,6 +666,7 @@ const continueCollection = async (row: any = {}) => {
     res = await collection1688.continueTask({
       taskId: row.id,
       cookie: info.cookie,
+      userId: info.object.unb,
     });
     exportLoading.value[row.id] = false;
     if (res?.code != 200) throw new Error(res?.msg);
@@ -689,9 +716,12 @@ const handleStartCollection = async () => {
     info = await set1688UserInfo();
   }
   if (!info.object.unb) {
+    if (manualCookieEnabled.value) {
+      message.warning('请输入有效的 Cookie');
+      return;
+    }
     message.warning('1688未登录~，2秒后跳转1688');
     setTimeout(() => {
-      // 没有登陆，去登陆
       window.open('https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=LOGIN');
     }, 2000)
 
@@ -714,6 +744,7 @@ const handleStartCollection = async () => {
   });
   const hasUse1688Link = enabledRankings.value.includes('search1688');
   const data = rankingData.value['search1688'];
+  // console.log(res, 'res');
   if (res.code != 200) {
     remove1688UserInfo();
     // cookie无效，去滑块验证吧
@@ -1004,7 +1035,7 @@ const columns: DataTableColumns<CollectionTask> = [
     width: 100,
     render: (row) => {
       return h(NSpace, { size: 8, align: 'center', justify: 'center' }, () => [
-        row.taskStatus == 0 && h(
+        row.taskStatus == 0 || row.taskStatus == 3 && h(
           NPopconfirm,
           {
             onPositiveClick: () => handleStopTask(row.id)

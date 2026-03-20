@@ -45,6 +45,7 @@ function transformCookieStr(input: string) {
             };
         }).filter(Boolean);
 
+
     return {
         cookiesStr: input,
         cookies
@@ -54,7 +55,7 @@ function use1688() {
 
     const mdChrome = _require('mdChrome');
     const getUserInfo = async () => {
-        const cookieAwait = ['.1688.com', '.mmstat.com'].map(origin => {
+        const cookieAwait = ['.1688.com','.tmall.com', '.mmstat.com', 'detail.1688.com'].map(origin => {
             return mdChrome.web.cmd({ cmd: 'getCookie', myDomain: origin });
         });
 
@@ -68,9 +69,9 @@ function use1688() {
         try {
             const info = await getCache() as any;
             const cache1688 = info && info['BROWSER_CACHE'] && info['BROWSER_CACHE']['1688'];
-           
+            
             const patchCookie = transformCookieStr(cache1688.cookie);
-            // cookiesGroupRes.push(patchCookie);
+            cookiesGroupRes.push(patchCookie);
         } catch (error) {
 
         }
@@ -95,6 +96,8 @@ function use1688() {
         }).filter(Boolean);
 
         const cookie = filtered.join('; ');
+
+            console.log(map, cookie, 'cks');
 
         // console.log(cookiesGroupRes, 'cookiesGroupRes', cookie);
         return {
