@@ -576,7 +576,7 @@ const loadTaskList = async () => {
     });
     // const
     // 转换后端数据为前端格式
-    tasks.value = res.data.map((task: any) => ({
+    tasks.value = (res.data||[]).map((task: any) => ({
       ...task,
       id: task.id.toString(),
       taskName: task.taskNo,
