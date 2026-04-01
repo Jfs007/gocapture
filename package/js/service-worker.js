@@ -885,6 +885,31 @@ const DownFileCmd = {
   }
 }
 
+
+const centerBus = (() => {
+  const waitMap = new Map()
+  function wait(event) {
+    return new Promise((resolve) => {
+      const list = waitMap.get(event) || []
+      list.push(resolve)
+      waitMap.set(event, list)
+    })
+  }
+
+  function emit(event, payload) {
+    const list = waitMap.get(event)
+    if (!list) return
+    list.forEach(resolve => resolve(payload))
+    waitMap.delete(event) // once 语义
+  }
+  return {
+    wait,
+    emit
+  }
+})();
+
+const { wait, emit } = centerBus;
+
 function onMessageLister(message, sender, sendResponse) {
   if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
@@ -900,6 +925,18 @@ function onMessageLister(message, sender, sendResponse) {
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
   if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);
   if ("getCookie" === message.cmd || "removeCookie" === message.cmd || "setCookies" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
+
+
+
+  if (message.cmd === 'event-wait') {
+    wait(message.name).then(sendResponse)
+    return true // async
+  }
+
+  if (message.cmd === 'event-emit') {
+    emit(message.name, message.payload)
+    sendResponse({ ok: true })
+  }
 }
 
 

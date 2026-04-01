@@ -63,7 +63,7 @@
         try {
             console.log(`💉 注入脚本: ${path}`);
             const res = await new Promise((resolve, reject) => {
-                
+
                 chrome.runtime.sendMessage(mdPluginId, {
                     cmd: 'inject',
                     type: 2,
@@ -140,8 +140,52 @@
         })
     }
 
+
+    // page-bus.ts
+    function _on(evtName, callback) {
+        const id = Date.now() + Math.random() + ':chrome.runtime.sendMessage.bus';
+        return new Promise((resolve) => {
+            const handler = (e) => {
+                const msg = e.data;
+                const sender = msg.sender || {};
+                if (sender.id === id && sender.name == 'content-script') {
+                    window.removeEventListener("message", handler);
+                    callback(msg.result)
+                }
+            }
+            window.addEventListener('message', handler)
+            window.postMessage({
+                params: [{
+                    cmd: 'event-wait',
+                    name: evtName,
+                }],
+                cmd: "chrome",
+                callback: 1,
+                sender: { id, name: 'web-page' },
+                call: 'runtime.sendMessage'
+            }, "*");
+        })
+    }
+
+    function _send(evtName, payload) {
+        window.postMessage({
+            params: [{
+                cmd: 'event-emit',
+                name: evtName,
+                payload: payload
+            }],
+            cmd: "chrome",
+            callback: 1,
+            sender: { name: 'web-page' },
+            call: 'runtime.sendMessage'
+        }, '*')
+    };
+
     // 导出API
     mdChrome.web = {
+        name: 'ldd-pro',
+        on: _on,
+        send: _send,
         cmd,
         injectScript,
         injectScript2,
