@@ -22,6 +22,7 @@
             }
          }
          window.addEventListener("message", handler);
+         
          window.postMessage({
             params: [params],
             cmd: "chrome",

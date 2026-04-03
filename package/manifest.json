@@ -111,6 +111,7 @@
     ],
     "matches": [
       "*://*.oceanengine.com/*",
+      "http://localhost:9003/*",
       "http://localhost:9002/*",
       "*://*.itaored.com/*",
       "*://*.kwaixiaodian.com/*",

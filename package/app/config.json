@@ -4,14 +4,17 @@
         "jsUrls": [
             "common/index.js",
             "ldd/index.js",
-            "1688/index.js"
+            "1688/index.js",
+            "agent.ks/index.js"
         ]
     },
     "rules": {
         "ldd/index.js": {
+            "auth": "media-lib-hot",
             "supportIframe": false,
             "matches": [
                 "*localhost:9002",
+                "*localhost:9003",
                 "*ad.itaored.com"
             ]
         },
@@ -20,12 +23,19 @@
             "matches": [
                 "*.1688.com"
             ]
+        },
+        "agent.ks/index.js": {
+            "auth": "account-ks",
+            "supportIframe": false,
+            "matches": [
+                "*niu.e.kuaishou.com"
+            ]
         }
     },
     "canInjectIframeList": [
         "https://search.1688.com"
     ],
-    "version": "20260303.141152",
+    "version": "20260401.162641",
     "success": true,
     "api": ""
 }

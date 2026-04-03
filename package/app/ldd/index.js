@@ -11,7 +11,6 @@
     const { env, site } = manifest.env || {};
     const iframe = document.createElement("iframe");
     iframe.src = `${site}?env=${env}&token=${token}&t=${Date.now()}`;
-    
     common.createDraggableCollapsibleWrapper(iframe, {
         env,
         title: '线索采集器',
@@ -19,7 +18,10 @@
         height: '480px',
         position: { top: '20px', right: '20px' }
     });
-    
+
+
+
+
 
     // 导出到全局，供其他地方使用
     // common.createDraggableCollapsibleWrapper = createDraggableCollapsibleWrapper;

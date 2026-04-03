@@ -1,6 +1,6 @@
 
 const localConfig = {
-  jsUrls: ['chrome/cli.js', 'chrome/web.js', "chrome/web-hook.js"]
+  jsUrls: ['chrome/cli.js', 'chrome/web.js', "chrome/web-hook.js", "chrome/auth.js"]
 }
 let _VERSION_ = '';
 // 全局缓存对象
@@ -260,6 +260,59 @@ async function checkHasSubUrl(url) {
 }
 
 /**
+ * 获取授权信息
+ * @param {string} apiUrl - API 基础地址
+ * @returns {Promise<Object|null>} 返回授权信息或 null
+ */
+async function getAuthorizationInfo(apiUrl) {
+  try {
+    const storage = await chrome.storage.local.get(['accessToken']);
+    const accessToken = storage.accessToken;
+    
+    if (!accessToken) {
+      return null;
+    }
+    
+    const response = await fetch(`${apiUrl}api/code/info`, {
+      headers: {
+        'accesstoken': accessToken
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (result.code !== '200' && result.code !== 200) {
+      return null;
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.error('获取授权信息失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 打开授权页面
+ * @param {string} apiUrl - API 基础地址
+ */
+function openAuthorizationPage(apiUrl) {
+  chrome.tabs.create({ url: apiUrl + '?__LDD_EXTENSIONS_AUTH__=1' });
+}
+
+/**
+ * 检查权限是否匹配
+ * @param {string} requiredAuth - 需要的权限
+ * @param {Array<string>} authorizationList - 用户拥有的权限列表
+ * @returns {boolean} 是否有权限
+ */
+function checkAuthorization(requiredAuth, authorizationList) {
+  if (!requiredAuth) return true;
+  if (!authorizationList || authorizationList.length === 0) return false;
+  return authorizationList.includes(requiredAuth);
+}
+
+/**
  * 获取配置
  * @param {Object} context - 上下文对象，原来的 e
  * @param {Object} sender - 消息发送者信息，原来的 t
@@ -300,6 +353,7 @@ async function GetConfig(context, sender, callback) {
   // 当前页面 URL
   headers.z_current = url;
   const GetConfigUrl = manifest.app_module == 'Offline' ? GetLocalAppConfigUrl : GetRemoteConfigUrl;
+  
   // 4️⃣ 请求配置
   const response = await fetch(GetConfigUrl(), { headers });
   const data = await response.json();
@@ -311,9 +365,6 @@ async function GetConfig(context, sender, callback) {
     if (!(url.indexOf(site) >= 0 || canInjectIframe)) return;
   }
 
-
-
-
   // 5️⃣ 返回结果，并调用回调
   const result = data.result || [];
   const version = data.version || '';
@@ -323,23 +374,65 @@ async function GetConfig(context, sender, callback) {
     console.log(version, _VERSION_, '版本更新，清理缓存');
     _VERSION_ = version;
     ExeCodeMap = {};
-
   }
 
-  console.log('========sender=======', sender);
+  // 6️⃣ 检查当前页面是否需要加载任何脚本
+  let needsAuth = false;
+  let authorizationList = [];
+
+  console.log('========动态加载jsUrls=======', sender);
   Object.keys(result).map(key => {
     let item = result[key] || [];
     item = item.filter(url => {
       const urlRule = rules[url];
-
-      const { matches, supportIframe } = urlRule || {};
+      const { matches, supportIframe, auth } = urlRule || {};
+      
       // 如果是iframe 且不支持iframe 则不注入
       if (context.isSub && !supportIframe) return false;
+      
+      // 检查 URL 是否匹配
       const isMatch = isUrlMatch(sender?.url || '', matches || []);
-      return isMatch;
+      if (!isMatch) return false;
+      
+      // 如果匹配且需要权限，标记需要授权
+      if (auth) {
+        needsAuth = true;
+      }
+      
+      return true;
     });
     reResult[key] = item.map(url => manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
   });
+
+  // 7️⃣ 如果需要授权，进行授权验证并过滤
+  if (needsAuth && APP_API) {
+    const authInfo = await getAuthorizationInfo(APP_API);
+    if (!authInfo) {
+      // 检查当前页面是否已经是授权页面，防止重复打开
+      // if (url && url.indexOf('__LDD_EXTENSIONS_AUTH__') === -1) {
+      //   openAuthorizationPage(APP_API);
+      // }
+      return;
+    }
+    authorizationList = authInfo.authorizationList || [];
+    
+    // 根据权限过滤脚本
+    Object.keys(reResult).forEach(key => {
+      const originalUrls = result[key] || [];
+      reResult[key] = reResult[key].filter((fullUrl, index) => {
+        const url = originalUrls[index];
+        const urlRule = rules[url];
+        const { auth } = urlRule || {};
+        
+        if (auth && !checkAuthorization(auth, authorizationList)) {
+          console.log(`权限不足，跳过加载: ${url}, 需要权限: ${auth}`);
+          return false;
+        }
+        
+        return true;
+      });
+    });
+  }
   if (callback) callback(reResult);
   return reResult;
 }
@@ -554,7 +647,6 @@ async function cookieLister(message, sender, sendResponse) {
     cookiesString += `${cookieObj.name}=${cookieObj.value}`;
     if (index < allCookies.length - 1) cookiesString += ";";
   });
-
   // 返回 Cookie 数据
   sendResponse && sendResponse({ cookies: cookiesArray, cookiesStr: cookiesString });
 }
@@ -567,10 +659,14 @@ const cookieCmd = {
 
 
 
+
+
+
 chrome.runtime.onMessage.addListener(((message, sender, sendResponse) => (onMessageLister(message, sender, sendResponse), !0)));
 
 chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResponse) {
   onMessageLister(message, sender, sendResponse);
+  return true;
 });
 
 
@@ -911,6 +1007,7 @@ const centerBus = (() => {
 const { wait, emit } = centerBus;
 
 function onMessageLister(message, sender, sendResponse) {
+  console.log(message, 'message');
   if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
     chrome.action.openPopup();
@@ -927,7 +1024,6 @@ function onMessageLister(message, sender, sendResponse) {
   if ("getCookie" === message.cmd || "removeCookie" === message.cmd || "setCookies" === message.cmd) return cookieCmd.Lister(message, sender, sendResponse);
 
 
-
   if (message.cmd === 'event-wait') {
     wait(message.name).then(sendResponse)
     return true // async
@@ -937,7 +1033,17 @@ function onMessageLister(message, sender, sendResponse) {
     emit(message.name, message.payload)
     sendResponse({ ok: true })
   }
+
+  return true;
 }
+
+
+chrome.cookies.onChanged.addListener((changeInfo) => {
+  const { cookie, cause, removed } = changeInfo
+  const domain = cookie.domain;
+  console.log(domain, cause, cookie);
+  emit('cookie-changed:[' + domain + ']', { cookie, cause, removed, domain })
+})
 
 
 let INSTALLER_RELOAD = false;
