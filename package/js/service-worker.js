@@ -268,23 +268,23 @@ async function getAuthorizationInfo(apiUrl) {
   try {
     const storage = await chrome.storage.local.get(['accessToken']);
     const accessToken = storage.accessToken;
-    
+
     if (!accessToken) {
       return null;
     }
-    
+
     const response = await fetch(`${apiUrl}api/code/info`, {
       headers: {
         'accesstoken': accessToken
       }
     });
-    
+
     const result = await response.json();
-    
+
     if (result.code !== '200' && result.code !== 200) {
       return null;
     }
-    
+
     return result.data;
   } catch (error) {
     console.error('获取授权信息失败:', error);
@@ -353,7 +353,7 @@ async function GetConfig(context, sender, callback) {
   // 当前页面 URL
   headers.z_current = url;
   const GetConfigUrl = manifest.app_module == 'Offline' ? GetLocalAppConfigUrl : GetRemoteConfigUrl;
-  
+
   // 4️⃣ 请求配置
   const response = await fetch(GetConfigUrl(), { headers });
   const data = await response.json();
@@ -386,19 +386,19 @@ async function GetConfig(context, sender, callback) {
     item = item.filter(url => {
       const urlRule = rules[url];
       const { matches, supportIframe, auth } = urlRule || {};
-      
+
       // 如果是iframe 且不支持iframe 则不注入
       if (context.isSub && !supportIframe) return false;
-      
+
       // 检查 URL 是否匹配
       const isMatch = isUrlMatch(sender?.url || '', matches || []);
       if (!isMatch) return false;
-      
+
       // 如果匹配且需要权限，标记需要授权
       if (auth) {
         needsAuth = true;
       }
-      
+
       return true;
     });
     reResult[key] = item.map(url => manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
@@ -415,7 +415,7 @@ async function GetConfig(context, sender, callback) {
       return;
     }
     authorizationList = authInfo.authorizationList || [];
-    
+
     // 根据权限过滤脚本
     Object.keys(reResult).forEach(key => {
       const originalUrls = result[key] || [];
@@ -423,12 +423,12 @@ async function GetConfig(context, sender, callback) {
         const url = originalUrls[index];
         const urlRule = rules[url];
         const { auth } = urlRule || {};
-        
+
         if (auth && !checkAuthorization(auth, authorizationList)) {
           console.log(`权限不足，跳过加载: ${url}, 需要权限: ${auth}`);
           return false;
         }
-        
+
         return true;
       });
     });
@@ -984,6 +984,9 @@ const DownFileCmd = {
 
 const centerBus = (() => {
   const waitMap = new Map()
+  const onceMap = new Map()
+  const listenerMap = new Map() // 存储持久化监听器
+
   function wait(event) {
     return new Promise((resolve) => {
       const list = waitMap.get(event) || []
@@ -992,19 +995,92 @@ const centerBus = (() => {
     })
   }
 
-  function emit(event, payload) {
-    const list = waitMap.get(event)
-    if (!list) return
-    list.forEach(resolve => resolve(payload))
-    waitMap.delete(event) // once 语义
+  function once(event) {
+    return new Promise((resolve) => {
+      const list = onceMap.get(event) || []
+      list.push(resolve)
+      onceMap.set(event, list)
+    })
   }
+
+  function on(event, callback) {
+    const list = listenerMap.get(event) || []
+    list.push(callback)
+    listenerMap.set(event, list)
+    return callback // 返回 callback 用于 off
+  }
+
+  function off(event, callback) {
+    if (!callback) {
+      // 如果没有指定 callback，清除该事件的所有监听器
+      listenerMap.delete(event)
+      waitMap.delete(event)
+      onceMap.delete(event)
+      return
+    }
+
+    // 移除指定的 callback
+    const list = listenerMap.get(event)
+    if (list) {
+      const index = list.indexOf(callback)
+      if (index > -1) {
+        list.splice(index, 1)
+      }
+      if (list.length === 0) {
+        listenerMap.delete(event)
+      }
+    }
+  }
+
+  function emit(event, payload) {
+    // 触发 wait 监听器（所有监听器都会被触发并清除）
+    const list = waitMap.get(event)
+    if (list) {
+      list.forEach(resolve => resolve(payload))
+      waitMap.delete(event)
+    }
+
+    // 触发 once 监听器（只触发一次并清除）
+    const onceList = onceMap.get(event)
+    if (onceList) {
+      onceList.forEach(resolve => resolve(payload))
+      onceMap.delete(event)
+    }
+
+    // 触发持久化监听器（不会被清除）
+    const listeners = listenerMap.get(event)
+    if (listeners) {
+      listeners.forEach(callback => callback(payload))
+    }
+  }
+
   return {
     wait,
+    once,
+    on,
+    off,
     emit
   }
 })();
 
-const { wait, emit } = centerBus;
+const { wait, once, on, off, emit } = centerBus;
+
+
+const ActiveTab = {
+  Lister: (message, sender, sendResponse) => {
+    const tabId = message.tabId || sender?.tab?.id
+    if (!tabId) {
+      sendResponse({ error: 'No tabId provided' })
+      return
+    }
+    chrome.tabs.update(tabId, { active: true }).then(() => {
+      sendResponse({ ok: true })
+    }).catch((error) => {
+      sendResponse({ error: error.message })
+    })
+    return true // async
+  }
+}
 
 function onMessageLister(message, sender, sendResponse) {
   console.log(message, 'message');
@@ -1029,11 +1105,26 @@ function onMessageLister(message, sender, sendResponse) {
     return true // async
   }
 
+  if (message.cmd === 'event-once') {
+    once(message.name).then(sendResponse)
+    return true // async
+  }
+
+  if (message.cmd === 'event-on') {
+    // 持久化监听器需要通过其他方式实现，这里暂不支持
+    sendResponse({ error: 'event-on not supported in message handler' })
+  }
+
+  if (message.cmd === 'event-off') {
+    off(message.name, message.callback)
+    sendResponse({ ok: true })
+  }
+
   if (message.cmd === 'event-emit') {
     emit(message.name, message.payload)
     sendResponse({ ok: true })
   }
-
+  if (message.cmd === 'activeTab') return ActiveTab.Lister(message, sender, sendResponse);
   return true;
 }
 

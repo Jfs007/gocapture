@@ -13,7 +13,7 @@
             "auth": "media-lib-hot",
             "supportIframe": false,
             "matches": [
-                "*localhost:9002",
+                "*ocalhost:9002",
                 "*localhost:9003",
                 "*ad.itaored.com"
             ]
@@ -28,14 +28,14 @@
             "auth": "account-ks",
             "supportIframe": false,
             "matches": [
-                "*niu.e.kuaishou.com"
+                "*iu.e.kuaishou.com"
             ]
         }
     },
     "canInjectIframeList": [
         "https://search.1688.com"
     ],
-    "version": "20260401.162641",
+    "version": "20260407.093300",
     "success": true,
     "api": ""
 }

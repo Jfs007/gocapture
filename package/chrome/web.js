@@ -167,6 +167,46 @@
         })
     }
 
+    function _once(evtName, callback) {
+        const id = Date.now() + Math.random() + ':chrome.runtime.sendMessage.bus.once';
+        return new Promise((resolve) => {
+            const handler = (e) => {
+                const msg = e.data;
+                const sender = msg.sender || {};
+                if (sender.id === id && sender.name == 'content-script') {
+                    window.removeEventListener("message", handler);
+                    callback(msg.result)
+                    resolve(msg.result)
+                }
+            }
+            window.addEventListener('message', handler)
+            window.postMessage({
+                params: [{
+                    cmd: 'event-once',
+                    name: evtName,
+                }],
+                cmd: "chrome",
+                callback: 1,
+                sender: { id, name: 'web-page' },
+                call: 'runtime.sendMessage'
+            }, "*");
+        })
+    }
+
+    function _off(evtName, callback) {
+        window.postMessage({
+            params: [{
+                cmd: 'event-off',
+                name: evtName,
+                callback: callback
+            }],
+            cmd: "chrome",
+            callback: 1,
+            sender: { name: 'web-page' },
+            call: 'runtime.sendMessage'
+        }, '*')
+    }
+
     function _send(evtName, payload) {
         window.postMessage({
             params: [{
@@ -181,11 +221,21 @@
         }, '*')
     };
 
+    function _activeTab(tabId) {
+        return cmd({
+            cmd: 'activeTab',
+            tabId: tabId
+        });
+    }
+
     // 导出API
     mdChrome.web = {
         name: 'ldd-pro',
         on: _on,
+        once: _once,
+        off: _off,
         send: _send,
+        activeTab: _activeTab,
         cmd,
         injectScript,
         injectScript2,
