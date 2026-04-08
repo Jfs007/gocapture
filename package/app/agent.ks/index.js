@@ -5,6 +5,7 @@
     console.log('__WEB_REQUEST_API__', window.__WEB_REQUEST_API__);
    
     __WEB_REQUEST_API__.onResponse(({ url, result, request, method, modified }) => {
+         console.log('dsp/agent/extra/infomatxh232323', result);
         const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
         const redirectUrlSearch = ((AUTH_REDIREURL || '').replaceAll('@', '&').replace('&', '?'));
         const [_, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || [];
