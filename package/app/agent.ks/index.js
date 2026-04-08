@@ -11,7 +11,7 @@
         const [_, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || [];
          console.log('dsp/agent/extra/infomatxh', _, agentId, result);
         try {
-             if (url.indexOf('dsp/agent/extra/info') > -1) {
+             if (url.indexOf('rest/dsp/agent/infov2') > -1) {
             
             const data = result?.data;
             const agent = data.find(agent => agent.agentId == agentId) || {};
