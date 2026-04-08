@@ -262,6 +262,7 @@
 
     // 监听响应
     api.onResponse(({ url, result, request, method, modified }) => {
+        console.log('WEB_REQUEST_RESPONSE', url, result);
         window.postMessage({
             type: 'WEB_REQUEST_RESPONSE',
             data: { url, result, request, method, modified }
