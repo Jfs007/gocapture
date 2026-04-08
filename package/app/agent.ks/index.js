@@ -3,35 +3,35 @@
     // const mdChrome = _require('mdChrome');
     const search = new URLSearchParams(window.location.search);
     console.log('__WEB_REQUEST_API__', window.__WEB_REQUEST_API__);
-   
+
     __WEB_REQUEST_API__.onResponse(({ url, result, request, method, modified }) => {
-         
+
         const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
         const redirectUrlSearch = ((AUTH_REDIREURL || '').replaceAll('@', '&').replace('&', '?'));
         const [_, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || [];
-         console.log('dsp/agent/extra/infomatxh', _, agentId, result);
+        console.log('dsp/agent/extra/infomatxh', url, result);
         try {
-             if (url.indexOf('rest/dsp/agent/infov2') > -1) {
-            
-            const data = result?.data;
-            if(!Array.isArray(data)) return;
-            const agent = data.find(agent => agent.agentId == agentId) || {};
-            if (href.indexOf('jinfu.e') > -1) {
-                const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
-                if (!AUTH_REDIREURL) return;
-                const rhref = `https://niu.e.kuaishou.com/` + (redirectUrlSearch.replace('AGENTUSERID', agent.agentUserId || ''));
-                console.log('AUTH_REDIREURL', rhref);
-                window.location.href = rhref;
+            if (url.indexOf('rest/dsp/agent/infov2') > -1) {
+
+                const data = result?.data;
+                if (!Array.isArray(data)) return;
+                const agent = data.find(agent => agent.agentId == agentId) || {};
+                if (href.indexOf('jinfu.e') > -1) {
+                    const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
+                    if (!AUTH_REDIREURL) return;
+                    const rhref = `https://niu.e.kuaishou.com/` + (redirectUrlSearch.replace('AGENTUSERID', agent.agentUserId || ''));
+                    console.log('AUTH_REDIREURL', rhref);
+                    window.location.href = rhref;
+                }
+                // console.log('dsp/agent/extra/info', result);
             }
-            // console.log('dsp/agent/extra/info', result);
-        }
-            
+
         } catch (error) {
             console.error('agent.ks error', error);
         }
-       
+
     });
-    
+
 
 
     if (href.indexOf('niu.e') > -1) {
