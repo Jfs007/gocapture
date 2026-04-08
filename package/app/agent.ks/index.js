@@ -2,7 +2,8 @@
     const href = location.href;
     // const mdChrome = _require('mdChrome');
     const search = new URLSearchParams(window.location.search);
-    // console.log('__WEB_REQUEST_API__', window.__WEB_REQUEST_API__);
+    console.log('__WEB_REQUEST_API__', window.__WEB_REQUEST_API__);
+    console.log('dsp/agent/extra/info', href);
     __WEB_REQUEST_API__.onResponse(({ url, result, request, method, modified }) => {
         const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
         const redirectUrlSearch = ((AUTH_REDIREURL || '').replaceAll('@', '&').replace('&', '?'));
