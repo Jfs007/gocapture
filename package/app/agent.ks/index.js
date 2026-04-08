@@ -3,12 +3,14 @@
     // const mdChrome = _require('mdChrome');
     const search = new URLSearchParams(window.location.search);
     console.log('__WEB_REQUEST_API__', window.__WEB_REQUEST_API__);
-    console.log('dsp/agent/extra/info', href);
+   
     __WEB_REQUEST_API__.onResponse(({ url, result, request, method, modified }) => {
         const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
         const redirectUrlSearch = ((AUTH_REDIREURL || '').replaceAll('@', '&').replace('&', '?'));
-        const [, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || []
-        if (url.indexOf('dsp/agent/extra/info') > -1) {
+        const [_, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || [];
+         console.log('dsp/agent/extra/infomatxh', _, agentId, result);
+        try {
+             if (url.indexOf('dsp/agent/extra/info') > -1) {
             
             const data = result?.data;
             const agent = data.find(agent => agent.agentId == agentId) || {};
@@ -21,6 +23,11 @@
             }
             // console.log('dsp/agent/extra/info', result);
         }
+            
+        } catch (error) {
+            console.error('agent.ks error', error);
+        }
+       
     });
     
 
