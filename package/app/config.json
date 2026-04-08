@@ -13,8 +13,8 @@
             "auth": "ldd-1688-collect",
             "supportIframe": false,
             "matches": [
-                "*ocalhost:9002",
-                "*localhost:9003",
+                "*host:9002",
+                "*lhost:9003",
                 "*ad.itaored.com"
             ]
         },
@@ -25,11 +25,13 @@
                 "*.1688.com"
             ]
         },
+        
         "agent.ks/index.js": {
             "auth": "account-ks",
             "supportIframe": false,
             "matches": [
-                "*iu.e.kuaishou.com"
+                "*iu.e.kuaishou.com",
+                "*u.e.kuaishou.com"
             ]
         }
     },
