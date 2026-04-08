@@ -242,7 +242,9 @@
                 return locationReadyMaps[location.hostname];
             },
             onResponse(callback = () => { }) {
-                console.log('WEB_REQUEST_RESPONSE_CACHE', caches);
+                caches.forEach(cache => {
+                    callback(cache.data ? cache.data : {});
+                });
                 responseQueue.push(callback);
             },
             onRequestModify(callback = () => { }) {
