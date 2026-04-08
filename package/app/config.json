@@ -10,7 +10,7 @@
     },
     "rules": {
         "ldd/index.js": {
-            "auth": "media-lib-hot",
+            "auth": "ldd-1688-collect",
             "supportIframe": false,
             "matches": [
                 "*ocalhost:9002",
@@ -19,6 +19,7 @@
             ]
         },
         "1688/index.js": {
+            "auth": "ldd-1688-collect",
             "supportIframe": false,
             "matches": [
                 "*.1688.com"
