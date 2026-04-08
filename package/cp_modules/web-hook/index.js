@@ -209,6 +209,7 @@
                 }
 
                 responseQueue.forEach((callback) => {
+                    console.log('WEB_REQUEST_RESPONSE', _this._requestUrl, result);
                     callback({
                         url: _this._requestUrl,
                         result: result,
@@ -262,7 +263,7 @@
 
     // 监听响应
     api.onResponse(({ url, result, request, method, modified }) => {
-        console.log('WEB_REQUEST_RESPONSE', url, result);
+       
         window.postMessage({
             type: 'WEB_REQUEST_RESPONSE',
             data: { url, result, request, method, modified }
