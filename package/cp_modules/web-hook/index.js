@@ -208,8 +208,10 @@
                     }
                 }
 
+                console.log('WEB_REQUEST_RESPONSE', _this._requestUrl, result);
+
                 responseQueue.forEach((callback) => {
-                    console.log('WEB_REQUEST_RESPONSE', _this._requestUrl, result);
+                    
                     callback({
                         url: _this._requestUrl,
                         result: result,
