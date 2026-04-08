@@ -242,9 +242,9 @@
                 return locationReadyMaps[location.hostname];
             },
             onResponse(callback = () => { }) {
-                caches.forEach(cache => {
-                    callback(cache.data ? cache.data : {});
-                });
+                // caches.forEach(cache => {
+                //     callback(cache.data ? cache.data : {});
+                // });
                 responseQueue.push(callback);
             },
             onRequestModify(callback = () => { }) {
