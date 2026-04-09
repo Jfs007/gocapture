@@ -403,7 +403,7 @@ async function GetConfig(context, sender, callback) {
     });
     reResult[key] = item.map(url => manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
   });
-
+  console.log('========插件健全=======', needsAuth);
   // 7️⃣ 如果需要授权，进行授权验证并过滤
   if (needsAuth && APP_API) {
     const authInfo = await getAuthorizationInfo(APP_API);
