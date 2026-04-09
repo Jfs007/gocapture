@@ -37,17 +37,6 @@
 
     }
 
-
-
-    // __WEB_REQUEST_API__.onResponse(({ url, result, request, method, modified }) => {
-
-
-    // });
-
-
-
-   
-
     if (href.indexOf('https://niu.e.kuaishou.com/') > -1) {
         const widget = document.createElement('div');
         widget.id = 'ldd-niu-auth-widget';
