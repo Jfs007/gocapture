@@ -2,36 +2,38 @@
     const href = location.href;
     const mdChrome = _require('mdChrome');
     const search = new URLSearchParams(window.location.search);
-    const res = await fetch('https://jinfu.e.kuaishou.com/rest/dsp/agent/infov2', {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    });
-    const result = await res.json();
-    // console.log('redasdfsdfs', res, json);
-
     const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
-    const redirectUrlSearch = ((AUTH_REDIREURL || '').replaceAll('@', '&').replace('&', '?'));
-    const [_, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || [];
-    try {
+    if (AUTH_REDIREURL) {
+        // console.log('HELLO KS');
+        const res = await fetch('https://jinfu.e.kuaishou.com/rest/dsp/agent/infov2', {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+        const result = await res.json();
+        const redirectUrlSearch = ((AUTH_REDIREURL || '').replaceAll('@', '&').replace('&', '?'));
+        const [_, agentId] = redirectUrlSearch.match(/agentId=(\d*)/) || [];
+        try {
 
 
-        const data = result?.data;
-        if (!Array.isArray(data)) return;
-        const agent = data.find(agent => agent.agentId == agentId) || {};
-        if (href.indexOf('jinfu.e') > -1) {
-            const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
-            if (!AUTH_REDIREURL) return;
-            const rhref = `https://niu.e.kuaishou.com/` + (redirectUrlSearch.replace('AGENTUSERID', agent.agentUserId || ''));
-            console.log('AUTH_REDIREURL', rhref);
-            window.location.href = rhref;
+            const data = result?.data;
+            if (!Array.isArray(data)) return;
+            const agent = data.find(agent => agent.agentId == agentId) || {};
+            if (href.indexOf('jinfu.e') > -1) {
+                const AUTH_REDIREURL = search.get('AUTH_REDIREURL');
+                if (!AUTH_REDIREURL) return;
+                const rhref = `https://niu.e.kuaishou.com/` + (redirectUrlSearch.replace('AGENTUSERID', agent.agentUserId || ''));
+                console.log('AUTH_REDIREURL', rhref);
+                window.location.href = rhref;
+            }
+            // console.log('dsp/agent/extra/info', result);
+
+
+        } catch (error) {
+            console.error('agent.ks error', error);
         }
-        // console.log('dsp/agent/extra/info', result);
 
-
-    } catch (error) {
-        console.error('agent.ks error', error);
     }
 
 

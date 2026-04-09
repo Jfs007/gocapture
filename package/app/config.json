@@ -25,9 +25,7 @@
                 "*.1688.com"
             ]
         },
-        
         "agent.ks/index.js": {
-            "auth": "account-ks",
             "supportIframe": false,
             "matches": [
                 "*iu.e.kuaishou.com",
@@ -38,7 +36,7 @@
     "canInjectIframeList": [
         "https://search.1688.com"
     ],
-    "version": "20260407.093300",
+    "version": "20260409.093927",
     "success": true,
     "api": ""
 }
