@@ -63,7 +63,7 @@
         
         Object.assign(widget.style, {
             position: 'fixed',
-            top: '50%',
+            top: '80px',
             right: '10px',
             width: 'auto',
             height: 'auto',
