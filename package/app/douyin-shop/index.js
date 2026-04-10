@@ -106,8 +106,11 @@
         let isActive = false;
         
         try {
-            const events = await mdChrome.web.cmd({ cmd: 'event-list' });
-            console.log(events, 'events');
+            let events;
+            if (mdChrome.web.version) {
+                events = await mdChrome.web.cmd({ cmd: 'event-list' });
+                console.log(events, 'events');
+            }
             
             // 验证响应格式是否正确
             if (events && events.once && Array.isArray(events.once)) {
