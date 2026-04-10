@@ -1,6 +1,48 @@
 !async function() {
     const mdChrome = _require('mdChrome');
     
+    // Toast 提示函数
+    function showToast(message, duration = 3000) {
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.3s ease;
+        `;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+                to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            }
+            @keyframes fadeOut {
+                from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                to { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+            }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => {
+                document.body.removeChild(toast);
+                document.head.removeChild(style);
+            }, 300);
+        }, duration);
+    }
+    
     // 检查 URL 是否携带 shop_id 参数
     function checkShopIdAndClick() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -86,11 +128,14 @@
                 display: flex;
                 align-items: center;
                 gap: 6px;
-                padding: 6px 12px;
+                padding: 1px 6px;
                 cursor: ${isActive ? 'pointer' : 'not-allowed'};
                 opacity: ${isActive ? '1' : '0.6'};
                 user-select: none;
                 transition: all 0.2s;
+                background: #fff;
+                border-radius: 6px;
+                margin-left: 4px;
             ">
                 <span style="
                     width: 8px;
@@ -106,13 +151,17 @@
             </div>
         `;
         
-        if (isActive) {
-            authBtn.addEventListener('click', () => {
+        authBtn.addEventListener('click', () => {
+            if (isActive) {
                 const config = window.__SSR_CONFIG_ECOM_FXG_ADMIN;
                 const user = config?.initialData['fxg-admin']?.userData?.user;
                 mdChrome.web.send('winsup-douyin-shop-auth', { user });
-            });
-            
+            } else {
+                showToast('授权未激活,请返回winsup拉起授权弹窗~');
+            }
+        });
+        
+        if (isActive) {
             authBtn.addEventListener('mouseenter', (e) => {
                 e.currentTarget.style.borderColor = '#1890ff';
                 // e.currentTarget.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.2)';
