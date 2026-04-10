@@ -1054,16 +1054,26 @@ const centerBus = (() => {
     }
   }
 
+  function getRegisteredEvents() {
+    const events = {
+      wait: Array.from(waitMap.keys()).map(key => ({ event: key, count: waitMap.get(key).length })),
+      once: Array.from(onceMap.keys()).map(key => ({ event: key, count: onceMap.get(key).length })),
+      on: Array.from(listenerMap.keys()).map(key => ({ event: key, count: listenerMap.get(key).length }))
+    }
+    return events
+  }
+
   return {
     wait,
     once,
     on,
     off,
-    emit
+    emit,
+    getRegisteredEvents
   }
 })();
 
-const { wait, once, on, off, emit } = centerBus;
+const { wait, once, on, off, emit, getRegisteredEvents } = centerBus;
 
 
 const ActiveTab = {
@@ -1124,6 +1134,13 @@ function onMessageLister(message, sender, sendResponse) {
     emit(message.name, message.payload)
     sendResponse({ ok: true })
   }
+
+  if (message.cmd === 'event-list') {
+    const events = getRegisteredEvents()
+    sendResponse(events)
+    return true
+  }
+
   if (message.cmd === 'activeTab') return ActiveTab.Lister(message, sender, sendResponse);
   return true;
 }
