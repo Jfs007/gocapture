@@ -5,7 +5,8 @@
             "common/index.js",
             "ldd/index.js",
             "1688/index.js",
-            "agent.ks/index.js"
+            "agent.ks/index.js",
+            "douyin-shop/index.js"
         ]
     },
     "rules": {
@@ -23,6 +24,12 @@
             "supportIframe": false,
             "matches": [
                 "*.1688.com"
+            ]
+        },
+        "douyin-shop/index.js": {
+            "supportIframe": false,
+            "matches": [
+                "*ompass.jinritemai.com"
             ]
         },
         "agent.ks/index.js": {
