@@ -1144,7 +1144,6 @@ function onMessageLister(message, sender, sendResponse) {
 chrome.cookies.onChanged.addListener((changeInfo) => {
   const { cookie, cause, removed } = changeInfo
   const domain = cookie.domain;
-  console.log(domain, cause, cookie);
   emit('cookie-changed:[' + domain + ']', { cookie, cause, removed, domain })
 })
 
