@@ -180,10 +180,12 @@
             if (isActive) {
                 const config = window.__SSR_CONFIG_ECOM_FXG_ADMIN;
                 const user = data?.data;
-                mdChrome.web.send('winsup-douyin-shop-auth', { user: {
-                    ...user,
-                    shop_name: user.account_name
-                } });
+                mdChrome.web.send('winsup-douyin-shop-auth', {
+                    user: {
+                        ...user,
+                        shop_name: user.account_name
+                    }
+                });
             } else {
                 showToast('授权未激活,请返回winsup拉起授权弹窗~');
             }
@@ -204,13 +206,76 @@
         targetNode.appendChild(authBtn);
     }
 
+    const openAccountSelector = () => {
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+
+        // 找 class 前缀匹配 switchAccountxxx
+        function findSwitchAccount() {
+            return Array.from(document.querySelectorAll('[class]')).find(el =>
+                [...el.classList].some(c => c.startsWith('switchAccount'))
+            );
+        }
+
+        (async () => {
+            // 1️⃣ 找 hover 目标（你之前那个节点）
+            const hoverEl = document.querySelector('#compass-shop-header > div:nth-child(4) > div:nth-child(1)');
+
+            if (!hoverEl) {
+                console.warn('hover 元素没找到');
+                return;
+            }
+
+            // 2️⃣ 触发 hover（mouseenter + mouseover 双保险）
+            hoverEl.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            hoverEl.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+            let done = false;
+
+            function findAndClick() {
+                if (done) return;
+
+                const el = Array.from(document.querySelectorAll('[class]')).find(node =>
+                    [...node.classList].some(c => c.startsWith('switchAccount'))
+                );
+
+                if (el) {
+                    done = true; // 🔒 锁住，防止重复执行
+                    el.click();
+                    console.log('clicked switchAccount');
+
+                    observer.disconnect(); // 🧹 直接停止监听
+                }
+            }
+
+            const observer = new MutationObserver(() => {
+                findAndClick();
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class']
+            });
+
+            console.log('observer started');
+
+
+        })();
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             createAuthButton();
+            // openAccountSelector();
             // checkShopIdAndClick();
         });
     } else {
         createAuthButton();
+        // openAccountSelector();
         // checkShopIdAndClick();
     }
 
