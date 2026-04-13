@@ -43,7 +43,7 @@
         "account.ks/index.js": {
             "supportIframe": false,
             "matches": [
-                "jinfu.e.kuaishou.com",
+                "jinfu.e.kuaishou.com/account/list",
                 "uc.e.kuaishou.com/account/register"
             ]
         }

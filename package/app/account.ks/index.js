@@ -108,20 +108,38 @@
                 return;
             }
 
+            const agentId = data.data.adDspAgent?.agentId;
+            const agentName = data.data.adDspAgent?.agentName;
+
+            // 检查是否已授权
+            // if (isAlreadyAuthorized(agentId, 'jinfu')) {
+            //     showToast('该代理ID已授权，无需重复授权');
+            //     return;
+            // }
+
+            // 二次确认
+            const confirmed = await showConfirmDialog(agentId, agentName, 'jinfu');
+            if (!confirmed) {
+                showToast('已取消授权');
+                return;
+            }
+
             const params = {
                 qcCookie: filteredCookie,
                 type: 3,
-                agentId: data.data.adDspAgent?.agentId,
-                agentName: data.data.adDspAgent?.agentName,
+                agentId: agentId,
+                agentName: agentName,
                 userId: data.data.agentRole?.userId,
                 parentAgentId: data.data.adDspAgent?.parentAgentId,
                 referer: href
             };
 
             await saveCookie(params);
+            
+            // 保存授权记录
+            saveAuthorizedAgent(agentId, 'jinfu');
         } catch (error) {
             return Promise.reject(error);
-            console.error('handleJinfu 错误:', error);
         }
     };
 
@@ -149,19 +167,156 @@
                 return;
             }
 
+            const agentId = data.data.loginModel.agentId;
+
+            // 检查是否已授权
+            if (isAlreadyAuthorized(agentId, 'uc')) {
+                showToast('该代理ID已授权，无需重复授权');
+                return;
+            }
+
+            // 二次确认
+            const confirmed = await showConfirmDialog(agentId, null, 'uc');
+            if (!confirmed) {
+                showToast('已取消授权');
+                return;
+            }
+
             const params = {
                 qcCookie: filteredCookie,
                 type: 2,
-                agentId: data.data.loginModel.agentId,
+                agentId: agentId,
                 userId: data.data.loginModel.userId,
                 referer: href
             };
 
             await saveCookie(params);
+            
+            // 保存授权记录
+            saveAuthorizedAgent(agentId, 'uc');
         } catch (error) {
             return Promise.reject(error);
-            console.error('handleUc 错误:', error);
         }
+    };
+
+    // 本地存储的授权记录
+    const STORAGE_KEY = 'ldd_ks_auth_records';
+
+    // 获取已授权的代理ID列表
+    const getAuthorizedAgents = () => {
+        try {
+            const records = localStorage.getItem(STORAGE_KEY);
+            return records ? JSON.parse(records) : {};
+        } catch (error) {
+            console.error('获取授权记录失败:', error);
+            return {};
+        }
+    };
+
+    // 保存授权记录
+    const saveAuthorizedAgent = (agentId, pageType) => {
+        try {
+            const records = getAuthorizedAgents();
+            records[`${pageType}_${agentId}`] = {
+                agentId,
+                pageType,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+        } catch (error) {
+            console.error('保存授权记录失败:', error);
+        }
+    };
+
+    // 检查是否已授权
+    const isAlreadyAuthorized = (agentId, pageType) => {
+        const records = getAuthorizedAgents();
+        return !!records[`${pageType}_${agentId}`];
+    };
+
+    // 二次确认弹窗
+    const showConfirmDialog = (agentId, agentName, pageType) => {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 10001;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: #fff;
+                border-radius: 8px;
+                padding: 20px;
+                min-width: 300px;
+                max-width: 400px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            `;
+
+            const typeName = pageType === 'jinfu' ? '金服' : 'UC';
+            dialog.innerHTML = `
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #333;">
+                    确认授权
+                </div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px; line-height: 1.6;">
+                    <p style="margin: 4px 0;">类型：${typeName}</p>
+                    <p style="margin: 4px 0;">代理ID：${agentId}</p>
+                    ${agentName ? `<p style="margin: 4px 0;">代理名称：${agentName}</p>` : ''}
+                    <p style="margin: 10px 0 0 0; color: #ff6b00;">确认将此账号授权给量多多使用？</p>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="cancel-btn" style="
+                        padding: 8px 20px;
+                        border: 1px solid #ddd;
+                        background: #fff;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">取消</button>
+                    <button id="confirm-btn" style="
+                        padding: 8px 20px;
+                        border: none;
+                        background: #1890ff;
+                        color: #fff;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">确认授权</button>
+                </div>
+            `;
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            const cancelBtn = dialog.querySelector('#cancel-btn');
+            const confirmBtn = dialog.querySelector('#confirm-btn');
+
+            cancelBtn.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(false);
+            });
+
+            confirmBtn.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(true);
+            });
+
+            // 点击遮罩层关闭
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                    resolve(false);
+                }
+            });
+        });
     };
 
     // Toast 提示函数
@@ -297,7 +452,7 @@
                         await handleUc();
                     }
                     
-                    showToast('Cookie 获取成功！');
+                    // showToast('Cookie 获取成功！');
                 } catch (error) {
                     showToast('Cookie 获取失败，请查看控制台');
                     console.error('获取 Cookie 失败:', error);
