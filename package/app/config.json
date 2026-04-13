@@ -6,7 +6,8 @@
             "ldd/index.js",
             "1688/index.js",
             "agent.ks/index.js",
-            "douyin-shop/index.js"
+            "douyin-shop/index.js",
+            "account.ks/index.js"
         ]
     },
     "rules": {
@@ -37,6 +38,13 @@
             "matches": [
                 "*iu.e.kuaishou.com",
                 "*u.e.kuaishou.com"
+            ]
+        },
+        "account.ks/index.js": {
+            "supportIframe": false,
+            "matches": [
+                "jinfu.e.kuaishou.com",
+                "uc.e.kuaishou.com/account/register"
             ]
         }
     },

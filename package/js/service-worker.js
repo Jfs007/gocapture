@@ -408,10 +408,6 @@ async function GetConfig(context, sender, callback) {
   if (needsAuth && APP_API) {
     const authInfo = await getAuthorizationInfo(APP_API);
     if (!authInfo) {
-      // 检查当前页面是否已经是授权页面，防止重复打开
-      // if (url && url.indexOf('__LDD_EXTENSIONS_AUTH__') === -1) {
-      //   openAuthorizationPage(APP_API);
-      // }
       return;
     }
     authorizationList = authInfo.authorizationList || [];
@@ -423,7 +419,6 @@ async function GetConfig(context, sender, callback) {
         const url = originalUrls[index];
         const urlRule = rules[url];
         const { auth } = urlRule || {};
-
         if (auth && !checkAuthorization(auth, authorizationList)) {
           console.log(`权限不足，跳过加载: ${url}, 需要权限: ${auth}`);
           return false;
