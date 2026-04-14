@@ -137,7 +137,7 @@
             await saveCookie(params);
             
             // 保存授权记录
-            saveAuthorizedAgent(agentId, 'jinfu');
+            // saveAuthorizedAgent(agentId, 'jinfu');
         } catch (error) {
             return Promise.reject(error);
         }
@@ -170,10 +170,10 @@
             const agentId = data.data.loginModel.agentId;
 
             // 检查是否已授权
-            if (isAlreadyAuthorized(agentId, 'uc')) {
-                showToast('该代理ID已授权，无需重复授权');
-                return;
-            }
+            // if (isAlreadyAuthorized(agentId, 'uc')) {
+            //     showToast('该代理ID已授权，无需重复授权');
+            //     return;
+            // }
 
             // 二次确认
             const confirmed = await showConfirmDialog(agentId, null, 'uc');
@@ -193,7 +193,7 @@
             await saveCookie(params);
             
             // 保存授权记录
-            saveAuthorizedAgent(agentId, 'uc');
+            // saveAuthorizedAgent(agentId, 'uc');
         } catch (error) {
             return Promise.reject(error);
         }
