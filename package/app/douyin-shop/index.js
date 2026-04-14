@@ -43,6 +43,41 @@
         }, duration);
     }
 
+
+
+
+
+    function shouldBlock(el) {
+        return el?.innerText && el.innerText.includes('退出');
+    }
+
+    function intercept(e) {
+        let el = e.target;
+
+        while (el && el !== document.body) {
+            if (shouldBlock(el)) {
+                e.stopPropagation();
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                mdChrome.web.cmd({
+                    cmd: 'changeAccount',
+                   
+                    origins: ['https://compass.jinritemai.com', 'https://fxg.jinritemai.com']
+                   
+                })
+
+                console.log('已拦截退出登录:', e.type);
+                return false;
+            }
+            el = el.parentElement;
+        }
+    }
+
+    // 🔥 拦截所有关键事件（重点）
+    ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup'].forEach(type => {
+        document.addEventListener(type, intercept, true); // 捕获阶段
+    });
+
     // 检查 URL 是否携带 shop_id 参数
     function checkShopIdAndClick() {
         const urlParams = new URLSearchParams(window.location.search);
