@@ -44,6 +44,7 @@
         "account.ks/index.js": {
             "supportIframe": false,
             "matches": [
+                "agent.e.kuaishou.com/account/list",
                 "jinfu.e.kuaishou.com/account/list",
                 "uc.e.kuaishou.com/account/register"
             ]

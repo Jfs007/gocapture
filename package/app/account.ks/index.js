@@ -8,6 +8,8 @@
             return 'jinfu';
         } else if (href.indexOf('uc.e.kuaishou.com/account/register') > -1) {
             return 'uc';
+        } else if (href.indexOf('agent.e.kuaishou.com/account/list') > -1) {
+            return 'agent';
         }
         return null;
     };
@@ -45,6 +47,23 @@
         "ad_bp_account_token",
         "kuaishou.ad.uc_st",
         "kuaishou.ad.uc_ph"
+    ];
+
+    const AGENT_COOKIE_FILTER = [
+        "Hm_lvt_ed0a6497a1fdcdb3cdca291a7692408d",
+        "Hm_lvt_55b6f6890a6937842cef785d95ea99d7",
+        "Hm_lvt_2f06440050c04107e4de7a8003748f65",
+        "userId",
+        "bUserId",
+        "kuaishou.ad.login.identity",
+        "weblogger_did",
+        "_did",
+        "did",
+        "apdid",
+        "kwfv1",
+        "kuaishou.ad.dsp.agent_st",
+        "kuaishou.ad.dsp.agent_ph",
+        "JSESSIONID"
     ];
 
     // 过滤 cookie
@@ -199,39 +218,51 @@
         }
     };
 
-    // 本地存储的授权记录
-    const STORAGE_KEY = 'ldd_ks_auth_records';
 
-    // 获取已授权的代理ID列表
-    const getAuthorizedAgents = () => {
+    // 处理 agent 类型
+    const handleAgent = async () => {
         try {
-            const records = localStorage.getItem(STORAGE_KEY);
-            return records ? JSON.parse(records) : {};
-        } catch (error) {
-            console.error('获取授权记录失败:', error);
-            return {};
-        }
-    };
+            const cookie = await getCookie('.kuaishou.com');
+            const filteredCookie = filterCookie(cookie, AGENT_COOKIE_FILTER);
 
-    // 保存授权记录
-    const saveAuthorizedAgent = (agentId, pageType) => {
-        try {
-            const records = getAuthorizedAgents();
-            records[`${pageType}_${agentId}`] = {
-                agentId,
-                pageType,
-                timestamp: Date.now()
+            const res = await fetch("https://agent.e.kuaishou.com/rest/dsp/agent/infov2", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include"
+            });
+            const data = await res.json();
+            console.log("agent 返回数据:", data);
+
+            if (!data.data) {
+                console.error('agent 数据获取失败');
+                return;
+            }
+
+            const agentId = data.data.adDspAgent?.agentId;
+            const agentName = data.data.adDspAgent?.agentName;
+
+            // 二次确认
+            const confirmed = await showConfirmDialog(agentId, agentName, 'agent');
+            if (!confirmed) {
+                showToast('已取消授权');
+                return;
+            }
+
+            const params = {
+                qcCookie: filteredCookie,
+                type: 3,
+                agentId: agentId,
+                agentName: agentName,
+                userId: data.data.agentRole?.userId,
+                referer: href
             };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-        } catch (error) {
-            console.error('保存授权记录失败:', error);
-        }
-    };
 
-    // 检查是否已授权
-    const isAlreadyAuthorized = (agentId, pageType) => {
-        const records = getAuthorizedAgents();
-        return !!records[`${pageType}_${agentId}`];
+            await saveCookie(params);
+        } catch (error) {
+            return Promise.reject(error);
+        }
     };
 
     // 二次确认弹窗
@@ -261,7 +292,8 @@
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             `;
 
-            const typeName = pageType === 'jinfu' ? '金服' : 'UC';
+            const typeNameMap = { jinfu: '金服', uc: 'UC', agent: '代理商' };
+            const typeName = typeNameMap[pageType] || pageType;
             dialog.innerHTML = `
                 <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #333;">
                     确认授权
@@ -450,6 +482,8 @@
                         await handleJinfu();
                     } else if (pageType === 'uc') {
                         await handleUc();
+                    } else if (pageType === 'agent') {
+                        await handleAgent();
                     }
                     
                     // showToast('Cookie 获取成功！');
