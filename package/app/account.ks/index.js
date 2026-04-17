@@ -99,6 +99,7 @@
                 url: "api/iu/ks/saveCookie"
             });
             console.log('Cookie 提交成功:', res);
+            showToast('授权成功');
             return res;
         } catch (error) {
             console.error('Cookie 提交失败:', error);
@@ -139,7 +140,7 @@
             // 二次确认
             const confirmed = await showConfirmDialog(agentId, agentName, 'jinfu');
             if (!confirmed) {
-                showToast('已取消授权');
+                // showToast('已取消授权');
                 return;
             }
 
@@ -197,7 +198,7 @@
             // 二次确认
             const confirmed = await showConfirmDialog(agentId, null, 'uc');
             if (!confirmed) {
-                showToast('已取消授权');
+                // showToast('已取消授权');
                 return;
             }
 
@@ -246,7 +247,7 @@
             // 二次确认
             const confirmed = await showConfirmDialog(agentId, agentName, 'agent');
             if (!confirmed) {
-                showToast('已取消授权');
+                // showToast('已取消授权');
                 return;
             }
 
@@ -476,7 +477,7 @@
         widget.addEventListener('click', async (e) => {
             if (Math.abs(e.clientX - startX) < 5 && Math.abs(e.clientY - startY) < 5) {
                 try {
-                    showToast('正在获取 Cookie...');
+                    // showToast('正在获取 Cookie...');
                     
                     if (pageType === 'jinfu') {
                         await handleJinfu();
