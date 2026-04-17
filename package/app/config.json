@@ -30,7 +30,8 @@
         "douyin-shop/index.js": {
             "supportIframe": false,
             "matches": [
-                "*ompass.jinritemai.com"
+                "*ompass.jinritemai.com",
+                "fxg.jinritemai.com"
             ]
         },
         "agent.ks/index.js": {
