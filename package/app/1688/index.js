@@ -20,20 +20,22 @@
             return true;
         };
 
-        // 监控 tmd iframe 消失（滑块验证完成）
+        // 轮询监控 tmd iframe 消失（滑块验证完成）
         const watchIframeRemoval = (onRemoved) => {
-            const container = document.querySelector('.J_MIDDLEWARE_FRAME_WIDGET');
-            if (!container) return;
-            console.log('[1688] 开始监控 tmd iframe 消失...');
-            const observer = new MutationObserver(() => {
-                const iframe = container.querySelector('iframe');
-                if (!iframe || !iframe.src || !iframe.src.includes('_____tmd_____')) {
+            console.log('[1688] 开始轮询监控 tmd iframe 消失...');
+            const timer = setInterval(() => {
+                const iframe = document.querySelector('.J_MIDDLEWARE_FRAME_WIDGET iframe');
+                const gone = !iframe
+                    || !iframe.src
+                    || !iframe.src.includes('_____tmd_____')
+                    || iframe.offsetParent === null;
+                console.log('[1688] 轮询检测 iframe:', gone ? '已消失/隐藏' : '仍存在');
+                if (gone) {
+                    clearInterval(timer);
                     console.log('[1688] tmd iframe 已消失，视为 cookie 有效');
-                    observer.disconnect();
                     onRemoved();
                 }
-            });
-            observer.observe(container, { childList: true, subtree: true });
+            }, 1000);
         };
 
         // 页面加载完成后检测
