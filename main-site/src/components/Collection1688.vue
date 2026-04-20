@@ -117,14 +117,25 @@
           <n-checkbox v-model:checked="manualCookieEnabled" size="small">
             <n-text class="font-12">手动输入 Cookie</n-text>
           </n-checkbox>
-          <n-input
-            v-if="manualCookieEnabled"
-            v-model:value="manualCookieInput"
-            type="textarea"
-            size="small"
-            placeholder="请输入 Cookie 字符串，格式如: aa=xx; bb=yy;"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-          />
+          <n-input v-if="manualCookieEnabled" v-model:value="manualCookieInput" type="textarea" size="small"
+            placeholder="请输入 Cookie 字符串，格式如: aa=xx; bb=yy;" :autosize="{ minRows: 2, maxRows: 4 }" />
+        </n-space>
+
+        <!-- 高级配置 -->
+        <n-space vertical :size="8">
+          <n-checkbox v-model:checked="advancedConfigEnabled" size="small">
+            <n-text class="font-12">高级配置</n-text>
+          </n-checkbox>
+          <template v-if="advancedConfigEnabled">
+            <n-space align="center" :size="4" style="width: 100%;">
+              <n-text class="font-12" style="white-space: nowrap;">ConnectAnywhere</n-text>
+              <n-input size="small" v-model:value="connectAnywhereUrl" placeholder="http://xxx 用于自动获取Cookie"
+                style="flex: 1" />
+            </n-space>
+            <n-text depth="3" class="font-12">
+              开启后，采集中断时可通过自动重试开关自动获取Cookie并继续采集
+            </n-text>
+          </template>
         </n-space>
 
         <!-- 开始采集按钮 -->
@@ -147,7 +158,7 @@
       </template>
       <template #header-extra>
         <n-space align="center">
-          <n-button size="small" text type="primary" @click="loadTaskList" :disabled="loading">
+          <n-button size="small" text type="primary" @click="() => loadTaskList()" :disabled="loading">
             刷新
           </n-button>
           <n-button size="small" text type="primary" :disabled="tasks.length === 0" @click="handleClearAll">
@@ -165,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h, reactive, computed, watch, nextTick } from 'vue'
+import { ref, h, reactive, computed, watch, nextTick, toRaw } from 'vue'
 import {
   NSpace,
   NCard,
@@ -179,6 +190,7 @@ import {
   NPopconfirm,
   NTooltip,
   NCheckbox,
+  NSwitch,
   useMessage,
   type DataTableColumns,
   NScrollbar
@@ -189,7 +201,7 @@ import { common, collection1688 } from '../api'
 import { use1688 } from './use1688'
 import img1688step1 from '../images/1688search1_compressed.jpg'
 import img1688step2 from '../images/1688search2_compressed.jpg'
-
+import request from '../utils/request'
 const message = useMessage()
 const { getUserInfo } = use1688()
 const loading = ref(false);
@@ -215,6 +227,21 @@ const dropShippingEnabled = ref(false) // 一键代发
 const douyinLabelEnabled = ref(false)  // 支持抖音面单
 const manualCookieEnabled = ref(false) // 手动输入 Cookie
 const manualCookieInput = ref('')      // 手动输入的 Cookie 字符串
+const advancedConfigEnabled = ref(false) // 高级配置
+const connectAnywhereUrl = ref('')       // ConnectAnywhere 地址
+const AUTO_RETRY_STORAGE_KEY = 'collection1688_auto_retry_tasks'
+const loadAutoRetryTasks = (): Record<string, boolean> => {
+  try {
+    const saved = localStorage.getItem(AUTO_RETRY_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : {}
+  } catch { return {} }
+}
+const autoRetryTasks = reactive<Record<string, boolean>>(loadAutoRetryTasks())
+const saveAutoRetryTasks = () => {
+  try {
+    localStorage.setItem(AUTO_RETRY_STORAGE_KEY, JSON.stringify(autoRetryTasks))
+  } catch { }
+}
 
 // 每个榜单类型的独立数据
 const rankingData = ref<Record<string, {
@@ -329,7 +356,9 @@ const saveDefaultConfig = () => {
     const config = {
       activeRankingType: activeRankingType.value,
       enabledRankings: enabledRankings.value,
-      rankingData: rankingData.value
+      rankingData: rankingData.value,
+      advancedConfigEnabled: advancedConfigEnabled.value,
+      connectAnywhereUrl: connectAnywhereUrl.value
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
   } catch (error) {
@@ -347,6 +376,13 @@ watch(
     saveDefaultConfig()
   },
   { deep: true }
+)
+
+watch(
+  [advancedConfigEnabled, connectAnywhereUrl],
+  () => {
+    saveDefaultConfig()
+  }
 )
 
 const tasks = ref<CollectionTask[]>([
@@ -538,15 +574,16 @@ const isLoggedTo1688 = computed(() => {
 })
 const set1688UserInfo = async () => {
   const info = await getUserInfo();
-  
+
   if (manualCookieEnabled.value && manualCookieInput.value) {
     user1688Info.value = {
+      cookiesArr: info.cookiesArr,
       object: info.object,
       cookie: manualCookieInput.value
     };
     return user1688Info.value;
   }
-  
+
   user1688Info.value = info;
   return info;
 }
@@ -564,19 +601,17 @@ const getDayTypeValue = (rankingTime: number): number => {
 }
 
 // 加载任务列表
-const loadTaskList = async () => {
+const loadTaskList = async (silent = false) => {
   try {
-    // pagination.page = 1;
-    loading.value = true;
-    tasks.value = [];
+    if (!silent) {
+      loading.value = true;
+      tasks.value = [];
+    }
     const res = await collection1688.getTaskList({
-      // userId: info.object.unb,
       pageNum: pagination.page || 1,
       pageSize: pagination.pageSize || 15
     });
-    // const
-    // 转换后端数据为前端格式
-    tasks.value = (res.data||[]).map((task: any) => ({
+    tasks.value = (res.data || []).map((task: any) => ({
       ...task,
       id: task.id.toString(),
       taskName: task.taskNo,
@@ -588,16 +623,13 @@ const loadTaskList = async () => {
       productCount: 0,
       factoryCount: 0
     }));
-    // 更新分页信息
     if (res.pageInfo) {
       pagination.itemCount = res.pageInfo.total
       pagination.pageCount = Math.ceil(res.pageInfo.total / res.pageInfo.pageSize);
     }
-
-
-    loading.value = false;
+    if (!silent) loading.value = false;
   } catch (error) {
-    loading.value = false;
+    if (!silent) loading.value = false;
     console.error('加载任务列表失败', error)
   }
 }
@@ -630,7 +662,7 @@ const continueCollection = async (row: any = {}) => {
   exportLoading.value[row.id] = true;
   let info = user1688Info.value;
   info = await set1688UserInfo();
-  
+
   if (!info.object.unb) {
     if (manualCookieEnabled.value) {
       message.warning('请输入有效的 Cookie');
@@ -656,9 +688,9 @@ const continueCollection = async (row: any = {}) => {
       remove1688UserInfo();
       const data = rankingData.value['search1688'];
       // cookie无效，去滑块验证吧
-      const cookieUrl = data.settings?.url ?  appendParams(data.settings?.url, '__AUTH_TYPE__=SLIDING_BLOCK') : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
+      const cookieUrl = data.settings?.url ? appendParams(data.settings?.url, '__AUTH_TYPE__=SLIDING_BLOCK') : 'https://s.1688.com/factory/image_search.htm?tab=imageSearch&imageId=1706208665481339070&imageIdList=1706208665481339070&spm=a260k.22462580.imagesearch.upload&__AUTH_TYPE__=SLIDING_BLOCK';
       window.open(cookieUrl);
-       exportLoading.value[row.id] = false;
+      exportLoading.value[row.id] = false;
       // isCollecting.value = false;
       return;
     }
@@ -682,6 +714,123 @@ const continueCollection = async (row: any = {}) => {
 
 
 }
+
+// 从 ConnectAnywhere 获取 Cookie
+const fetchCookieFromConnectAnywhere = async (): Promise<string | null> => {
+  if (!connectAnywhereUrl.value) return null;
+  try {
+    const data = rankingData.value['search1688'];
+    // cookie无效，去滑块验证吧
+    const cookieUrl = data.settings?.url;
+    const res = await request({
+
+      url: connectAnywhereUrl.value + '?t=' + Date.now(),
+      method: 'post',
+      data: { "mode": "manual", cookies: JSON.parse(JSON.stringify(toRaw(user1688Info.value.cookiesArr))), url: cookieUrl },
+    })
+    const { cookies } = res;
+    const cookiesArr = [...(cookies || []), ...(user1688Info.value.cookiesArr || [])]
+    const map: Record<string, string> = {}
+    const keys: string[] = []
+    cookiesArr.forEach((c: any) => {
+      if (map[c.name]) return
+      map[c.name] = c.value
+      keys.push(c.name)
+    })
+    const cookie = keys.map(name => {
+      const val = map[name]
+      if (!val) return null
+      return name + '=' + val
+    }).filter(Boolean).join('; ')
+    user1688Info.value = { cookiesArr, cookie, object: map }
+    return cookie;
+  } catch (error) {
+    console.error('ConnectAnywhere 获取 Cookie 失败:', error)
+    return null
+  }
+}
+
+// 自动重试单个任务
+const autoRetryTask = async (row: any) => {
+  if (!autoRetryTasks[row.id]) return
+  if (!connectAnywhereUrl.value) return
+
+  exportLoading.value[row.id] = true
+  try {
+    const cookie = await fetchCookieFromConnectAnywhere()
+    if (!cookie) {
+      exportLoading.value[row.id] = false
+      return
+    }
+
+    let res = await collection1688.checkCookie({
+      cookie: cookie,
+      taskUrl: row.taskUrl,
+      userId: user1688Info.value.object?.unb,
+    })
+    if (res.code != 200) {
+      exportLoading.value[row.id] = false
+      return
+    }
+    res = await collection1688.continueTask({
+      taskId: row.id,
+      cookie: cookie,
+      userId: user1688Info.value.object?.unb,
+    })
+    exportLoading.value[row.id] = false
+    if (res?.code != 200) throw new Error(res?.msg)
+    message.success(`任务 ${row.taskNo || row.id} 自动重试成功`)
+  } catch (error) {
+    exportLoading.value[row.id] = false
+  }
+}
+
+// 自动重试守护轮询
+let autoRetryTimer: ReturnType<typeof setInterval> | null = null
+let isAutoRetrying = false
+
+const autoRetryPollingTick = async () => {
+  if (isAutoRetrying) return
+  isAutoRetrying = true
+  try {
+    const res = await collection1688.getTaskList({ pageNum: 1, pageSize: 15 })
+    const taskList = (res.data || []).map((t: any) => ({
+      ...t,
+      id: t.id.toString(),
+      taskNo: t.taskNo,
+      taskStatus: t.taskStatus,
+      taskUrl: t.taskUrl,
+    }))
+    // 同步更新当前页面数据
+    tasks.value = taskList.map((t: any) => ({
+      ...t,
+      taskName: t.taskNo,
+      count: t.daqCount,
+      createTime: t.createdAt,
+      categories: [],
+      productCount: 0,
+      factoryCount: 0,
+    }))
+    if (res.pageInfo) {
+      pagination.itemCount = res.pageInfo.total
+      pagination.pageCount = Math.ceil(res.pageInfo.total / res.pageInfo.pageSize)
+    }
+    // 只检查已加入自动重试的任务
+    for (const task of taskList) {
+      if (autoRetryTasks[task.id] && task.taskStatus == 3) {
+        await autoRetryTask(task)
+      }
+    }
+  } finally {
+    isAutoRetrying = false
+  }
+}
+
+const startAutoRetryPolling = () => {
+  if (autoRetryTimer) return
+  autoRetryTimer = setInterval(autoRetryPollingTick, 10000)
+}
+
 const handleStartCollection = async () => {
   // 检查是否有启用的榜单
   if (enabledRankings.value.length === 0) {
@@ -769,7 +918,7 @@ const handleStartCollection = async () => {
           factoryCountPerProduct: data.settings.maxFactoriesPerProduct,
         }
       }
-      if(!data) return null;
+      if (!data) return null;
       const taskType = type === 'douyin' ? 2 : 1
       return {
         userId: info.object.unb,
@@ -1022,9 +1171,28 @@ const columns: DataTableColumns<CollectionTask> = [
   {
     title: '采集状态',
     key: 'status',
-    width: 80,
-    render: (row) => {
-      return getStatusText(row.taskStatus);
+    width: 120,
+    render: (row: any) => {
+      const statusText = getStatusText(row.taskStatus)
+      if (connectAnywhereUrl.value) {
+        return h(NSpace, { size: 4, align: 'center', wrap: false }, () => [
+          h('span', statusText),
+          h(NTooltip, { trigger: 'hover' }, {
+            trigger: () => h(NSwitch, {
+              size: 'small',
+              value: autoRetryTasks[row.id] || false,
+              loading: exportLoading.value[row.id] || false,
+              'onUpdate:value': (val: boolean) => {
+                autoRetryTasks[row.id] = val
+                saveAutoRetryTasks()
+                if (val && row.taskStatus == 3) autoRetryTask(row)
+              }
+            }),
+            default: () => '自动重试'
+          })
+        ])
+      }
+      return statusText
     }
   },
   {
@@ -1105,6 +1273,12 @@ const setup = async () => {
         ...savedConfig.rankingData
       }
     }
+    if (savedConfig.advancedConfigEnabled !== undefined) {
+      advancedConfigEnabled.value = savedConfig.advancedConfigEnabled
+    }
+    if (savedConfig.connectAnywhereUrl) {
+      connectAnywhereUrl.value = savedConfig.connectAnywhereUrl
+    }
   }
 
   await set1688UserInfo();
@@ -1114,6 +1288,8 @@ const setup = async () => {
   switchRankingType(activeRankingType.value)
   // 加载任务列表
   loadTaskList();
+  // 初始化守护轮询
+  startAutoRetryPolling()
 };
 setup()
 </script>

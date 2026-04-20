@@ -101,6 +101,7 @@ function use1688() {
 
         // console.log(cookiesGroupRes, 'cookiesGroupRes', cookie);
         return {
+            cookiesArr,
             cookie,
             object: map,
         }

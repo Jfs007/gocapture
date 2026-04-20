@@ -16,6 +16,7 @@ const request = async ({ url, method, headers, data, buffer }: HttpOptions) => {
     try {
         const mdChrome = _require('mdChrome');
         const token = userInfo.value.token;
+        console.log(url, token, data);
         const res = await mdChrome.web.cmd({
             buffer,
             cmd: 'fetch',
