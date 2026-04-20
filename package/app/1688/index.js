@@ -13,7 +13,7 @@
                 return false;
             }
             const iframe = document.querySelector('.J_MIDDLEWARE_FRAME_WIDGET iframe');
-            if (iframe && iframe.src && iframe.src.includes('_____tmd_____')) {
+            if ((iframe && iframe.src) && (iframe.src.includes('_____tmd_____') || iframe.src.includes('action=deny'))) {
                 console.log('[1688] cookie 失效：检测到 tmd iframe');
                 return false;
             }
