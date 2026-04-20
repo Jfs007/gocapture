@@ -4,6 +4,13 @@
     const search = new URLSearchParams(window.location.search);
     const authType = search.get('__AUTH_TYPE__');
     const notToRedirect = search.get('__NOT_TO__REDIRECT__')
+    if (location.href.includes('/selloffer/offer_search')) {
+        console.log('search page');
+        // TODO: 处理搜索页面
+        mdChrome.web.once('cookie-changed:[.1688.com]', async (info) => {
+            console.log('cookie-changed', info);
+        })
+    }
 
     // if(location.href.includes('https://s.1688.com/selloffer/offer_search')) {
     //    console.log(__WEB_REQUEST_API__, '__WEB_REQUEST_API__');
@@ -210,14 +217,14 @@
             callback();
         }, 1700)
     }
-    
+
     // 使用
     waitForDialog('.baxia-dialog', (dialog) => {
         if (!dialog) {
             const id = Date.now() + Math.random() + ':md.local.set';
             window.postMessage({
                 sender: { id, name: 'web-page' },
-                params: [{ ['BROWSER_CACHE']: { 1688: {  cookie: document.cookie } } }],
+                params: [{ ['BROWSER_CACHE']: { 1688: { cookie: document.cookie } } }],
                 cmd: "chrome",
                 call: 'storage.local.set'
             }, "*");
@@ -245,6 +252,8 @@
         }, 2000)
 
     }
+
+    
 
 
 
