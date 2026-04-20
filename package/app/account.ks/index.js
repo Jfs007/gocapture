@@ -80,10 +80,12 @@
     };
 
     // 获取完整 cookie
-    const getCookie = async (domain) => {
+    const getCookie = async (domain) => {   
+        const isUrl = domain.startsWith('http');
         const result = await mdChrome.web.cmd({
             cmd: 'getCookie',
-            myDomain: domain
+            myDomain: isUrl ? undefined : domain,
+            url: isUrl ? domain : undefined
         });
         return result.cookiesStr || '';
     };
@@ -169,8 +171,9 @@
     // 处理 uc 类型
     const handleUc = async () => {
         try {
-            const cookie = await getCookie('.kuaishou.com');
-            const filteredCookie = filterCookie(cookie, UC_COOKIE_FILTER);
+            // const cookie = await getCookie('.kuaishou.com');
+            // const filteredCookie = filterCookie(cookie, UC_COOKIE_FILTER);
+             const filteredCookie = await getCookie('https://uc.e.kuaishou.com');
 
             const res = await fetch("https://uc.e.kuaishou.com/rest/customer/common/ad-info", {
                 method: "POST",
@@ -226,14 +229,14 @@
     // 处理 agent 类型
     const handleAgent = async () => {
         try {
-            const gets = ['agent.e.kuaishou.com', '.kuaishou.com'].map(async _ => {
-                return getCookie('.kuaishou.com')
-            })
-            const cookies = await Promise.all(gets);
-            // const cookie = await getCookie('.kuaishou.com');
-            const cookie = cookies.flat().join(';');
-            console.log(cookie, 'cks');
-            const filteredCookie = filterCookie(cookie, AGENT_COOKIE_FILTER);
+            // const gets = ['agent.e.kuaishou.com', '.kuaishou.com'].map(async _ => {
+            //     return getCookie('.kuaishou.com')
+            // })
+            // const cookies = await Promise.all(gets);
+            const filteredCookie = await getCookie('https://agent.e.kuaishou.com');
+            // const cookie = cookies.flat().join(';');
+            // console.log(cookie, 'cks');
+            // const filteredCookie = filterCookie(cookie, AGENT_COOKIE_FILTER);
 
             const res = await fetch("https://agent.e.kuaishou.com/rest/dsp/agent/infov2", {
                 method: "POST",
