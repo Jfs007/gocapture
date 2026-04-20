@@ -115,8 +115,9 @@
     // 处理 jinfu 类型
     const handleJinfu = async () => {
         try {
-            const cookie = await getCookie('.kuaishou.com');
-            const filteredCookie = filterCookie(cookie, JINFU_COOKIE_FILTER);
+            // const cookie = await getCookie('.kuaishou.com');
+            // const filteredCookie = filterCookie(cookie, JINFU_COOKIE_FILTER);
+            const filteredCookie = await getCookie('https://jinfu.e.kuaishou.com');
 
             const res = await fetch("https://jinfu.e.kuaishou.com/rest/dsp/agent/infov2", {
                 method: "POST",
