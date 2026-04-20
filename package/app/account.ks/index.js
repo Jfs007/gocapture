@@ -416,7 +416,7 @@
         widget.id = 'ldd-ks-cookie-widget';
         widget.innerHTML = `
             <div style="text-align: center;">
-                <img src="https://cdn.itaored.com/static/fed/testldd-pro-chrome-plugin/app/icon.png" 
+                <img src="https://cdn.itaored.com/static/fed/ldd-pro-chrome-plugin/app/icon.png" 
                      alt="量多多授权" 
                      referrerpolicy="no-referrer"
                      style="width: 28px; height: 28px; display: block; border-radius: 50%; margin: 0 auto;">
