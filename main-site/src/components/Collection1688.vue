@@ -765,7 +765,7 @@ const autoRetryTask = async (row: any) => {
     const cookieUrl = data.settings?.url;
     window.open(cookieUrl + '&__AUTH_TYPE__=SLIDING_BLOCK', '_blank_');
     const mdChrome = _require('mdChrome');
-
+    exportLoading.value[row.id] = true;
     const cleanup = () => {
       pendingRetryTasks.delete(row.id)
       mdChrome.web.off('1688-get-cookie')
@@ -786,6 +786,8 @@ const autoRetryTask = async (row: any) => {
         cookie: info.cookie,
         userId: info.object?.unb,
       });
+      // 刷新任务列表
+      await loadTaskList()
       mdChrome.web.activeTab();
       exportLoading.value[row.id] = false
       if (res?.code != 200) throw new Error(res?.msg)
@@ -1200,7 +1202,7 @@ const columns: DataTableColumns<CollectionTask> = [
                 if (val && row.taskStatus == 3) autoRetryTask(row)
               }
             }),
-            default: () => '中断唤起验证'
+            default: () => '中断自动唤起验证'
           })
         ])
       }
@@ -1288,7 +1290,7 @@ const setup = async () => {
     if (savedConfig.advancedConfigEnabled !== undefined) {
       advancedConfigEnabled.value = savedConfig.advancedConfigEnabled
     }
-   
+
   }
 
   await set1688UserInfo();
