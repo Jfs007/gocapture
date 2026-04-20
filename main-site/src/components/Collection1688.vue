@@ -772,11 +772,12 @@ const autoRetryTask = async (row: any) => {
       clearTimeout(timer)
     }
 
-    const timer = setTimeout(() => {
-      cleanup()
-      exportLoading.value[row.id] = false
-      console.warn(`任务 ${row.taskNo || row.id} 自动重试超时(30 * 60s)`)
-    }, 30 * 60000)
+    // const timer = setTimeout(() => {
+    //   cleanup()
+    //   exportLoading.value[row.id] = false
+    //   console.warn(`任务 ${row.taskNo || row.id} 自动重试超时(7 * 24 * 30 * 60s)`)
+    // }, 7 * 24 * 60 * 60000)
+    const timer = null;
 
     mdChrome.web.once('1688-get-cookie', async (_) => {
       cleanup()
