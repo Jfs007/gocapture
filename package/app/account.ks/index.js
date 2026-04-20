@@ -223,7 +223,13 @@
     // 处理 agent 类型
     const handleAgent = async () => {
         try {
-            const cookie = await getCookie('.kuaishou.com');
+            const gets = ['agent.e.kuaishou.com', '.kuaishou.com'].map(async _ => {
+                return getCookie('.kuaishou.com')
+            })
+            const cookies = await Promise.all(gets);
+            // const cookie = await getCookie('.kuaishou.com');
+            const cookie = cookies.flat().join(';');
+            console.log(cookie, 'cks');
             const filteredCookie = filterCookie(cookie, AGENT_COOKIE_FILTER);
 
             const res = await fetch("https://agent.e.kuaishou.com/rest/dsp/agent/infov2", {
