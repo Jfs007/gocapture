@@ -50,17 +50,20 @@
     ];
 
     const AGENT_COOKIE_FILTER = [
-        "Hm_lvt_ed0a6497a1fdcdb3cdca291a7692408d",
-        "Hm_lvt_55b6f6890a6937842cef785d95ea99d7",
-        "Hm_lvt_2f06440050c04107e4de7a8003748f65",
-        "userId",
-        "bUserId",
-        "kuaishou.ad.login.identity",
+        "account_id",
+        "didv",
+        "apdid",
         "weblogger_did",
         "_did",
         "did",
-        "apdid",
+        "kwpsecproductname",
         "kwfv1",
+        "hdige2wqwoino",
+        "hdige3wqwoino",
+        "ehid",
+        "bUserId",
+        "userId",
+        "kuaishou.ad.login.identity",
         "kuaishou.ad.dsp.agent_st",
         "kuaishou.ad.dsp.agent_ph",
         "JSESSIONID"
@@ -155,7 +158,7 @@
             };
 
             await saveCookie(params);
-            
+
             // 保存授权记录
             // saveAuthorizedAgent(agentId, 'jinfu');
         } catch (error) {
@@ -211,7 +214,7 @@
             };
 
             await saveCookie(params);
-            
+
             // 保存授权记录
             // saveAuthorizedAgent(agentId, 'uc');
         } catch (error) {
@@ -484,7 +487,7 @@
             if (Math.abs(e.clientX - startX) < 5 && Math.abs(e.clientY - startY) < 5) {
                 try {
                     // showToast('正在获取 Cookie...');
-                    
+
                     if (pageType === 'jinfu') {
                         await handleJinfu();
                     } else if (pageType === 'uc') {
@@ -492,7 +495,7 @@
                     } else if (pageType === 'agent') {
                         await handleAgent();
                     }
-                    
+
                     // showToast('Cookie 获取成功！');
                 } catch (error) {
                     showToast('Cookie 获取失败，请查看控制台');
