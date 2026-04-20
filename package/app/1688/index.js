@@ -4,7 +4,7 @@
     const search = new URLSearchParams(window.location.search);
     const authType = search.get('__AUTH_TYPE__');
     const notToRedirect = search.get('__NOT_TO__REDIRECT__')
-    if (location.href.includes('/selloffer/offer_search')) {
+    if (location.href.includes('/selloffer/offer_search') && mdChrome?.web?.version) {
         // 检测 cookie 是否失效（页面出现验证码/风控拦截）
         const checkCookieValid = () => {
             const nocaptcha = document.getElementById('nocaptcha');

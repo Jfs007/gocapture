@@ -1188,7 +1188,8 @@ const columns: DataTableColumns<CollectionTask> = [
     render: (row: any) => {
       const statusText = getStatusText(row.taskStatus)
       // advancedConfigEnabled.value
-      if (1) {
+      const mdChrome = _require ? _require('mdChrome') : null;
+      if (mdChrome?.web?.version) {
         return h(NSpace, { size: 4, align: 'center', wrap: false }, () => [
           h('span', statusText),
           h(NTooltip, { trigger: 'hover' }, {
