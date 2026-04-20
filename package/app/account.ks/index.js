@@ -50,17 +50,20 @@
     ];
 
     const AGENT_COOKIE_FILTER = [
-        "Hm_lvt_ed0a6497a1fdcdb3cdca291a7692408d",
-        "Hm_lvt_55b6f6890a6937842cef785d95ea99d7",
-        "Hm_lvt_2f06440050c04107e4de7a8003748f65",
-        "userId",
-        "bUserId",
-        "kuaishou.ad.login.identity",
+        "account_id",
+        "didv",
+        "apdid",
         "weblogger_did",
         "_did",
         "did",
-        "apdid",
+        "kwpsecproductname",
         "kwfv1",
+        "hdige2wqwoino",
+        "hdige3wqwoino",
+        "ehid",
+        "bUserId",
+        "userId",
+        "kuaishou.ad.login.identity",
         "kuaishou.ad.dsp.agent_st",
         "kuaishou.ad.dsp.agent_ph",
         "JSESSIONID"
@@ -77,10 +80,12 @@
     };
 
     // 获取完整 cookie
-    const getCookie = async (domain) => {
+    const getCookie = async (domain) => {   
+        const isUrl = domain.startsWith('http');
         const result = await mdChrome.web.cmd({
             cmd: 'getCookie',
-            myDomain: domain
+            myDomain: isUrl ? undefined : domain,
+            url: isUrl ? domain : undefined
         });
         return result.cookiesStr || '';
     };
@@ -110,8 +115,9 @@
     // 处理 jinfu 类型
     const handleJinfu = async () => {
         try {
-            const cookie = await getCookie('.kuaishou.com');
-            const filteredCookie = filterCookie(cookie, JINFU_COOKIE_FILTER);
+            // const cookie = await getCookie('.kuaishou.com');
+            // const filteredCookie = filterCookie(cookie, JINFU_COOKIE_FILTER);
+            const filteredCookie = await getCookie('https://jinfu.e.kuaishou.com');
 
             const res = await fetch("https://jinfu.e.kuaishou.com/rest/dsp/agent/infov2", {
                 method: "POST",
@@ -155,7 +161,7 @@
             };
 
             await saveCookie(params);
-            
+
             // 保存授权记录
             // saveAuthorizedAgent(agentId, 'jinfu');
         } catch (error) {
@@ -166,8 +172,9 @@
     // 处理 uc 类型
     const handleUc = async () => {
         try {
-            const cookie = await getCookie('.kuaishou.com');
-            const filteredCookie = filterCookie(cookie, UC_COOKIE_FILTER);
+            // const cookie = await getCookie('.kuaishou.com');
+            // const filteredCookie = filterCookie(cookie, UC_COOKIE_FILTER);
+             const filteredCookie = await getCookie('https://uc.e.kuaishou.com');
 
             const res = await fetch("https://uc.e.kuaishou.com/rest/customer/common/ad-info", {
                 method: "POST",
@@ -211,7 +218,7 @@
             };
 
             await saveCookie(params);
-            
+
             // 保存授权记录
             // saveAuthorizedAgent(agentId, 'uc');
         } catch (error) {
@@ -223,8 +230,14 @@
     // 处理 agent 类型
     const handleAgent = async () => {
         try {
-            const cookie = await getCookie('.kuaishou.com');
-            const filteredCookie = filterCookie(cookie, AGENT_COOKIE_FILTER);
+            // const gets = ['agent.e.kuaishou.com', '.kuaishou.com'].map(async _ => {
+            //     return getCookie('.kuaishou.com')
+            // })
+            // const cookies = await Promise.all(gets);
+            const filteredCookie = await getCookie('https://agent.e.kuaishou.com');
+            // const cookie = cookies.flat().join(';');
+            // console.log(cookie, 'cks');
+            // const filteredCookie = filterCookie(cookie, AGENT_COOKIE_FILTER);
 
             const res = await fetch("https://agent.e.kuaishou.com/rest/dsp/agent/infov2", {
                 method: "POST",
@@ -403,7 +416,7 @@
         widget.id = 'ldd-ks-cookie-widget';
         widget.innerHTML = `
             <div style="text-align: center;">
-                <img src="https://cdn.itaored.com/static/fed/testldd-pro-chrome-plugin/app/icon.png" 
+                <img src="https://cdn.itaored.com/static/fed/ldd-pro-chrome-plugin/app/icon.png" 
                      alt="量多多授权" 
                      referrerpolicy="no-referrer"
                      style="width: 28px; height: 28px; display: block; border-radius: 50%; margin: 0 auto;">
@@ -478,7 +491,7 @@
             if (Math.abs(e.clientX - startX) < 5 && Math.abs(e.clientY - startY) < 5) {
                 try {
                     // showToast('正在获取 Cookie...');
-                    
+
                     if (pageType === 'jinfu') {
                         await handleJinfu();
                     } else if (pageType === 'uc') {
@@ -486,7 +499,7 @@
                     } else if (pageType === 'agent') {
                         await handleAgent();
                     }
-                    
+
                     // showToast('Cookie 获取成功！');
                 } catch (error) {
                     showToast('Cookie 获取失败，请查看控制台');
