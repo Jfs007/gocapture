@@ -5,11 +5,64 @@
     const authType = search.get('__AUTH_TYPE__');
     const notToRedirect = search.get('__NOT_TO__REDIRECT__')
     if (location.href.includes('/selloffer/offer_search')) {
-        console.log('search page');
-        // TODO: 处理搜索页面
-        mdChrome.web.once('cookie-changed:[.1688.com]', async (info) => {
-            console.log('cookie-changed', info);
-        })
+        // 检测 cookie 是否失效（页面出现验证码/风控拦截）
+        const checkCookieValid = () => {
+            const nocaptcha = document.getElementById('nocaptcha');
+            if (nocaptcha) {
+                console.log('[1688] cookie 失效：检测到 #nocaptcha');
+                return false;
+            }
+            const iframe = document.querySelector('.J_MIDDLEWARE_FRAME_WIDGET iframe');
+            if (iframe && iframe.src && iframe.src.includes('_____tmd_____')) {
+                console.log('[1688] cookie 失效：检测到 tmd iframe');
+                return false;
+            }
+            return true;
+        };
+
+        // 监控 tmd iframe 消失（滑块验证完成）
+        const watchIframeRemoval = (onRemoved) => {
+            const container = document.querySelector('.J_MIDDLEWARE_FRAME_WIDGET');
+            if (!container) return;
+            console.log('[1688] 开始监控 tmd iframe 消失...');
+            const observer = new MutationObserver(() => {
+                const iframe = container.querySelector('iframe');
+                if (!iframe || !iframe.src || !iframe.src.includes('_____tmd_____')) {
+                    console.log('[1688] tmd iframe 已消失，视为 cookie 有效');
+                    observer.disconnect();
+                    onRemoved();
+                }
+            });
+            observer.observe(container, { childList: true, subtree: true });
+        };
+
+        // 页面加载完成后检测
+        const runCheck = () => {
+            const valid = checkCookieValid();
+            console.log('[1688] cookie 状态:', valid ? '有效' : '失效');
+            if(valid) {
+                mdChrome.web.send('1688-get-cookie', {});
+                setTimeout(() => {
+                    window.close();
+                }, 300);
+            } else {
+                const iframe = document.querySelector('.J_MIDDLEWARE_FRAME_WIDGET iframe');
+                if (iframe && iframe.src && iframe.src.includes('_____tmd_____') && authType == 'SLIDING_BLOCK') {
+                    watchIframeRemoval(() => {
+                        console.log('[1688] 滑块验证通过，发送 cookie');
+                        mdChrome.web.send('1688-get-cookie', {});
+                        setTimeout(() => {
+                            window.close();
+                        }, 300);
+                    });
+                }
+            }
+        };
+        if (document.readyState === 'complete') {
+            runCheck();
+        } else {
+            window.addEventListener('load', runCheck);
+        }
     }
 
     // if(location.href.includes('https://s.1688.com/selloffer/offer_search')) {

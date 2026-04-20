@@ -19,6 +19,9 @@ export interface InjectScriptOptions {
 }
 
 export interface MdChromeWeb {
+  activeTab(): unknown;
+  off(arg0: string): unknown;
+  once(name: string, arg0: (value: any) => void): unknown;
   cmd<T = any>(params: any): Promise<T>;
   injectScript(scriptPath: string | string[]): Promise<void>;
   injectScript2(scriptPath: string | string[], options?: InjectScriptOptions): Promise<void>;

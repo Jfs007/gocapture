@@ -122,11 +122,11 @@
         </n-space>
 
         <!-- 高级配置 -->
-        <n-space vertical :size="8">
+        <n-space vertical :size="8" v-if="false">
           <n-checkbox v-model:checked="advancedConfigEnabled" size="small">
             <n-text class="font-12">高级配置</n-text>
           </n-checkbox>
-          <template v-if="advancedConfigEnabled">
+          <!-- <template v-if="advancedConfigEnabled">
             <n-space align="center" :size="4" style="width: 100%;">
               <n-text class="font-12" style="white-space: nowrap;">ConnectAnywhere</n-text>
               <n-input size="small" v-model:value="connectAnywhereUrl" placeholder="http://xxx 用于自动获取Cookie"
@@ -135,7 +135,7 @@
             <n-text depth="3" class="font-12">
               开启后，采集中断时可通过自动重试开关自动获取Cookie并继续采集
             </n-text>
-          </template>
+          </template> -->
         </n-space>
 
         <!-- 开始采集按钮 -->
@@ -379,7 +379,7 @@ watch(
 )
 
 watch(
-  [advancedConfigEnabled, connectAnywhereUrl],
+  [advancedConfigEnabled],
   () => {
     saveDefaultConfig()
   }
@@ -750,37 +750,48 @@ const fetchCookieFromConnectAnywhere = async (): Promise<string | null> => {
   }
 }
 
+// 正在等待 cookie 回调的任务集合
+const pendingRetryTasks = new Set<string>()
+
 // 自动重试单个任务
 const autoRetryTask = async (row: any) => {
   if (!autoRetryTasks[row.id]) return
-  if (!connectAnywhereUrl.value) return
-
+  if (pendingRetryTasks.has(row.id)) return
+  // if (!advancedConfigEnabled.value) return
   exportLoading.value[row.id] = true
+  pendingRetryTasks.add(row.id)
   try {
-    const cookie = await fetchCookieFromConnectAnywhere()
-    if (!cookie) {
-      exportLoading.value[row.id] = false
-      return
+    const data = rankingData.value['search1688'];
+    const cookieUrl = data.settings?.url;
+    window.open(cookieUrl + '&__AUTH_TYPE__=SLIDING_BLOCK', '_blank_');
+    const mdChrome = _require('mdChrome');
+
+    const cleanup = () => {
+      pendingRetryTasks.delete(row.id)
+      mdChrome.web.off('1688-get-cookie')
+      clearTimeout(timer)
     }
 
-    let res = await collection1688.checkCookie({
-      cookie: cookie,
-      taskUrl: row.taskUrl,
-      userId: user1688Info.value.object?.unb,
-    })
-    if (res.code != 200) {
+    const timer = setTimeout(() => {
+      cleanup()
       exportLoading.value[row.id] = false
-      return
-    }
-    res = await collection1688.continueTask({
-      taskId: row.id,
-      cookie: cookie,
-      userId: user1688Info.value.object?.unb,
+      console.warn(`任务 ${row.taskNo || row.id} 自动重试超时(60s)`)
+    }, 60000)
+
+    mdChrome.web.once('1688-get-cookie', async (_) => {
+      cleanup()
+      let info = await set1688UserInfo();
+      const res = await collection1688.continueTask({
+        taskId: row.id,
+        cookie: info.cookie,
+        userId: info.object?.unb,
+      });
+      mdChrome.web.activeTab();
+      exportLoading.value[row.id] = false
+      if (res?.code != 200) throw new Error(res?.msg)
     })
-    exportLoading.value[row.id] = false
-    if (res?.code != 200) throw new Error(res?.msg)
-    message.success(`任务 ${row.taskNo || row.id} 自动重试成功`)
   } catch (error) {
+    pendingRetryTasks.delete(row.id)
     exportLoading.value[row.id] = false
   }
 }
@@ -1174,7 +1185,8 @@ const columns: DataTableColumns<CollectionTask> = [
     width: 120,
     render: (row: any) => {
       const statusText = getStatusText(row.taskStatus)
-      if (connectAnywhereUrl.value) {
+      // advancedConfigEnabled.value
+      if (1) {
         return h(NSpace, { size: 4, align: 'center', wrap: false }, () => [
           h('span', statusText),
           h(NTooltip, { trigger: 'hover' }, {
@@ -1188,7 +1200,7 @@ const columns: DataTableColumns<CollectionTask> = [
                 if (val && row.taskStatus == 3) autoRetryTask(row)
               }
             }),
-            default: () => '自动重试'
+            default: () => '中断唤起验证'
           })
         ])
       }
@@ -1276,9 +1288,7 @@ const setup = async () => {
     if (savedConfig.advancedConfigEnabled !== undefined) {
       advancedConfigEnabled.value = savedConfig.advancedConfigEnabled
     }
-    if (savedConfig.connectAnywhereUrl) {
-      connectAnywhereUrl.value = savedConfig.connectAnywhereUrl
-    }
+   
   }
 
   await set1688UserInfo();
