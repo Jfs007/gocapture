@@ -55,12 +55,12 @@ function use1688() {
 
     const mdChrome = _require('mdChrome');
     const getUserInfo = async () => {
-        // const cookieAwait = ['.1688.com','.tmall.com', '.mmstat.com', 'detail.1688.com'].map(origin => {
-        //     return mdChrome.web.cmd({ cmd: 'getCookie', myDomain: origin });
-        // });
+        const cookieAwait = ['.1688.com','.tmall.com', '.mmstat.com', 'detail.1688.com'].map(origin => {
+            return mdChrome.web.cmd({ cmd: 'getCookie', myDomain: origin });
+        });
 
-        const c = await mdChrome.web.cmd({ cmd: 'getCookie', url: 'https://s.1688.com' });
-        const cookieAwait = [c];
+        // const c = await mdChrome.web.cmd({ cmd: 'getCookie', url: 'https://s.1688.com' });
+        // const cookieAwait = [c];
 
         const cookiesGroupRes = await Promise.all(cookieAwait);
         
