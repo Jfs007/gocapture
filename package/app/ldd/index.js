@@ -14,7 +14,7 @@
     common.createDraggableCollapsibleWrapper(iframe, {
         env,
         title: '线索采集器',
-        width: '460px',
+        width: '490px',
         height: '480px',
         position: { top: '20px', right: '20px' }
     });

@@ -1141,10 +1141,28 @@ const columns: DataTableColumns<CollectionTask> = [
           trigger: 'hover'
         },
         {
-          trigger: () => h('div', {}, [
-            h('div', { class: 'font-weight-bold' }, row.taskNo),
-            h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, () => [calcDurationMinSecText(row.createdAt, row.finishedAt), row.taskStatus == 0 ? h('span', { class: 'dot-loading' }) : null]),
-          ]),
+          trigger: () => {
+            let keywords = ''
+            try {
+              const match = row.taskUrl.match(/[?&]keywords=([^&]*)/);
+              const charset = row.taskUrl.match(/charset=utf8/);
+
+              const raw = (match || [])[1] || '';
+              if (charset) { keywords = decodeURIComponent(raw) } else {
+                const bytes = new Uint8Array(
+                  raw.match(/%[0-9A-F]{2}/gi)?.map(h => parseInt(h.slice(1), 16)) || []
+                );
+                keywords = new TextDecoder('gbk').decode(bytes);
+              }
+
+              // console.log(row, keywords, 'keywords');
+            } catch { }
+            return h('div', {}, [
+              h('div', { class: 'font-weight-bold' }, row.taskNo),
+              keywords ? h('div', { class: 'font-12', depth: 3 }, keywords) : null,
+              h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, () => [calcDurationMinSecText(row.createdAt, row.finishedAt), row.taskStatus == 0 ? h('span', { class: 'dot-loading' }) : null]),
+            ])
+          },
           default: () => h('div', {}, [
             h(NScrollbar, { class: 'font-12', style: 'margin-bottom: 4px;max-width: 240px;', xScrollable: true }, h('div', { style: 'white-space: nowrap' }, industryName.map(_ => {
               return h(NTag, { size: 'small', style: 'margin-right: 4px' }, _)
@@ -1161,7 +1179,23 @@ const columns: DataTableColumns<CollectionTask> = [
     key: 'count',
     width: 80,
     render: (row: any) => {
-      if (row.taskType == 3) return h('div', '1688s结果采集');
+      if (row.taskType == 3) return h('div', { size: 4, align: 'center', wrap: false }, [
+        h('div', '1688结果采集'),
+        row.taskUrl ? h('div', {
+          style: 'cursor: pointer; color: #2080f0; font-size: 11px;',
+          onClick: () => {
+            const textarea = document.createElement('textarea')
+            textarea.value = row.taskUrl
+            textarea.style.position = 'fixed'
+            textarea.style.opacity = '0'
+            document.body.appendChild(textarea)
+            textarea.select()
+            document.execCommand('copy')
+            document.body.removeChild(textarea)
+            message.success('已复制链接')
+          }
+        }, '复制链接') : null
+      ]);
       return [
 
         h('div', row.taskType == 1 ? '金牛' : '抖音'),
