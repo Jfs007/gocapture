@@ -1177,7 +1177,7 @@ const columns: DataTableColumns<CollectionTask> = [
   {
     title: '榜单类型',
     key: 'count',
-    width: 80,
+    width: 100,
     render: (row: any) => {
       if (row.taskType == 3) return h('div', { size: 4, align: 'center', wrap: false }, [
         h('div', '1688结果采集'),
