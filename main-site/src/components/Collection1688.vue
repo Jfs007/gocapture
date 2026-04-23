@@ -1128,11 +1128,42 @@ function calcDurationMinSecText(start?: string, end?: string) {
 }
 
 
+const parseKeywords = (taskUrl: string) => {
+  try {
+    const match = taskUrl?.match(/[?&]keywords=([^&]*)/)
+    const charset = taskUrl?.match(/charset=utf8/)
+    const raw = (match || [])[1] || ''
+    if (charset) return decodeURIComponent(raw)
+    const bytes = new Uint8Array(
+      raw.match(/%[0-9A-F]{2}/gi)?.map((s: string) => parseInt(s.slice(1), 16)) || []
+    )
+    return new TextDecoder('gbk').decode(bytes)
+  } catch { return '' }
+}
+
+const copyText = (text: string) => {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  document.body.removeChild(textarea)
+}
+
+const getDateKeywords = (row: any) => {
+  const kw = parseKeywords(row.taskUrl)
+  if (!kw) return ''
+  const d = new Date(row.createdAt)
+  return `${d.getMonth() + 1}.${d.getDate()} ${kw}`
+}
+
 const columns: DataTableColumns<CollectionTask> = [
   {
     title: '采集任务',
     key: 'taskNo',
-    width: 120,
+    width: 134,
     render(row: any) {
       let industryName = JSON.parse(row.industryName || '[]');
       return h(
@@ -1142,24 +1173,14 @@ const columns: DataTableColumns<CollectionTask> = [
         },
         {
           trigger: () => {
-            let keywords = ''
-            try {
-              const match = row.taskUrl.match(/[?&]keywords=([^&]*)/);
-              const charset = row.taskUrl.match(/charset=utf8/);
-
-              const raw = (match || [])[1] || '';
-              if (charset) { keywords = decodeURIComponent(raw) } else {
-                const bytes = new Uint8Array(
-                  raw.match(/%[0-9A-F]{2}/gi)?.map(h => parseInt(h.slice(1), 16)) || []
-                );
-                keywords = new TextDecoder('gbk').decode(bytes);
-              }
-
-              // console.log(row, keywords, 'keywords');
-            } catch { }
+            const dk = getDateKeywords(row)
             return h('div', {}, [
               h('div', { class: 'font-weight-bold' }, row.taskNo),
-              keywords ? h('div', { class: 'font-12', depth: 3 }, keywords) : null,
+              dk ? h('div', {
+                class: 'font-12',
+                style: 'cursor: pointer;',
+                onClick: () => { copyText(dk); message.success('已复制') }
+              }, dk) : null,
               h(NText, { class: 'font-12 text-underline cusor-pointer', depth: 3 }, () => [calcDurationMinSecText(row.createdAt, row.finishedAt), row.taskStatus == 0 ? h('span', { class: 'dot-loading' }) : null]),
             ])
           },
@@ -1181,20 +1202,10 @@ const columns: DataTableColumns<CollectionTask> = [
     render: (row: any) => {
       if (row.taskType == 3) return h('div', { size: 4, align: 'center', wrap: false }, [
         h('div', '1688结果采集'),
-        row.taskUrl ? h('div', {
-          style: 'cursor: pointer; color: #2080f0; font-size: 11px;',
-          onClick: () => {
-            const textarea = document.createElement('textarea')
-            textarea.value = row.taskUrl
-            textarea.style.position = 'fixed'
-            textarea.style.opacity = '0'
-            document.body.appendChild(textarea)
-            textarea.select()
-            document.execCommand('copy')
-            document.body.removeChild(textarea)
-            message.success('已复制链接')
-          }
-        }, '复制链接') : null
+        // row.taskUrl ? h('div', {
+        //   style: 'cursor: pointer; color: #2080f0; font-size: 11px;',
+        //   onClick: () => { copyText(row.taskUrl); message.success('已复制链接') }
+        // }, '复制链接') : null
       ]);
       return [
 
@@ -1275,18 +1286,28 @@ const columns: DataTableColumns<CollectionTask> = [
           loading: exportLoading.value[row.id],
           onClick: () => continueCollection(row)
         }, { default: () => '继续' }),
-        (row.taskStatus == 1) && h(
-          NButton,
-          {
-            text: true,
-            type: 'primary',
-            size: 'small',
-            class: 'font-12',
-            loading: exportLoading.value[row.id],
-            onClick: () => handleDownload([Number(row.id)])
-          },
-          { default: () => '下载' }
-        ),
+        (row.taskStatus == 1) && h(NTooltip, { trigger: 'hover' }, {
+          trigger: () => h(
+            NButton,
+            {
+              text: true,
+              type: 'primary',
+              size: 'small',
+              class: 'font-12',
+              loading: exportLoading.value[row.id],
+              onClick: () => {
+                const dk = getDateKeywords(row)
+                if (dk) { copyText(dk); message.success('已复制: ' + dk) }
+                handleDownload([Number(row.id)])
+              }
+            },
+            { default: () => '下载' }
+          ),
+          default: () => {
+            const dk = getDateKeywords(row)
+            return dk ? `点击下载将自动复制 ${dk}` : '下载'
+          }
+        }),
         (row.taskStatus == 1 || row.taskStatus == 2) && h(
           NPopconfirm,
           {
