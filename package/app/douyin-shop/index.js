@@ -1,6 +1,11 @@
 !async function () {
     const mdChrome = _require('mdChrome');
 
+
+    const getAppToken = () => {
+        
+    }
+
     // Toast 提示函数
     function showToast(message, duration = 3000) {
         const toast = document.createElement('div');
