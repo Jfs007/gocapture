@@ -17,6 +17,7 @@
     const id = Date.now() + Math.random() + ':md.local.set';
     const tokenInfo = JSON.parse(localStorage.getItem("WINSUP_TOKEN") || '{}');
     const token = tokenInfo.value;
+    if(token) return;
     window.postMessage({
         sender: { id, name: 'web-page' },
         params: [{ ['WinSupAccessToken']: token }],
