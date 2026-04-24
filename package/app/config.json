@@ -7,7 +7,8 @@
             "1688/index.js",
             "agent.ks/index.js",
             "douyin-shop/index.js",
-            "account.ks/index.js"
+            "account.ks/index.js",
+            "winsup/index.js"
         ]
     },
     "rules": {
@@ -18,6 +19,14 @@
                 "*host:9002",
                 "*lhost:9003",
                 "*ad.itaored.com"
+            ]
+        },
+        "winsup/index.js": {
+            "supportIframe": false,
+            "matches": [
+                "*host:9002",
+                "*lhost:9003",
+                "*winsup.itaored.com"
             ]
         },
         "1688/index.js": {

@@ -3,7 +3,7 @@
 
 
     const getAppToken = () => {
-        
+
     }
 
     // Toast 提示函数
@@ -307,14 +307,326 @@
         })();
     }
 
+    // 判断是否在 talent/product-rank 页面
+    const isTalentProductRankPage = () => location.href.includes('compass.jinritemai.com/talent/product-rank');
+
+    // 二次确认弹窗
+    const showConfirmDialog = (accountName) => {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 10001;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: #fff;
+                border-radius: 8px;
+                padding: 20px;
+                min-width: 300px;
+                max-width: 400px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            `;
+
+            dialog.innerHTML = `
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #333;">
+                    确认授权
+                </div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px; line-height: 1.6;">
+                    ${accountName ? `<p style="margin: 4px 0;">账号：${accountName}</p>` : ''}
+                    <p style="margin: 10px 0 0 0; color: #ff6b00;">确认将此账号授权给量多多使用？</p>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="dy-cancel-btn" style="
+                        padding: 8px 20px;
+                        border: 1px solid #ddd;
+                        background: #fff;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">取消</button>
+                    <button id="dy-confirm-btn" style="
+                        padding: 8px 20px;
+                        border: none;
+                        background: #1890ff;
+                        color: #fff;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">确认授权</button>
+                </div>
+            `;
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            dialog.querySelector('#dy-cancel-btn').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(false);
+            });
+
+            dialog.querySelector('#dy-confirm-btn').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(true);
+            });
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                    resolve(false);
+                }
+            });
+        });
+    };
+
+    // 获取 env 配置（prod / test）
+    const getEnvConfig = async () => {
+        const manifest = await mdChrome.web.cmd({ cmd: "get-manifest" });
+        const { env } = manifest.env || {};
+        if (env === 'prod') {
+            return {
+                url: 'https://winsup.itaored.com/',
+                api: 'https://winsup-api.itaored.com'
+            };
+        }
+        return {
+            url: 'https://testwinsup.itaored.com/',
+            api: 'https://testwinsup-api.itaored.com'
+        };
+    };
+
+    // 从 chrome storage 获取 AccessToken
+    const getToken = () => {
+        return new Promise((resolve) => {
+            const id = Date.now() + Math.random() + ':md.local.get';
+            function handler(e) {
+                const msg = e.data;
+                const sender = msg.sender || {};
+                if (sender.id === id && sender.name == 'content-script') {
+                    window.removeEventListener("message", handler);
+                    resolve(msg.result);
+                }
+            }
+            window.addEventListener("message", handler);
+            window.postMessage({
+                params: [['WinSupAccessToken']],
+                cmd: "chrome",
+                sender: { id, name: 'web-page' },
+                call: 'storage.local.get'
+            }, "*");
+        });
+    };
+    const AuthCallback = async (info = {}, api) => {
+        try {
+            const confirmed = await showConfirmDialog(info.accountName);
+            if (!confirmed) return;
+
+            // 获取 cookie
+            const cookieResult = await mdChrome.web.cmd({
+                cmd: 'getCookie',
+                url: 'https://compass.jinritemai.com'
+            });
+            const cookies = cookieResult.cookies || [];
+            const filtered = filterCookies(cookies, true);
+            const cookieStr = filtered.map(c => `${c.name}=${c.value}`).join('; ');
+
+            // expire 取 sessionid 过期时间（秒转毫秒），默认30天
+            const sessionCookie = filtered.find(c => c.name === 'sessionid');
+            const expire = sessionCookie?.expirationDate
+                ? Math.floor(sessionCookie.expirationDate) * 1000
+                : Date.now() + 30 * 24 * 60 * 60 * 1000;
+
+            const postRes = await mdChrome.web.cmd({
+                cmd: "ajax",
+                data: {
+                    channel: 12,
+                    userId: info.userId,
+                    accountName: info.accountName,
+                    value: cookieStr,
+                    expire
+                },
+                method: "POST",
+                headers: {
+                    "Accept": "application/json, text/plain, */*",
+                    "Content-Type": "application/json; charset=UTF-8",
+                    "AccessToken": info.token
+                },
+                url: api + '/api/dy/store/cookie'
+            });
+            console.log('授权结果:', postRes);
+            showToast('授权成功');
+        } catch (error) {
+            showToast('授权失败，请查看控制台');
+            console.error('talent 授权失败:', error);
+        }
+
+    }
+    // 处理 talent/product-rank 授权
+    const handleTalentAuth = async () => {
+        try {
+            const { url, api } = await getEnvConfig();
+
+            // 获取 token，不存在则跳转登录
+            const tokenResult = await getToken();
+            const token = tokenResult?.WinSupAccessToken;
+            const res = await fetch("https://compass.jinritemai.com/ecomauth/loginv1/get_account_info?login_source=compass&_lid=205120534645&msToken=lrrEYQUlXinzN9PaLs6BAi2kIMq0GvxfypW8ITvImoEnkIAKmRE8oiFH7dIordmEvN9Wu0DQt5xefqcKcr4N7k0Fcek4Yhc_mpFaXftjKE5Kce-UpakJ-PCZGMbvEDxBwGlExjVYIP3IZ_9wZMYzHS2ge8lHk6VgW5DQvBx7s5UV4XtfPy9jT7o%3D&a_bogus=Qj05k7UiYN8RFpltucGreHIU5qjlrsWyUPTQSxMUHKxIP7MYjM-sSna%2FnoqqsmxvXmp8pC170nUAbddc8-Us1KHkumkfS04jr0Ann8mLM1HkaGJh7Nm0SJSEoiPY0SGYKQdbNBw1X0zy22c3iqc0W--GC5zc5OYDRNqSd20br9AGfA6PY1rfO2wAYfqbQbo--f%3D%3D&verifyFp=verify_mocmef75_T11axQlL_HuFZ_4i1a_9Zle_5GEGFrOKHOQ5&fp=verify_mocmef75_T11axQlL_HuFZ_4i1a_9Zle_5GEGFrOKHOQ5", {
+                "headers": {
+                    "accept": "application/json, text/plain, */*",
+                    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+                    "priority": "u=1, i",
+                    "sec-ch-ua": "\"Google Chrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": "\"macOS\"",
+                    "sec-fetch-dest": "empty",
+                    "sec-fetch-mode": "cors",
+                    "sec-fetch-site": "same-origin"
+                },
+                "referrer": "https://compass.jinritemai.com/talent/product-rank",
+                "body": null,
+                "method": "GET",
+                "mode": "cors",
+                "credentials": "include"
+            });
+            const data = await res.json();
+            console.log('获取账号信息:', data);
+            const info = {
+                userId: data?.data.account_id,
+                accountName: data?.data.account_name
+            }
+            // if (!token) {
+            const href = url + 'manage/store-auth' + '?__AUTH_TYPE__=token';
+            window.open(href, '_blank');
+            mdChrome.web.once('getToken', ({ token }) => {
+                AuthCallback({ token, ...info }, api);
+                mdChrome.web.off('getToken')
+            });
+            return;
+            // }
+
+
+
+            AuthCallback({ token, ...info }, api);
+        } catch (error) {
+            showToast('授权失败，请查看控制台');
+            console.error('talent 授权失败:', error);
+
+        }
+    };
+
+    // 创建 talent/product-rank 悬浮授权按钮
+    const createTalentFloatingButton = () => {
+        if (document.getElementById('ldd-dy-talent-widget')) return;
+
+        const widget = document.createElement('div');
+        widget.id = 'ldd-dy-talent-widget';
+        widget.innerHTML = `
+            <div style="text-align: center;">
+                <div style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    background: #1a1a2e;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto;
+                    font-size: 11px;
+                    font-weight: bold;
+                    line-height: 1;
+                    letter-spacing: -0.5px;
+                "><span style="color:#f5cf03;">Win</span><span style="color:#33b5ef;">Sup</span></div>
+                <div style="font-size: 12px; color: #333; margin-top: 4px; white-space: nowrap;">Winsup授权</div>
+            </div>
+        `;
+
+        Object.assign(widget.style, {
+            position: 'fixed',
+            top: '80px',
+            right: '10px',
+            width: 'auto',
+            height: 'auto',
+            zIndex: '9999',
+            cursor: 'move',
+            borderRadius: '8px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+            transition: 'right 0.3s ease, left 0.3s ease',
+            userSelect: 'none',
+            background: '#fff',
+            padding: '4px'
+        });
+
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+
+        widget.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = widget.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+            widget.style.transition = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const newLeft = startLeft + (e.clientX - startX);
+            const newTop = startTop + (e.clientY - startY);
+            widget.style.left = newLeft + 'px';
+            widget.style.top = newTop + 'px';
+            widget.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            const rect = widget.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            widget.style.transition = 'right 0.3s ease, left 0.3s ease';
+            if (centerX < window.innerWidth / 2) {
+                widget.style.left = '10px';
+                widget.style.right = 'auto';
+            } else {
+                widget.style.right = '10px';
+                widget.style.left = 'auto';
+            }
+        });
+
+        widget.addEventListener('click', async (e) => {
+            if (Math.abs(e.clientX - startX) < 5 && Math.abs(e.clientY - startY) < 5) {
+                await handleTalentAuth();
+            }
+        });
+
+        document.body.appendChild(widget);
+    };
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            createAuthButton();
+            if (isTalentProductRankPage()) {
+                createTalentFloatingButton();
+            } else {
+                createAuthButton();
+            }
             // openAccountSelector();
             // checkShopIdAndClick();
         });
     } else {
-        createAuthButton();
+        if (isTalentProductRankPage()) {
+            createTalentFloatingButton();
+        } else {
+            createAuthButton();
+        }
         // openAccountSelector();
         // checkShopIdAndClick();
     }
@@ -372,7 +684,7 @@
         })
     }
 
-   
+
 
     // const cookieAwait = ['.jinritemai.com'].map(origin => {
     //     return mdChrome.web.cmd({ cmd: 'getCookie', myDomain: origin });
