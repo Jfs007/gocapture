@@ -629,19 +629,35 @@ async function cookieLister(message, sender, sendResponse) {
   if (message.cmd === "setCookies") {
     return setCookies(message, sender, sendResponse);
   }
-
-  // 默认操作：获取指定域名下所有 Cookie
-  const allCookies = await chrome.cookies.getAll({ domain: message.myDomain || undefined, url: message.url || undefined });
   const cookiesArray = [];
   let cookiesString = "";
 
-  allCookies.forEach((cookie, index) => {
-    const cookieObj = { ...cookie, name: cookie.name, value: cookie.value };
-    cookiesArray.push(cookieObj);
+  const names = message.names || [];
+  // 如果是通过name获取cookies
+  if (names.length) {
+    const getCkPromise = names.map(async (name) => {
+      return chrome.cookies.get({ url: message.url, name });
+    });
+    const cookies = await Promise.all(getCkPromise);
+    cookies.forEach(function (cookie) {
+      if (cookie) {
+        const name = cookie.name;
+        cookiesString = cookiesString + name + "=" + cookie.value + "; ";
+        const cookieObj = { ...cookie, name, value: cookie.value };
+        cookiesArray.push(cookieObj);
+      }
+    })
+  } else {
+    // 默认操作：获取指定域名下所有 Cookie
+    const allCookies = await chrome.cookies.getAll({ domain: message.myDomain || undefined, url: message.url || undefined });
+    allCookies.forEach((cookie, index) => {
+      const cookieObj = { ...cookie, name: cookie.name, value: cookie.value };
+      cookiesArray.push(cookieObj);
 
-    cookiesString += `${cookieObj.name}=${cookieObj.value}`;
-    if (index < allCookies.length - 1) cookiesString += ";";
-  });
+      cookiesString += `${cookieObj.name}=${cookieObj.value}`;
+      if (index < allCookies.length - 1) cookiesString += ";";
+    });
+  }
   // 返回 Cookie 数据
   sendResponse && sendResponse({ cookies: cookiesArray, cookiesStr: cookiesString });
 }
