@@ -128,73 +128,10 @@
         }
     }
 
-    async function createAuthButton() {
-        const targetNode = document.evaluate(
-            '//*[@id="compass-shop-header"]',
-            document,
-            null,
-            XPathResult.FIRST_ORDERED_NODE_TYPE,
-            null
-        ).singleNodeValue;
-
-        if (!targetNode) {
-            console.log('未找到目标节点，等待重试...');
-            setTimeout(createAuthButton, 1000);
-            return;
-        }
-
-        let isActive = false;
-
+    const handleShopAuth = async () => {
         try {
-            let events;
-            if (mdChrome.web.version) {
-                events = await mdChrome.web.cmd({ cmd: 'event-list' });
-                console.log(events, 'events');
-            }
+            const { url, api } = await getEnvConfig();
 
-            // 验证响应格式是否正确
-            if (events && events.once && Array.isArray(events.once)) {
-                isActive = events.once.some(e => e.event === 'winsup-douyin-shop-auth');
-            } else {
-                console.warn('event-list 返回格式异常，默认激活状态');
-                isActive = true;
-            }
-        } catch (error) {
-            console.warn('event-list 命令不支持（老版本插件），默认激活状态:', error.message);
-            isActive = true;
-        }
-
-        const authBtn = document.createElement('div');
-        authBtn.id = 'winsup-douyin-shop-auth-btn';
-        authBtn.innerHTML = `
-            <div style="
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                padding: 1px 6px;
-                cursor: ${isActive ? 'pointer' : 'not-allowed'};
-                opacity: ${isActive ? '1' : '0.6'};
-                user-select: none;
-                transition: all 0.2s;
-                background: #fff;
-                border-radius: 6px;
-                margin-left: 4px;
-            ">
-                <span style="
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 50%;
-                    background: ${isActive ? '#52c41a' : '#d9d9d9'};
-                    box-shadow: ${isActive ? '0 0 4px rgba(82, 196, 26, 0.5)' : 'none'};
-                "></span>
-                <span style="
-                    font-size: 12px;
-                    color: ${isActive ? '#333' : '#999'};
-                ">winsup授权</span>
-            </div>
-        `;
-
-        authBtn.addEventListener('click', async () => {
             const res = await fetch("https://compass.jinritemai.com/ecomauth/loginv1/get_account_info?login_source=compass&_lid=143196205491", {
                 "headers": {
                     "accept": "application/json, text/plain, */*",
@@ -215,35 +152,113 @@
                 "credentials": "include"
             });
             const data = await res.json();
-            console.log(data, 'data');
+            console.log('获取店铺信息:', data);
 
-            if (isActive) {
-                const config = window.__SSR_CONFIG_ECOM_FXG_ADMIN;
-                const user = data?.data;
-                mdChrome.web.send('winsup-douyin-shop-auth', {
-                    user: {
-                        ...user,
-                        shop_name: user.account_name
-                    }
-                });
+            const info = {
+                userId: data?.data.account_id,
+                accountName: data?.data.account_name,
+                account_id: data?.data.account_id,
+                shop_name: data?.data.account_name
+            };
+
+            const href = url + 'manage/store-auth' + '?__AUTH_TYPE__=token';
+            window.open(href, '_blank');
+            mdChrome.web.once('getToken', ({ token }) => {
+                AuthCallback({ token, ...info }, api, 11);
+                mdChrome.web.off('getToken');
+            });
+        } catch (error) {
+            showToast('授权失败，请查看控制台');
+            console.error('shop 授权失败:', error);
+        }
+    };
+
+    async function createAuthButton() {
+        if (document.getElementById('ldd-dy-shop-widget')) return;
+
+        const widget = document.createElement('div');
+        widget.id = 'ldd-dy-shop-widget';
+        widget.innerHTML = `
+            <div style="text-align: center;">
+                <div style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    background: #1a1a2e;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto;
+                    font-size: 11px;
+                    font-weight: bold;
+                    line-height: 1;
+                    letter-spacing: -0.5px;
+                "><span style="color:#f5cf03;">Win</span><span style="color:#33b5ef;">Sup</span></div>
+                <div style="font-size: 12px; color: #333; margin-top: 4px; white-space: nowrap;">Winsup授权</div>
+            </div>
+        `;
+
+        Object.assign(widget.style, {
+            position: 'fixed',
+            top: '40px',
+            right: '10px',
+            width: 'auto',
+            height: 'auto',
+            zIndex: '9999',
+            cursor: 'move',
+            borderRadius: '8px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+            transition: 'right 0.3s ease, left 0.3s ease',
+            userSelect: 'none',
+            background: '#fff',
+            padding: '4px'
+        });
+
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+
+        widget.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = widget.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+            widget.style.transition = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const newLeft = startLeft + (e.clientX - startX);
+            const newTop = startTop + (e.clientY - startY);
+            widget.style.left = newLeft + 'px';
+            widget.style.top = newTop + 'px';
+            widget.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            const rect = widget.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            widget.style.transition = 'right 0.3s ease, left 0.3s ease';
+            if (centerX < window.innerWidth / 2) {
+                widget.style.left = '10px';
+                widget.style.right = 'auto';
             } else {
-                showToast('授权未激活,请返回winsup拉起授权弹窗~');
+                widget.style.right = '10px';
+                widget.style.left = 'auto';
             }
         });
 
-        if (isActive) {
-            authBtn.addEventListener('mouseenter', (e) => {
-                e.currentTarget.style.borderColor = '#1890ff';
-                // e.currentTarget.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.2)';
-            });
+        widget.addEventListener('click', async (e) => {
+            if (Math.abs(e.clientX - startX) < 5 && Math.abs(e.clientY - startY) < 5) {
+                await handleShopAuth();
+            }
+        });
 
-            authBtn.addEventListener('mouseleave', (e) => {
-                e.currentTarget.style.borderColor = '#e5e5e5';
-                e.currentTarget.style.boxShadow = 'none';
-            });
-        }
-
-        targetNode.appendChild(authBtn);
+        document.body.appendChild(widget);
     }
 
     const openAccountSelector = () => {
@@ -309,7 +324,7 @@
 
     // 判断是否在 talent/product-rank 页面
     const isTalentProductRankPage = () => location.href.includes('compass.jinritemai.com/talent/product-rank');
-
+    const isShopPage = () => location.href.includes('compass.jinritemai.com/shop');
     // 二次确认弹窗
     const showConfirmDialog = (accountName) => {
         return new Promise((resolve) => {
@@ -425,7 +440,7 @@
             }, "*");
         });
     };
-    const AuthCallback = async (info = {}, api) => {
+    const AuthCallback = async (info = {}, api, channel = 12) => {
         try {
             const confirmed = await showConfirmDialog(info.accountName);
             if (!confirmed) return;
@@ -433,7 +448,47 @@
             // 获取 cookie
             const cookieResult = await mdChrome.web.cmd({
                 cmd: 'getCookie',
-                url: 'https://compass.jinritemai.com'
+                url: 'https://compass.jinritemai.com',
+                names: channel == 11 ? [
+                    "Hm_lvt_55b6f6890a6937842cef785d95ea99d7",
+                    "HMACCOUNT",
+                    "passport_csrf_token",
+                    "passport_csrf_token_default",
+                    "is_staff_user",
+                    "has_biz_token",
+                    "gfkadpd",
+                    "csrf_session_id",
+                    "s_v_web_id",
+                    "qc_tt_tag",
+                    "passport_mfa_token",
+                    "odin_tt",
+                    "passport_auth_status",
+                    "passport_auth_status_ss",
+                    "uid_tt",
+                    "uid_tt_ss",
+                    "sid_tt",
+                    "sessionid",
+                    "sessionid_ss",
+                    "ttwid",
+                    "Hm_lvt_b6520b076191ab4b36812da4c90f7a5e",
+                    "Hm_lpvt_b6520b076191ab4b36812da4c90f7a5e",
+                    "ucas_c0",
+                    "ucas_c0_ss",
+                    "PHPSESSID",
+                    "PHPSESSID_SS",
+                    "ecom_us_lt",
+                    "ecom_us_lt_ss",
+                    "ucas_c0_compass",
+                    "ucas_c0_ss_compass",
+                    "sid_guard",
+                    "session_tlb_tag",
+                    "sid_ucp_v1",
+                    "ssid_ucp_v1",
+                    "LUOPAN_DT",
+                    "COMPASS_LUOPAN_DT",
+                    "ecom_us_lt_compass",
+                    "ecom_us_lt_ss_compass"
+                ] : undefined
             });
             const cookies = cookieResult.cookies || [];
             const filtered = filterCookies(cookies, true);
@@ -448,7 +503,7 @@
             const postRes = await mdChrome.web.cmd({
                 cmd: "ajax",
                 data: {
-                    channel: 12,
+                    channel,
                     userId: info.userId,
                     accountName: info.accountName,
                     value: cookieStr,
@@ -463,10 +518,14 @@
                 url: api + '/api/dy/store/cookie'
             });
             console.log('授权结果:', postRes);
+            mdChrome.web.send('winsup-douyin-shop-auth', {
+                user: info
+
+            });
             showToast('授权成功');
         } catch (error) {
             showToast('授权失败，请查看控制台');
-            console.error('talent 授权失败:', error);
+            console.error('授权失败:', error);
         }
 
     }
@@ -615,17 +674,19 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (isTalentProductRankPage()) {
                 createTalentFloatingButton();
-            } else {
+            }
+            if (isShopPage()) {
                 createAuthButton();
             }
             // openAccountSelector();
             // checkShopIdAndClick();
         });
     } else {
+        if (isShopPage()) {
+            createAuthButton();
+        }
         if (isTalentProductRankPage()) {
             createTalentFloatingButton();
-        } else {
-            createAuthButton();
         }
         // openAccountSelector();
         // checkShopIdAndClick();
