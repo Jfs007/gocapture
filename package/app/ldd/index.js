@@ -19,9 +19,8 @@
         position: { top: '20px', right: '20px' }
     });
 
-
-
-
+    
+   
 
     // 导出到全局，供其他地方使用
     // common.createDraggableCollapsibleWrapper = createDraggableCollapsibleWrapper;

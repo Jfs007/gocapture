@@ -56,7 +56,7 @@
             transition: background 0.2s ease;
         `;
 
-        bar.innerHTML = '线索采集器(拖动到边缘自动吸附)';
+        bar.innerHTML = options.title || '线索采集器(拖动到边缘自动吸附)';
 
         bar.addEventListener('mouseenter', () => {
             bar.style.background = 'rgba(102, 126, 234, 0.2)';

@@ -978,17 +978,32 @@ async function ensureOffscreen() {
 
 const DownFileCmd = {
   Lister: async (message, sender, sendResponse) => {
-    message.blob = true;
-    message.method = message.method || 'post';
-    const { url, fetchOptions } = await fetchInspectConfig(message);
-    // await ensureOffscreen();
-    // chrome.runtime.sendMessage({
-    //   cmd: 'downFile',
-    //   url,
-    //   fetchOptions,
-    //   filename: message.filename
-    // });
+    try {
+      const urls = message.urls || (message.url ? [message.url] : []);
+      
+      if (urls.length === 0) {
+        sendResponse({ error: 'No URL provided' });
+        return;
+      }
 
+      const results = [];
+      for (const url of urls) {
+        try {
+          const downloadId = await chrome.downloads.download({
+            url: url,
+            filename: message.filename // optional, Chrome will auto-generate if not provided
+          });
+          results.push({ url, downloadId, success: true });
+        } catch (error) {
+          results.push({ url, error: error.message, success: false });
+        }
+      }
+
+      sendResponse({ results });
+    } catch (error) {
+      sendResponse({ error: error.message });
+    }
+    return true; // async response
   }
 }
 
@@ -1103,6 +1118,32 @@ const ActiveTab = {
   }
 }
 
+const UpdateDynamicRulesCmd = {
+  Lister: (message, sender, sendResponse) => {
+    (async () => {
+      try {
+        const rules = message.rules || [];
+        
+        // 获取现有规则的 ID
+        const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+        const removeRuleIds = message.removeRuleIds || existingRules.map(rule => rule.id);
+        
+        await chrome.declarativeNetRequest.updateDynamicRules({
+          removeRuleIds,
+          addRules: rules
+        });
+        
+        console.log('Dynamic rules updated:', { removeRuleIds, addRules: rules });
+        sendResponse({ success: true, removedCount: removeRuleIds.length, addedCount: rules.length });
+      } catch (error) {
+        console.error('Failed to update dynamic rules:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // async
+  }
+}
+
 function onMessageLister(message, sender, sendResponse) {
   console.log(message, 'message');
   if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
@@ -1153,6 +1194,7 @@ function onMessageLister(message, sender, sendResponse) {
   }
 
   if (message.cmd === 'activeTab') return ActiveTab.Lister(message, sender, sendResponse);
+  if (message.cmd === 'updateDynamicRules') return UpdateDynamicRulesCmd.Lister(message, sender, sendResponse);
   return true;
 }
 
