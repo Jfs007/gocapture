@@ -1144,6 +1144,41 @@ const UpdateDynamicRulesCmd = {
   }
 }
 
+const BaseChromeApiCmd = {
+  Lister: (message, sender, sendResponse) => {
+    (async () => {
+      try {
+        const path = message.cmd.slice(5); // 移除 'Base.' 前缀
+        const parts = path.split('.');
+        
+        // 遍历路径获取目标函数
+        let target = chrome;
+        for (const part of parts) {
+          if (!target || typeof target[part] === 'undefined') {
+            throw new Error(`Chrome API not found: chrome.${parts.join('.')}`);
+          }
+          target = target[part];
+        }
+        
+        // 检查是否为函数
+        if (typeof target !== 'function') {
+          throw new Error(`chrome.${parts.join('.')} is not a function`);
+        }
+        
+        // 调用函数
+        const params = message.params || [];
+        const result = await target(...params);
+        
+        sendResponse({ success: true, result });
+      } catch (error) {
+        console.error('Base command error:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // async
+  }
+}
+
 function onMessageLister(message, sender, sendResponse) {
   console.log(message, 'message');
   if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
@@ -1195,6 +1230,8 @@ function onMessageLister(message, sender, sendResponse) {
 
   if (message.cmd === 'activeTab') return ActiveTab.Lister(message, sender, sendResponse);
   if (message.cmd === 'updateDynamicRules') return UpdateDynamicRulesCmd.Lister(message, sender, sendResponse);
+  if (message.cmd && message.cmd.startsWith('Base.')) return BaseChromeApiCmd.Lister(message, sender, sendResponse);
+  
   return true;
 }
 
