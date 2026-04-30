@@ -979,7 +979,7 @@ async function ensureOffscreen() {
 const DownFileCmd = {
   Lister: async (message, sender, sendResponse) => {
     try {
-      const urls = message.urls || (message.url ? [message.url] : []);
+      const urls = message.urls || (message.url ? [{ url: message.url, filename: message.filename }] : []);
       
       if (urls.length === 0) {
         sendResponse({ error: 'No URL provided' });
@@ -990,12 +990,12 @@ const DownFileCmd = {
       for (const url of urls) {
         try {
           const downloadId = await chrome.downloads.download({
-            url: url,
-            filename: message.filename // optional, Chrome will auto-generate if not provided
+            url: url.url,
+            filename: url.filename || message.filename // optional, Chrome will auto-generate if not provided
           });
-          results.push({ url, downloadId, success: true });
+          results.push({ url: url.url, downloadId, success: true });
         } catch (error) {
-          results.push({ url, error: error.message, success: false });
+          results.push({ url: url.url, error: error.message, success: false });
         }
       }
 
