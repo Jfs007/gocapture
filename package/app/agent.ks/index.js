@@ -40,14 +40,19 @@
     if (href.indexOf('https://niu.e.kuaishou.com/') > -1) {
         const checkUserType = async () => {
             try {
-                const res = await fetch('https://jinfu.e.kuaishou.com/rest/dsp/agent/infov2', {
+                const res = await fetch("https://niu.e.kuaishou.com/rest/esp/owner/info", {
                     method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json"
                     },
+                    credentials: "include"
                 });
                 const result = await res.json();
-                return !!result.data;
+                // const accountUcId = result.data.userEspAccount?.accountUcId;
+                const accountKsId = result.data.user?.userId;
+                // const userName = result.data.user?.userName;
+                const ksId = result.data.user?.visitorId;
+                return accountKsId != ksId
             } catch (error) {
                 console.error('检查用户类型失败:', error);
                 return false;
@@ -332,7 +337,7 @@
                     },
                     url: "api/dy/account/cookie"
                 });
-                if(saveRes?.result?.success) {
+                if (saveRes?.result?.success) {
                     console.log('一键投放授权成功:', saveRes);
                     showToast('一键投放授权成功');
                 } else {
@@ -392,7 +397,7 @@
                 const authUrl = url + 'manage/store-auth' + '?__AUTH_TYPE__=token';
                 showToast('即将跳转winsup系统获取授权...');
                 setTimeout(() => {
-                    
+
                     window.open(authUrl, '_blank');
                     mdChrome.web.once('getToken', ({ token }) => {
                         handleLaunchCallback({ token, ...info }, api);
