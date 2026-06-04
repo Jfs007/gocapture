@@ -177,8 +177,8 @@ function InjectLister(message, sender, sendResponse) {
     sender,
     { function: injectScript, args, world }
   );
-
   chrome.scripting.executeScript(execData).then(result => {
+    console.log(result, 'executeScript-result');
     sendResponse(result);
   });
 }
@@ -1167,8 +1167,8 @@ const BaseChromeApiCmd = {
         
         // 调用函数
         const params = message.params || [];
+       
         const result = await target(...params);
-        
         sendResponse({ success: true, result });
       } catch (error) {
         console.error('Base command error:', error);
@@ -1247,3 +1247,18 @@ let INSTALLER_RELOAD = false;
 chrome.runtime.onInstalled.addListener((details) => {
   INSTALLER_RELOAD = true;
 });
+
+
+
+// 监听所有 frame 的导航提交事件（即 iframe 刚准备加载 URL 的瞬间）
+chrome.webNavigation.onCommitted.addListener((details) => {
+    const { tabId, frameId, url } = details;
+    const regex = /^(?:https?:\/\/)?([^\/\?#]+)/i;
+    const match = url.match(regex);
+    const domain = match ? match[1] : '-';
+    // 过滤掉主页面（0），我们只看子 frame
+    if (details.frameId == 0) return;
+    const evtName = 'iframe-setup:[' + domain + ']';
+    console.log('iframe-setup', { tabId, frameId, url, domain }, evtName)
+    emit(evtName, { tabId, frameId, url, domain })
+})

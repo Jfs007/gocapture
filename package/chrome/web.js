@@ -231,7 +231,7 @@
     // 导出API
     mdChrome.web = {
         name: 'ldd-pro',
-        version: '3.0',
+        version: '4.0',
         on: _on,
         once: _once,
         off: _off,

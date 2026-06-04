@@ -27,6 +27,7 @@
     "type": "module"
   },
   "permissions": [
+    "webNavigation",
     "background",
     "management",
     "unlimitedStorage",
