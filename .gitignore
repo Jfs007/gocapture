@@ -1,2 +1,7 @@
 node_modules
 dist
+.DS_Store
+docs/.vitepress/dist
+docs/.vitepress/dist-dev
+docs/.vitepress/cache
+package/app/package.zip

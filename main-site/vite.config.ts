@@ -21,13 +21,6 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true,
-    proxy: {
-      '/api': {
-        target: 'http://testad.itaored.com',
-        changeOrigin: true
-        // 不使用 rewrite，保留 /api 前缀
-      }
-    }
+    open: true
   }
 })

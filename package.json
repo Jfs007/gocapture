@@ -1,12 +1,13 @@
 {
   "name": "chrome-extension-scaffold",
   "version": "1.0.0",
-  "description": "Chrome Extension Development Scaffold",
+  "description": "A Chrome extension scaffold for injecting scripts and bridging web pages with extension APIs.",
   "scripts": {
-    "build-modules": "node build-modules.js",
-    "build-modules:watch": "node build-modules.js --watch",
-    "dev": "npm run build-modules && cd dev && npm run dev",
-    "build": "npm run build-modules && cd dev && npm run build"
+    "docs:dev": "vitepress dev docs --host 0.0.0.0",
+    "docs:build": "node scripts/docs-build.js",
+    "docs:build:dev": "node scripts/docs-build.js dev",
+    "docs:build:prod": "node scripts/docs-build.js prod",
+    "docs:preview": "vitepress preview docs"
   },
   "keywords": [
     "chrome-extension",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "archiver": "^7.0.1",
     "chokidar": "^3.6.0",
+    "vitepress": "^1.6.4",
     "vue-tsc": "^2.0.0"
   },
   "dependencies": {

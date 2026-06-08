@@ -230,7 +230,7 @@
 
     // 导出API
     mdChrome.web = {
-        name: 'ldd-pro',
+        name: 'chrome-extension-scaffold',
         version: '4.0',
         on: _on,
         once: _once,

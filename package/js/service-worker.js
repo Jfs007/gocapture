@@ -218,7 +218,6 @@ function fillIframeTarget(message, sender, execData) {
 
 // 导出对象
 const injectCmd = { Lister: InjectLister };
-// https://cdn.itaored.com/static/fed/testldd-chrome-plugin/install-package
 let CONFIG_BASE_URL = '';
 let APP_API = '';
 function GetRemoteConfigUrl() {

@@ -1,68 +1,11 @@
 {
     "result": {
         "cssUrls": [],
-        "jsUrls": [
-            "common/index.js",
-            "ldd/index.js",
-            "1688/index.js",
-            "agent.ks/index.js",
-            "douyin-shop/index.js",
-            "account.ks/index.js",
-            "winsup/index.js"
-        ]
+        "jsUrls": []
     },
-    "rules": {
-        "ldd/index.js": {
-            "auth": "ldd-1688-collect",
-            "supportIframe": false,
-            "matches": [
-                "*host:9002",
-                "*lhost:9003",
-                "*ad.itaored.com"
-            ]
-        },
-        "winsup/index.js": {
-            "supportIframe": false,
-            "matches": [
-                "*host:9002",
-                "*lhost:9003",
-                "*winsup.itaored.com"
-            ]
-        },
-        "1688/index.js": {
-            "auth": "ldd-1688-collect",
-            "supportIframe": false,
-            "matches": [
-                "*.1688.com"
-            ]
-        },
-        "douyin-shop/index.js": {
-            "supportIframe": false,
-            "matches": [
-                "*ompass.jinritemai.com",
-                "fxg.jinritemai.com"
-            ]
-        },
-        "agent.ks/index.js": {
-            "supportIframe": false,
-            "matches": [
-                "*iu.e.kuaishou.com",
-                "*u.e.kuaishou.com"
-            ]
-        },
-        "account.ks/index.js": {
-            "supportIframe": false,
-            "matches": [
-                "agent.e.kuaishou.com/account/list",
-                "jinfu.e.kuaishou.com/account/list",
-                "uc.e.kuaishou.com/account/register"
-            ]
-        }
-    },
-    "canInjectIframeList": [
-        "https://search.1688.com"
-    ],
-    "version": "20260409.093927",
+    "rules": {},
+    "canInjectIframeList": [],
+    "version": "20260608.000000",
     "success": true,
     "api": ""
 }

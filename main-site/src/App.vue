@@ -1,8 +1,7 @@
 <template>
   <n-config-provider :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <n-message-provider>
-      <LoginPage v-if="!isLogin" />
-      <MainLayout v-else />
+      <MainLayout />
     </n-message-provider>
   </n-config-provider>
 </template>
@@ -10,8 +9,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { NConfigProvider, NMessageProvider, zhCN, dateZhCN } from 'naive-ui'
-import { useLogin } from './hooks/useLogin'
-import LoginPage from './components/LoginPage.vue'
 import MainLayout from './components/MainLayout.vue'
 // 获取 CSS 变量的计算值
 const getCssVar = (name: string): string => {
@@ -36,11 +33,6 @@ const themeOverrides = ref({
     height: 30
   }
 });
-const { isLogin, login } = useLogin()
-const url = new URL(location.href)
-
-const token = url.searchParams.get('token') as string
-login({ token })
 </script>
 
 <style>
@@ -52,5 +44,6 @@ login({ token })
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f6f7fb;
 }
 </style>
