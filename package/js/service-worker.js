@@ -219,7 +219,6 @@ function fillIframeTarget(message, sender, execData) {
 // 导出对象
 const injectCmd = { Lister: InjectLister };
 let CONFIG_BASE_URL = '';
-let APP_API = '';
 function GetRemoteConfigUrl() {
   return `${CONFIG_BASE_URL}app/config.json?t=${Date.now()}`;
 }
@@ -259,59 +258,6 @@ async function checkHasSubUrl(url) {
 }
 
 /**
- * 获取授权信息
- * @param {string} apiUrl - API 基础地址
- * @returns {Promise<Object|null>} 返回授权信息或 null
- */
-async function getAuthorizationInfo(apiUrl) {
-  try {
-    const storage = await chrome.storage.local.get(['accessToken']);
-    const accessToken = storage.accessToken;
-
-    if (!accessToken) {
-      return null;
-    }
-
-    const response = await fetch(`${apiUrl}api/code/info`, {
-      headers: {
-        'accesstoken': accessToken
-      }
-    });
-
-    const result = await response.json();
-
-    if (result.code !== '200' && result.code !== 200) {
-      return null;
-    }
-
-    return result.data;
-  } catch (error) {
-    console.error('获取授权信息失败:', error);
-    return null;
-  }
-}
-
-/**
- * 打开授权页面
- * @param {string} apiUrl - API 基础地址
- */
-function openAuthorizationPage(apiUrl) {
-  chrome.tabs.create({ url: apiUrl + '?__LDD_EXTENSIONS_AUTH__=1' });
-}
-
-/**
- * 检查权限是否匹配
- * @param {string} requiredAuth - 需要的权限
- * @param {Array<string>} authorizationList - 用户拥有的权限列表
- * @returns {boolean} 是否有权限
- */
-function checkAuthorization(requiredAuth, authorizationList) {
-  if (!requiredAuth) return true;
-  if (!authorizationList || authorizationList.length === 0) return false;
-  return authorizationList.includes(requiredAuth);
-}
-
-/**
  * 获取配置
  * @param {Object} context - 上下文对象，原来的 e
  * @param {Object} sender - 消息发送者信息，原来的 t
@@ -331,7 +277,6 @@ async function GetConfig(context, sender, callback) {
 
   if (manifest.env) {
     CONFIG_BASE_URL = manifest.env.source;
-    APP_API = manifest.env.api;
   }
   // 处理作者名
   let authorName = manifest.author_name || manifest.authorName || "";
@@ -376,15 +321,12 @@ async function GetConfig(context, sender, callback) {
   }
 
   // 6️⃣ 检查当前页面是否需要加载任何脚本
-  let needsAuth = false;
-  let authorizationList = [];
-
   console.log('========动态加载jsUrls=======', sender);
   Object.keys(result).map(key => {
     let item = result[key] || [];
     item = item.filter(url => {
       const urlRule = rules[url];
-      const { matches, supportIframe, auth } = urlRule || {};
+      const { matches, supportIframe } = urlRule || {};
 
       // 如果是iframe 且不支持iframe 则不注入
       if (context.isSub && !supportIframe) return false;
@@ -393,40 +335,10 @@ async function GetConfig(context, sender, callback) {
       const isMatch = isUrlMatch(sender?.url || '', matches || []);
       if (!isMatch) return false;
 
-      // 如果匹配且需要权限，标记需要授权
-      if (auth) {
-        needsAuth = true;
-      }
-
       return true;
     });
     reResult[key] = item.map(url => manifest.app_module == 'Offline' ? chrome.runtime.getURL(`app/${url}`) : `${CONFIG_BASE_URL}app/${url}`);
   });
-  console.log('========插件健全=======', needsAuth);
-  // 7️⃣ 如果需要授权，进行授权验证并过滤
-  if (needsAuth && APP_API) {
-    const authInfo = await getAuthorizationInfo(APP_API);
-    if (!authInfo) {
-      return;
-    }
-    authorizationList = authInfo.authorizationList || [];
-
-    // 根据权限过滤脚本
-    Object.keys(reResult).forEach(key => {
-      const originalUrls = result[key] || [];
-      reResult[key] = reResult[key].filter((fullUrl, index) => {
-        const url = originalUrls[index];
-        const urlRule = rules[url];
-        const { auth } = urlRule || {};
-        if (auth && !checkAuthorization(auth, authorizationList)) {
-          console.log(`权限不足，跳过加载: ${url}, 需要权限: ${auth}`);
-          return false;
-        }
-
-        return true;
-      });
-    });
-  }
   if (callback) callback(reResult);
   return reResult;
 }
