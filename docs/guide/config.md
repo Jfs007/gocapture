@@ -61,11 +61,13 @@ type AppConfig = {
 
 service worker 会缓存远程脚本内容。`version` 变化时会清空缓存并重新拉取资源。
 
-开发时可以修改 `version`，或执行：
+开发时可以手动修改 `version`，也可以使用 app watch 脚本自动更新：
 
 ```bash
-node scripts/update-env.js local
+npm run app:dev -- --project vue --name sth
 ```
+
+watch 模式会在构建产物变化时更新 `version`，页面中的 dev reload 客户端检测到变化后会重新触发 `start` 注入。
 
 ## iframe
 

@@ -8,11 +8,11 @@
 package/
   chrome/              # 注入到网页主世界的桥接运行时
   js/                  # content script、service worker、offscreen
-  app/                 # 动态业务脚本输出目录，当前保持空配置
-vue/
-  src/sites/example/   # 中性注入脚本示例
+  app/                 # 动态业务脚本输出目录
 main-site/
-  src/                 # iframe 页面示例，可用于调试 bridge
+  src/                 # iframe 页面示例，可用于调试 bridge，不作为 app 打包入口
+vue/
+  src/sites/           # 工程化 app 源码，构建后输出到 package/app
 docs/
   .vitepress/          # VitePress 文档站配置
 ```
@@ -26,11 +26,10 @@ cd main-site
 yarn dev
 ```
 
-构建注入脚本示例：
+构建工程化 app 到 `package/app`：
 
 ```bash
-cd vue
-yarn build
+npm run app:inspector:build
 ```
 
 启动文档站：
@@ -57,4 +56,4 @@ npm run docs:dev
 }
 ```
 
-当你开始一个新业务时，只需要把构建后的脚本加入 `jsUrls`，并在 `rules` 中声明匹配规则。
+当你开始一个新业务时，可以用 `npm run app:build` 自动输出 `package/app/<name>/index.js` 并更新 `jsUrls`、`cssUrls` 和 `rules`。详细说明见 [工程化 App 打包](/guide/app-build)。

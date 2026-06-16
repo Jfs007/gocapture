@@ -257,6 +257,18 @@ async function checkHasSubUrl(url) {
   return hasMatch;
 }
 
+function hasIframeSupportedRule(url, result, rules) {
+  if (!url || !result || !rules) return false;
+  return Object.keys(result).some(key => {
+    const urls = Array.isArray(result[key]) ? result[key] : [];
+    return urls.some(appUrl => {
+      const rule = rules[appUrl];
+      if (!rule || !rule.supportIframe) return false;
+      return isUrlMatch(url, rule.matches || []);
+    });
+  });
+}
+
 /**
  * 获取配置
  * @param {Object} context - 上下文对象，原来的 e
@@ -302,17 +314,18 @@ async function GetConfig(context, sender, callback) {
   const response = await fetch(GetConfigUrl(), { headers });
   const data = await response.json();
   const canInjectIframeList = data.canInjectIframeList || [];
+  const result = data.result || [];
+  const version = data.version || '';
+  const rules = data.rules || {};
   if (context.isSub) {
     const canInjectIframe = canInjectIframeList.find(frameUrl => {
       if (url.indexOf(frameUrl) > -1) return true;
     });
-    if (!(url.indexOf(site) >= 0 || canInjectIframe)) return;
+    const canInjectByRule = hasIframeSupportedRule(url, result, rules);
+    if (!(url.indexOf(site) >= 0 || canInjectIframe || canInjectByRule)) return;
   }
 
   // 5️⃣ 返回结果，并调用回调
-  const result = data.result || [];
-  const version = data.version || '';
-  const rules = data.rules || {};
   const reResult = {};
   if (version !== _VERSION_) {
     console.log(version, _VERSION_, '版本更新，清理缓存');
@@ -369,14 +382,9 @@ async function hotCodeLister(message, sender, sendResponse) {
   }
 
   // 5️⃣ 注入配置中指定的 JS 文件
-  // for (let jsUrl of config.jsUrls || []) {
-
-
-  // }
-  const rules = config.rules || {};
-  config.jsUrls.map(async jsUrl => {
+  for (let jsUrl of config.jsUrls || []) {
     await executeScript(jsUrl, config, message, sender);
-  })
+  }
 }
 
 /**
@@ -445,21 +453,18 @@ async function executeCss(url, config, message, sender) {
     if (code) ExeCodeMap[key] = code;
   }
 
-  if (code) return executeCss2(code, config, message, sender);
+  if (code) return executeCss2(code, config, message, sender, url);
 }
 
 /**
  * 将 CSS 内容注入到页面
  */
-async function executeCss2(cssContent, config, message, sender) {
-  const script = `
-    const style = document.createElement('style');
-    style.innerHTML = \`${cssContent}\`;
-    document.head.appendChild(style);
-  `;
-
+async function executeCss2(cssContent, config, message, sender, url) {
   const world = config.world || "MAIN";
-  let execData = { function: injectJsCode, args: [script], world };
+  const styleId = 'magnus-app-style-' + String(url || '')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .slice(-160);
+  let execData = { function: injectCssCode, args: [cssContent, styleId], world };
   execData = fillIframeIdToData(message, sender, execData);
 
   return chrome.scripting.executeScript(execData);
@@ -471,6 +476,18 @@ async function executeCss2(cssContent, config, message, sender) {
 function injectJsCode(code) {
   if (!code) return;
   return eval(code); // 你也可以换成 new Function(code)() 更安全
+}
+
+function injectCssCode(cssContent, styleId) {
+  if (!cssContent) return;
+  const id = styleId || 'magnus-app-style';
+  let style = document.getElementById(id);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = id;
+    document.head.appendChild(style);
+  }
+  style.textContent = cssContent;
 }
 
 

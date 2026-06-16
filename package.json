@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "A Chrome extension scaffold for injecting scripts and bridging web pages with extension APIs.",
   "scripts": {
+    "app:build": "node scripts/app-build.js",
+    "app:dev": "node scripts/app-build.js --watch",
+    "app:inspector:build": "node scripts/app-build.js --project vue --name element-inspector --entry src/sites/element-inspector/main.js --matches \"<all_urls>\" --iframe --no-minify",
+    "app:inspector:dev": "node scripts/app-build.js --project vue --name element-inspector --entry src/sites/element-inspector/main.js --matches \"<all_urls>\" --iframe --no-minify --watch",
+    "source:server": "node scripts/source-server.js",
     "docs:dev": "vitepress dev docs --host 0.0.0.0",
     "docs:build": "node scripts/docs-build.js",
     "docs:build:dev": "node scripts/docs-build.js dev",

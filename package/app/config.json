@@ -1,11 +1,21 @@
 {
     "result": {
         "cssUrls": [],
-        "jsUrls": []
+        "jsUrls": [
+            "element-inspector/index.js"
+        ]
     },
-    "rules": {},
+    "rules": {
+        "element-inspector/index.js": {
+            "matches": [
+                "*lhost:9002",
+                "*lhost:9003"
+            ],
+            "supportIframe": false
+        }
+    },
     "canInjectIframeList": [],
-    "version": "20260608.164527",
+    "version": "20260616.203839.909",
     "success": true,
     "api": ""
 }

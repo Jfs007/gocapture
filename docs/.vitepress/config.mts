@@ -29,6 +29,7 @@ export default defineConfig({
             { text: '开始', link: '/guide/' },
             { text: '快速上手', link: '/guide/quick-start' },
             { text: '架构', link: '/guide/architecture' },
+            { text: '工程化 App 打包', link: '/guide/app-build' },
             { text: '动态配置', link: '/guide/config' }
           ]
         }
