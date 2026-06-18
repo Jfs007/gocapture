@@ -2646,6 +2646,51 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return ret;
   }
+  function renderSlot(slots, name, props = {}, fallback, noSlotted) {
+    if (currentRenderingInstance.ce || currentRenderingInstance.parent && isAsyncWrapper(currentRenderingInstance.parent) && currentRenderingInstance.parent.ce) {
+      const hasProps = Object.keys(props).length > 0;
+      return openBlock(), createBlock(
+        Fragment,
+        null,
+        [createVNode("slot", props, fallback)],
+        hasProps ? -2 : 64
+      );
+    }
+    let slot = slots[name];
+    if (slot && slot._c) {
+      slot._d = false;
+    }
+    openBlock();
+    const validSlotContent = slot && ensureValidVNode(slot(props));
+    const slotKey = props.key || // slot content array of a dynamic conditional slot may have a branch
+    // key attached in the `createSlots` helper, respect that
+    validSlotContent && validSlotContent.key;
+    const rendered = createBlock(
+      Fragment,
+      {
+        key: (slotKey && !isSymbol(slotKey) ? slotKey : `_${name}`) + // #7256 force differentiate fallback content from actual content
+        (!validSlotContent && fallback ? "_fb" : "")
+      },
+      validSlotContent || [],
+      validSlotContent && slots._ === 1 ? 64 : -2
+    );
+    if (rendered.scopeId) {
+      rendered.slotScopeIds = [rendered.scopeId + "-s"];
+    }
+    if (slot && slot._c) {
+      slot._d = true;
+    }
+    return rendered;
+  }
+  function ensureValidVNode(vnodes) {
+    return vnodes.some((child) => {
+      if (!isVNode(child)) return true;
+      if (child.type === Comment) return false;
+      if (child.type === Fragment && !ensureValidVNode(child.children))
+        return false;
+      return true;
+    }) ? vnodes : null;
+  }
   const getPublicInstance = (i) => {
     if (!i) return null;
     if (isStatefulComponent(i)) return getComponentPublicInstance(i);
@@ -6671,6 +6716,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     if (value.length > limit) value = `${value.slice(0, limit)}...`;
     return value;
   }
+  function compactMarkup(text, limit = 720) {
+    let value = String(text || "").replace(/\s+/g, " ").replace(/>\s+</g, "><").trim();
+    if (value.length > limit) value = `${value.slice(0, limit)}...`;
+    return value;
+  }
   function escapeRegExp(value) {
     return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
@@ -6751,11 +6801,34 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       fontSize: style.fontSize,
       fontWeight: style.fontWeight,
       lineHeight: style.lineHeight,
+      textAlign: style.textAlign,
+      border: style.border,
+      borderRadius: style.borderRadius,
       margin: style.margin,
       padding: style.padding,
+      gap: style.gap,
+      alignItems: style.alignItems,
+      justifyContent: style.justifyContent,
       width: style.width,
       height: style.height
     };
+  }
+  function getSelectorPart(element) {
+    if (!element || !element.tagName) return "";
+    const tag = element.tagName.toLowerCase();
+    const id = element.id ? `#${element.id}` : "";
+    const classes = Array.from(element.classList || []).slice(0, 3).map((name) => `.${name}`).join("");
+    return `${tag}${id}${classes}`;
+  }
+  function getSelectorPath(element, limit = 4) {
+    const parts = [];
+    let node = element;
+    while (node && node.nodeType === 1 && parts.length < limit) {
+      parts.unshift(getSelectorPart(node));
+      if (node.id) break;
+      node = node.parentElement;
+    }
+    return parts.join(" > ");
   }
   function getAncestorInfo(element) {
     const result = [];
@@ -6771,12 +6844,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return result;
   }
   function getElementInfo(element) {
+    var _a;
     if (!element) return null;
     const rect = element.getBoundingClientRect();
     return {
       tag: element.tagName.toLowerCase(),
+      selector: getSelectorPath(element),
       className: getClassName(element),
       text: getElementText(element),
+      innerHtml: compactMarkup(element.innerHTML || "", 960),
+      outerHtml: compactMarkup(element.outerHTML || "", 1200),
+      inlineStyle: compactText(((_a = element.getAttribute) == null ? void 0 : _a.call(element, "style")) || "", 480),
       computedStyle: getStyleInfo(element),
       ancestors: getAncestorInfo(element),
       box: {
@@ -6799,6 +6877,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     selectionConfirmed,
     evidenceMessages,
     candidateLoading,
+    searchRunning,
     includeApiEvidence,
     candidateHits,
     needsMoreEvidence,
@@ -6810,6 +6889,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     modelAssistError,
     modelAssistLogs,
     modelAssistResult,
+    searchStartedAt,
+    searchFinishedAt,
+    modelAssistStartedAt,
+    modelAssistFinishedAt,
     selectionChatSummary,
     searchLogLines
   }) {
@@ -6850,7 +6933,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           id: "need-selection",
           role: "system",
           title: "等待页面选区",
-          text: "移动鼠标高亮页面区域，按空格键添加选区，并在选区浮层填写改动点。"
+          text: "移动鼠标高亮页面区域，按空格键添加选区。选区会保存下来，可在输入框里用 @选区1 引用并描述修改要求。"
         });
         return messages;
       }
@@ -6874,19 +6957,27 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           text
         });
       }
-      if (candidateLoading.value) {
+      if (searchRunning == null ? void 0 : searchRunning.value) {
         messages.push({
           id: "searching",
           role: "system",
-          text: includeApiEvidence.value ? "正在基于选区和接口端点追踪候选文件。" : "正在基于选区文案、className 和页面路径检索候选文件。"
+          text: includeApiEvidence.value ? "正在基于选区和接口端点追踪候选文件。" : "正在基于选区文案、className 和页面路径检索候选文件。",
+          durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
+          durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
+          durationActive: true,
+          logExpanded: true
         });
-      } else if (candidateHits.value.length) {
+      } else if (((searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0) > 0) {
         messages.push({
           id: "search-log",
           role: "system",
-          title: "检索日志",
-          text: `找到 ${candidateHits.value.length} 个候选文件。`,
-          logs: searchLogLines()
+          title: "源码检索",
+          text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : "未命中候选文件。",
+          logs: searchLogLines(),
+          durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
+          durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
+          durationActive: false,
+          logExpanded: false
         });
       }
       if (modelAssistLoading == null ? void 0 : modelAssistLoading.value) {
@@ -6896,7 +6987,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           title: "模型定位",
           text: "正在让模型阅读本地预检索结果和候选文件内容，进一步判断应修改的源码文件。",
           logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
-          logTitle: "查看模型操作日志"
+          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
+          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
+          durationActive: true,
+          logExpanded: true
         });
       } else if (modelAssistResult == null ? void 0 : modelAssistResult.value) {
         const result = modelAssistResult.value;
@@ -6912,14 +7006,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           id: "model-result",
           role: "agent",
           title: `模型定位 · ${((_a = result.adapter) == null ? void 0 : _a.name) || "模型"}`,
-          text: targets.length ? "模型已定位到修改点，并已生成最终提示词。" : "模型未定位到可用修改点。",
+          text: targets.length ? "模型已定位到修改点，可继续生成最终提示词。" : "模型未定位到可用修改点。",
           logs: [
             ...result.logs || [],
             ...targetLogs,
             !targetLogs.length && result.rawText ? `模型原始返回:
 ${result.rawText}` : ""
           ].filter(Boolean),
-          logTitle: "查看模型操作日志"
+          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
+          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
+          durationActive: false,
+          logExpanded: false
         });
       } else if (modelAssistError == null ? void 0 : modelAssistError.value) {
         messages.push({
@@ -6928,7 +7025,10 @@ ${result.rawText}` : ""
           title: "模型定位失败",
           text: modelAssistError.value,
           logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
-          logTitle: "查看模型操作日志"
+          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
+          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
+          durationActive: false,
+          logExpanded: false
         });
       }
       if (!candidateLoading.value && needsMoreEvidence.value) {
@@ -6937,8 +7037,8 @@ ${result.rawText}` : ""
           role: "system",
           title: "线索不足，需要补充页面证据",
           text: [
-            "当前选区命中了多个候选文件，但没有任何文件存在唯一精确命中文案。",
-            "这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只能定位到通用组件块。",
+            "当前选区命中了多个候选文件，但没有任何文件同时命中文案和当前页面上下文。",
+            "这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只命中了通用子组件里的重复字段。",
             "请继续选择更外层、更独特的页面区域，或在输入框补充业务位置/交互目标后重新检索。"
           ].join("\n")
         });
@@ -6995,6 +7095,78 @@ ${result.rawText}` : ""
     } catch (error) {
     }
   }
+  function loadText(key, fallback = "") {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return typeof raw === "string" ? raw : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+  function saveText(key, value) {
+    try {
+      if (value) window.localStorage.setItem(key, value);
+      else window.localStorage.removeItem(key);
+    } catch (error) {
+    }
+  }
+  function extensionStorage() {
+    try {
+      const requireFn = typeof window._require === "function" ? window._require : typeof _require === "function" ? _require : null;
+      if (!requireFn) return null;
+      const storage = requireFn("md.storage");
+      return storage && storage.local ? storage.local : null;
+    } catch (error) {
+      return null;
+    }
+  }
+  function loadPersistedModelState() {
+    return __async(this, null, function* () {
+      const localModels = loadJson(MODEL_STORAGE_KEY, []);
+      const localSelectedId = loadText(MODEL_SELECTED_KEY, "");
+      const storage = extensionStorage();
+      if (!storage) {
+        return {
+          models: localModels,
+          selectedId: localSelectedId,
+          migrated: false
+        };
+      }
+      try {
+        const data = yield storage.get([MODEL_STORAGE_KEY, MODEL_SELECTED_KEY]);
+        const hasModels = Array.isArray(data == null ? void 0 : data[MODEL_STORAGE_KEY]);
+        const hasSelectedId = typeof (data == null ? void 0 : data[MODEL_SELECTED_KEY]) === "string";
+        if (hasModels || hasSelectedId) {
+          return {
+            models: hasModels ? data[MODEL_STORAGE_KEY] : [],
+            selectedId: hasSelectedId ? data[MODEL_SELECTED_KEY] : "",
+            migrated: false
+          };
+        }
+      } catch (error) {
+      }
+      return {
+        models: localModels,
+        selectedId: localSelectedId,
+        migrated: !!(localModels.length || localSelectedId)
+      };
+    });
+  }
+  function persistModelState(models, selectedId) {
+    return __async(this, null, function* () {
+      saveJson(MODEL_STORAGE_KEY, models);
+      saveText(MODEL_SELECTED_KEY, selectedId);
+      const storage = extensionStorage();
+      if (!storage) return;
+      try {
+        yield storage.set({
+          [MODEL_STORAGE_KEY]: models,
+          [MODEL_SELECTED_KEY]: selectedId || ""
+        });
+      } catch (error) {
+      }
+    });
+  }
   function defaultModelForm() {
     return {
       id: "",
@@ -7026,9 +7198,11 @@ ${result.rawText}` : ""
     const item = raw || {};
     const type = item.type === "api" ? "api" : "exec";
     const provider = item.provider === "deepseek" ? "deepseek" : "custom";
+    const defaultName = provider === "deepseek" ? "DeepSeek" : type === "api" ? "API 模型" : "Cli 模型";
+    const normalizedName = item.name === "Exec 模型" ? "Cli 模型" : item.name;
     return {
       id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: item.name || (provider === "deepseek" ? "DeepSeek" : type === "api" ? "API 模型" : "Exec 模型"),
+      name: normalizedName || defaultName,
       provider,
       type,
       command: item.command || "",
@@ -7041,7 +7215,7 @@ ${result.rawText}` : ""
   }
   function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, setToast }) {
     const modelConfigs = /* @__PURE__ */ ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
-    const selectedModelId = /* @__PURE__ */ ref(window.localStorage.getItem(MODEL_SELECTED_KEY) || "");
+    const selectedModelId = /* @__PURE__ */ ref(loadText(MODEL_SELECTED_KEY, ""));
     const useModelAssist = /* @__PURE__ */ ref(!!selectedModelId.value);
     const modelEditorOpen = /* @__PURE__ */ ref(false);
     const modelForm = /* @__PURE__ */ ref(defaultModelForm());
@@ -7049,6 +7223,8 @@ ${result.rawText}` : ""
     const modelAssistError = /* @__PURE__ */ ref("");
     const modelAssistLogs = /* @__PURE__ */ ref([]);
     const modelAssistResult = /* @__PURE__ */ ref(null);
+    const modelAssistStartedAt = /* @__PURE__ */ ref(0);
+    const modelAssistFinishedAt = /* @__PURE__ */ ref(0);
     const selectedModel = computed(() => {
       return modelConfigs.value.find((item) => item.id === selectedModelId.value) || null;
     });
@@ -7056,12 +7232,20 @@ ${result.rawText}` : ""
       return !!selectedModel.value && !!project.value && project.value.source === "source-server";
     });
     function persistModels() {
-      saveJson(MODEL_STORAGE_KEY, modelConfigs.value);
-      try {
-        if (selectedModelId.value) window.localStorage.setItem(MODEL_SELECTED_KEY, selectedModelId.value);
-        else window.localStorage.removeItem(MODEL_SELECTED_KEY);
-      } catch (error) {
-      }
+      void persistModelState(modelConfigs.value, selectedModelId.value);
+    }
+    function hydratePersistedModels() {
+      return __async(this, null, function* () {
+        const state = yield loadPersistedModelState();
+        const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel);
+        const validSelectedId = nextModels.some((item) => item.id === state.selectedId) ? state.selectedId : "";
+        modelConfigs.value = nextModels;
+        selectedModelId.value = validSelectedId;
+        useModelAssist.value = !!validSelectedId;
+        if (state.migrated || state.selectedId && state.selectedId !== validSelectedId) {
+          void persistModelState(nextModels, validSelectedId);
+        }
+      });
     }
     function openModelEditor(model) {
       modelForm.value = model ? __spreadValues({}, model) : defaultModelForm();
@@ -7121,6 +7305,8 @@ ${result.rawText}` : ""
       modelAssistError.value = "";
       modelAssistLogs.value = [];
       modelAssistResult.value = null;
+      modelAssistStartedAt.value = 0;
+      modelAssistFinishedAt.value = 0;
     }
     function mergeModelTargets(result) {
       const targets = ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).filter((item) => item.exists);
@@ -7164,6 +7350,8 @@ ${result.rawText}` : ""
       return __async(this, null, function* () {
         var _a, _b, _c;
         if (!useModelAssist.value || !canUseModelAssist.value) return null;
+        modelAssistStartedAt.value = Date.now();
+        modelAssistFinishedAt.value = 0;
         modelAssistLoading.value = true;
         modelAssistError.value = "";
         modelAssistLogs.value = ["模型定位请求已发起"];
@@ -7193,10 +7381,12 @@ ${result.rawText}` : ""
           setToast("模型定位失败");
           return null;
         } finally {
+          modelAssistFinishedAt.value = Date.now();
           modelAssistLoading.value = false;
         }
       });
     }
+    void hydratePersistedModels();
     return {
       modelConfigs,
       selectedModelId,
@@ -7209,6 +7399,8 @@ ${result.rawText}` : ""
       modelAssistError,
       modelAssistLogs,
       modelAssistResult,
+      modelAssistStartedAt,
+      modelAssistFinishedAt,
       openModelEditor,
       openProviderModelEditor,
       closeModelEditor,
@@ -7391,7 +7583,7 @@ ${result.rawText}` : ""
   }
   function candidateStageExplanation(hit) {
     const reasons = hit.reasons || [];
-    const uniqueLine = hit.uniqueSnippet && hit.uniqueMatchCount === 1 ? `可靠证据: 文件内唯一精确命中(${hit.uniqueMatchLabel || "文案"}) "${hit.uniqueMatchText || "-"}"` : "可靠证据: 暂无唯一源码片段，当前只作为候选参与排序";
+    const uniqueLine = hit.preciseEvidence ? `可靠证据: 选区上下文与命中文案在同文件汇合${hit.exactMatchText ? `；命中 "${hit.exactMatchText}"` : ""}${hit.contextScore ? `；上下文分 ${hit.contextScore}` : ""}` : hit.uniqueSnippet && hit.uniqueMatchCount === 1 ? `可靠证据: 文件内唯一文案命中(${hit.uniqueMatchLabel || "文案"}) "${hit.uniqueMatchText || "-"}"，但仍需结合页面上下文判断` : "可靠证据: 暂无强页面上下文证据，当前只作为候选参与排序";
     if (hit.stage === "import-chain" || hit.stage === "route-import-chain") {
       return [
         hit.stage === "route-import-chain" ? `定位过程: 先用页面 path 命中当前页面入口 ${hit.anchorFile || hit.from || "-"}，再沿 import 链路访问到该候选文件` : `定位过程: 先用补充线索命中 ${hit.anchorFile || hit.from || "-"}，再沿 import 链路访问到该候选文件`,
@@ -7446,16 +7638,17 @@ ${result.rawText}` : ""
     const lines = [
       index != null ? `候选 ${index + 1}: ${hit.file}` : `文件: ${hit.file}`,
       `命中方式: ${candidateStageLabel(hit)}；分数 ${hit.score}`,
+      hit.exactMatchText ? `文案命中统计: "${hit.exactMatchText}" 在该文件出现 ${hit.exactMatchCount || 0} 次` : "",
       ...candidateStageExplanation(hit)
     ].filter(Boolean);
-    if (hit.uniqueSnippet && hit.uniqueMatchCount === 1) {
+    if (hit.preciseSnippet || hit.uniqueSnippet && hit.uniqueMatchCount === 1) {
       lines.push(`源码片段:
-${hit.uniqueSnippet}`);
+${hit.preciseSnippet || hit.uniqueSnippet}`);
     }
     return lines;
   }
   function candidateDetailTitle(hit) {
-    return (hit == null ? void 0 : hit.uniqueSnippet) && hit.uniqueMatchCount === 1 ? "查看命中片段和日志" : "查看检索日志";
+    return (hit == null ? void 0 : hit.preciseSnippet) || (hit == null ? void 0 : hit.uniqueSnippet) && hit.uniqueMatchCount === 1 ? "查看命中片段和日志" : "查看检索日志";
   }
   function candidateLogText(hit) {
     return candidateLogLines(hit).join("\n");
@@ -7468,6 +7661,7 @@ ${hit.uniqueSnippet}`);
     routeResolverTrace,
     evidenceMessages,
     customEvidence,
+    promptIntent,
     searchKeywords,
     includeApiEvidence,
     searchApiRequests,
@@ -7478,69 +7672,160 @@ ${hit.uniqueSnippet}`);
     selectionPayloads,
     setToast
   }) {
+    function promptAssetToken(index) {
+      return `@选区${index}`;
+    }
     function selectionChatSummary() {
-      var _a;
-      const changedCount = selectedItems.value.filter((item) => hasChangeNote(item)).length;
+      var _a, _b;
       const latest = selectedItems.value[selectedItems.value.length - 1];
-      const latestText = (latest == null ? void 0 : latest.changeNote) || ((_a = latest == null ? void 0 : latest.info) == null ? void 0 : _a.text) || "";
+      const latestText = ((_a = latest == null ? void 0 : latest.info) == null ? void 0 : _a.text) || ((_b = latest == null ? void 0 : latest.info) == null ? void 0 : _b.className) || "";
       return [
-        `${selectedItems.value.length} 个选区，${changedCount} 个已填写改动点。`,
-        latestText ? `最近改动：${compactText(latestText, 80)}` : ""
+        `${selectedItems.value.length} 个选区已保存，可在输入框里用 @选区1 引用。`,
+        latestText ? `最近选区：${compactText(latestText, 80)}` : ""
       ].filter(Boolean).join("\n");
     }
-    function pageLevelText() {
-      var _a, _b;
-      const text = ((_a = document.body) == null ? void 0 : _a.innerText) || ((_b = document.body) == null ? void 0 : _b.textContent) || "";
-      return denoiseTextByApi(text, 260);
-    }
-    function candidateFilePromptLines(options = {}) {
-      const hits = options.includeAll ? candidateHits.value.slice(0, 8) : selectedCandidateHits.value.length ? selectedCandidateHits.value : candidateHits.value.slice(0, 6);
-      const selected = new Set(selectedCandidatePaths.value);
-      return hits.map((hit) => {
-        const reasons = (hit.reasons || []).slice(0, 3).join("；");
-        const meta = [
-          candidateStageLabel(hit),
-          `score=${hit.score}`,
-          hit.from ? `from=${hit.from}` : "",
-          reasons ? `reason=${reasons}` : ""
-        ].filter(Boolean).join(", ");
-        return `- ${selected.has(hit.file) ? "[已选] " : ""}${hit.file}${meta ? ` (${meta})` : ""}`;
-      }).join("\n");
-    }
     function reliableSnippetHits() {
-      return selectedCandidateHits.value.filter((hit) => hit.uniqueSnippet && hit.uniqueMatchCount === 1);
+      return selectedCandidateHits.value.filter((hit) => hit.preciseEvidence);
     }
     function reliableSnippetPromptLines() {
       return reliableSnippetHits().map((hit) => {
         return [
           `文件: ${hit.file}`,
-          `唯一命中来源: ${hit.uniqueMatchLabel || "文案"}`,
-          `唯一命中文案: ${hit.uniqueMatchText || "-"}`,
+          `命中来源: ${hit.exactMatchLabel || hit.uniqueMatchLabel || "文案"}`,
+          `命中文案: ${hit.exactMatchText || hit.uniqueMatchText || "-"}`,
+          hit.exactMatchCount ? `文件内出现次数: ${hit.exactMatchCount}` : "",
+          hit.contextScore ? `页面上下文分: ${hit.contextScore}` : "",
           `源码片段:
-${hit.uniqueSnippet}`
+${hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || ""}`
         ].join("\n");
       }).join("\n\n");
     }
-    function modelSuggestionPromptLines() {
-      return selectedCandidateHits.value.filter((hit) => hit.stage === "model-agent" && (hit.modelPrompt || hit.modelCodeSnippet)).map((hit) => {
-        return [
-          `文件: ${hit.file}`,
-          hit.modelCodeSnippet ? `code片段: ${hit.modelCodeSnippet}` : "",
-          hit.modelPrompt ? `提示词: ${hit.modelPrompt}` : ""
-        ].filter(Boolean).join("\n");
-      }).join("\n\n");
-    }
     function modelFinalPromptLines() {
-      return selectedCandidateHits.value.filter((hit) => hit.stage === "model-agent" && hit.modelPrompt).map((hit) => {
+      return selectedPromptHits().filter((hit) => hit.stage === "model-agent" && hit.modelPrompt).map((hit) => {
         return [
           `文件: ${hit.file}`,
           hit.modelCodeSnippet ? `位置: ${hit.modelCodeSnippet}` : "",
-          `修改提示词: ${hit.modelPrompt}`
+          `模型建议: ${sanitizeModelInstructionText(hit.modelPrompt)}`
         ].filter(Boolean).join("\n");
       }).join("\n\n");
     }
     function manualEvidencePrompt() {
       return evidenceMessages.value.length ? evidenceMessages.value.join("\n") : "";
+    }
+    function promptAssetItems() {
+      return selectionPayloads().map((item) => {
+        const info = item.element || {};
+        const text = denoiseTextByApi(info.text, 120);
+        const fallback = compactText([info.tag || "-", info.className || ""].filter(Boolean).join(".").replace(/\.+/g, "."), 40);
+        return {
+          token: promptAssetToken(item.index),
+          index: item.index,
+          tag: info.tag || "-",
+          className: info.className || "",
+          text,
+          ancestors: ancestorPromptLine(info),
+          summary: compactText(text || fallback || `选区${item.index}`, 40)
+        };
+      });
+    }
+    function buildPromptIntentDraft() {
+      return promptAssetItems().map((asset) => asset.token).filter(Boolean).join(" ");
+    }
+    function normalizeInstructionText(value) {
+      return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).join("\n").trim();
+    }
+    function sanitizeModelInstructionText(value) {
+      let text = normalizeInstructionText(value);
+      if (!text) return "";
+      text = text.replace(/需要引入[^。\n；]*(?:http|axios|request|fetch)[^。\n；]*/ig, "沿用项目现有 API 调用方式完成接口请求");
+      text = text.replace(/[（(]如[^）)]*(?:http|axios|request|fetch|@\/)[^）)]*[）)]/ig, "");
+      text = text.replace(/\s{2,}/g, " ").trim();
+      return text;
+    }
+    function selectedPromptHits() {
+      return selectedCandidateHits.value.length ? selectedCandidateHits.value : candidateHits.value.slice(0, 1);
+    }
+    function selectedFilePromptLines() {
+      const hits = selectedPromptHits();
+      return hits.length ? hits.map((hit) => `- ${hit.file}`).join("\n") : "-";
+    }
+    function normalizeSnippetText(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      const lines = text.split("\n");
+      const cropped = lines.slice(0, 14).join("\n");
+      if (cropped.length > 420) return `${cropped.slice(0, 420)}...`;
+      return lines.length > 14 ? `${cropped}
+...` : cropped;
+    }
+    function locationPromptLines() {
+      return selectedPromptHits().map((hit) => {
+        const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || "");
+        const evidence = hit.exactMatchText || hit.uniqueMatchText || "";
+        return [
+          `文件: ${hit.file}`,
+          location ? `位置:
+${location}` : "",
+          evidence ? `命中参考: ${evidence}` : ""
+        ].filter(Boolean).join("\n");
+      }).join("\n\n");
+    }
+    function referencedPromptAssets(text) {
+      const assets = promptAssetItems();
+      if (!assets.length) return [];
+      const value = String(text || "");
+      const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
+      if (!matches.length) return assets;
+      if (matches.some((match) => !match[1])) return assets;
+      const indexes = /* @__PURE__ */ new Set();
+      matches.forEach((match) => indexes.add(Number(match[1])));
+      return assets.filter((asset) => indexes.has(asset.index));
+    }
+    function selectionPromptInstructions(text) {
+      const assets = promptAssetItems();
+      const value = normalizeInstructionText(text);
+      if (!assets.length || !value) return [];
+      const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
+      if (!matches.length) {
+        return assets.map((asset) => ({
+          index: asset.index,
+          token: asset.token,
+          instruction: value
+        }));
+      }
+      const grouped = /* @__PURE__ */ new Map();
+      for (let index = 0; index < matches.length; index++) {
+        const match = matches[index];
+        const start = (match.index || 0) + match[0].length;
+        const end = index + 1 < matches.length ? matches[index + 1].index || value.length : value.length;
+        const instruction = value.slice(start, end).replace(/^[\s，,；;:：-]+/, "").trim() || "按当前页面上下文处理";
+        const indexes = match[1] ? [Number(match[1])] : assets.map((asset) => asset.index);
+        for (const assetIndex of indexes) {
+          const existing = grouped.get(assetIndex) || [];
+          existing.push(instruction);
+          grouped.set(assetIndex, existing);
+        }
+      }
+      return assets.filter((asset) => grouped.has(asset.index)).map((asset) => ({
+        index: asset.index,
+        token: asset.token,
+        instruction: grouped.get(asset.index).join("；")
+      }));
+    }
+    function assetReferencePromptLines(text) {
+      const instructions = new Map(selectionPromptInstructions(text).map((item) => [item.index, item.instruction]));
+      return referencedPromptAssets(text).map((asset) => {
+        return [
+          `- ${asset.token}`,
+          `  节点: tag=${asset.tag || "-"}；className=${asset.className || "-"}`,
+          instructions.get(asset.index) ? `  修改要求: ${instructions.get(asset.index)}` : "",
+          asset.text ? `  选区文本(仅参考): ${asset.text}` : "",
+          asset.ancestors ? `  父级线索: ${asset.ancestors}` : ""
+        ].filter(Boolean).join("\n");
+      }).join("\n");
+    }
+    function selectionTextReferenceLines(text) {
+      return referencedPromptAssets(text).map((asset) => `${asset.token}: ${asset.text || "-"}`).join("\n");
     }
     function selectionNodeLine(info) {
       return [
@@ -7561,15 +7846,16 @@ ${hit.uniqueSnippet}`
       }).filter(Boolean).join(" > ");
     }
     function modificationCommand() {
+      const instructions = new Map(selectionPromptInstructions(promptIntent.value).map((item) => [item.index, item.instruction]));
       return selectionPayloads().filter((item) => {
         var _a, _b;
-        return item.changeNote || ((_a = item.element) == null ? void 0 : _a.text) || ((_b = item.element) == null ? void 0 : _b.className);
+        return instructions.has(item.index) || ((_a = item.element) == null ? void 0 : _a.text) || ((_b = item.element) == null ? void 0 : _b.className);
       }).map((item) => {
         const info = item.element;
         const denoisedText = denoiseTextByApi(info.text);
         const ancestors = ancestorPromptLine(info);
         return [
-          `选区 ${item.index}: ${item.changeNote || "按页面上下文修改"}`,
+          `选区 ${item.index}: ${instructions.get(item.index) || "按页面上下文修改"}`,
           `  当前节点: ${selectionNodeLine(info)}`,
           `  节点文案: ${denoisedText || "-"}`,
           ancestors ? `  父级线索: ${ancestors}` : ""
@@ -7579,12 +7865,19 @@ ${hit.uniqueSnippet}`
     function combinedSelectionText() {
       if (searchKeywords.value.trim()) return searchKeywords.value.trim();
       const terms = [];
+      const promptInstructions = selectionPromptInstructions(promptIntent.value);
+      if (promptInstructions.length) {
+        for (const item of promptInstructions) {
+          terms.push(...extractSearchTerms(item.instruction));
+        }
+      } else {
+        terms.push(...extractSearchTerms(String(promptIntent.value || "").replace(/@(?:\[)?选区(?:(\d+))?(?:\])?/g, " ")));
+      }
       for (const message of evidenceMessages.value) {
         terms.push(...extractSearchTerms(message));
       }
       terms.push(...extractSearchTerms(customEvidence.value));
       for (const item of selectedItems.value) {
-        terms.push(...extractSearchTerms(item.changeNote));
         terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
         terms.push(...extractSearchTerms(item.info.className));
         for (const ancestor of item.info.ancestors || []) {
@@ -7618,7 +7911,17 @@ ${hit.uniqueSnippet}`
         url: window.location.href,
         className: selectedItems.value.map((item) => item.info.className).join(" "),
         text: query,
+        userPrompt: normalizeInstructionText(promptIntent.value),
         manualEvidence: evidenceMessages.value.join("\n"),
+        selectionInstructions: selectionPromptInstructions(promptIntent.value),
+        selectionTexts: selections.map((item) => {
+          var _a, _b;
+          return {
+            index: item.index,
+            text: ((_a = item.element) == null ? void 0 : _a.text) || "",
+            className: ((_b = item.element) == null ? void 0 : _b.className) || ""
+          };
+        }),
         selections,
         apiRequests,
         includeApi: includeApiEvidence.value,
@@ -7634,9 +7937,9 @@ ${hit.uniqueSnippet}`
         `1. 收集页面证据: pagePath=${pageUrlPath.value}；选区数=${selectedItems.value.length}；className=${selectedItems.value.map((item) => item.info.className).filter(Boolean).join(" ") || "-"}`,
         ...routeLines,
         `3. 组合检索词: ${combinedSelectionText() || "-"}`,
-        `4. 用户补充证据: ${evidenceMessages.value.length ? evidenceMessages.value.join("；") : "-"}`,
-        "5. 源码检索: 再按文案/className/url path/补充证据搜索开发源码文件，跳过 node_modules/dist/build 等非源码目录",
-        "6. 链路推断: 对补充证据命中的文件继续沿 import 链路向下追踪，并对组件候选做引用反查"
+        `4. 用户指令: ${normalizeInstructionText(promptIntent.value) || "-"}`,
+        "5. 源码检索: 再按文案/className/url path/用户指令搜索开发源码文件，跳过 node_modules/dist/build 等非源码目录",
+        "6. 链路推断: 对页面线索或用户指令命中的文件继续沿 import 链路向下追踪，并对组件候选做引用反查"
       ];
       if (includeApiEvidence.value) {
         const endpoints = searchApiRequests.value.map((item) => item.pathname || item.url).filter(Boolean).slice(0, 5);
@@ -7674,58 +7977,36 @@ ${hit.uniqueSnippet}`
       }
       return lines;
     }
-    function generatePrompt() {
-      var _a;
-      const files = candidateFilePromptLines();
-      const command = modificationCommand();
+    function generatePrompt(options = {}) {
+      const files = selectedFilePromptLines();
+      const locations = locationPromptLines();
+      const command = normalizeInstructionText(options.userInstruction || buildPromptIntentDraft()) || modificationCommand();
       const reliableSnippets = reliableSnippetPromptLines();
-      const modelSuggestions = modelSuggestionPromptLines();
       const modelFinalPrompt = modelFinalPromptLines();
       const manualEvidence = manualEvidencePrompt();
-      if (modelFinalPrompt) {
-        promptText.value = [
-          `当前 page: ${window.location.href}`,
-          `当前命中文件:
-${selectedCandidateHits.value.map((hit) => `- ${hit.file}`).join("\n")}`,
-          `修改命令:
-${modelFinalPrompt}`
-        ].filter(Boolean).join("\n");
-        setToast("模型已生成最终提示词");
-        return;
-      }
-      if (candidateHits.value.length > 1) {
-        const relatedFiles = candidateFilePromptLines({ includeAll: true });
-        promptText.value = [
-          `当前 page: ${window.location.href}`,
-          `url path: ${pageUrlPath.value}`,
-          `技术栈: ${((_a = project.value) == null ? void 0 : _a.stackText) || "未知"}`,
-          `页面级线索: ${pageLevelText() || "-"}`,
-          manualEvidence ? `用户补充证据:
-${manualEvidence}` : "",
-          "以下文件可能与当前页面/组件相关，请结合 url path、页面文案、className、接口端点和文件命中原因，判断当前页面最准确的源码文件；若候选里只有组件文件，请继续向页面入口或调用方推断。",
-          relatedFiles || files || "-",
-          modelSuggestions ? `模型推断修改点:
-${modelSuggestions}` : "",
-          reliableSnippets ? `唯一源码片段:
-${reliableSnippets}` : "",
-          `修改命令:
-${command}`
-        ].filter(Boolean).join("\n");
-        setToast("提示词已生成");
-        return;
-      }
       promptText.value = [
         `当前 page: ${window.location.href}`,
+        `页面路径: ${pageUrlPath.value}`,
         `当前命中文件:
 ${files || "-"}`,
+        locations ? `定位位置:
+${locations}` : "",
+        `修改要求:
+${command}`,
         manualEvidence ? `用户补充证据:
 ${manualEvidence}` : "",
-        modelSuggestions ? `模型推断修改点:
-${modelSuggestions}` : "",
+        modelFinalPrompt ? `模型定位参考:
+${modelFinalPrompt}` : "",
         reliableSnippets ? `唯一源码片段:
 ${reliableSnippets}` : "",
-        `修改命令:
-${command}`
+        `选区文本参考(仅作参考):
+${selectionTextReferenceLines(command) || "-"}`,
+        `选区引用:
+${assetReferencePromptLines(command) || "-"}`,
+        "实现约束:",
+        "- 严格沿用项目现有 API / 状态管理 / 组件封装 / 交互提示方式完成修改。",
+        "- 不要臆测或新增不存在的 http 工具、请求封装、路径别名、导入路径、公共方法或变量名。",
+        "- 如果需要调用接口，优先复用当前文件和项目里已经存在的实现方式。"
       ].filter(Boolean).join("\n");
       setToast("提示词已生成");
     }
@@ -7736,11 +8017,10 @@ ${command}`
       combinedSelectionText,
       searchPayload,
       searchLogLines,
-      generatePrompt
+      generatePrompt,
+      promptAssetItems,
+      buildPromptIntentDraft
     };
-  }
-  function hasChangeNote(item) {
-    return !!(item && item.changeNote && item.changeNote.trim());
   }
   const MAX_PROJECT_FILES = 800;
   const MAX_SNIPPET_BYTES = 18e4;
@@ -8062,7 +8342,7 @@ ${command}`
       cleanupToast
     };
   }
-  const _hoisted_1$3 = {
+  const _hoisted_1$2 = {
     class: "mda-chat-thread",
     "aria-label": "页面改造对话"
   };
@@ -8070,35 +8350,50 @@ ${command}`
   const _hoisted_3$2 = { class: "mda-message-bubble" };
   const _hoisted_4$2 = {
     key: 0,
-    class: "mda-message-title"
+    class: "mda-message-work"
   };
-  const _hoisted_5$2 = {
+  const _hoisted_5$2 = ["aria-expanded", "onClick"];
+  const _hoisted_6$2 = { class: "mda-message-work-label" };
+  const _hoisted_7$2 = {
     key: 1,
-    class: "mda-message-text"
+    class: "mda-message-work-label"
   };
-  const _hoisted_6$2 = {
-    key: 2,
-    class: "mda-message-pre"
+  const _hoisted_8$2 = {
+    key: 1,
+    class: "mda-message-logs"
   };
-  const _hoisted_7$1 = {
-    key: 3,
-    class: "mda-log-flow"
-  };
-  const _hoisted_8$1 = ["onClick"];
-  const _hoisted_9$1 = {
-    key: 4,
-    class: "mda-message-actions"
-  };
-  const _hoisted_10$1 = ["disabled"];
+  const _hoisted_9$1 = { class: "mda-log-file-label" };
+  const _hoisted_10$1 = ["onClick"];
   const _hoisted_11$1 = {
-    key: 5,
-    class: "mda-message-actions"
+    key: 1,
+    class: "mda-message-log-pre"
   };
   const _hoisted_12$1 = {
     key: 0,
-    class: "mda-warning"
+    class: "mda-message-title"
   };
   const _hoisted_13$1 = {
+    key: 1,
+    class: "mda-message-text"
+  };
+  const _hoisted_14$1 = {
+    key: 2,
+    class: "mda-message-pre"
+  };
+  const _hoisted_15$1 = {
+    key: 3,
+    class: "mda-message-actions"
+  };
+  const _hoisted_16$1 = ["disabled"];
+  const _hoisted_17$1 = {
+    key: 4,
+    class: "mda-message-actions"
+  };
+  const _hoisted_18$1 = {
+    key: 0,
+    class: "mda-warning"
+  };
+  const _hoisted_19$1 = {
     key: 1,
     class: "mda-warning"
   };
@@ -8110,13 +8405,70 @@ ${command}`
       const sourceServiceError = useForm("sourceServiceError");
       const candidateError = useForm("candidateError");
       const api = useApi();
+      const nowTick = /* @__PURE__ */ ref(Date.now());
+      const logOpenState = /* @__PURE__ */ ref({});
+      let clockTimer = 0;
+      watch(messages, (nextMessages) => {
+        const nextState = {};
+        for (const message of nextMessages || []) {
+          if (!(message == null ? void 0 : message.id)) continue;
+          if (Object.prototype.hasOwnProperty.call(logOpenState.value, message.id)) {
+            nextState[message.id] = logOpenState.value[message.id];
+          } else {
+            nextState[message.id] = !!message.logExpanded;
+          }
+        }
+        logOpenState.value = nextState;
+      }, { immediate: true });
+      onMounted(() => {
+        clockTimer = window.setInterval(() => {
+          nowTick.value = Date.now();
+        }, 1e3);
+      });
+      onBeforeUnmount(() => {
+        window.clearInterval(clockTimer);
+      });
       function avatarText(role) {
         if (role === "user") return "你";
         if (role === "agent") return "模型";
         return "系统";
       }
+      function hasLogs(message) {
+        return Array.isArray(message == null ? void 0 : message.logs) && message.logs.length > 0;
+      }
+      function showMessageWork(message) {
+        return (message == null ? void 0 : message.role) !== "user" && (hasLogs(message) || Number((message == null ? void 0 : message.durationStartedAt) || 0) > 0);
+      }
+      function isLogExpanded(id, fallback) {
+        if (!id) return !!fallback;
+        return Object.prototype.hasOwnProperty.call(logOpenState.value, id) ? logOpenState.value[id] : !!fallback;
+      }
+      function toggleLog(id, fallback) {
+        logOpenState.value = __spreadProps(__spreadValues({}, logOpenState.value), {
+          [id]: !isLogExpanded(id, fallback)
+        });
+      }
+      function formatDuration(ms) {
+        const totalSeconds = Math.max(0, Math.round(Number(ms || 0) / 1e3));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      }
+      function messageDurationMs(message) {
+        const startedAt = Number((message == null ? void 0 : message.durationStartedAt) || 0);
+        if (!startedAt) return 0;
+        const finishedAt = Number((message == null ? void 0 : message.durationFinishedAt) || 0);
+        return Math.max(0, (finishedAt || nowTick.value) - startedAt);
+      }
+      function messageWorkLabel(message) {
+        const duration = messageDurationMs(message);
+        return `${(message == null ? void 0 : message.durationActive) ? "处理中" : "已处理"} ${formatDuration(duration)}`;
+      }
       function isCandidateLog(log) {
         return /^候选\s+\d+:\s+/.test(log) || /^文件:\s+/.test(log);
+      }
+      function isMultilineLog(log) {
+        return typeof log === "string" && /\n/.test(log);
       }
       function candidatePrefix(log) {
         const match = String(log || "").match(/^(候选\s+\d+:\s+|文件:\s+)/);
@@ -8126,7 +8478,7 @@ ${command}`
         return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$3, [
+        return openBlock(), createElementBlock("section", _hoisted_1$2, [
           (openBlock(true), createElementBlock(
             Fragment,
             null,
@@ -8146,104 +8498,143 @@ ${command}`
                     /* TEXT */
                   ),
                   createBaseVNode("div", _hoisted_3$2, [
-                    message.title ? (openBlock(), createElementBlock(
-                      "div",
-                      _hoisted_4$2,
-                      toDisplayString(message.title),
-                      1
-                      /* TEXT */
-                    )) : createCommentVNode("v-if", true),
-                    message.text ? (openBlock(), createElementBlock(
-                      "div",
-                      _hoisted_5$2,
-                      toDisplayString(message.text),
-                      1
-                      /* TEXT */
-                    )) : createCommentVNode("v-if", true),
-                    message.pre ? (openBlock(), createElementBlock(
-                      "pre",
-                      _hoisted_6$2,
-                      toDisplayString(message.pre),
-                      1
-                      /* TEXT */
-                    )) : createCommentVNode("v-if", true),
-                    message.logs && message.logs.length ? (openBlock(), createElementBlock("details", _hoisted_7$1, [
-                      createBaseVNode(
-                        "summary",
-                        null,
-                        toDisplayString(message.logTitle || "查看检索日志"),
+                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$2, [
+                      hasLogs(message) ? (openBlock(), createElementBlock("button", {
+                        key: 0,
+                        class: "mda-message-work-toggle",
+                        type: "button",
+                        "aria-expanded": String(isLogExpanded(message.id, message.logExpanded)),
+                        onClick: ($event) => toggleLog(message.id, message.logExpanded)
+                      }, [
+                        createBaseVNode(
+                          "span",
+                          _hoisted_6$2,
+                          toDisplayString(messageWorkLabel(message)),
+                          1
+                          /* TEXT */
+                        ),
+                        createBaseVNode(
+                          "i",
+                          {
+                            class: normalizeClass(["mda-message-work-caret", { "is-open": isLogExpanded(message.id, message.logExpanded) }])
+                          },
+                          null,
+                          2
+                          /* CLASS */
+                        )
+                      ], 8, _hoisted_5$2)) : (openBlock(), createElementBlock(
+                        "div",
+                        _hoisted_7$2,
+                        toDisplayString(messageWorkLabel(message)),
                         1
                         /* TEXT */
-                      ),
-                      createBaseVNode("ol", null, [
-                        (openBlock(true), createElementBlock(
-                          Fragment,
-                          null,
-                          renderList(message.logs, (log, logIndex) => {
-                            return openBlock(), createElementBlock(
-                              "li",
-                              {
-                                key: logIndex,
-                                class: normalizeClass({ "is-candidate-log": isCandidateLog(log) })
-                              },
-                              [
-                                isCandidateLog(log) ? (openBlock(), createElementBlock(
-                                  Fragment,
-                                  { key: 0 },
-                                  [
-                                    createBaseVNode(
-                                      "span",
-                                      null,
-                                      toDisplayString(candidatePrefix(log)),
-                                      1
-                                      /* TEXT */
-                                    ),
-                                    createBaseVNode("button", {
-                                      class: "mda-log-file-link",
-                                      type: "button",
-                                      onClick: ($event) => unref(api).openSourceFile(candidateFile(log))
-                                    }, toDisplayString(candidateFile(log)), 9, _hoisted_8$1)
-                                  ],
-                                  64
-                                  /* STABLE_FRAGMENT */
-                                )) : (openBlock(), createElementBlock(
-                                  Fragment,
-                                  { key: 1 },
-                                  [
-                                    createTextVNode(
-                                      toDisplayString(log),
-                                      1
-                                      /* TEXT */
-                                    )
-                                  ],
-                                  64
-                                  /* STABLE_FRAGMENT */
-                                ))
-                              ],
-                              2
-                              /* CLASS */
-                            );
-                          }),
-                          128
-                          /* KEYED_FRAGMENT */
-                        ))
-                      ])
+                      ))
                     ])) : createCommentVNode("v-if", true),
-                    message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_9$1, [
-                      createBaseVNode("button", {
-                        class: "mda-btn mda-btn-primary",
-                        type: "button",
-                        disabled: unref(sourceServiceStatus) === "loading",
-                        onClick: _cache[0] || (_cache[0] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
-                      }, toDisplayString(unref(sourceServiceStatus) === "loading" ? "选择中" : "选择源码"), 9, _hoisted_10$1)
+                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_8$2, [
+                      (openBlock(true), createElementBlock(
+                        Fragment,
+                        null,
+                        renderList(message.logs, (log, logIndex) => {
+                          return openBlock(), createElementBlock(
+                            "div",
+                            {
+                              key: logIndex,
+                              class: normalizeClass(["mda-message-log-item", { "is-candidate-log": isCandidateLog(log) }])
+                            },
+                            [
+                              isCandidateLog(log) ? (openBlock(), createElementBlock(
+                                Fragment,
+                                { key: 0 },
+                                [
+                                  createBaseVNode(
+                                    "span",
+                                    _hoisted_9$1,
+                                    toDisplayString(candidatePrefix(log)),
+                                    1
+                                    /* TEXT */
+                                  ),
+                                  createBaseVNode("button", {
+                                    class: "mda-log-file-link",
+                                    type: "button",
+                                    onClick: ($event) => unref(api).openSourceFile(candidateFile(log))
+                                  }, toDisplayString(candidateFile(log)), 9, _hoisted_10$1)
+                                ],
+                                64
+                                /* STABLE_FRAGMENT */
+                              )) : isMultilineLog(log) ? (openBlock(), createElementBlock(
+                                "pre",
+                                _hoisted_11$1,
+                                toDisplayString(log),
+                                1
+                                /* TEXT */
+                              )) : (openBlock(), createElementBlock(
+                                Fragment,
+                                { key: 2 },
+                                [
+                                  createTextVNode(
+                                    toDisplayString(log),
+                                    1
+                                    /* TEXT */
+                                  )
+                                ],
+                                64
+                                /* STABLE_FRAGMENT */
+                              ))
+                            ],
+                            2
+                            /* CLASS */
+                          );
+                        }),
+                        128
+                        /* KEYED_FRAGMENT */
+                      ))
                     ])) : createCommentVNode("v-if", true),
-                    message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_11$1, [
-                      createBaseVNode("button", {
-                        class: "mda-btn",
-                        type: "button",
-                        onClick: _cache[1] || (_cache[1] = (...args) => unref(api).copyPrompt && unref(api).copyPrompt(...args))
-                      }, "复制提示词")
-                    ])) : createCommentVNode("v-if", true)
+                    createBaseVNode(
+                      "div",
+                      {
+                        class: normalizeClass(["mda-message-content", { "has-work": showMessageWork(message) }])
+                      },
+                      [
+                        message.title ? (openBlock(), createElementBlock(
+                          "div",
+                          _hoisted_12$1,
+                          toDisplayString(message.title),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        message.text ? (openBlock(), createElementBlock(
+                          "div",
+                          _hoisted_13$1,
+                          toDisplayString(message.text),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        message.pre ? (openBlock(), createElementBlock(
+                          "pre",
+                          _hoisted_14$1,
+                          toDisplayString(message.pre),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$1, [
+                          createBaseVNode("button", {
+                            class: "mda-btn mda-btn-primary",
+                            type: "button",
+                            disabled: unref(sourceServiceStatus) === "loading",
+                            onClick: _cache[0] || (_cache[0] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
+                          }, toDisplayString(unref(sourceServiceStatus) === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$1)
+                        ])) : createCommentVNode("v-if", true),
+                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$1, [
+                          createBaseVNode("button", {
+                            class: "mda-btn",
+                            type: "button",
+                            onClick: _cache[1] || (_cache[1] = (...args) => unref(api).copyPrompt && unref(api).copyPrompt(...args))
+                          }, "复制提示词")
+                        ])) : createCommentVNode("v-if", true)
+                      ],
+                      2
+                      /* CLASS */
+                    )
                   ])
                 ],
                 2
@@ -8255,14 +8646,14 @@ ${command}`
           )),
           unref(sourceServiceError) ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_12$1,
+            _hoisted_18$1,
             toDisplayString(unref(sourceServiceError)),
             1
             /* TEXT */
           )) : createCommentVNode("v-if", true),
           unref(candidateError) ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_13$1,
+            _hoisted_19$1,
             toDisplayString(unref(candidateError)),
             1
             /* TEXT */
@@ -8271,7 +8662,74 @@ ${command}`
       };
     }
   };
-  const _hoisted_1$2 = { class: "mda-composer-wrap" };
+  const _sfc_main$2 = {
+    __name: "PopoverPanel",
+    props: {
+      visible: {
+        type: Boolean,
+        default: false
+      },
+      anchorRect: {
+        type: Object,
+        default: null
+      },
+      width: {
+        type: Number,
+        default: 380
+      },
+      maxHeight: {
+        type: Number,
+        default: 360
+      },
+      gap: {
+        type: Number,
+        default: 10
+      },
+      viewportPadding: {
+        type: Number,
+        default: 12
+      }
+    },
+    emits: ["mouseenter", "mouseleave"],
+    setup(__props) {
+      const props = __props;
+      const panelStyle = computed(() => {
+        const rect = props.anchorRect;
+        if (!props.visible || !rect) return {};
+        const width = Math.min(props.width, Math.max(260, window.innerWidth - props.viewportPadding * 2));
+        const left = Math.max(
+          props.viewportPadding,
+          Math.min(rect.left, window.innerWidth - width - props.viewportPadding)
+        );
+        const showBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
+        const top = showBelow ? rect.bottom + props.gap : Math.max(props.viewportPadding, rect.top - props.gap - props.maxHeight);
+        return {
+          left: `${Math.round(left)}px`,
+          top: `${Math.round(top)}px`,
+          width: `${Math.round(width)}px`,
+          maxHeight: `${Math.round(props.maxHeight)}px`
+        };
+      });
+      return (_ctx, _cache) => {
+        return __props.visible && __props.anchorRect ? (openBlock(), createElementBlock(
+          "div",
+          {
+            key: 0,
+            class: "mda-popover-panel",
+            style: normalizeStyle(panelStyle.value),
+            onMouseenter: _cache[0] || (_cache[0] = ($event) => _ctx.$emit("mouseenter")),
+            onMouseleave: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("mouseleave"))
+          },
+          [
+            renderSlot(_ctx.$slots, "default")
+          ],
+          36
+          /* STYLE, NEED_HYDRATION */
+        )) : createCommentVNode("v-if", true);
+      };
+    }
+  };
+  const _hoisted_1$1 = { class: "mda-composer-wrap" };
   const _hoisted_2$1 = {
     key: 0,
     class: "mda-composer-options"
@@ -8286,8 +8744,8 @@ ${command}`
     class: "mda-choice-list"
   };
   const _hoisted_6$1 = { class: "mda-choice-check" };
-  const _hoisted_7 = ["checked", "onChange"];
-  const _hoisted_8 = ["onClick"];
+  const _hoisted_7$1 = ["checked", "onChange"];
+  const _hoisted_8$1 = ["onClick"];
   const _hoisted_9 = { class: "mda-choice-meta" };
   const _hoisted_10 = ["onClick"];
   const _hoisted_11 = {
@@ -8300,94 +8758,104 @@ ${command}`
   };
   const _hoisted_13 = {
     key: 2,
-    class: "mda-selection-tags-panel"
-  };
-  const _hoisted_14 = { class: "mda-collapsible-head" };
-  const _hoisted_15 = { class: "mda-option-title" };
-  const _hoisted_16 = {
-    key: 0,
-    class: "mda-collapsed-summary"
-  };
-  const _hoisted_17 = { class: "mda-selection-tags" };
-  const _hoisted_18 = ["onClick"];
-  const _hoisted_19 = { key: 0 };
-  const _hoisted_20 = {
-    key: 0,
-    class: "mda-selection-detail"
-  };
-  const _hoisted_21 = { class: "mda-selection-detail-head" };
-  const _hoisted_22 = { class: "mda-selection-detail-title" };
-  const _hoisted_23 = { class: "mda-selection-detail-grid" };
-  const _hoisted_24 = ["value", "data-selection-uid"];
-  const _hoisted_25 = {
-    key: 3,
     class: "mda-model-editor"
   };
-  const _hoisted_26 = { class: "mda-model-editor-head" };
-  const _hoisted_27 = { class: "mda-model-grid" };
-  const _hoisted_28 = {
+  const _hoisted_14 = { class: "mda-model-editor-head" };
+  const _hoisted_15 = { class: "mda-model-grid" };
+  const _hoisted_16 = {
     key: 0,
     class: "is-wide"
   };
-  const _hoisted_29 = ["value"];
-  const _hoisted_30 = ["value"];
-  const _hoisted_31 = ["value"];
-  const _hoisted_32 = {
+  const _hoisted_17 = ["value"];
+  const _hoisted_18 = ["value"];
+  const _hoisted_19 = ["value"];
+  const _hoisted_20 = {
     key: 1,
     class: "is-wide"
   };
-  const _hoisted_33 = {
+  const _hoisted_21 = {
     key: 2,
     class: "is-wide"
   };
-  const _hoisted_34 = { key: 3 };
-  const _hoisted_35 = { key: 4 };
-  const _hoisted_36 = { key: 5 };
-  const _hoisted_37 = { class: "is-wide" };
-  const _hoisted_38 = { class: "mda-model-actions" };
-  const _hoisted_39 = ["disabled"];
-  const _hoisted_40 = { class: "mda-composer-prebar" };
-  const _hoisted_41 = ["disabled"];
-  const _hoisted_42 = { class: "mda-composer" };
-  const _hoisted_43 = ["value", "readonly", "placeholder"];
-  const _hoisted_44 = { class: "mda-composer-toolbar" };
-  const _hoisted_45 = { class: "mda-toolbar-left" };
-  const _hoisted_46 = ["disabled"];
-  const _hoisted_47 = { class: "mda-toolbar-right" };
-  const _hoisted_48 = ["disabled"];
-  const _hoisted_49 = { key: 0 };
-  const _hoisted_50 = {
+  const _hoisted_22 = { key: 3 };
+  const _hoisted_23 = { key: 4 };
+  const _hoisted_24 = { key: 5 };
+  const _hoisted_25 = { class: "is-wide" };
+  const _hoisted_26 = { class: "mda-model-actions" };
+  const _hoisted_27 = ["disabled"];
+  const _hoisted_28 = { class: "mda-composer-prebar" };
+  const _hoisted_29 = { class: "mda-composer-prebar-main" };
+  const _hoisted_30 = ["disabled"];
+  const _hoisted_31 = {
+    key: 0,
+    class: "mda-asset-strip"
+  };
+  const _hoisted_32 = ["title", "onMouseenter", "onMouseleave", "onClick"];
+  const _hoisted_33 = {
+    key: 1,
+    class: "mda-asset-thumb is-empty"
+  };
+  const _hoisted_34 = { class: "mda-asset-meta" };
+  const _hoisted_35 = ["onClick"];
+  const _hoisted_36 = {
+    key: 0,
+    class: "mda-asset-popover"
+  };
+  const _hoisted_37 = { class: "mda-asset-popover-head" };
+  const _hoisted_38 = { class: "mda-asset-popover-badge" };
+  const _hoisted_39 = { class: "mda-asset-popover-title-wrap" };
+  const _hoisted_40 = { class: "mda-asset-popover-title" };
+  const _hoisted_41 = { class: "mda-asset-popover-subtitle" };
+  const _hoisted_42 = { class: "mda-asset-popover-grid" };
+  const _hoisted_43 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_44 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_45 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_46 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_47 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_48 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_49 = { class: "mda-composer" };
+  const _hoisted_50 = ["value", "readonly", "placeholder"];
+  const _hoisted_51 = { class: "mda-composer-toolbar" };
+  const _hoisted_52 = { class: "mda-toolbar-left" };
+  const _hoisted_53 = ["disabled"];
+  const _hoisted_54 = { class: "mda-toolbar-right" };
+  const _hoisted_55 = ["disabled"];
+  const _hoisted_56 = { key: 0 };
+  const _hoisted_57 = {
     key: 0,
     class: "mda-model-dropdown"
   };
-  const _hoisted_51 = ["onClick"];
-  const _hoisted_52 = {
+  const _hoisted_58 = ["onClick"];
+  const _hoisted_59 = {
     key: 0,
     class: "mda-model-divider"
   };
-  const _hoisted_53 = ["disabled"];
-  const _hoisted_54 = { key: 0 };
-  const _hoisted_55 = {
+  const _hoisted_60 = ["disabled"];
+  const _hoisted_61 = { key: 0 };
+  const _hoisted_62 = {
     key: 1,
     class: "mda-send-arrow"
   };
-  const _hoisted_56 = {
-    key: 4,
+  const _hoisted_63 = {
+    key: 3,
     class: "mda-route-inline"
   };
-  const _hoisted_57 = {
+  const _hoisted_64 = {
     key: 1,
     class: "mda-route-empty"
   };
-  const _hoisted_58 = { class: "mda-toast" };
-  const _sfc_main$2 = {
+  const _hoisted_65 = { class: "mda-toast" };
+  const _sfc_main$1 = {
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const evidenceInput = /* @__PURE__ */ ref(null);
       const modelMenuRef = /* @__PURE__ */ ref(null);
       const modelMenuOpen = /* @__PURE__ */ ref(false);
       const candidatePanelCollapsed = /* @__PURE__ */ ref(false);
-      const selectionPanelCollapsed = /* @__PURE__ */ ref(false);
+      const activeAssetPopoverUid = /* @__PURE__ */ ref("");
+      const activeAssetPopoverRect = /* @__PURE__ */ ref(null);
+      let activeAssetPopoverAnchor = null;
+      let assetPopoverTimer = 0;
       const api = useApi();
       const showCandidatePicker = useForm("showCandidatePicker");
       const needsMoreEvidence = useForm("needsMoreEvidence");
@@ -8397,8 +8865,8 @@ ${command}`
       const includeApiEvidence = useForm("includeApiEvidence");
       const candidateLoading = useForm("candidateLoading");
       const promptText = useForm("promptText");
+      const promptAssets = useForm("promptAssets");
       const selectedItems = useForm("selectedItems");
-      const editingUid = useForm("editingUid");
       const project = useForm("project");
       const modelConfigs = useForm("modelConfigs");
       const selectedModelId = useForm("selectedModelId");
@@ -8422,14 +8890,6 @@ ${command}`
         var _a;
         return ((_a = routeHit.value) == null ? void 0 : _a.file) || "";
       });
-      const editingSelection = computed(() => {
-        return selectedItems.value.find((item) => item.uid === editingUid.value) || null;
-      });
-      const selectionCollapsedSummary = computed(() => {
-        const changedCount = selectedItems.value.filter((item) => hasChangeNote2(item)).length;
-        const active = editingSelection.value ? selectedNodeTitle(editingSelection.value) : selectionTagLabel(selectedItems.value[0], 0);
-        return `${active}；${changedCount}/${selectedItems.value.length} 个有改动`;
-      });
       const activeModelLabel = computed(() => {
         var _a;
         return ((_a = selectedModel.value) == null ? void 0 : _a.name) || "不启用";
@@ -8438,12 +8898,14 @@ ${command}`
         if (!selectedModel.value) return "";
         if (modelAssistLoading.value) return "定位中";
         if (selectedModel.value.provider === "deepseek") return "DeepSeek API";
-        return selectedModel.value.type === "api" ? "API" : "Exec";
+        return formatModelType(selectedModel.value.type);
+      });
+      const activeAssetPopover = computed(() => {
+        return promptAssets.value.find((item) => item.uid === activeAssetPopoverUid.value) || null;
       });
       watch(modelAssistLoading, (value) => {
         if (!value) return;
         candidatePanelCollapsed.value = true;
-        selectionPanelCollapsed.value = true;
         modelMenuOpen.value = false;
       });
       function handleGlobalPointerDown(event) {
@@ -8451,11 +8913,20 @@ ${command}`
         if (modelMenuRef.value && (path.includes(modelMenuRef.value) || modelMenuRef.value.contains(event.target))) return;
         modelMenuOpen.value = false;
       }
+      function updateAssetPopoverRect() {
+        if (!activeAssetPopoverAnchor || !activeAssetPopoverAnchor.isConnected) return;
+        activeAssetPopoverRect.value = activeAssetPopoverAnchor.getBoundingClientRect();
+      }
       onMounted(() => {
         window.addEventListener("pointerdown", handleGlobalPointerDown, true);
+        window.addEventListener("scroll", updateAssetPopoverRect, true);
+        window.addEventListener("resize", updateAssetPopoverRect, true);
       });
       onBeforeUnmount(() => {
         window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
+        window.removeEventListener("scroll", updateAssetPopoverRect, true);
+        window.removeEventListener("resize", updateAssetPopoverRect, true);
+        clearAssetPopoverTimer();
       });
       __expose({
         focusEvidenceInput() {
@@ -8507,7 +8978,70 @@ ${command}`
       function modelOptionMeta(model) {
         if (!model) return "";
         if (model.provider === "deepseek") return "DeepSeek API";
-        return model.type === "api" ? "API" : "Exec";
+        return formatModelType(model.type);
+      }
+      function formatModelType(type) {
+        return type === "api" ? "API" : "Cli";
+      }
+      function assetTooltip(asset) {
+        if (!asset) return "";
+        return [
+          `${asset.token} · 点击插入`,
+          "悬浮查看节点详情",
+          asset.text ? `文案: ${asset.text}` : "",
+          asset.className ? `class: ${asset.className}` : ""
+        ].filter(Boolean).join("\n");
+      }
+      function assetThumbStyle(asset) {
+        return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+      }
+      function formatAssetValue(value) {
+        if (!value) return "-";
+        if (typeof value === "string") return value;
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch (error) {
+          return String(value);
+        }
+      }
+      function assetDetailSections(asset) {
+        if (!asset) return [];
+        return [
+          { label: "选区 inline style", value: asset.inlineStyle || "-" },
+          { label: "选区 computed style", value: formatAssetValue(asset.computedStyle) },
+          { label: "选区 innerHTML", value: asset.innerHtml || "-" },
+          { label: "截图区域文案", value: asset.assetText || "-" },
+          { label: "截图区域 inline style", value: asset.assetInlineStyle || "-" },
+          { label: "截图区域 computed style", value: formatAssetValue(asset.assetComputedStyle) },
+          { label: "截图区域 innerHTML", value: asset.assetInnerHtml || "-" }
+        ];
+      }
+      function clearAssetPopoverTimer() {
+        if (!assetPopoverTimer) return;
+        window.clearTimeout(assetPopoverTimer);
+        assetPopoverTimer = 0;
+      }
+      function cancelAssetPopoverHide() {
+        clearAssetPopoverTimer();
+      }
+      function closeAssetPopover() {
+        clearAssetPopoverTimer();
+        activeAssetPopoverUid.value = "";
+        activeAssetPopoverRect.value = null;
+        activeAssetPopoverAnchor = null;
+      }
+      function scheduleAssetPopoverHide(uid2 = "") {
+        clearAssetPopoverTimer();
+        assetPopoverTimer = window.setTimeout(() => {
+          if (!uid2 || activeAssetPopoverUid.value === uid2) closeAssetPopover();
+        }, 220);
+      }
+      function openAssetPopover(asset, event) {
+        if (!asset) return;
+        clearAssetPopoverTimer();
+        activeAssetPopoverUid.value = asset.uid;
+        activeAssetPopoverAnchor = (event == null ? void 0 : event.currentTarget) || null;
+        updateAssetPopoverRect();
       }
       function selectDisabledModel() {
         api.disableModelAssist();
@@ -8549,28 +9083,11 @@ ${command}`
         if (!routeFilePath.value) return;
         api.copyTextWithToast(routeFilePath.value);
       }
-      function hasChangeNote2(item) {
-        return !!(item && item.changeNote && item.changeNote.trim());
-      }
-      function shortText(text, limit = 90) {
-        const value = String(text || "").replace(/\s+/g, " ").trim();
-        return value.length > limit ? `${value.slice(0, limit)}...` : value;
-      }
-      function selectedNodeTitle(item) {
-        if (!item || !item.info) return "选区";
-        const index = selectedItems.value.findIndex((selection) => selection.uid === item.uid) + 1;
-        return `选区 ${index} · <${item.info.tag || "-"}>`;
-      }
-      function selectionTagLabel(item, index) {
-        const info = item.info || {};
-        const className = String(info.className || "").split(/\s+/).filter(Boolean)[0];
-        return `选区 ${index + 1} · ${info.tag || "-"}${className ? `.${className}` : ""}`;
-      }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$2, [
+        return openBlock(), createElementBlock("section", _hoisted_1$1, [
           unref(showCandidatePicker) ? (openBlock(), createElementBlock("div", _hoisted_2$1, [
             createBaseVNode("div", _hoisted_3$1, [
-              _cache[22] || (_cache[22] = createBaseVNode(
+              _cache[20] || (_cache[20] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
                 "存在多个命中文件，请确认",
@@ -8612,12 +9129,12 @@ ${command}`
                           type: "checkbox",
                           checked: isCandidateSelected(hit),
                           onChange: ($event) => unref(api).toggleCandidateFile(hit)
-                        }, null, 40, _hoisted_7),
+                        }, null, 40, _hoisted_7$1),
                         createBaseVNode("button", {
                           class: "mda-file-link",
                           type: "button",
                           onClick: withModifiers(($event) => unref(api).openSourceFile(hit.file), ["stop"])
-                        }, toDisplayString(hit.file), 9, _hoisted_8)
+                        }, toDisplayString(hit.file), 9, _hoisted_8$1)
                       ]),
                       createBaseVNode(
                         "div",
@@ -8648,7 +9165,7 @@ ${command}`
               ))
             ]))
           ])) : createCommentVNode("v-if", true),
-          unref(needsMoreEvidence) ? (openBlock(), createElementBlock("div", _hoisted_12, [..._cache[23] || (_cache[23] = [
+          unref(needsMoreEvidence) ? (openBlock(), createElementBlock("div", _hoisted_12, [..._cache[21] || (_cache[21] = [
             createBaseVNode(
               "div",
               { class: "mda-option-title" },
@@ -8664,124 +9181,9 @@ ${command}`
               /* CACHED */
             )
           ])])) : createCommentVNode("v-if", true),
-          unref(selectedItems).length ? (openBlock(), createElementBlock("div", _hoisted_13, [
+          unref(modelEditorOpen) ? (openBlock(), createElementBlock("div", _hoisted_13, [
             createBaseVNode("div", _hoisted_14, [
-              createBaseVNode(
-                "div",
-                _hoisted_15,
-                "选区 " + toDisplayString(unref(selectedItems).length),
-                1
-                /* TEXT */
-              ),
-              createBaseVNode(
-                "button",
-                {
-                  class: "mda-collapse-btn",
-                  type: "button",
-                  onClick: _cache[1] || (_cache[1] = ($event) => selectionPanelCollapsed.value = !selectionPanelCollapsed.value)
-                },
-                toDisplayString(selectionPanelCollapsed.value ? "展开" : "收起"),
-                1
-                /* TEXT */
-              )
-            ]),
-            selectionPanelCollapsed.value ? (openBlock(), createElementBlock(
-              "div",
-              _hoisted_16,
-              toDisplayString(selectionCollapsedSummary.value),
-              1
-              /* TEXT */
-            )) : (openBlock(), createElementBlock(
-              Fragment,
-              { key: 1 },
-              [
-                createBaseVNode("div", _hoisted_17, [
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(unref(selectedItems), (item, index) => {
-                      return openBlock(), createElementBlock("button", {
-                        key: item.uid,
-                        class: normalizeClass(["mda-selection-tag", { "is-active": item.uid === unref(editingUid), "has-note": hasChangeNote2(item) }]),
-                        type: "button",
-                        onClick: ($event) => unref(api).openSelectionEditor(item)
-                      }, [
-                        createBaseVNode(
-                          "span",
-                          null,
-                          toDisplayString(selectionTagLabel(item, index)),
-                          1
-                          /* TEXT */
-                        ),
-                        hasChangeNote2(item) ? (openBlock(), createElementBlock("em", _hoisted_19, "有改动")) : createCommentVNode("v-if", true)
-                      ], 10, _hoisted_18);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  ))
-                ]),
-                editingSelection.value ? (openBlock(), createElementBlock("div", _hoisted_20, [
-                  createBaseVNode("div", _hoisted_21, [
-                    createBaseVNode(
-                      "div",
-                      _hoisted_22,
-                      toDisplayString(selectedNodeTitle(editingSelection.value)),
-                      1
-                      /* TEXT */
-                    ),
-                    createBaseVNode("button", {
-                      class: "mda-mini-btn",
-                      type: "button",
-                      onClick: _cache[2] || (_cache[2] = ($event) => unref(api).removeSelection(editingSelection.value.uid))
-                    }, "移除")
-                  ]),
-                  createBaseVNode("div", _hoisted_23, [
-                    _cache[24] || (_cache[24] = createBaseVNode(
-                      "span",
-                      null,
-                      "class",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "strong",
-                      null,
-                      toDisplayString(editingSelection.value.info.className || "-"),
-                      1
-                      /* TEXT */
-                    ),
-                    _cache[25] || (_cache[25] = createBaseVNode(
-                      "span",
-                      null,
-                      "文案",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "strong",
-                      null,
-                      toDisplayString(shortText(editingSelection.value.info.text) || "-"),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("textarea", {
-                    value: editingSelection.value.changeNote,
-                    "data-selection-uid": editingSelection.value.uid,
-                    class: "mda-selection-note",
-                    rows: "3",
-                    placeholder: "输入这个选区的改动点",
-                    onInput: _cache[3] || (_cache[3] = ($event) => unref(api).updateSelectionNote(editingSelection.value.uid, $event.target.value))
-                  }, null, 40, _hoisted_24)
-                ])) : createCommentVNode("v-if", true)
-              ],
-              64
-              /* STABLE_FRAGMENT */
-            ))
-          ])) : createCommentVNode("v-if", true),
-          unref(modelEditorOpen) ? (openBlock(), createElementBlock("div", _hoisted_25, [
-            createBaseVNode("div", _hoisted_26, [
-              _cache[26] || (_cache[26] = createBaseVNode(
+              _cache[22] || (_cache[22] = createBaseVNode(
                 "strong",
                 null,
                 "模型适配器",
@@ -8791,12 +9193,12 @@ ${command}`
               createBaseVNode("button", {
                 class: "mda-mini-btn",
                 type: "button",
-                onClick: _cache[4] || (_cache[4] = (...args) => unref(api).closeModelEditor && unref(api).closeModelEditor(...args))
+                onClick: _cache[1] || (_cache[1] = (...args) => unref(api).closeModelEditor && unref(api).closeModelEditor(...args))
               }, "关闭")
             ]),
-            createBaseVNode("div", _hoisted_27, [
-              unref(modelConfigs).length ? (openBlock(), createElementBlock("label", _hoisted_28, [
-                _cache[28] || (_cache[28] = createBaseVNode(
+            createBaseVNode("div", _hoisted_15, [
+              unref(modelConfigs).length ? (openBlock(), createElementBlock("label", _hoisted_16, [
+                _cache[24] || (_cache[24] = createBaseVNode(
                   "span",
                   null,
                   "当前模型",
@@ -8808,7 +9210,7 @@ ${command}`
                   class: "mda-model-input",
                   onChange: onModelEditorSelect
                 }, [
-                  _cache[27] || (_cache[27] = createBaseVNode(
+                  _cache[23] || (_cache[23] = createBaseVNode(
                     "option",
                     { value: "" },
                     "新增模型",
@@ -8822,15 +9224,15 @@ ${command}`
                       return openBlock(), createElementBlock("option", {
                         key: model.id,
                         value: model.id
-                      }, toDisplayString(model.name) + " · " + toDisplayString(model.type), 9, _hoisted_30);
+                      }, toDisplayString(model.name) + " · " + toDisplayString(formatModelType(model.type)), 9, _hoisted_18);
                     }),
                     128
                     /* KEYED_FRAGMENT */
                   ))
-                ], 40, _hoisted_29)
+                ], 40, _hoisted_17)
               ])) : createCommentVNode("v-if", true),
               createBaseVNode("label", null, [
-                _cache[30] || (_cache[30] = createBaseVNode(
+                _cache[26] || (_cache[26] = createBaseVNode(
                   "span",
                   null,
                   "供应商",
@@ -8841,7 +9243,7 @@ ${command}`
                   value: unref(modelForm).provider || "custom",
                   class: "mda-model-input",
                   onChange: onModelProviderChange
-                }, [..._cache[29] || (_cache[29] = [
+                }, [..._cache[25] || (_cache[25] = [
                   createBaseVNode(
                     "option",
                     { value: "custom" },
@@ -8856,10 +9258,10 @@ ${command}`
                     -1
                     /* CACHED */
                   )
-                ])], 40, _hoisted_31)
+                ])], 40, _hoisted_19)
               ]),
               createBaseVNode("label", null, [
-                _cache[31] || (_cache[31] = createBaseVNode(
+                _cache[27] || (_cache[27] = createBaseVNode(
                   "span",
                   null,
                   "名称",
@@ -8869,7 +9271,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => unref(modelForm).name = $event),
+                    "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => unref(modelForm).name = $event),
                     class: "mda-model-input",
                     placeholder: "Codex / Claude / OpenAI"
                   },
@@ -8881,7 +9283,7 @@ ${command}`
                 ])
               ]),
               createBaseVNode("label", null, [
-                _cache[33] || (_cache[33] = createBaseVNode(
+                _cache[29] || (_cache[29] = createBaseVNode(
                   "span",
                   null,
                   "类型",
@@ -8891,21 +9293,21 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "select",
                   {
-                    "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => unref(modelForm).type = $event),
+                    "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => unref(modelForm).type = $event),
                     class: "mda-model-input"
                   },
-                  [..._cache[32] || (_cache[32] = [
+                  [..._cache[28] || (_cache[28] = [
                     createBaseVNode(
                       "option",
                       { value: "exec" },
-                      "exec",
+                      "Cli",
                       -1
                       /* CACHED */
                     ),
                     createBaseVNode(
                       "option",
                       { value: "api" },
-                      "api",
+                      "API",
                       -1
                       /* CACHED */
                     )
@@ -8916,8 +9318,8 @@ ${command}`
                   [vModelSelect, unref(modelForm).type]
                 ])
               ]),
-              unref(modelForm).type === "exec" ? (openBlock(), createElementBlock("label", _hoisted_32, [
-                _cache[34] || (_cache[34] = createBaseVNode(
+              unref(modelForm).type === "exec" ? (openBlock(), createElementBlock("label", _hoisted_20, [
+                _cache[30] || (_cache[30] = createBaseVNode(
                   "span",
                   null,
                   "命令",
@@ -8927,7 +9329,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => unref(modelForm).command = $event),
+                    "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => unref(modelForm).command = $event),
                     class: "mda-model-input",
                     placeholder: "codex exec"
                   },
@@ -8938,8 +9340,8 @@ ${command}`
                   [vModelText, unref(modelForm).command]
                 ])
               ])) : createCommentVNode("v-if", true),
-              unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_33, [
-                _cache[35] || (_cache[35] = createBaseVNode(
+              unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_21, [
+                _cache[31] || (_cache[31] = createBaseVNode(
                   "span",
                   null,
                   "Endpoint",
@@ -8949,7 +9351,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => unref(modelForm).endpoint = $event),
+                    "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => unref(modelForm).endpoint = $event),
                     class: "mda-model-input",
                     placeholder: "https://api.openai.com/v1/chat/completions"
                   },
@@ -8960,8 +9362,8 @@ ${command}`
                   [vModelText, unref(modelForm).endpoint]
                 ])
               ])) : createCommentVNode("v-if", true),
-              unref(modelForm).type === "api" && unref(modelForm).provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_34, [
-                _cache[37] || (_cache[37] = createBaseVNode(
+              unref(modelForm).type === "api" && unref(modelForm).provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_22, [
+                _cache[33] || (_cache[33] = createBaseVNode(
                   "span",
                   null,
                   "Model",
@@ -8971,10 +9373,10 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "select",
                   {
-                    "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => unref(modelForm).model = $event),
+                    "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => unref(modelForm).model = $event),
                     class: "mda-model-input"
                   },
-                  [..._cache[36] || (_cache[36] = [
+                  [..._cache[32] || (_cache[32] = [
                     createBaseVNode(
                       "option",
                       { value: "deepseek-v4-pro" },
@@ -8995,8 +9397,8 @@ ${command}`
                 ), [
                   [vModelSelect, unref(modelForm).model]
                 ])
-              ])) : unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_35, [
-                _cache[38] || (_cache[38] = createBaseVNode(
+              ])) : unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_23, [
+                _cache[34] || (_cache[34] = createBaseVNode(
                   "span",
                   null,
                   "Model",
@@ -9006,7 +9408,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => unref(modelForm).model = $event),
+                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => unref(modelForm).model = $event),
                     class: "mda-model-input",
                     placeholder: "gpt-4.1"
                   },
@@ -9017,8 +9419,8 @@ ${command}`
                   [vModelText, unref(modelForm).model]
                 ])
               ])) : createCommentVNode("v-if", true),
-              unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_36, [
-                _cache[39] || (_cache[39] = createBaseVNode(
+              unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_24, [
+                _cache[35] || (_cache[35] = createBaseVNode(
                   "span",
                   null,
                   "API Key",
@@ -9028,7 +9430,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => unref(modelForm).apiKey = $event),
+                    "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => unref(modelForm).apiKey = $event),
                     class: "mda-model-input",
                     type: "password",
                     placeholder: "sk-..."
@@ -9040,8 +9442,8 @@ ${command}`
                   [vModelText, unref(modelForm).apiKey]
                 ])
               ])) : createCommentVNode("v-if", true),
-              createBaseVNode("label", _hoisted_37, [
-                _cache[40] || (_cache[40] = createBaseVNode(
+              createBaseVNode("label", _hoisted_25, [
+                _cache[36] || (_cache[36] = createBaseVNode(
                   "span",
                   null,
                   "代理地址",
@@ -9051,7 +9453,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => unref(modelForm).proxyUrl = $event),
+                    "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => unref(modelForm).proxyUrl = $event),
                     class: "mda-model-input",
                     placeholder: "http://127.0.0.1:7890，可留空"
                   },
@@ -9063,7 +9465,7 @@ ${command}`
                 ])
               ]),
               createBaseVNode("label", null, [
-                _cache[41] || (_cache[41] = createBaseVNode(
+                _cache[37] || (_cache[37] = createBaseVNode(
                   "span",
                   null,
                   "超时 ms",
@@ -9073,7 +9475,7 @@ ${command}`
                 withDirectives(createBaseVNode(
                   "input",
                   {
-                    "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => unref(modelForm).timeoutMs = $event),
+                    "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => unref(modelForm).timeoutMs = $event),
                     class: "mda-model-input",
                     type: "number",
                     min: "5000",
@@ -9092,45 +9494,276 @@ ${command}`
                 ])
               ])
             ]),
-            createBaseVNode("div", _hoisted_38, [
+            createBaseVNode("div", _hoisted_26, [
               unref(selectedModel) ? (openBlock(), createElementBlock("button", {
                 key: 0,
                 class: "mda-mini-btn",
                 type: "button",
                 disabled: unref(candidateLoading) || unref(modelAssistLoading),
-                onClick: _cache[14] || (_cache[14] = (...args) => unref(api).removeSelectedModel && unref(api).removeSelectedModel(...args))
-              }, "删除模型", 8, _hoisted_39)) : createCommentVNode("v-if", true),
+                onClick: _cache[11] || (_cache[11] = (...args) => unref(api).removeSelectedModel && unref(api).removeSelectedModel(...args))
+              }, "删除模型", 8, _hoisted_27)) : createCommentVNode("v-if", true),
               createBaseVNode("button", {
                 class: "mda-btn mda-btn-primary",
                 type: "button",
-                onClick: _cache[15] || (_cache[15] = (...args) => unref(api).saveModelForm && unref(api).saveModelForm(...args))
+                onClick: _cache[12] || (_cache[12] = (...args) => unref(api).saveModelForm && unref(api).saveModelForm(...args))
               }, "保存模型")
             ])
           ])) : createCommentVNode("v-if", true),
-          createBaseVNode("div", _hoisted_40, [
-            createBaseVNode("button", {
-              class: normalizeClass(["mda-assist-chip", { "is-active": unref(includeApiEvidence) }]),
-              type: "button",
-              disabled: unref(candidateLoading) || !!unref(promptText),
-              onClick: toggleApiEvidence
-            }, [..._cache[42] || (_cache[42] = [
-              createBaseVNode(
-                "span",
-                { class: "mda-chip-shield" },
-                null,
-                -1
-                /* CACHED */
-              ),
-              createBaseVNode(
-                "span",
-                null,
-                "接口线索",
-                -1
-                /* CACHED */
-              )
-            ])], 10, _hoisted_41)
+          createBaseVNode("div", _hoisted_28, [
+            createBaseVNode("div", _hoisted_29, [
+              createBaseVNode("button", {
+                class: normalizeClass(["mda-assist-chip", { "is-active": unref(includeApiEvidence) }]),
+                type: "button",
+                disabled: unref(candidateLoading) || !!unref(promptText),
+                onClick: toggleApiEvidence
+              }, [..._cache[38] || (_cache[38] = [
+                createBaseVNode(
+                  "span",
+                  { class: "mda-chip-shield" },
+                  null,
+                  -1
+                  /* CACHED */
+                ),
+                createBaseVNode(
+                  "span",
+                  null,
+                  "接口线索",
+                  -1
+                  /* CACHED */
+                )
+              ])], 10, _hoisted_30),
+              unref(promptAssets).length ? (openBlock(), createElementBlock("div", _hoisted_31, [
+                (openBlock(true), createElementBlock(
+                  Fragment,
+                  null,
+                  renderList(unref(promptAssets), (asset) => {
+                    return openBlock(), createElementBlock("article", {
+                      key: asset.token,
+                      class: "mda-asset-card"
+                    }, [
+                      createBaseVNode("button", {
+                        class: "mda-asset-chip",
+                        type: "button",
+                        title: assetTooltip(asset),
+                        onMouseenter: ($event) => openAssetPopover(asset, $event),
+                        onMouseleave: ($event) => scheduleAssetPopoverHide(asset.uid),
+                        onClick: ($event) => unref(api).insertPromptAsset(asset.token)
+                      }, [
+                        asset.thumbnailUrl ? (openBlock(), createElementBlock(
+                          "span",
+                          {
+                            key: 0,
+                            class: "mda-asset-thumb",
+                            style: normalizeStyle(assetThumbStyle(asset))
+                          },
+                          null,
+                          4
+                          /* STYLE */
+                        )) : (openBlock(), createElementBlock(
+                          "span",
+                          _hoisted_33,
+                          toDisplayString(asset.index),
+                          1
+                          /* TEXT */
+                        )),
+                        createBaseVNode("span", _hoisted_34, [
+                          createBaseVNode(
+                            "strong",
+                            null,
+                            toDisplayString(asset.label),
+                            1
+                            /* TEXT */
+                          ),
+                          createBaseVNode(
+                            "em",
+                            null,
+                            toDisplayString(asset.summary),
+                            1
+                            /* TEXT */
+                          )
+                        ])
+                      ], 40, _hoisted_32),
+                      createBaseVNode("button", {
+                        class: "mda-asset-remove",
+                        type: "button",
+                        title: "移除这个选区",
+                        onClick: ($event) => unref(api).removeSelection(asset.uid)
+                      }, "×", 8, _hoisted_35)
+                    ]);
+                  }),
+                  128
+                  /* KEYED_FRAGMENT */
+                ))
+              ])) : createCommentVNode("v-if", true)
+            ]),
+            createVNode(_sfc_main$2, {
+              visible: !!activeAssetPopover.value,
+              "anchor-rect": activeAssetPopoverRect.value,
+              width: 392,
+              gap: 6,
+              "max-height": 380,
+              onMouseenter: cancelAssetPopoverHide,
+              onMouseleave: _cache[13] || (_cache[13] = ($event) => scheduleAssetPopoverHide())
+            }, {
+              default: withCtx(() => [
+                activeAssetPopover.value ? (openBlock(), createElementBlock("article", _hoisted_36, [
+                  createBaseVNode("header", _hoisted_37, [
+                    createBaseVNode(
+                      "div",
+                      _hoisted_38,
+                      toDisplayString(activeAssetPopover.value.token),
+                      1
+                      /* TEXT */
+                    ),
+                    createBaseVNode("div", _hoisted_39, [
+                      createBaseVNode(
+                        "strong",
+                        _hoisted_40,
+                        toDisplayString(activeAssetPopover.value.label),
+                        1
+                        /* TEXT */
+                      ),
+                      createBaseVNode(
+                        "div",
+                        _hoisted_41,
+                        toDisplayString(activeAssetPopover.value.selector || activeAssetPopover.value.className || activeAssetPopover.value.text || "-"),
+                        1
+                        /* TEXT */
+                      )
+                    ])
+                  ]),
+                  createBaseVNode("div", _hoisted_42, [
+                    createBaseVNode("div", _hoisted_43, [
+                      _cache[39] || (_cache[39] = createBaseVNode(
+                        "span",
+                        null,
+                        "选区文案",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(activeAssetPopover.value.text || "-"),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    createBaseVNode("div", _hoisted_44, [
+                      _cache[40] || (_cache[40] = createBaseVNode(
+                        "span",
+                        null,
+                        "选区 selector",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(activeAssetPopover.value.selector || "-"),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    createBaseVNode("div", _hoisted_45, [
+                      _cache[41] || (_cache[41] = createBaseVNode(
+                        "span",
+                        null,
+                        "选区 class",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(activeAssetPopover.value.className || "-"),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    createBaseVNode("div", _hoisted_46, [
+                      _cache[42] || (_cache[42] = createBaseVNode(
+                        "span",
+                        null,
+                        "选区盒模型",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(formatAssetValue(activeAssetPopover.value.box)),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    createBaseVNode("div", _hoisted_47, [
+                      _cache[43] || (_cache[43] = createBaseVNode(
+                        "span",
+                        null,
+                        "截图区域 selector",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(activeAssetPopover.value.assetSelector || "-"),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    createBaseVNode("div", _hoisted_48, [
+                      _cache[44] || (_cache[44] = createBaseVNode(
+                        "span",
+                        null,
+                        "截图区域盒模型",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(formatAssetValue(activeAssetPopover.value.assetBox)),
+                        1
+                        /* TEXT */
+                      )
+                    ])
+                  ]),
+                  (openBlock(true), createElementBlock(
+                    Fragment,
+                    null,
+                    renderList(assetDetailSections(activeAssetPopover.value), (section) => {
+                      return openBlock(), createElementBlock("section", {
+                        key: section.label,
+                        class: "mda-asset-popover-section"
+                      }, [
+                        createBaseVNode(
+                          "span",
+                          null,
+                          toDisplayString(section.label),
+                          1
+                          /* TEXT */
+                        ),
+                        createBaseVNode(
+                          "pre",
+                          null,
+                          toDisplayString(section.value),
+                          1
+                          /* TEXT */
+                        )
+                      ]);
+                    }),
+                    128
+                    /* KEYED_FRAGMENT */
+                  ))
+                ])) : createCommentVNode("v-if", true)
+              ]),
+              _: 1
+              /* STABLE */
+            }, 8, ["visible", "anchor-rect"])
           ]),
-          createBaseVNode("div", _hoisted_42, [
+          createBaseVNode("div", _hoisted_49, [
             createBaseVNode("input", {
               ref_key: "evidenceInput",
               ref: evidenceInput,
@@ -9138,27 +9771,27 @@ ${command}`
               class: "mda-composer-input",
               readonly: !unref(composerEditable),
               placeholder: unref(composerPlaceholder),
-              onInput: _cache[16] || (_cache[16] = (...args) => unref(api).onComposerInput && unref(api).onComposerInput(...args)),
-              onKeydown: _cache[17] || (_cache[17] = withKeys(withModifiers((...args) => unref(api).sendComposer && unref(api).sendComposer(...args), ["prevent"]), ["enter"]))
-            }, null, 40, _hoisted_43),
-            createBaseVNode("div", _hoisted_44, [
-              createBaseVNode("div", _hoisted_45, [
+              onInput: _cache[14] || (_cache[14] = (...args) => unref(api).onComposerInput && unref(api).onComposerInput(...args)),
+              onKeydown: _cache[15] || (_cache[15] = withKeys(withModifiers((...args) => unref(api).sendComposer && unref(api).sendComposer(...args), ["prevent"]), ["enter"]))
+            }, null, 40, _hoisted_50),
+            createBaseVNode("div", _hoisted_51, [
+              createBaseVNode("div", _hoisted_52, [
                 unref(project) ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-tool-icon-btn",
                   type: "button",
                   title: "重新选择项目",
                   disabled: unref(sourceServiceStatus) === "loading",
-                  onClick: _cache[18] || (_cache[18] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
-                }, null, 8, _hoisted_46)) : createCommentVNode("v-if", true),
+                  onClick: _cache[16] || (_cache[16] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
+                }, null, 8, _hoisted_53)) : createCommentVNode("v-if", true),
                 unref(selectedItems).length ? (openBlock(), createElementBlock("button", {
                   key: 1,
                   class: "mda-inline-text-btn",
                   type: "button",
-                  onClick: _cache[19] || (_cache[19] = (...args) => unref(api).clearSelections && unref(api).clearSelections(...args))
+                  onClick: _cache[17] || (_cache[17] = (...args) => unref(api).clearSelections && unref(api).clearSelections(...args))
                 }, "清空选区")) : createCommentVNode("v-if", true)
               ]),
-              createBaseVNode("div", _hoisted_47, [
+              createBaseVNode("div", _hoisted_54, [
                 createBaseVNode(
                   "div",
                   {
@@ -9182,20 +9815,20 @@ ${command}`
                       ),
                       activeModelMeta.value ? (openBlock(), createElementBlock(
                         "em",
-                        _hoisted_49,
+                        _hoisted_56,
                         toDisplayString(activeModelMeta.value),
                         1
                         /* TEXT */
                       )) : createCommentVNode("v-if", true),
-                      _cache[43] || (_cache[43] = createBaseVNode(
+                      _cache[45] || (_cache[45] = createBaseVNode(
                         "i",
                         null,
                         null,
                         -1
                         /* CACHED */
                       ))
-                    ], 10, _hoisted_48),
-                    modelMenuOpen.value ? (openBlock(), createElementBlock("div", _hoisted_50, [
+                    ], 10, _hoisted_55),
+                    modelMenuOpen.value ? (openBlock(), createElementBlock("div", _hoisted_57, [
                       createBaseVNode(
                         "button",
                         {
@@ -9203,7 +9836,7 @@ ${command}`
                           type: "button",
                           onClick: selectDisabledModel
                         },
-                        [..._cache[44] || (_cache[44] = [
+                        [..._cache[46] || (_cache[46] = [
                           createBaseVNode(
                             "span",
                             null,
@@ -9239,18 +9872,18 @@ ${command}`
                               1
                               /* TEXT */
                             )
-                          ], 10, _hoisted_51);
+                          ], 10, _hoisted_58);
                         }),
                         128
                         /* KEYED_FRAGMENT */
                       )),
-                      unref(modelConfigs).length ? (openBlock(), createElementBlock("div", _hoisted_52)) : createCommentVNode("v-if", true),
+                      unref(modelConfigs).length ? (openBlock(), createElementBlock("div", _hoisted_59)) : createCommentVNode("v-if", true),
                       unref(selectedModel) ? (openBlock(), createElementBlock("button", {
                         key: 1,
                         class: "mda-model-option",
                         type: "button",
                         onClick: editSelectedModel
-                      }, [..._cache[45] || (_cache[45] = [
+                      }, [..._cache[47] || (_cache[47] = [
                         createBaseVNode(
                           "span",
                           null,
@@ -9263,7 +9896,7 @@ ${command}`
                         class: "mda-model-option",
                         type: "button",
                         onClick: createDeepSeekModel
-                      }, [..._cache[46] || (_cache[46] = [
+                      }, [..._cache[48] || (_cache[48] = [
                         createBaseVNode(
                           "span",
                           null,
@@ -9283,7 +9916,7 @@ ${command}`
                         class: "mda-model-option",
                         type: "button",
                         onClick: createCustomApiModel
-                      }, [..._cache[47] || (_cache[47] = [
+                      }, [..._cache[49] || (_cache[49] = [
                         createBaseVNode(
                           "span",
                           null,
@@ -9296,11 +9929,11 @@ ${command}`
                         class: "mda-model-option",
                         type: "button",
                         onClick: createExecModel
-                      }, [..._cache[48] || (_cache[48] = [
+                      }, [..._cache[50] || (_cache[50] = [
                         createBaseVNode(
                           "span",
                           null,
-                          "新增 Exec 模型",
+                          "新增 Cli 模型",
                           -1
                           /* CACHED */
                         )
@@ -9314,21 +9947,21 @@ ${command}`
                   class: "mda-send-btn",
                   type: "button",
                   disabled: !unref(composerCanSend),
-                  onClick: _cache[20] || (_cache[20] = (...args) => unref(api).sendComposer && unref(api).sendComposer(...args))
+                  onClick: _cache[18] || (_cache[18] = (...args) => unref(api).sendComposer && unref(api).sendComposer(...args))
                 }, [
                   unref(candidateLoading) ? (openBlock(), createElementBlock(
                     "span",
-                    _hoisted_54,
+                    _hoisted_61,
                     toDisplayString(unref(modelAssistLoading) ? "模型" : "检索"),
                     1
                     /* TEXT */
-                  )) : (openBlock(), createElementBlock("span", _hoisted_55))
-                ], 8, _hoisted_53)
+                  )) : (openBlock(), createElementBlock("span", _hoisted_62))
+                ], 8, _hoisted_60)
               ])
             ])
           ]),
-          unref(routeResolverTrace) ? (openBlock(), createElementBlock("div", _hoisted_56, [
-            _cache[49] || (_cache[49] = createBaseVNode(
+          unref(routeResolverTrace) ? (openBlock(), createElementBlock("div", _hoisted_63, [
+            _cache[51] || (_cache[51] = createBaseVNode(
               "span",
               { class: "mda-route-label" },
               "页面源码地址",
@@ -9341,12 +9974,12 @@ ${command}`
                 key: 0,
                 class: "mda-route-file",
                 type: "button",
-                onClick: _cache[21] || (_cache[21] = ($event) => unref(api).openSourceFile(routeFilePath.value))
+                onClick: _cache[19] || (_cache[19] = ($event) => unref(api).openSourceFile(routeFilePath.value))
               },
               toDisplayString(routeFilePath.value),
               1
               /* TEXT */
-            )) : (openBlock(), createElementBlock("span", _hoisted_57, "暂无命中")),
+            )) : (openBlock(), createElementBlock("span", _hoisted_64, "暂无命中")),
             routeFilePath.value ? (openBlock(), createElementBlock("button", {
               key: 2,
               class: "mda-copy-icon",
@@ -9358,7 +9991,7 @@ ${command}`
           ])) : createCommentVNode("v-if", true),
           createBaseVNode(
             "div",
-            _hoisted_58,
+            _hoisted_65,
             toDisplayString(unref(toastText)),
             1
             /* TEXT */
@@ -9367,62 +10000,15 @@ ${command}`
       };
     }
   };
-  const _hoisted_1$1 = ["onClick"];
-  const _sfc_main$1 = {
-    __name: "SelectionLayer",
-    setup(__props) {
-      const api = useApi();
-      const selectedItems = useForm("selectedItems");
-      const layoutTick = useForm("layoutTick");
-      const changedItems = computed(() => selectedItems.value.filter((item) => hasChangeNote2(item)));
-      function hasChangeNote2(item) {
-        return !!(item && item.changeNote && item.changeNote.trim());
-      }
-      function itemRect(item) {
-        var _a;
-        layoutTick.value;
-        return (item == null ? void 0 : item.element) && document.documentElement.contains(item.element) ? item.element.getBoundingClientRect() : (_a = item == null ? void 0 : item.info) == null ? void 0 : _a.viewportBox;
-      }
-      function round2(value) {
-        return Math.round(value);
-      }
-      function selectionBadgeStyle(item, index) {
-        const rect = itemRect(item);
-        const width = 62;
-        const fallbackTop = 44 + index * 10;
-        const fallbackLeft = 10 + index * 10;
-        const left = rect ? Math.max(8, Math.min(rect.left + 8, window.innerWidth - width - 8)) : fallbackLeft;
-        const top = rect ? Math.max(42, Math.min(rect.top - 28, window.innerHeight - 28)) : fallbackTop;
-        return {
-          left: `${round2(left)}px`,
-          top: `${round2(top)}px`
-        };
-      }
-      return (_ctx, _cache) => {
-        return openBlock(true), createElementBlock(
-          Fragment,
-          null,
-          renderList(changedItems.value, (item, index) => {
-            return openBlock(), createElementBlock("div", {
-              key: `${item.uid}-badge`,
-              class: "mda-change-badge",
-              style: normalizeStyle(selectionBadgeStyle(item, index)),
-              title: "查看这个选区的改动",
-              onClick: withModifiers(($event) => unref(api).openSelectionEditor(item), ["stop"])
-            }, " 有改动 ", 12, _hoisted_1$1);
-          }),
-          128
-          /* KEYED_FRAGMENT */
-        );
-      };
-    }
-  };
+  const magnusLogo = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBYRXhpZgAATU0AKgAAAAgAAgESAAMAAAABAAEAAIdpAAQAAAABAAAAJgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAACn6ADAAQAAAABAAABXQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgBXQKfAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAKv/aAAwDAQACEQMRAD8A/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAON+IHxB8GfCzwjqHjr4gatDouh6XH5k9zMTgDoFVVBZ3Y8Kigsx4AJr8Kfjn/wWA8barqN3on7Pvh+20TS8PDHqmsxGe/kLgBZobYOsEBUnKiUz7uNyKcpXhH/AAUZ/aS1r41fF/WfBFjqiv4E8D3UlnZwRjbFNdxqI7q5l+bMriUPHG3CrGPkG53Z/wA0d5+0PdyqnmPzg/dIx8pOM556j+8Oe2AD7muv+Cj/AO2zb3skqfEyQ4b7h0vSDHzghP8Ajyz39j/OvtH9n/8A4K6eLbfVrfR/2hNJtNS0WeYQf2vpcTW11boA26a4gLPFP8wGRF5RVQzBWOEr8QIUEsknmsWBOEUnPO7JJ642j+L2xV4rKkUcgUIztynAIZcruKjqSQSTjtjpxQB/b94K8beEviN4X0/xr4G1WDW9D1SPzba7tn3xuucEeqsrAq6sAysCrAMCB1NfzS/8EtP2hb34W/FxPhXrt+7eF/iFMIEjkc+VbawCy28kanhftGPJfHLsYyfuV/S1QAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAH//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuY8b6tPoPgzX9ctt3nadp91cptXe26GJnGFHU5HA7109Z+raZa61pV7o98C1tfwyQSgEglJVKMARyODQB/DYtzd3Omj+0NzuT8zEY2s2MjAAHXp6dO1UIZJGA/d7FY/IoJAwDgkHqcYycdTXf/ED4f6z8K/Fes/DvxRCbfUfDl7cWNwgycvA+0SKxAJWVQro20ZVlbvXDRxR7/IuSVVBlv9rH3Se/HGO39QBsiJHK8bNvi4DSJxkZDDtz24/HBqZImdppZAVj/jI4AweMe5Hr65qurpHJH5QJuAzKgxnYRwzYHPAOR16egq7H5scqJG+HZwEx8vKjg55PA46f1oA0/D3ibWfBPiTSvFmjqyXnh2/g1KNW+49xZSLcI5I/hLIOB7j0x/ccjB1DryGAI/Gv43v2ZfhDc/Gf42+DPASWy3FpqWsRNexvL5bNaQN514RtZXytukmCp7D15/sjoAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD8tv+Cgf7DJ+OdlJ8WfhbYJL48s4447qyGxF1WFdsasWd0RZ4EHysTl0UJyQgr+bzWNB1zR9fm0DxFp82j6jZSeXc2tzE8U0LKcMkiuA6kYOcgYPHQV/cZXkvxN+A3wa+MsAh+KHg7TfETpG8Uc9zApuYVcYPk3C4miPoyOpB5BBoA/i5tIkgjnkbqARuI5JJwcEcjcOpz9etbugeG9Y17W7bSvDWnTarq12witrO0jee5ndzgiOKMM5xk7gBx0PFf1AT/wDBL/8AY0nmaZvCN6oclig1rUtmSc9DccfhX1h8Lvgj8Jfgrpj6T8LPCtj4dhmCiaS3izcT7M7TPcPummIzwZHYjpQB8Zf8E/P2Mrn9nLw1ceOviDFH/wAJ94igWKWFGDrp1pkP9nDgkNI7ANKwO0YVV4BZv0goooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//1P38ooooAKKKKACiiigAooooAKKKKACiiigAorzTxp8Z/g/8OJhbfEHx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AooooAKKKKAP/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuE8Y/C74Z/ERI4/iB4R0jxMsOdg1Swt70JuGDt89HxkcHFd3RQB84P+x5+yjIct8HvCY6/d0WzXr9Iq6PQv2av2dfDE8N14d+F/hfTri2cSRSwaNZRyo46MriLcGGOuc17ZRQA1VVFCIAqjgAcAU6iigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k=";
   const _hoisted_1 = { class: "mda-root" };
   const _hoisted_2 = { class: "mda-head" };
   const _hoisted_3 = { class: "mda-head-main" };
-  const _hoisted_4 = { class: "mda-subtitle" };
-  const _hoisted_5 = { class: "mda-actions" };
-  const _hoisted_6 = { class: "mda-body mda-chat-body" };
+  const _hoisted_4 = { class: "mda-title" };
+  const _hoisted_5 = ["src"];
+  const _hoisted_6 = { class: "mda-subtitle" };
+  const _hoisted_7 = { class: "mda-actions" };
+  const _hoisted_8 = { class: "mda-body mda-chat-body" };
   const PROJECT_STORAGE_PREFIX = "magnus:source-project:";
   const _sfc_main = {
     __name: "App",
@@ -9441,20 +10027,23 @@ ${command}`
       const selectedElement = /* @__PURE__ */ shallowRef(null);
       const displayInfo = /* @__PURE__ */ shallowRef(null);
       const selectedItems = /* @__PURE__ */ ref([]);
-      const editingUid = /* @__PURE__ */ ref("");
       const candidateHits = /* @__PURE__ */ ref([]);
       const routeResolverTrace = /* @__PURE__ */ ref(null);
       const candidateLoading = /* @__PURE__ */ ref(false);
+      const searchRunning = /* @__PURE__ */ ref(false);
       const candidateError = /* @__PURE__ */ ref("");
+      const searchStartedAt = /* @__PURE__ */ ref(0);
+      const searchFinishedAt = /* @__PURE__ */ ref(0);
       const searchKeywords = /* @__PURE__ */ ref("");
       const customEvidence = /* @__PURE__ */ ref("");
       const evidenceMessages = /* @__PURE__ */ ref([]);
-      const includeApiEvidence = /* @__PURE__ */ ref(false);
+      const includeApiEvidence = /* @__PURE__ */ ref(true);
       const selectedCandidatePaths = /* @__PURE__ */ ref([]);
       const expandedCandidatePath = /* @__PURE__ */ ref("");
       const selectionConfirmed = /* @__PURE__ */ ref(false);
       const filesConfirmed = /* @__PURE__ */ ref(false);
       const promptText = /* @__PURE__ */ ref("");
+      const promptIntent = /* @__PURE__ */ ref("");
       const layoutTick = /* @__PURE__ */ ref(0);
       const currentPageHref = /* @__PURE__ */ ref(readCurrentHref());
       let selectionUid = 0;
@@ -9527,36 +10116,34 @@ ${command}`
         const selected = new Set(selectedCandidatePaths.value);
         return candidateHits.value.filter((hit) => selected.has(hit.file));
       });
-      const canConfirmSelection = computed(() => selectedItems.value.length > 0 && selectedItems.value.some((item) => hasChangeNote2(item)));
+      const canConfirmSelection = computed(() => selectedItems.value.length > 0);
       const routeResolverMatched = computed(() => {
         var _a;
         return !!((_a = routeResolverTrace.value) == null ? void 0 : _a.matched);
       });
       const hasReliableCandidateEvidence = computed(() => {
         return routeResolverMatched.value || candidateHits.value.some((hit) => {
-          return hit.stage === "model-agent" || hit.uniqueSnippet && hit.uniqueMatchCount === 1;
+          return hit.stage === "model-agent" || hit.preciseEvidence;
         });
       });
       const needsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
       const showCandidatePicker = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value);
-      const composerEditable = computed(() => needsMoreEvidence.value);
-      const composerPlaceholder = computed(() => composerEditable.value ? "补充页面证据，例如：这是上传素材模块的视频剪辑区域，需要修改..." : "");
+      const composerEditable = computed(() => selectedItems.value.length > 0);
+      const composerPlaceholder = computed(
+        () => selectedItems.value.length ? "输入修改要求，可用 @选区 或 @选区1 引用已选区" : ""
+      );
       const composerText = computed(() => {
         if (!project.value) return "请选择项目源码";
-        if (candidateLoading.value) return "正在检索候选文件";
-        if (promptText.value) return "最终提示词已生成";
-        if (needsMoreEvidence.value) return customEvidence.value;
-        if (showCandidatePicker.value) return "确认文件";
-        return "选区已确认";
+        if (!selectedItems.value.length) return "选择页面选区后，可用 @选区1 描述修改";
+        return promptIntent.value;
       });
-      const composerInputValue = computed(() => composerEditable.value ? customEvidence.value : composerText.value);
+      const composerInputValue = computed(() => composerEditable.value ? promptIntent.value : composerText.value);
       const composerCanSend = computed(() => {
         if (candidateLoading.value) return false;
         if (!project.value) return false;
-        if (promptText.value) return false;
-        if (needsMoreEvidence.value) return customEvidence.value.trim().length > 0;
+        if (!selectedItems.value.length) return false;
         if (showCandidatePicker.value) return selectedCandidateHits.value.length > 0;
-        return canConfirmSelection.value;
+        return promptIntent.value.trim().length > 0;
       });
       function hasUsableModelResult(result) {
         return ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).some((item) => {
@@ -9565,8 +10152,6 @@ ${command}`
       }
       const {
         selectionChatSummary,
-        selectionNodeLine,
-        ancestorPromptLine,
         searchPayload,
         searchLogLines,
         generatePrompt
@@ -9578,6 +10163,7 @@ ${command}`
         routeResolverTrace,
         evidenceMessages,
         customEvidence,
+        promptIntent,
         searchKeywords,
         includeApiEvidence,
         searchApiRequests,
@@ -9587,6 +10173,35 @@ ${command}`
         denoiseTextByApi,
         selectionPayloads,
         setToast
+      });
+      const promptAssets = computed(() => {
+        return selectedItems.value.map((item, index) => {
+          var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+          return {
+            uid: item.uid,
+            token: `@选区${index + 1}`,
+            index: index + 1,
+            label: `选区 ${index + 1}`,
+            summary: compactText(((_a = item.assetInfo) == null ? void 0 : _a.text) || ((_b = item.info) == null ? void 0 : _b.text) || ((_c = item.info) == null ? void 0 : _c.className) || ((_d = item.info) == null ? void 0 : _d.tag) || `选区${index + 1}`, 24),
+            thumbnailUrl: item.thumbnailUrl || "",
+            className: ((_e = item.info) == null ? void 0 : _e.className) || "",
+            text: ((_f = item.info) == null ? void 0 : _f.text) || "",
+            selector: ((_g = item.info) == null ? void 0 : _g.selector) || "",
+            innerHtml: ((_h = item.info) == null ? void 0 : _h.innerHtml) || "",
+            outerHtml: ((_i = item.info) == null ? void 0 : _i.outerHtml) || "",
+            inlineStyle: ((_j = item.info) == null ? void 0 : _j.inlineStyle) || "",
+            computedStyle: ((_k = item.info) == null ? void 0 : _k.computedStyle) || null,
+            box: ((_l = item.info) == null ? void 0 : _l.box) || null,
+            assetSelector: ((_m = item.assetInfo) == null ? void 0 : _m.selector) || "",
+            assetText: ((_n = item.assetInfo) == null ? void 0 : _n.text) || "",
+            assetInnerHtml: ((_o = item.assetInfo) == null ? void 0 : _o.innerHtml) || "",
+            assetOuterHtml: ((_p = item.assetInfo) == null ? void 0 : _p.outerHtml) || "",
+            assetInlineStyle: ((_q = item.assetInfo) == null ? void 0 : _q.inlineStyle) || "",
+            assetComputedStyle: ((_r = item.assetInfo) == null ? void 0 : _r.computedStyle) || null,
+            assetBox: ((_s = item.assetInfo) == null ? void 0 : _s.box) || null,
+            thumbnailCaptured: !!item.thumbnailUrl
+          };
+        });
       });
       const {
         modelConfigs,
@@ -9600,6 +10215,8 @@ ${command}`
         modelAssistError,
         modelAssistLogs,
         modelAssistResult,
+        modelAssistStartedAt,
+        modelAssistFinishedAt,
         openModelEditor,
         openProviderModelEditor,
         closeModelEditor,
@@ -9625,6 +10242,7 @@ ${command}`
         selectionConfirmed,
         evidenceMessages,
         candidateLoading,
+        searchRunning,
         includeApiEvidence,
         candidateHits,
         needsMoreEvidence,
@@ -9636,12 +10254,15 @@ ${command}`
         modelAssistError,
         modelAssistLogs,
         modelAssistResult,
+        searchStartedAt,
+        searchFinishedAt,
+        modelAssistStartedAt,
+        modelAssistFinishedAt,
         selectionChatSummary,
         searchLogLines
       });
       const ctx = useCtx({
         selectedItems,
-        editingUid,
         layoutTick,
         chatMessages,
         sourceServiceStatus,
@@ -9656,6 +10277,7 @@ ${command}`
         includeApiEvidence,
         candidateLoading,
         promptText,
+        promptAssets,
         project,
         modelConfigs,
         selectedModelId,
@@ -9684,9 +10306,7 @@ ${command}`
         empty: () => clearSelections(),
         previewSelection,
         restoreSelectionPreview,
-        openSelectionEditor,
         removeSelection,
-        updateSelectionNote: onSelectionNoteInput,
         chooseProject,
         copyPrompt: () => copyTextWithToast(promptText.value),
         copyTextWithToast,
@@ -9707,6 +10327,7 @@ ${command}`
         resetModelAssist,
         clearSelections,
         onComposerInput,
+        insertPromptAsset,
         sendComposer,
         toggleCandidateFile,
         toggleCandidateDetail
@@ -9727,8 +10348,10 @@ ${command}`
       function selectionPayloads() {
         return selectedItems.value.map((item, index) => ({
           index: index + 1,
-          changeNote: item.changeNote.trim(),
-          element: item.info
+          token: `@选区${index + 1}`,
+          element: item.info,
+          asset: item.assetInfo || null,
+          thumbnailCaptured: !!item.thumbnailUrl
         }));
       }
       function dispatchSelected() {
@@ -9801,30 +10424,12 @@ ${command}`
       function stopAssistantEvent(event) {
         if (isFromAssistantUi(event)) event.stopPropagation();
       }
-      function hasPathClass(event, className) {
-        return getEventPath(event).some((node) => {
-          return node && node.classList && node.classList.contains(className);
-        });
-      }
-      function closeSelectionEditor() {
-        editingUid.value = "";
-      }
-      function openSelectionEditor(item) {
-        if (!item) return;
-        editingUid.value = item.uid;
-        selectedElement.value = item.element;
-        displayInfo.value = item.info;
-        hideOverlay();
-        nextTick(() => {
-          const editor = props.api.shadowRoot.querySelector(`[data-selection-uid="${item.uid}"]`);
-          if (editor && typeof editor.focus === "function") editor.focus();
-        });
-      }
-      function hasChangeNote2(item) {
-        return !!(item && item.changeNote && item.changeNote.trim());
-      }
       function invalidatePrompt() {
         promptText.value = "";
+      }
+      function resetPromptComposer() {
+        promptText.value = "";
+        promptIntent.value = "";
       }
       function invalidateSelectionConfirm() {
         selectionConfirmed.value = false;
@@ -9842,6 +10447,9 @@ ${command}`
       function clearCandidateState() {
         candidateHits.value = [];
         candidateError.value = "";
+        searchRunning.value = false;
+        searchStartedAt.value = 0;
+        searchFinishedAt.value = 0;
         selectedCandidatePaths.value = [];
         expandedCandidatePath.value = "";
         filesConfirmed.value = false;
@@ -9853,6 +10461,7 @@ ${command}`
         customEvidence.value = "";
         evidenceMessages.value = [];
         clearCandidateState();
+        resetPromptComposer();
       }
       function readCurrentHref() {
         try {
@@ -9937,17 +10546,119 @@ ${command}`
           window.removeEventListener("hashchange", onChanged, true);
         };
       }
-      function onSelectionNoteInput(uid2, value) {
-        const item = selectedItems.value.find((selection) => selection.uid === uid2);
-        if (item) item.changeNote = value;
-        invalidateSelectionConfirm();
-      }
       function onSearchOptionChange() {
         clearCandidateState();
       }
       function onComposerInput(event) {
         if (!composerEditable.value) return;
-        customEvidence.value = event.target.value;
+        if (promptText.value) invalidatePrompt();
+        promptIntent.value = event.target.value;
+      }
+      function insertPromptAsset(token) {
+        if (!selectedItems.value.length || promptText.value || !token) return;
+        const nextToken = String(token).trim();
+        if (!nextToken) return;
+        promptIntent.value = promptIntent.value.trim() ? `${promptIntent.value.trim()} ${nextToken}`.trim() : nextToken;
+      }
+      function getMdWeb() {
+        try {
+          const requireFn = typeof window._require === "function" ? window._require : typeof _require === "function" ? _require : null;
+          if (!requireFn) return null;
+          const mdChrome = requireFn("mdChrome");
+          return (mdChrome == null ? void 0 : mdChrome.web) || null;
+        } catch (error) {
+          return null;
+        }
+      }
+      function resolveSelectionAssetElement(element) {
+        let node = element;
+        let resolved = element;
+        while (node && node.nodeType === 1) {
+          resolved = node;
+          const rect = node.getBoundingClientRect();
+          if (rect.width >= 300 && rect.height >= 300 || node === document.body || node === document.documentElement) break;
+          node = node.parentElement;
+        }
+        return resolved;
+      }
+      function clipRectToViewport(rect) {
+        const left = Math.max(0, rect.left);
+        const top = Math.max(0, rect.top);
+        const right = Math.min(window.innerWidth, rect.left + rect.width);
+        const bottom = Math.min(window.innerHeight, rect.top + rect.height);
+        return {
+          left,
+          top,
+          width: Math.max(0, right - left),
+          height: Math.max(0, bottom - top)
+        };
+      }
+      function loadImage(url) {
+        return new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = url;
+        });
+      }
+      function captureVisibleTabDataUrl() {
+        return __async(this, null, function* () {
+          const mdWeb = getMdWeb();
+          if (!(mdWeb == null ? void 0 : mdWeb.cmd)) return "";
+          try {
+            const result = yield mdWeb.cmd({
+              cmd: "Base.tabs.captureVisibleTab",
+              params: [{ format: "png" }]
+            });
+            return (result == null ? void 0 : result.success) ? result.result || "" : "";
+          } catch (error) {
+            return "";
+          }
+        });
+      }
+      function cropSelectionThumbnail(sourceUrl, rect) {
+        return __async(this, null, function* () {
+          if (!sourceUrl || !rect || rect.width <= 0 || rect.height <= 0) return "";
+          const image = yield loadImage(sourceUrl);
+          const scaleX = image.width / Math.max(window.innerWidth, 1);
+          const scaleY = image.height / Math.max(window.innerHeight, 1);
+          const sw = Math.max(1, Math.round(rect.width * scaleX));
+          const sh = Math.max(1, Math.round(rect.height * scaleY));
+          const sx = Math.max(0, Math.round(rect.left * scaleX));
+          const sy = Math.max(0, Math.round(rect.top * scaleY));
+          const maxOutputWidth = 480;
+          const maxOutputHeight = 320;
+          const ratio = Math.min(maxOutputWidth / sw, maxOutputHeight / sh, 1);
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(sw * ratio));
+          canvas.height = Math.max(1, Math.round(sh * ratio));
+          const ctx2d = canvas.getContext("2d");
+          if (!ctx2d) return "";
+          ctx2d.imageSmoothingEnabled = true;
+          ctx2d.imageSmoothingQuality = "high";
+          ctx2d.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+          return canvas.toDataURL("image/png");
+        });
+      }
+      function updateSelectionAssetPreview(item) {
+        return __async(this, null, function* () {
+          if (!(item == null ? void 0 : item.uid) || !item.element) return;
+          try {
+            const assetElement = resolveSelectionAssetElement(item.element);
+            const assetInfo = getElementInfo(assetElement) || item.info;
+            const viewportBox = clipRectToViewport(assetElement.getBoundingClientRect());
+            const fullCapture = yield captureVisibleTabDataUrl();
+            const thumbnailUrl = yield cropSelectionThumbnail(fullCapture, viewportBox);
+            const current = selectedItems.value.find((selection) => selection.uid === item.uid);
+            if (!current) return;
+            current.assetElement = markRaw(assetElement);
+            current.assetInfo = assetInfo;
+            current.thumbnailUrl = thumbnailUrl || "";
+            window.__MAGNUS_SELECTIONS__ = selectionPayloads();
+            dispatchSelected();
+          } catch (error) {
+          }
+        });
       }
       function openSourceFile(file) {
         return __async(this, null, function* () {
@@ -9964,47 +10675,6 @@ ${command}`
             setToast(error.message || "打开源码文件失败");
           }
         });
-      }
-      function runEvidenceSearch() {
-        return __async(this, null, function* () {
-          filesConfirmed.value = false;
-          invalidatePrompt();
-          const hits = yield searchCandidateFiles();
-          if (hits.length === 1) {
-            selectedCandidatePaths.value = [hits[0].file];
-            filesConfirmed.value = true;
-            generatePrompt();
-            return;
-          }
-          if (needsMoreEvidence.value) {
-            nextTick(() => {
-              var _a, _b;
-              (_b = (_a = composerPanelRef.value) == null ? void 0 : _a.focusEvidenceInput) == null ? void 0 : _b.call(_a);
-            });
-          }
-        });
-      }
-      function addEvidenceText(text) {
-        return __async(this, null, function* () {
-          const value = compactText(text, 220);
-          if (!value) return;
-          evidenceMessages.value.push(`补充证据：${value}`);
-          customEvidence.value = "";
-          setToast("已追加页面证据");
-          yield runEvidenceSearch();
-        });
-      }
-      function evidenceFromElement(element) {
-        const info = getElementInfo(element);
-        if (!info) return "";
-        const text = denoiseTextByApi(info.text, 160);
-        const ancestors = ancestorPromptLine(info);
-        return [
-          "页面节点证据",
-          selectionNodeLine(info),
-          text ? `文案=${text}` : "",
-          ancestors ? `父级=${ancestors}` : ""
-        ].filter(Boolean).join("；");
       }
       function confirmSelectionContext() {
         if (!canConfirmSelection.value) return;
@@ -10028,14 +10698,7 @@ ${command}`
       function confirmCandidateFiles() {
         if (!selectedCandidateHits.value.length) return;
         filesConfirmed.value = true;
-        setToast("候选文件已确认");
-        generatePrompt();
-      }
-      function onPointerDown(event) {
-        if (!editingUid.value) return;
-        if (isFromAssistantUi(event)) return;
-        if (hasPathClass(event, "mda-floating-note")) return;
-        closeSelectionEditor();
+        generatePrompt({ userInstruction: promptIntent.value.trim() });
       }
       function onPageMessage(event) {
         const message = event.data || {};
@@ -10081,7 +10744,9 @@ ${command}`
           uid: `selection-${Date.now()}-${selectionUid++}`,
           element: markRaw(element),
           info,
-          changeNote: ""
+          assetElement: null,
+          assetInfo: null,
+          thumbnailUrl: ""
         };
         selectedItems.value.push(item);
         selectedElement.value = element;
@@ -10092,13 +10757,9 @@ ${command}`
         dispatchSelected();
         hoveredElement.value = null;
         hideOverlay();
-        editingUid.value = item.uid;
         invalidateSelectionConfirm();
         setToast(`已添加选区 ${selectedItems.value.length}`);
-        nextTick(() => {
-          const editor = props.api.shadowRoot.querySelector(`[data-selection-uid="${item.uid}"]`);
-          if (editor && typeof editor.focus === "function") editor.focus();
-        });
+        void updateSelectionAssetPreview(item);
       }
       function onKeyDown(event) {
         return __async(this, null, function* () {
@@ -10107,10 +10768,6 @@ ${command}`
             event.preventDefault();
             event.stopPropagation();
             event.stopImmediatePropagation();
-            if (needsMoreEvidence.value) {
-              yield addEvidenceText(evidenceFromElement(hoveredElement.value));
-              return;
-            }
             addSelection(hoveredElement.value);
           }
         });
@@ -10140,11 +10797,10 @@ ${command}`
         const index = selectedItems.value.findIndex((item) => item.uid === uid2);
         if (index === -1) return;
         selectedItems.value.splice(index, 1);
-        if (editingUid.value === uid2) closeSelectionEditor();
         invalidateSelectionConfirm();
         window.__MAGNUS_SELECTIONS__ = selectionPayloads();
         dispatchSelected();
-        setToast("已移除选区");
+        setToast(promptIntent.value.includes("@选区") ? "已移除选区，请检查输入框中的 @选区 引用" : "已移除选区");
         onScrollOrResize();
       }
       function clearSelections() {
@@ -10152,11 +10808,11 @@ ${command}`
         selectedElement.value = null;
         hoveredElement.value = null;
         displayInfo.value = null;
-        editingUid.value = "";
         selectionConfirmed.value = false;
         customEvidence.value = "";
         evidenceMessages.value = [];
         clearCandidateState();
+        resetPromptComposer();
         window.__MAGNUS_LAST_ELEMENT__ = null;
         window.__MAGNUS_LAST_ELEMENT_INFO__ = null;
         window.__MAGNUS_SELECTIONS__ = [];
@@ -10171,17 +10827,27 @@ ${command}`
           resetModelAssist();
           filesConfirmed.value = false;
           try {
-            const data = yield sourceServerJson("/api/search", {
-              method: "POST",
-              body: searchPayload(),
-              timeoutMs: includeApiEvidence.value ? 3e4 : 12e3,
-              timeoutMessage: includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
-            });
+            searchRunning.value = true;
+            searchStartedAt.value = Date.now();
+            searchFinishedAt.value = 0;
+            const data = yield (() => __async(this, null, function* () {
+              try {
+                return yield sourceServerJson("/api/search", {
+                  method: "POST",
+                  body: searchPayload(),
+                  timeoutMs: includeApiEvidence.value ? 3e4 : 12e3,
+                  timeoutMessage: includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
+                });
+              } finally {
+                searchFinishedAt.value = Date.now();
+                searchRunning.value = false;
+              }
+            }))();
             candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
             routeResolverTrace.value = data.routeResolver || null;
             if (!candidateHits.value.length) {
               selectedCandidatePaths.value = [];
-              candidateError.value = "未找到候选文件。可以先触发页面接口，或补充选区改动点后重试。";
+              candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
             } else {
               selectedCandidatePaths.value = [candidateHits.value[0].file];
               expandedCandidatePath.value = "";
@@ -10191,7 +10857,7 @@ ${command}`
               const modelResult = yield runModelAssist();
               if (hasUsableModelResult(modelResult)) {
                 filesConfirmed.value = true;
-                generatePrompt();
+                generatePrompt({ userInstruction: promptIntent.value.trim() });
               }
             }
             return candidateHits.value;
@@ -10207,14 +10873,8 @@ ${command}`
       function sendComposer() {
         return __async(this, null, function* () {
           if (!project.value) return;
-          if (needsMoreEvidence.value) {
-            const evidence = customEvidence.value.trim();
-            if (!evidence) return;
-            evidenceMessages.value.push(`补充证据：${evidence}`);
-            customEvidence.value = "";
-            yield runEvidenceSearch();
-            return;
-          }
+          const instruction = promptIntent.value.trim();
+          if (!instruction) return;
           if (showCandidatePicker.value) {
             confirmCandidateFiles();
             return;
@@ -10225,7 +10885,7 @@ ${command}`
           if (hits.length === 1) {
             selectedCandidatePaths.value = [hits[0].file];
             filesConfirmed.value = true;
-            generatePrompt();
+            generatePrompt({ userInstruction: instruction });
           }
         });
       }
@@ -10285,7 +10945,6 @@ ${command}`
         props.api.shadowRoot.removeEventListener("mousedown", stopAssistantEvent);
         props.api.shadowRoot.removeEventListener("pointerdown", stopAssistantEvent);
         props.api.shadowRoot.removeEventListener("click", stopAssistantEvent);
-        window.removeEventListener("pointerdown", onPointerDown, true);
         window.removeEventListener("message", onPageMessage, true);
         window.removeEventListener("mousemove", onMouseMove, true);
         window.removeEventListener("keydown", onKeyDown, true);
@@ -10314,7 +10973,6 @@ ${command}`
         props.api.shadowRoot.addEventListener("mousedown", stopAssistantEvent);
         props.api.shadowRoot.addEventListener("pointerdown", stopAssistantEvent);
         props.api.shadowRoot.addEventListener("click", stopAssistantEvent);
-        window.addEventListener("pointerdown", onPointerDown, true);
         window.addEventListener("message", onPageMessage, true);
         window.addEventListener("mousemove", onMouseMove, true);
         window.addEventListener("keydown", onKeyDown, true);
@@ -10344,14 +11002,13 @@ ${command}`
             5
             /* TEXT, STYLE */
           ),
-          _cache[4] || (_cache[4] = createBaseVNode(
+          _cache[3] || (_cache[3] = createBaseVNode(
             "div",
             { class: "mda-hotkey-tip" },
             "空格键确认选区",
             -1
             /* CACHED */
           )),
-          createVNode(_sfc_main$1),
           createBaseVNode(
             "section",
             {
@@ -10376,22 +11033,22 @@ ${command}`
               )) : createCommentVNode("v-if", true),
               createBaseVNode("header", _hoisted_2, [
                 createBaseVNode("div", _hoisted_3, [
-                  _cache[3] || (_cache[3] = createBaseVNode(
-                    "div",
-                    { class: "mda-title" },
-                    "Magnus",
-                    -1
-                    /* CACHED */
-                  )),
+                  createBaseVNode("div", _hoisted_4, [
+                    createBaseVNode("img", {
+                      class: "mda-title-logo",
+                      src: unref(magnusLogo),
+                      alt: "Magnus"
+                    }, null, 8, _hoisted_5)
+                  ]),
                   createBaseVNode(
                     "div",
-                    _hoisted_4,
+                    _hoisted_6,
                     toDisplayString(pageHost.value),
                     1
                     /* TEXT */
                   )
                 ]),
-                createBaseVNode("div", _hoisted_5, [
+                createBaseVNode("div", _hoisted_7, [
                   createBaseVNode(
                     "button",
                     {
@@ -10412,7 +11069,7 @@ ${command}`
                   }, "x")
                 ])
               ]),
-              createBaseVNode("div", _hoisted_6, [
+              createBaseVNode("div", _hoisted_8, [
                 createBaseVNode(
                   "input",
                   {
@@ -10430,7 +11087,7 @@ ${command}`
                 ),
                 createVNode(_sfc_main$3),
                 createVNode(
-                  _sfc_main$2,
+                  _sfc_main$1,
                   {
                     ref_key: "composerPanelRef",
                     ref: composerPanelRef
@@ -10448,7 +11105,7 @@ ${command}`
       };
     }
   };
-  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  position: fixed;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 420px;\n  max-width: min(420px, calc(100vw - 20px));\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 1px solid #d8dee6;\n  box-shadow: -14px 0 34px rgba(17, 24, 39, 0.18);\n  pointer-events: auto;\n  overflow: hidden;\n  transition: width 180ms ease, box-shadow 180ms ease;\n  animation: mda-slide-in 180ms ease both;\n}\n\n.mda-resizer {\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: -4px;\n  z-index: 2;\n  width: 9px;\n  cursor: col-resize;\n  pointer-events: auto;\n}\n\n.mda-resizer::after {\n  content: "";\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: 4px;\n  width: 1px;\n  background: transparent;\n}\n\n.mda-resizer:hover::after {\n  background: #98a2b3;\n}\n\n.mda-panel.is-resizing {\n  transition: box-shadow 180ms ease;\n}\n\n.mda-hotkey-tip {\n  position: fixed;\n  top: 10px;\n  left: 10px;\n  z-index: 2147483647;\n  height: 28px;\n  padding: 0 10px;\n  border-radius: 6px;\n  background: #05070a;\n  color: #ffffff;\n  font: 12px/28px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);\n  pointer-events: none;\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-selection-tags-panel {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-selection-tag {\n  display: inline-flex;\n  align-items: center;\n  max-width: 100%;\n  height: 26px;\n  min-width: 0;\n  gap: 6px;\n  padding: 0 8px;\n  border: 1px solid #e4e7ec;\n  border-radius: 999px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-tag:hover,\n.mda-selection-tag.is-active {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-selection-tag span {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-tag em {\n  flex: 0 0 auto;\n  height: 16px;\n  padding: 0 5px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 10px/16px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  font-style: normal;\n}\n\n.mda-selection-detail {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-selection-detail-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-detail-title {\n  min-width: 0;\n  overflow: hidden;\n  color: #101828;\n  font-size: 12px;\n  font-weight: 680;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-detail-grid {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 5px 8px;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-selection-detail-grid strong {\n  min-width: 0;\n  overflow: hidden;\n  color: #344054;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-note {\n  width: 100%;\n  min-height: 68px;\n  resize: vertical;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  padding: 8px 9px;\n  background: #ffffff;\n  color: #101828;\n  outline: none;\n  font: 12px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-selection-note:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-flow {\n  display: grid;\n  gap: 8px;\n  color: #475467;\n  font-size: 12px;\n}\n\n.mda-log-flow summary {\n  width: max-content;\n  cursor: pointer;\n  color: #344054;\n  font-weight: 650;\n  list-style-position: inside;\n}\n\n.mda-log-flow ol {\n  display: grid;\n  gap: 5px;\n  margin: 0;\n  padding: 8px 8px 8px 24px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #f9fafb;\n}\n\n.mda-log-flow li {\n  padding-left: 2px;\n  word-break: break-word;\n}\n\n.mda-log-flow li.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  margin-left: -4px;\n  padding: 5px 6px;\n  border: 1px solid #bfdbfe;\n  border-radius: 7px;\n  background: #eff6ff;\n  color: #1e3a8a;\n  font-weight: 650;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 440px;\n  max-width: min(440px, calc(100vw - 18px));\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  padding: 0 6px;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 6px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  height: 36px;\n  min-height: 36px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 36px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 18px;\n  height: 18px;\n  border: 1.5px solid currentColor;\n  border-radius: 7px 7px 8px 8px;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 4px;\n  width: 5px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-overlay {\n  position: fixed;\n  z-index: 2147483644;\n  box-sizing: border-box;\n  border: 2px solid #2563eb;\n  background: rgba(37, 99, 235, 0.12);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 0 99999px rgba(15, 23, 42, 0.05);\n  pointer-events: none;\n}\n\n.mda-overlay.is-selected {\n  border-color: #16a34a;\n  background: rgba(22, 163, 74, 0.14);\n}\n\n.mda-badge {\n  position: fixed;\n  z-index: 2147483646;\n  max-width: calc(100vw - 16px);\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 5px;\n  background: #111827;\n  color: #ffffff;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);\n  pointer-events: none;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.mda-panel.is-collapsed {\n  width: 54px;\n  box-shadow: -8px 0 18px rgba(17, 24, 39, 0.14);\n}\n\n.mda-panel.is-collapsed .mda-body,\n.mda-panel.is-collapsed .mda-head-main {\n  display: none;\n}\n\n.mda-panel.is-collapsed .mda-head {\n  height: 100%;\n  padding: 8px 0;\n  justify-content: flex-start;\n}\n\n.mda-panel.is-collapsed .mda-actions {\n  width: 100%;\n  flex-direction: column;\n}\n\n@keyframes mda-slide-in {\n  from {\n    transform: translateX(100%);\n  }\n\n  to {\n    transform: translateX(0);\n  }\n}\n';
+  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  position: fixed;\n  z-index: 2147483647;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 420px;\n  max-width: min(420px, calc(100vw - 20px));\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 1px solid #d8dee6;\n  box-shadow: -14px 0 34px rgba(17, 24, 39, 0.18);\n  pointer-events: auto;\n  overflow: hidden;\n  transition: width 180ms ease, box-shadow 180ms ease;\n  animation: mda-slide-in 180ms ease both;\n}\n\n.mda-resizer {\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: -4px;\n  z-index: 2;\n  width: 9px;\n  cursor: col-resize;\n  pointer-events: auto;\n}\n\n.mda-resizer::after {\n  content: "";\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: 4px;\n  width: 1px;\n  background: transparent;\n}\n\n.mda-resizer:hover::after {\n  background: #98a2b3;\n}\n\n.mda-panel.is-resizing {\n  transition: box-shadow 180ms ease;\n}\n\n.mda-hotkey-tip {\n  position: fixed;\n  top: 10px;\n  left: 10px;\n  z-index: 2147483647;\n  height: 28px;\n  padding: 0 10px;\n  border-radius: 6px;\n  background: #05070a;\n  color: #ffffff;\n  font: 12px/28px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);\n  pointer-events: none;\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n.mda-log-file-label {\n  flex: none;\n}\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 440px;\n  max-width: min(440px, calc(100vw - 18px));\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  padding: 0 6px;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-asset-strip {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n}\n\n.mda-asset-card {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  max-width: 210px;\n  min-width: 0;\n  min-height: 40px;\n  padding: 4px 6px;\n  border: 1px solid #d0d5dd;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #344054;\n  font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  overflow: hidden;\n}\n\n.mda-asset-thumb {\n  flex: 0 0 auto;\n  width: 42px;\n  height: 42px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/42px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-meta {\n  display: flex;\n  flex: 1 1 auto;\n  flex-direction: column;\n  align-items: flex-start;\n  gap: 2px;\n  min-width: 0;\n  max-width: 134px;\n  overflow: hidden;\n}\n\n.mda-asset-meta strong,\n.mda-asset-meta em {\n  display: block;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.mda-asset-meta strong {\n  color: #1d4ed8;\n  font-weight: 600;\n  white-space: nowrap;\n}\n\n.mda-asset-meta em {\n  display: -webkit-box;\n  font-style: normal;\n  color: #667085;\n  line-height: 1.35;\n  white-space: normal;\n  word-break: break-all;\n  -webkit-line-clamp: 2;\n  -webkit-box-orient: vertical;\n}\n\n.mda-asset-chip:hover {\n  border-color: #98a2b3;\n  background: #eef2ff;\n}\n\n.mda-asset-remove {\n  width: 22px;\n  height: 22px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #98a2b3;\n  font: 14px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n}\n\n.mda-asset-remove:hover {\n  background: #f2f4f7;\n  color: #344054;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 6px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  height: 36px;\n  min-height: 36px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 36px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-overlay {\n  position: fixed;\n  z-index: 2147483644;\n  box-sizing: border-box;\n  border: 2px solid #2563eb;\n  background: rgba(37, 99, 235, 0.12);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 0 99999px rgba(15, 23, 42, 0.05);\n  pointer-events: none;\n}\n\n.mda-overlay.is-selected {\n  border-color: #16a34a;\n  background: rgba(22, 163, 74, 0.14);\n}\n\n.mda-badge {\n  position: fixed;\n  z-index: 2147483646;\n  max-width: calc(100vw - 16px);\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 5px;\n  background: #111827;\n  color: #ffffff;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);\n  pointer-events: none;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.mda-panel.is-collapsed {\n  width: 54px;\n  box-shadow: -8px 0 18px rgba(17, 24, 39, 0.14);\n}\n\n.mda-panel.is-collapsed .mda-body,\n.mda-panel.is-collapsed .mda-head-main {\n  display: none;\n}\n\n.mda-panel.is-collapsed .mda-head {\n  height: 100%;\n  padding: 8px 0;\n  justify-content: flex-start;\n}\n\n.mda-panel.is-collapsed .mda-actions {\n  width: 100%;\n  flex-direction: column;\n}\n\n@keyframes mda-slide-in {\n  from {\n    transform: translateX(100%);\n  }\n\n  to {\n    transform: translateX(0);\n  }\n}\n';
   (function bootstrapDevAssistant() {
     const APP_KEY = "__MAGNUS_DEV_ASSISTANT__";
     const LEGACY_APP_KEY = "__MAGNUS_ELEMENT_INSPECTOR__";

@@ -15,9 +15,11 @@ export function candidateStageLabel(hit) {
 
 export function candidateStageExplanation(hit) {
   const reasons = hit.reasons || [];
-  const uniqueLine = hit.uniqueSnippet && hit.uniqueMatchCount === 1
-    ? `可靠证据: 文件内唯一精确命中(${hit.uniqueMatchLabel || '文案'}) "${hit.uniqueMatchText || '-'}"`
-    : '可靠证据: 暂无唯一源码片段，当前只作为候选参与排序';
+  const uniqueLine = hit.preciseEvidence
+    ? `可靠证据: 选区上下文与命中文案在同文件汇合${hit.exactMatchText ? `；命中 "${hit.exactMatchText}"` : ''}${hit.contextScore ? `；上下文分 ${hit.contextScore}` : ''}`
+    : hit.uniqueSnippet && hit.uniqueMatchCount === 1
+      ? `可靠证据: 文件内唯一文案命中(${hit.uniqueMatchLabel || '文案'}) "${hit.uniqueMatchText || '-'}"，但仍需结合页面上下文判断`
+      : '可靠证据: 暂无强页面上下文证据，当前只作为候选参与排序';
   if (hit.stage === 'import-chain' || hit.stage === 'route-import-chain') {
     return [
       hit.stage === 'route-import-chain'
@@ -75,16 +77,17 @@ export function candidateLogLines(hit, index) {
   const lines = [
     index != null ? `候选 ${index + 1}: ${hit.file}` : `文件: ${hit.file}`,
     `命中方式: ${candidateStageLabel(hit)}；分数 ${hit.score}`,
+    hit.exactMatchText ? `文案命中统计: "${hit.exactMatchText}" 在该文件出现 ${hit.exactMatchCount || 0} 次` : '',
     ...candidateStageExplanation(hit)
   ].filter(Boolean);
-  if (hit.uniqueSnippet && hit.uniqueMatchCount === 1) {
-    lines.push(`源码片段:\n${hit.uniqueSnippet}`);
+  if (hit.preciseSnippet || (hit.uniqueSnippet && hit.uniqueMatchCount === 1)) {
+    lines.push(`源码片段:\n${hit.preciseSnippet || hit.uniqueSnippet}`);
   }
   return lines;
 }
 
 export function candidateDetailTitle(hit) {
-  return hit?.uniqueSnippet && hit.uniqueMatchCount === 1 ? '查看命中片段和日志' : '查看检索日志';
+  return hit?.preciseSnippet || (hit?.uniqueSnippet && hit.uniqueMatchCount === 1) ? '查看命中片段和日志' : '查看检索日志';
 }
 
 export function candidateLogText(hit) {

@@ -142,6 +142,34 @@ function splitList(value) {
     .filter(Boolean);
 }
 
+function findNearestBuildConfig(projectDir, entryPath) {
+  const root = path.resolve(projectDir);
+  let current = path.dirname(entryPath);
+  while (current && current.startsWith(root)) {
+    const candidate = path.join(current, 'app-build.config.json');
+    if (fs.existsSync(candidate)) return candidate;
+    if (current === root) break;
+    current = path.dirname(current);
+  }
+  return '';
+}
+
+function loadBuildRuleConfig(projectDir, entryPath) {
+  const filePath = findNearestBuildConfig(projectDir, entryPath);
+  if (!filePath) return null;
+
+  const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const next = {};
+  if (Array.isArray(raw.matches)) {
+    next.matches = raw.matches.map(item => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof raw.supportIframe === 'boolean') {
+    next.supportIframe = raw.supportIframe;
+  }
+  next.filePath = filePath;
+  return next;
+}
+
 function findEntry(projectDir, entry) {
   if (entry) {
     const entryPath = path.isAbsolute(entry) ? entry : path.join(projectDir, entry);
@@ -527,8 +555,11 @@ async function main() {
   const mode = opts.mode || (watch ? 'development' : 'production');
   const target = opts.target || 'es2015';
   const poll = Math.max(300, Number(opts.poll || 1000));
-  const matches = splitList(opts.matches || '<all_urls>');
-  const supportIframe = !!opts.iframe;
+  const buildRuleConfig = loadBuildRuleConfig(projectDir, entry);
+  const matches = buildRuleConfig?.matches?.length ? buildRuleConfig.matches : splitList(opts.matches || '<all_urls>');
+  const supportIframe = typeof buildRuleConfig?.supportIframe === 'boolean'
+    ? buildRuleConfig.supportIframe
+    : !!opts.iframe;
   const minify = typeof opts.minify === 'boolean' ? opts.minify : !watch;
   const dryRun = !!opts.dryRun;
   const nodeEnv = mode === 'production' ? 'production' : 'development';
@@ -593,6 +624,9 @@ async function main() {
   console.log(`[app-build] project: ${path.relative(rootDir, projectDir) || '.'}`);
   console.log(`[app-build] entry: ${path.relative(projectDir, entry)}`);
   console.log(`[app-build] app: package/app/${appName}/index.js`);
+  if (buildRuleConfig?.filePath) {
+    console.log(`[app-build] rule config: ${path.relative(rootDir, buildRuleConfig.filePath)}`);
+  }
   if (watch) {
     console.log('[app-build] watch mode enabled. Keep this process running for dev reload.');
   }

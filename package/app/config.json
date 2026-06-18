@@ -2,20 +2,21 @@
     "result": {
         "cssUrls": [],
         "jsUrls": [
-            "element-inspector/index.js"
+            "magnus/index.js"
         ]
     },
     "rules": {
-        "element-inspector/index.js": {
+        "magnus/index.js": {
             "matches": [
-                "*lhost:9002",
-                "*lhost:9003"
+                "*host:9002",
+                "*host:9003",
+                "https://ad.itaored.com"
             ],
             "supportIframe": false
         }
     },
     "canInjectIframeList": [],
-    "version": "20260616.203839.909",
+    "version": "20260618.141602.098",
     "success": true,
     "api": ""
 }

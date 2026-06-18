@@ -18,6 +18,13 @@ const VUE_ROUTE_FILES = [
   /routes?\.(js|ts)$/,
 ];
 
+const VUE_APP_ENTRY_FILES = [
+  /(^|\/)src\/main\.(js|ts)$/,
+  /(^|\/)src\/app\.(js|ts)$/,
+  /(^|\/)main\.(js|ts)$/,
+  /(^|\/)app\.(js|ts)$/,
+];
+
 function importedNameMap(text) {
   const map = new Map();
   const patterns = [
@@ -59,15 +66,28 @@ function routeBlocks(text, pagePath) {
   const bestDepth = Math.max(...matched
     .filter(entry => entry.matchRank === bestRank)
     .map(entry => routeDepth(entry.fullPath)));
-  return matched
-    .filter(entry => entry.matchRank === bestRank && routeDepth(entry.fullPath) === bestDepth)
-    .map(entry => ({
-      routePath: entry.matchedRoutePath,
-      fullPath: entry.fullPath,
-      declaredRoutePath: entry.routePath,
-      start: entry.start,
-      text: entry.directText,
-    }));
+  const result = [];
+  const seen = new Set();
+  for (const entry of matched.filter(item => item.matchRank === bestRank && routeDepth(item.fullPath) === bestDepth)) {
+    const chain = [...(entry.ancestors || []), entry];
+    for (let index = 0; index < chain.length; index++) {
+      const item = chain[index];
+      const key = `${entry.fullPath}:${item.start}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({
+        routePath: item.fullPath || entry.matchedRoutePath,
+        fullPath: item.fullPath,
+        declaredRoutePath: item.routePath,
+        start: item.start,
+        text: item.directText,
+        isLeaf: index === chain.length - 1,
+        distanceToLeaf: chain.length - index - 1,
+        leafRoutePath: entry.matchedRoutePath,
+      });
+    }
+  }
+  return result;
 }
 
 function routeEntries(text) {
@@ -93,6 +113,7 @@ function routeEntries(text) {
     const ancestors = entries
       .filter(item => item.start < entry.start && item.end > entry.end)
       .sort((a, b) => a.start - b.start);
+    entry.ancestors = ancestors;
     entry.fullPath = joinRoutePaths([...ancestors.map(item => item.routePath), entry.routePath]);
     entry.matchPaths = routeMatchPaths(entry.fullPath, entry.routePath);
     entry.directText = topLevelObjectText(entry.text);
@@ -335,9 +356,50 @@ function componentSpecFromBlock(blockText, imports) {
   return '';
 }
 
+function appComponentSpecifier(text, imports) {
+  const createAppCall = text.match(/\bcreateApp\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/);
+  if (createAppCall && imports.has(createAppCall[1])) return imports.get(createAppCall[1]);
+
+  const appImport = imports.get('App');
+  if (appImport) return appImport;
+  return '';
+}
+
+function rootAppShellHits(project, pagePath, textCache) {
+  const fileMap = projectFileMap(project);
+  const hits = [];
+  const seen = new Set();
+
+  for (const file of project.files || []) {
+    if (!VUE_APP_ENTRY_FILES.some(pattern => pattern.test(file.path))) continue;
+    const text = readProjectText(project, file, textCache);
+    if (!text) continue;
+    const imports = importedNameMap(text);
+    const specifier = appComponentSpecifier(text, imports);
+    const componentFile = resolveImportFile(project, file.path, specifier, fileMap);
+    if (!componentFile || seen.has(componentFile)) continue;
+    seen.add(componentFile);
+    hits.push(routeHit(project, componentFile, {
+      adapter: 'vue',
+      score: 300,
+      from: file.path,
+      routePath: pagePath,
+      reasons: [
+        `页面路径 ${pagePath} 命中后追加 Vue 根组件锚点`,
+        `入口文件：${file.path}`,
+        `app import：${specifier}`,
+      ],
+      textCache,
+    }));
+  }
+
+  return hits;
+}
+
 function resolve({ project, pagePath, textCache }) {
   const fileMap = projectFileMap(project);
   const hits = [];
+  let matchedRoute = false;
 
   for (const file of routeSourceFiles(project, VUE_ROUTE_FILES)) {
     const text = readProjectText(project, file, textCache);
@@ -345,19 +407,23 @@ function resolve({ project, pagePath, textCache }) {
     const imports = importedNameMap(text);
 
     for (const block of routeBlocks(text, pagePath)) {
+      matchedRoute = true;
       const specifier = componentSpecFromBlock(block.text, imports);
       const componentFile = resolveImportFile(project, file.path, specifier, fileMap);
+      const isLayout = !block.isLeaf;
+      const score = block.isLeaf ? 520 : Math.max(360, 500 - block.distanceToLeaf * 44);
       if (componentFile) {
         hits.push(routeHit(project, componentFile, {
           adapter: 'vue',
-          score: 520,
+          score,
           from: file.path,
           routePath: block.routePath,
           reasons: [
-            `页面路径 ${pagePath} 命中 vue-router path：${block.routePath}`,
+            `页面路径 ${pagePath} 命中 vue-router path：${block.leafRoutePath || block.routePath}`,
             block.declaredRoutePath && block.declaredRoutePath !== block.routePath
               ? `路由声明 path：${block.declaredRoutePath}`
               : '',
+            isLayout ? `父级 route component，距叶子页面 ${block.distanceToLeaf} 层` : '叶子页面 route component',
             `路由文件：${file.path}`,
             `component import：${specifier}`,
           ],
@@ -368,19 +434,24 @@ function resolve({ project, pagePath, textCache }) {
 
       hits.push(routeHit(project, file.path, {
         adapter: 'vue',
-        score: 240,
+        score: isLayout ? 220 : 240,
         from: file.path,
         routePath: block.routePath,
         reasons: [
-          `页面路径 ${pagePath} 命中 vue-router path：${block.routePath}`,
+          `页面路径 ${pagePath} 命中 vue-router path：${block.leafRoutePath || block.routePath}`,
           block.declaredRoutePath && block.declaredRoutePath !== block.routePath
             ? `路由声明 path：${block.declaredRoutePath}`
             : '',
+          isLayout ? `父级 route block，距叶子页面 ${block.distanceToLeaf} 层` : '叶子页面 route block',
           '未解析到 component 文件，保留路由声明文件作为候选',
         ],
         textCache,
       }));
     }
+  }
+
+  if (matchedRoute) {
+    hits.push(...rootAppShellHits(project, pagePath, textCache));
   }
 
   return hits.filter(Boolean);

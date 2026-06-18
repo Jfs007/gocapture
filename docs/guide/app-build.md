@@ -28,10 +28,19 @@ npm run app:build -- \
 - 同步到 `package/app/<name>/`。
 - 更新 `package/app/config.json` 的 `jsUrls`、`cssUrls`、`rules` 和 `version`。
 
+如果入口目录或其父目录下存在 `app-build.config.json`，脚本会优先读取其中的注入规则并覆盖命令行里的 `--matches` / `--iframe`。例如：
+
+```json
+{
+  "matches": ["localhost:9002", "localhost:9003", "https://ad.itaored.com"],
+  "supportIframe": false
+}
+```
+
 当前元素审查工具的源码在：
 
 ```txt
-vue/src/sites/element-inspector/
+vue/src/sites/magnus/
   main.js
   App.vue
   style.css

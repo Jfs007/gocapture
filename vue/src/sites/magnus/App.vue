@@ -8,8 +8,6 @@
     <div class="mda-badge" :style="badgeStyle">{{ overlay.badgeText }}</div>
     <div class="mda-hotkey-tip">空格键确认选区</div>
 
-    <SelectionLayer />
-
     <section
       ref="panelRef"
       class="mda-panel"
@@ -25,7 +23,9 @@
       />
       <header class="mda-head">
         <div class="mda-head-main">
-          <div class="mda-title">Magnus</div>
+          <div class="mda-title">
+            <img class="mda-title-logo" :src="magnusLogo" alt="Magnus">
+          </div>
           <div class="mda-subtitle">{{ pageHost }}</div>
         </div>
         <div class="mda-actions">
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
+import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 import { sourceServerJson } from './source-service';
 import { useCtx } from './ctx';
 import {
@@ -74,7 +74,7 @@ import { useSourceProject } from './hooks/use-source-project';
 import { useToast } from './hooks/use-toast';
 import ChatThread from './components/ChatThread.vue';
 import ComposerPanel from './components/ComposerPanel.vue';
-import SelectionLayer from './components/SelectionLayer.vue';
+import magnusLogo from './logo.jpg';
 
 const props = defineProps({
   api: {
@@ -90,20 +90,23 @@ const hoveredElement = shallowRef(null);
 const selectedElement = shallowRef(null);
 const displayInfo = shallowRef(null);
 const selectedItems = ref([]);
-const editingUid = ref('');
 const candidateHits = ref([]);
 const routeResolverTrace = ref(null);
 const candidateLoading = ref(false);
+const searchRunning = ref(false);
 const candidateError = ref('');
+const searchStartedAt = ref(0);
+const searchFinishedAt = ref(0);
 const searchKeywords = ref('');
 const customEvidence = ref('');
 const evidenceMessages = ref([]);
-const includeApiEvidence = ref(false);
+const includeApiEvidence = ref(true);
 const selectedCandidatePaths = ref([]);
 const expandedCandidatePath = ref('');
 const selectionConfirmed = ref(false);
 const filesConfirmed = ref(false);
 const promptText = ref('');
+const promptIntent = ref('');
 const layoutTick = ref(0);
 const currentPageHref = ref(readCurrentHref());
 let selectionUid = 0;
@@ -187,33 +190,32 @@ const selectedCandidateHits = computed(() => {
   const selected = new Set(selectedCandidatePaths.value);
   return candidateHits.value.filter(hit => selected.has(hit.file));
 });
-const canConfirmSelection = computed(() => selectedItems.value.length > 0 && selectedItems.value.some(item => hasChangeNote(item)));
+const canConfirmSelection = computed(() => selectedItems.value.length > 0);
 const routeResolverMatched = computed(() => !!routeResolverTrace.value?.matched);
 const hasReliableCandidateEvidence = computed(() => {
   return routeResolverMatched.value || candidateHits.value.some(hit => {
-    return hit.stage === 'model-agent' || (hit.uniqueSnippet && hit.uniqueMatchCount === 1);
+    return hit.stage === 'model-agent' || hit.preciseEvidence;
   });
 });
 const needsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
 const showCandidatePicker = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value);
-const composerEditable = computed(() => needsMoreEvidence.value);
-const composerPlaceholder = computed(() => composerEditable.value ? '补充页面证据，例如：这是上传素材模块的视频剪辑区域，需要修改...' : '');
+const composerEditable = computed(() => selectedItems.value.length > 0);
+const composerPlaceholder = computed(() => selectedItems.value.length
+  ? '输入修改要求，可用 @选区 或 @选区1 引用已选区'
+  : ''
+);
 const composerText = computed(() => {
   if (!project.value) return '请选择项目源码';
-  if (candidateLoading.value) return '正在检索候选文件';
-  if (promptText.value) return '最终提示词已生成';
-  if (needsMoreEvidence.value) return customEvidence.value;
-  if (showCandidatePicker.value) return '确认文件';
-  return '选区已确认';
+  if (!selectedItems.value.length) return '选择页面选区后，可用 @选区1 描述修改';
+  return promptIntent.value;
 });
-const composerInputValue = computed(() => composerEditable.value ? customEvidence.value : composerText.value);
+const composerInputValue = computed(() => composerEditable.value ? promptIntent.value : composerText.value);
 const composerCanSend = computed(() => {
   if (candidateLoading.value) return false;
   if (!project.value) return false;
-  if (promptText.value) return false;
-  if (needsMoreEvidence.value) return customEvidence.value.trim().length > 0;
+  if (!selectedItems.value.length) return false;
   if (showCandidatePicker.value) return selectedCandidateHits.value.length > 0;
-  return canConfirmSelection.value;
+  return promptIntent.value.trim().length > 0;
 });
 
 function hasUsableModelResult(result) {
@@ -238,6 +240,7 @@ const {
   routeResolverTrace,
   evidenceMessages,
   customEvidence,
+  promptIntent,
   searchKeywords,
   includeApiEvidence,
   searchApiRequests,
@@ -247,6 +250,33 @@ const {
   denoiseTextByApi,
   selectionPayloads,
   setToast
+});
+
+const promptAssets = computed(() => {
+  return selectedItems.value.map((item, index) => ({
+    uid: item.uid,
+    token: `@选区${index + 1}`,
+    index: index + 1,
+    label: `选区 ${index + 1}`,
+    summary: compactText(item.assetInfo?.text || item.info?.text || item.info?.className || item.info?.tag || `选区${index + 1}`, 24),
+    thumbnailUrl: item.thumbnailUrl || '',
+    className: item.info?.className || '',
+    text: item.info?.text || '',
+    selector: item.info?.selector || '',
+    innerHtml: item.info?.innerHtml || '',
+    outerHtml: item.info?.outerHtml || '',
+    inlineStyle: item.info?.inlineStyle || '',
+    computedStyle: item.info?.computedStyle || null,
+    box: item.info?.box || null,
+    assetSelector: item.assetInfo?.selector || '',
+    assetText: item.assetInfo?.text || '',
+    assetInnerHtml: item.assetInfo?.innerHtml || '',
+    assetOuterHtml: item.assetInfo?.outerHtml || '',
+    assetInlineStyle: item.assetInfo?.inlineStyle || '',
+    assetComputedStyle: item.assetInfo?.computedStyle || null,
+    assetBox: item.assetInfo?.box || null,
+    thumbnailCaptured: !!item.thumbnailUrl
+  }));
 });
 
 const {
@@ -261,6 +291,8 @@ const {
   modelAssistError,
   modelAssistLogs,
   modelAssistResult,
+  modelAssistStartedAt,
+  modelAssistFinishedAt,
   openModelEditor,
   openProviderModelEditor,
   closeModelEditor,
@@ -287,6 +319,7 @@ const { chatMessages } = useChatMessages({
   selectionConfirmed,
   evidenceMessages,
   candidateLoading,
+  searchRunning,
   includeApiEvidence,
   candidateHits,
   needsMoreEvidence,
@@ -298,13 +331,16 @@ const { chatMessages } = useChatMessages({
   modelAssistError,
   modelAssistLogs,
   modelAssistResult,
+  searchStartedAt,
+  searchFinishedAt,
+  modelAssistStartedAt,
+  modelAssistFinishedAt,
   selectionChatSummary,
   searchLogLines
 });
 
 const ctx = useCtx({
   selectedItems,
-  editingUid,
   layoutTick,
   chatMessages,
   sourceServiceStatus,
@@ -319,6 +355,7 @@ const ctx = useCtx({
   includeApiEvidence,
   candidateLoading,
   promptText,
+  promptAssets,
   project,
   modelConfigs,
   selectedModelId,
@@ -344,9 +381,7 @@ const ctx = useCtx({
   empty: () => clearSelections(),
   previewSelection,
   restoreSelectionPreview,
-  openSelectionEditor,
   removeSelection,
-  updateSelectionNote: onSelectionNoteInput,
   chooseProject,
   copyPrompt: () => copyTextWithToast(promptText.value),
   copyTextWithToast,
@@ -367,6 +402,7 @@ const ctx = useCtx({
   resetModelAssist,
   clearSelections,
   onComposerInput,
+  insertPromptAsset,
   sendComposer,
   toggleCandidateFile,
   toggleCandidateDetail
@@ -390,8 +426,10 @@ const badgeStyle = computed(() => ({
 function selectionPayloads() {
   return selectedItems.value.map((item, index) => ({
     index: index + 1,
-    changeNote: item.changeNote.trim(),
-    element: item.info
+    token: `@选区${index + 1}`,
+    element: item.info,
+    asset: item.assetInfo || null,
+    thumbnailCaptured: !!item.thumbnailUrl
   }));
 }
 
@@ -477,34 +515,13 @@ function stopAssistantEvent(event) {
   if (isFromAssistantUi(event)) event.stopPropagation();
 }
 
-function hasPathClass(event, className) {
-  return getEventPath(event).some(node => {
-    return node && node.classList && node.classList.contains(className);
-  });
-}
-
-function closeSelectionEditor() {
-  editingUid.value = '';
-}
-
-function openSelectionEditor(item) {
-  if (!item) return;
-  editingUid.value = item.uid;
-  selectedElement.value = item.element;
-  displayInfo.value = item.info;
-  hideOverlay();
-  nextTick(() => {
-    const editor = props.api.shadowRoot.querySelector(`[data-selection-uid="${item.uid}"]`);
-    if (editor && typeof editor.focus === 'function') editor.focus();
-  });
-}
-
-function hasChangeNote(item) {
-  return !!(item && item.changeNote && item.changeNote.trim());
-}
-
 function invalidatePrompt() {
   promptText.value = '';
+}
+
+function resetPromptComposer() {
+  promptText.value = '';
+  promptIntent.value = '';
 }
 
 function invalidateSelectionConfirm() {
@@ -525,6 +542,9 @@ function invalidateCandidateConfirm() {
 function clearCandidateState() {
   candidateHits.value = [];
   candidateError.value = '';
+  searchRunning.value = false;
+  searchStartedAt.value = 0;
+  searchFinishedAt.value = 0;
   selectedCandidatePaths.value = [];
   expandedCandidatePath.value = '';
   filesConfirmed.value = false;
@@ -537,6 +557,7 @@ function resetProjectContext() {
   customEvidence.value = '';
   evidenceMessages.value = [];
   clearCandidateState();
+  resetPromptComposer();
 }
 
 function readCurrentHref() {
@@ -630,19 +651,130 @@ function installLocationWatcher() {
   };
 }
 
-function onSelectionNoteInput(uid, value) {
-  const item = selectedItems.value.find(selection => selection.uid === uid);
-  if (item) item.changeNote = value;
-  invalidateSelectionConfirm();
-}
-
 function onSearchOptionChange() {
   clearCandidateState();
 }
 
 function onComposerInput(event) {
   if (!composerEditable.value) return;
-  customEvidence.value = event.target.value;
+  if (promptText.value) invalidatePrompt();
+  promptIntent.value = event.target.value;
+}
+
+function insertPromptAsset(token) {
+  if (!selectedItems.value.length || promptText.value || !token) return;
+  const nextToken = String(token).trim();
+  if (!nextToken) return;
+  promptIntent.value = promptIntent.value.trim()
+    ? `${promptIntent.value.trim()} ${nextToken}`.trim()
+    : nextToken;
+}
+
+function getMdWeb() {
+  try {
+    const requireFn = typeof window._require === 'function'
+      ? window._require
+      : (typeof _require === 'function' ? _require : null);
+    if (!requireFn) return null;
+    const mdChrome = requireFn('mdChrome');
+    return mdChrome?.web || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function resolveSelectionAssetElement(element) {
+  let node = element;
+  let resolved = element;
+  while (node && node.nodeType === 1) {
+    resolved = node;
+    const rect = node.getBoundingClientRect();
+    if (
+      (rect.width >= 300 && rect.height >= 300) ||
+      node === document.body ||
+      node === document.documentElement
+    ) break;
+    node = node.parentElement;
+  }
+  return resolved;
+}
+
+function clipRectToViewport(rect) {
+  const left = Math.max(0, rect.left);
+  const top = Math.max(0, rect.top);
+  const right = Math.min(window.innerWidth, rect.left + rect.width);
+  const bottom = Math.min(window.innerHeight, rect.top + rect.height);
+  return {
+    left,
+    top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top)
+  };
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+
+async function captureVisibleTabDataUrl() {
+  const mdWeb = getMdWeb();
+  if (!mdWeb?.cmd) return '';
+  try {
+    const result = await mdWeb.cmd({
+      cmd: 'Base.tabs.captureVisibleTab',
+      params: [{ format: 'png' }]
+    });
+    return result?.success ? (result.result || '') : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+async function cropSelectionThumbnail(sourceUrl, rect) {
+  if (!sourceUrl || !rect || rect.width <= 0 || rect.height <= 0) return '';
+  const image = await loadImage(sourceUrl);
+  const scaleX = image.width / Math.max(window.innerWidth, 1);
+  const scaleY = image.height / Math.max(window.innerHeight, 1);
+  const sw = Math.max(1, Math.round(rect.width * scaleX));
+  const sh = Math.max(1, Math.round(rect.height * scaleY));
+  const sx = Math.max(0, Math.round(rect.left * scaleX));
+  const sy = Math.max(0, Math.round(rect.top * scaleY));
+  const maxOutputWidth = 480;
+  const maxOutputHeight = 320;
+  const ratio = Math.min(maxOutputWidth / sw, maxOutputHeight / sh, 1);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(sw * ratio));
+  canvas.height = Math.max(1, Math.round(sh * ratio));
+  const ctx2d = canvas.getContext('2d');
+  if (!ctx2d) return '';
+  ctx2d.imageSmoothingEnabled = true;
+  ctx2d.imageSmoothingQuality = 'high';
+  ctx2d.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
+}
+
+async function updateSelectionAssetPreview(item) {
+  if (!item?.uid || !item.element) return;
+  try {
+    const assetElement = resolveSelectionAssetElement(item.element);
+    const assetInfo = getElementInfo(assetElement) || item.info;
+    const viewportBox = clipRectToViewport(assetElement.getBoundingClientRect());
+    const fullCapture = await captureVisibleTabDataUrl();
+    const thumbnailUrl = await cropSelectionThumbnail(fullCapture, viewportBox);
+    const current = selectedItems.value.find(selection => selection.uid === item.uid);
+    if (!current) return;
+    current.assetElement = markRaw(assetElement);
+    current.assetInfo = assetInfo;
+    current.thumbnailUrl = thumbnailUrl || '';
+    window.__MAGNUS_SELECTIONS__ = selectionPayloads();
+    dispatchSelected();
+  } catch (error) {
+  }
 }
 
 async function openSourceFile(file) {
@@ -658,45 +790,6 @@ async function openSourceFile(file) {
   } catch (error) {
     setToast(error.message || '打开源码文件失败');
   }
-}
-
-async function runEvidenceSearch() {
-  filesConfirmed.value = false;
-  invalidatePrompt();
-  const hits = await searchCandidateFiles();
-  if (hits.length === 1) {
-    selectedCandidatePaths.value = [hits[0].file];
-    filesConfirmed.value = true;
-    generatePrompt();
-    return;
-  }
-  if (needsMoreEvidence.value) {
-    nextTick(() => {
-      composerPanelRef.value?.focusEvidenceInput?.();
-    });
-  }
-}
-
-async function addEvidenceText(text) {
-  const value = compactText(text, 220);
-  if (!value) return;
-  evidenceMessages.value.push(`补充证据：${value}`);
-  customEvidence.value = '';
-  setToast('已追加页面证据');
-  await runEvidenceSearch();
-}
-
-function evidenceFromElement(element) {
-  const info = getElementInfo(element);
-  if (!info) return '';
-  const text = denoiseTextByApi(info.text, 160);
-  const ancestors = ancestorPromptLine(info);
-  return [
-    '页面节点证据',
-    selectionNodeLine(info),
-    text ? `文案=${text}` : '',
-    ancestors ? `父级=${ancestors}` : ''
-  ].filter(Boolean).join('；');
 }
 
 function confirmSelectionContext() {
@@ -724,15 +817,7 @@ function toggleCandidateDetail(hit) {
 function confirmCandidateFiles() {
   if (!selectedCandidateHits.value.length) return;
   filesConfirmed.value = true;
-  setToast('候选文件已确认');
-  generatePrompt();
-}
-
-function onPointerDown(event) {
-  if (!editingUid.value) return;
-  if (isFromAssistantUi(event)) return;
-  if (hasPathClass(event, 'mda-floating-note')) return;
-  closeSelectionEditor();
+  generatePrompt({ userInstruction: promptIntent.value.trim() });
 }
 
 function onPageMessage(event) {
@@ -786,7 +871,9 @@ function addSelection(element) {
     uid: `selection-${Date.now()}-${selectionUid++}`,
     element: markRaw(element),
     info,
-    changeNote: ''
+    assetElement: null,
+    assetInfo: null,
+    thumbnailUrl: ''
   };
 
   selectedItems.value.push(item);
@@ -798,13 +885,9 @@ function addSelection(element) {
   dispatchSelected();
   hoveredElement.value = null;
   hideOverlay();
-  editingUid.value = item.uid;
   invalidateSelectionConfirm();
   setToast(`已添加选区 ${selectedItems.value.length}`);
-  nextTick(() => {
-    const editor = props.api.shadowRoot.querySelector(`[data-selection-uid="${item.uid}"]`);
-    if (editor && typeof editor.focus === 'function') editor.focus();
-  });
+  void updateSelectionAssetPreview(item);
 }
 
 async function onKeyDown(event) {
@@ -813,10 +896,6 @@ async function onKeyDown(event) {
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    if (needsMoreEvidence.value) {
-      await addEvidenceText(evidenceFromElement(hoveredElement.value));
-      return;
-    }
     addSelection(hoveredElement.value);
   }
 }
@@ -849,11 +928,10 @@ function removeSelection(uid) {
   const index = selectedItems.value.findIndex(item => item.uid === uid);
   if (index === -1) return;
   selectedItems.value.splice(index, 1);
-  if (editingUid.value === uid) closeSelectionEditor();
   invalidateSelectionConfirm();
   window.__MAGNUS_SELECTIONS__ = selectionPayloads();
   dispatchSelected();
-  setToast('已移除选区');
+  setToast(promptIntent.value.includes('@选区') ? '已移除选区，请检查输入框中的 @选区 引用' : '已移除选区');
   onScrollOrResize();
 }
 
@@ -862,11 +940,11 @@ function clearSelections() {
   selectedElement.value = null;
   hoveredElement.value = null;
   displayInfo.value = null;
-  editingUid.value = '';
   selectionConfirmed.value = false;
   customEvidence.value = '';
   evidenceMessages.value = [];
   clearCandidateState();
+  resetPromptComposer();
   window.__MAGNUS_LAST_ELEMENT__ = null;
   window.__MAGNUS_LAST_ELEMENT_INFO__ = null;
   window.__MAGNUS_SELECTIONS__ = [];
@@ -881,19 +959,29 @@ async function searchCandidateFiles() {
   resetModelAssist();
   filesConfirmed.value = false;
   try {
-    const data = await sourceServerJson('/api/search', {
-      method: 'POST',
-      body: searchPayload(),
-      timeoutMs: includeApiEvidence.value ? 30000 : 12000,
-      timeoutMessage: includeApiEvidence.value
-        ? '接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试'
-        : '源码检索超过 12 秒，请补充关键词后重试'
-    });
+    searchRunning.value = true;
+    searchStartedAt.value = Date.now();
+    searchFinishedAt.value = 0;
+    const data = await (async () => {
+      try {
+        return await sourceServerJson('/api/search', {
+          method: 'POST',
+          body: searchPayload(),
+          timeoutMs: includeApiEvidence.value ? 30000 : 12000,
+          timeoutMessage: includeApiEvidence.value
+            ? '接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试'
+            : '源码检索超过 12 秒，请补充关键词后重试'
+        });
+      } finally {
+        searchFinishedAt.value = Date.now();
+        searchRunning.value = false;
+      }
+    })();
     candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
     routeResolverTrace.value = data.routeResolver || null;
     if (!candidateHits.value.length) {
       selectedCandidatePaths.value = [];
-      candidateError.value = '未找到候选文件。可以先触发页面接口，或补充选区改动点后重试。';
+      candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
     } else {
       selectedCandidatePaths.value = [candidateHits.value[0].file];
       expandedCandidatePath.value = '';
@@ -903,7 +991,7 @@ async function searchCandidateFiles() {
       const modelResult = await runModelAssist();
       if (hasUsableModelResult(modelResult)) {
         filesConfirmed.value = true;
-        generatePrompt();
+        generatePrompt({ userInstruction: promptIntent.value.trim() });
       }
     }
     return candidateHits.value;
@@ -918,14 +1006,8 @@ async function searchCandidateFiles() {
 
 async function sendComposer() {
   if (!project.value) return;
-  if (needsMoreEvidence.value) {
-    const evidence = customEvidence.value.trim();
-    if (!evidence) return;
-    evidenceMessages.value.push(`补充证据：${evidence}`);
-    customEvidence.value = '';
-    await runEvidenceSearch();
-    return;
-  }
+  const instruction = promptIntent.value.trim();
+  if (!instruction) return;
   if (showCandidatePicker.value) {
     confirmCandidateFiles();
     return;
@@ -936,7 +1018,7 @@ async function sendComposer() {
   if (hits.length === 1) {
     selectedCandidatePaths.value = [hits[0].file];
     filesConfirmed.value = true;
-    generatePrompt();
+    generatePrompt({ userInstruction: instruction });
   }
 }
 
@@ -1001,7 +1083,6 @@ function cleanup() {
   props.api.shadowRoot.removeEventListener('mousedown', stopAssistantEvent);
   props.api.shadowRoot.removeEventListener('pointerdown', stopAssistantEvent);
   props.api.shadowRoot.removeEventListener('click', stopAssistantEvent);
-  window.removeEventListener('pointerdown', onPointerDown, true);
   window.removeEventListener('message', onPageMessage, true);
   window.removeEventListener('mousemove', onMouseMove, true);
   window.removeEventListener('keydown', onKeyDown, true);
@@ -1033,7 +1114,6 @@ onMounted(() => {
   props.api.shadowRoot.addEventListener('mousedown', stopAssistantEvent);
   props.api.shadowRoot.addEventListener('pointerdown', stopAssistantEvent);
   props.api.shadowRoot.addEventListener('click', stopAssistantEvent);
-  window.addEventListener('pointerdown', onPointerDown, true);
   window.addEventListener('message', onPageMessage, true);
   window.addEventListener('mousemove', onMouseMove, true);
   window.addEventListener('keydown', onKeyDown, true);

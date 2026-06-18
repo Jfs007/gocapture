@@ -1,0 +1,8 @@
+{
+  "matches": [
+    "*host:9002",
+    "*host:9003",
+    "https://ad.itaored.com"
+  ],
+  "supportIframe": false
+}

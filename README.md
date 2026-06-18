@@ -26,7 +26,7 @@ npm run app:dev -- --project vue --name sth --entry src/main.ts --matches "http:
 
 输出是非 module 的 IIFE bundle。watch 模式会在构建产物变化时更新 `package/app/config.json` 的 `version`，页面端 dev reload 客户端检测到变化后重新触发 app 注入。
 
-当前元素审查工具源码在 `vue/src/sites/element-inspector/`，可直接执行：
+当前元素审查工具源码在 `vue/src/sites/magnus/`，可直接执行：
 
 ```bash
 npm run app:inspector:build

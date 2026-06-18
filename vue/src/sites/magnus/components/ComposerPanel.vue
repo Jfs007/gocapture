@@ -35,56 +35,6 @@
       <div class="mda-option-desc">这些候选文件缺少唯一命中文案，可能是重复复制粘贴的组件。请继续在页面上选择更外层/更独特的区域，或在输入框补充页面位置、业务模块、交互目标。</div>
     </div>
 
-    <div v-if="selectedItems.length" class="mda-selection-tags-panel">
-      <div class="mda-collapsible-head">
-        <div class="mda-option-title">选区 {{ selectedItems.length }}</div>
-        <button class="mda-collapse-btn" type="button" @click="selectionPanelCollapsed = !selectionPanelCollapsed">
-          {{ selectionPanelCollapsed ? '展开' : '收起' }}
-        </button>
-      </div>
-
-      <div v-if="selectionPanelCollapsed" class="mda-collapsed-summary">
-        {{ selectionCollapsedSummary }}
-      </div>
-
-      <template v-else>
-        <div class="mda-selection-tags">
-          <button
-            v-for="(item, index) in selectedItems"
-            :key="item.uid"
-            class="mda-selection-tag"
-            :class="{ 'is-active': item.uid === editingUid, 'has-note': hasChangeNote(item) }"
-            type="button"
-            @click="api.openSelectionEditor(item)"
-          >
-            <span>{{ selectionTagLabel(item, index) }}</span>
-            <em v-if="hasChangeNote(item)">有改动</em>
-          </button>
-        </div>
-
-        <div v-if="editingSelection" class="mda-selection-detail">
-          <div class="mda-selection-detail-head">
-            <div class="mda-selection-detail-title">{{ selectedNodeTitle(editingSelection) }}</div>
-            <button class="mda-mini-btn" type="button" @click="api.removeSelection(editingSelection.uid)">移除</button>
-          </div>
-          <div class="mda-selection-detail-grid">
-            <span>class</span>
-            <strong>{{ editingSelection.info.className || '-' }}</strong>
-            <span>文案</span>
-            <strong>{{ shortText(editingSelection.info.text) || '-' }}</strong>
-          </div>
-          <textarea
-            :value="editingSelection.changeNote"
-            :data-selection-uid="editingSelection.uid"
-            class="mda-selection-note"
-            rows="3"
-            placeholder="输入这个选区的改动点"
-            @input="api.updateSelectionNote(editingSelection.uid, $event.target.value)"
-          />
-        </div>
-      </template>
-    </div>
-
     <div v-if="modelEditorOpen" class="mda-model-editor">
       <div class="mda-model-editor-head">
         <strong>模型适配器</strong>
@@ -96,7 +46,7 @@
           <select :value="selectedModelId" class="mda-model-input" @change="onModelEditorSelect">
             <option value="">新增模型</option>
             <option v-for="model in modelConfigs" :key="model.id" :value="model.id">
-              {{ model.name }} · {{ model.type }}
+              {{ model.name }} · {{ formatModelType(model.type) }}
             </option>
           </select>
         </label>
@@ -114,8 +64,8 @@
         <label>
           <span>类型</span>
           <select v-model="modelForm.type" class="mda-model-input">
-            <option value="exec">exec</option>
-            <option value="api">api</option>
+            <option value="exec">Cli</option>
+            <option value="api">API</option>
           </select>
         </label>
         <label v-if="modelForm.type === 'exec'" class="is-wide">
@@ -157,16 +107,100 @@
     </div>
 
     <div class="mda-composer-prebar">
-      <button
-        class="mda-assist-chip"
-        :class="{ 'is-active': includeApiEvidence }"
-        type="button"
-        :disabled="candidateLoading || !!promptText"
-        @click="toggleApiEvidence"
+      <div class="mda-composer-prebar-main">
+        <button
+          class="mda-assist-chip"
+          :class="{ 'is-active': includeApiEvidence }"
+          type="button"
+          :disabled="candidateLoading || !!promptText"
+          @click="toggleApiEvidence"
+        >
+          <span class="mda-chip-shield" />
+          <span>接口线索</span>
+        </button>
+        <div v-if="promptAssets.length" class="mda-asset-strip">
+          <article
+            v-for="asset in promptAssets"
+            :key="asset.token"
+            class="mda-asset-card"
+          >
+            <button
+              class="mda-asset-chip"
+              type="button"
+              :title="assetTooltip(asset)"
+              @mouseenter="openAssetPopover(asset, $event)"
+              @mouseleave="scheduleAssetPopoverHide(asset.uid)"
+              @click="api.insertPromptAsset(asset.token)"
+            >
+              <span v-if="asset.thumbnailUrl" class="mda-asset-thumb" :style="assetThumbStyle(asset)" />
+              <span v-else class="mda-asset-thumb is-empty">{{ asset.index }}</span>
+              <span class="mda-asset-meta">
+                <strong>{{ asset.label }}</strong>
+                <em>{{ asset.summary }}</em>
+              </span>
+            </button>
+            <button class="mda-asset-remove" type="button" title="移除这个选区" @click="api.removeSelection(asset.uid)">×</button>
+          </article>
+        </div>
+      </div>
+
+      <PopoverPanel
+        :visible="!!activeAssetPopover"
+        :anchor-rect="activeAssetPopoverRect"
+        :width="392"
+        :gap="6"
+        :max-height="380"
+        @mouseenter="cancelAssetPopoverHide"
+        @mouseleave="scheduleAssetPopoverHide()"
       >
-        <span class="mda-chip-shield" />
-        <span>接口线索</span>
-      </button>
+        <article v-if="activeAssetPopover" class="mda-asset-popover">
+          <header class="mda-asset-popover-head">
+            <div class="mda-asset-popover-badge">{{ activeAssetPopover.token }}</div>
+            <div class="mda-asset-popover-title-wrap">
+              <strong class="mda-asset-popover-title">{{ activeAssetPopover.label }}</strong>
+              <div class="mda-asset-popover-subtitle">
+                {{ activeAssetPopover.selector || activeAssetPopover.className || activeAssetPopover.text || '-' }}
+              </div>
+            </div>
+          </header>
+
+          <div class="mda-asset-popover-grid">
+            <div class="mda-asset-popover-grid-item">
+              <span>选区文案</span>
+              <pre>{{ activeAssetPopover.text || '-' }}</pre>
+            </div>
+            <div class="mda-asset-popover-grid-item">
+              <span>选区 selector</span>
+              <pre>{{ activeAssetPopover.selector || '-' }}</pre>
+            </div>
+            <div class="mda-asset-popover-grid-item">
+              <span>选区 class</span>
+              <pre>{{ activeAssetPopover.className || '-' }}</pre>
+            </div>
+            <div class="mda-asset-popover-grid-item">
+              <span>选区盒模型</span>
+              <pre>{{ formatAssetValue(activeAssetPopover.box) }}</pre>
+            </div>
+            <div class="mda-asset-popover-grid-item">
+              <span>截图区域 selector</span>
+              <pre>{{ activeAssetPopover.assetSelector || '-' }}</pre>
+            </div>
+            <div class="mda-asset-popover-grid-item">
+              <span>截图区域盒模型</span>
+              <pre>{{ formatAssetValue(activeAssetPopover.assetBox) }}</pre>
+            </div>
+          </div>
+
+          <section
+            v-for="section in assetDetailSections(activeAssetPopover)"
+            :key="section.label"
+            class="mda-asset-popover-section"
+          >
+            <span>{{ section.label }}</span>
+            <pre>{{ section.value }}</pre>
+          </section>
+        </article>
+      </PopoverPanel>
     </div>
 
     <div class="mda-composer">
@@ -254,7 +288,7 @@
                 type="button"
                 @click="createExecModel"
               >
-                <span>新增 Exec 模型</span>
+                <span>新增 Cli 模型</span>
               </button>
             </div>
           </div>
@@ -290,12 +324,16 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { candidateDetailTitle, candidateLogText, candidateStageLabel } from '../candidate-presenter';
 import { useApi, useForm } from '../ctx';
+import PopoverPanel from './PopoverPanel.vue';
 
 const evidenceInput = ref(null);
 const modelMenuRef = ref(null);
 const modelMenuOpen = ref(false);
 const candidatePanelCollapsed = ref(false);
-const selectionPanelCollapsed = ref(false);
+const activeAssetPopoverUid = ref('');
+const activeAssetPopoverRect = ref(null);
+let activeAssetPopoverAnchor = null;
+let assetPopoverTimer = 0;
 const api = useApi();
 const showCandidatePicker = useForm('showCandidatePicker');
 const needsMoreEvidence = useForm('needsMoreEvidence');
@@ -305,8 +343,8 @@ const expandedCandidatePath = useForm('expandedCandidatePath');
 const includeApiEvidence = useForm('includeApiEvidence');
 const candidateLoading = useForm('candidateLoading');
 const promptText = useForm('promptText');
+const promptAssets = useForm('promptAssets');
 const selectedItems = useForm('selectedItems');
-const editingUid = useForm('editingUid');
 const project = useForm('project');
 const modelConfigs = useForm('modelConfigs');
 const selectedModelId = useForm('selectedModelId');
@@ -330,16 +368,6 @@ const routeHit = computed(() => {
 
 const routeFilePath = computed(() => routeHit.value?.file || '');
 
-const editingSelection = computed(() => {
-  return selectedItems.value.find(item => item.uid === editingUid.value) || null;
-});
-
-const selectionCollapsedSummary = computed(() => {
-  const changedCount = selectedItems.value.filter(item => hasChangeNote(item)).length;
-  const active = editingSelection.value ? selectedNodeTitle(editingSelection.value) : selectionTagLabel(selectedItems.value[0], 0);
-  return `${active}；${changedCount}/${selectedItems.value.length} 个有改动`;
-});
-
 const activeModelLabel = computed(() => {
   return selectedModel.value?.name || '不启用';
 });
@@ -348,13 +376,16 @@ const activeModelMeta = computed(() => {
   if (!selectedModel.value) return '';
   if (modelAssistLoading.value) return '定位中';
   if (selectedModel.value.provider === 'deepseek') return 'DeepSeek API';
-  return selectedModel.value.type === 'api' ? 'API' : 'Exec';
+  return formatModelType(selectedModel.value.type);
+});
+
+const activeAssetPopover = computed(() => {
+  return promptAssets.value.find(item => item.uid === activeAssetPopoverUid.value) || null;
 });
 
 watch(modelAssistLoading, value => {
   if (!value) return;
   candidatePanelCollapsed.value = true;
-  selectionPanelCollapsed.value = true;
   modelMenuOpen.value = false;
 });
 
@@ -364,12 +395,22 @@ function handleGlobalPointerDown(event) {
   modelMenuOpen.value = false;
 }
 
+function updateAssetPopoverRect() {
+  if (!activeAssetPopoverAnchor || !activeAssetPopoverAnchor.isConnected) return;
+  activeAssetPopoverRect.value = activeAssetPopoverAnchor.getBoundingClientRect();
+}
+
 onMounted(() => {
   window.addEventListener('pointerdown', handleGlobalPointerDown, true);
+  window.addEventListener('scroll', updateAssetPopoverRect, true);
+  window.addEventListener('resize', updateAssetPopoverRect, true);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+  window.removeEventListener('scroll', updateAssetPopoverRect, true);
+  window.removeEventListener('resize', updateAssetPopoverRect, true);
+  clearAssetPopoverTimer();
 });
 
 defineExpose({
@@ -431,7 +472,80 @@ function closeModelMenu() {
 function modelOptionMeta(model) {
   if (!model) return '';
   if (model.provider === 'deepseek') return 'DeepSeek API';
-  return model.type === 'api' ? 'API' : 'Exec';
+  return formatModelType(model.type);
+}
+
+function formatModelType(type) {
+  return type === 'api' ? 'API' : 'Cli';
+}
+
+function assetTooltip(asset) {
+  if (!asset) return '';
+  return [
+    `${asset.token} · 点击插入`,
+    '悬浮查看节点详情',
+    asset.text ? `文案: ${asset.text}` : '',
+    asset.className ? `class: ${asset.className}` : ''
+  ].filter(Boolean).join('\n');
+}
+
+function assetThumbStyle(asset) {
+  return asset?.thumbnailUrl ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+}
+
+function formatAssetValue(value) {
+  if (!value) return '-';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function assetDetailSections(asset) {
+  if (!asset) return [];
+  return [
+    { label: '选区 inline style', value: asset.inlineStyle || '-' },
+    { label: '选区 computed style', value: formatAssetValue(asset.computedStyle) },
+    { label: '选区 innerHTML', value: asset.innerHtml || '-' },
+    { label: '截图区域文案', value: asset.assetText || '-' },
+    { label: '截图区域 inline style', value: asset.assetInlineStyle || '-' },
+    { label: '截图区域 computed style', value: formatAssetValue(asset.assetComputedStyle) },
+    { label: '截图区域 innerHTML', value: asset.assetInnerHtml || '-' }
+  ];
+}
+
+function clearAssetPopoverTimer() {
+  if (!assetPopoverTimer) return;
+  window.clearTimeout(assetPopoverTimer);
+  assetPopoverTimer = 0;
+}
+
+function cancelAssetPopoverHide() {
+  clearAssetPopoverTimer();
+}
+
+function closeAssetPopover() {
+  clearAssetPopoverTimer();
+  activeAssetPopoverUid.value = '';
+  activeAssetPopoverRect.value = null;
+  activeAssetPopoverAnchor = null;
+}
+
+function scheduleAssetPopoverHide(uid = '') {
+  clearAssetPopoverTimer();
+  assetPopoverTimer = window.setTimeout(() => {
+    if (!uid || activeAssetPopoverUid.value === uid) closeAssetPopover();
+  }, 220);
+}
+
+function openAssetPopover(asset, event) {
+  if (!asset) return;
+  clearAssetPopoverTimer();
+  activeAssetPopoverUid.value = asset.uid;
+  activeAssetPopoverAnchor = event?.currentTarget || null;
+  updateAssetPopoverRect();
 }
 
 function selectDisabledModel() {
@@ -481,24 +595,4 @@ function copyRouteFilePath() {
   api.copyTextWithToast(routeFilePath.value);
 }
 
-function hasChangeNote(item) {
-  return !!(item && item.changeNote && item.changeNote.trim());
-}
-
-function shortText(text, limit = 90) {
-  const value = String(text || '').replace(/\s+/g, ' ').trim();
-  return value.length > limit ? `${value.slice(0, limit)}...` : value;
-}
-
-function selectedNodeTitle(item) {
-  if (!item || !item.info) return '选区';
-  const index = selectedItems.value.findIndex(selection => selection.uid === item.uid) + 1;
-  return `选区 ${index} · <${item.info.tag || '-'}>`;
-}
-
-function selectionTagLabel(item, index) {
-  const info = item.info || {};
-  const className = String(info.className || '').split(/\s+/).filter(Boolean)[0];
-  return `选区 ${index + 1} · ${info.tag || '-'}${className ? `.${className}` : ''}`;
-}
 </script>

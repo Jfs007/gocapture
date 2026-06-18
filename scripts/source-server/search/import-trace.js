@@ -71,18 +71,22 @@ function anchorLabel(anchor) {
 }
 
 function hasReliableEvidence(hit) {
-  return !!(hit && hit.uniqueSnippet && hit.uniqueMatchCount === 1);
+  return !!(hit && hit.preciseEvidence);
 }
 
 function importChainScore(candidate, anchor, depth) {
   const fromRoute = anchor.stage === 'route-resolver';
   const reliable = hasReliableEvidence(candidate);
   const routeBoost = fromRoute
-    ? (reliable ? 420 : 360)
-    : (reliable ? 260 : 180);
-  const pageBoost = isPageLike(anchor.file) ? 60 : 0;
-  const depthPenalty = Math.min(220, depth * (reliable ? 24 : 36));
-  return candidate.score + routeBoost + pageBoost - depthPenalty;
+    ? (reliable ? 92 : 28)
+    : (reliable ? 72 : 20);
+  const pageBoost = isPageLike(anchor.file) ? 26 : 0;
+  const depthPenalty = Math.min(220, depth * (reliable ? 20 : 34));
+  const chainScore = candidate.score + routeBoost + pageBoost - depthPenalty;
+  if (fromRoute && !reliable) {
+    return Math.min(chainScore, Math.max(0, anchor.score - 18 - depth * 8));
+  }
+  return chainScore;
 }
 
 function importChainStage(anchor) {
@@ -174,10 +178,19 @@ function traceImportChainHits(project, anchorHits, candidateHits, textCache) {
           snippet: candidate.snippet || chainSnippet(project, current.file, textCache),
           importChain: current.chain,
           anchorFile: anchor.file,
-          uniqueSnippet: candidate.uniqueSnippet || anchor.uniqueSnippet || '',
-          uniqueMatchLabel: candidate.uniqueMatchLabel || anchor.uniqueMatchLabel || '',
-          uniqueMatchText: candidate.uniqueMatchText || anchor.uniqueMatchText || '',
-          uniqueMatchCount: candidate.uniqueMatchCount || anchor.uniqueMatchCount || 0,
+          exactMatchLabel: candidate.exactMatchLabel || '',
+          exactMatchText: candidate.exactMatchText || '',
+          exactMatchCount: candidate.exactMatchCount || 0,
+          exactSnippet: candidate.exactSnippet || '',
+          contextScore: candidate.contextScore || 0,
+          contextReasons: candidate.contextReasons || [],
+          contextSelectionIndex: candidate.contextSelectionIndex || 0,
+          preciseEvidence: !!candidate.preciseEvidence,
+          preciseSnippet: candidate.preciseSnippet || '',
+          uniqueSnippet: candidate.uniqueSnippet || '',
+          uniqueMatchLabel: candidate.uniqueMatchLabel || '',
+          uniqueMatchText: candidate.uniqueMatchText || '',
+          uniqueMatchCount: candidate.uniqueMatchCount || 0,
         });
       }
 

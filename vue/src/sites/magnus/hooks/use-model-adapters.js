@@ -20,6 +20,83 @@ function saveJson(key, value) {
   }
 }
 
+function loadText(key, fallback = '') {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return typeof raw === 'string' ? raw : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function saveText(key, value) {
+  try {
+    if (value) window.localStorage.setItem(key, value);
+    else window.localStorage.removeItem(key);
+  } catch (error) {
+  }
+}
+
+function extensionStorage() {
+  try {
+    const requireFn = typeof window._require === 'function'
+      ? window._require
+      : (typeof _require === 'function' ? _require : null);
+    if (!requireFn) return null;
+    const storage = requireFn('md.storage');
+    return storage && storage.local ? storage.local : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function loadPersistedModelState() {
+  const localModels = loadJson(MODEL_STORAGE_KEY, []);
+  const localSelectedId = loadText(MODEL_SELECTED_KEY, '');
+  const storage = extensionStorage();
+  if (!storage) {
+    return {
+      models: localModels,
+      selectedId: localSelectedId,
+      migrated: false
+    };
+  }
+
+  try {
+    const data = await storage.get([MODEL_STORAGE_KEY, MODEL_SELECTED_KEY]);
+    const hasModels = Array.isArray(data?.[MODEL_STORAGE_KEY]);
+    const hasSelectedId = typeof data?.[MODEL_SELECTED_KEY] === 'string';
+    if (hasModels || hasSelectedId) {
+      return {
+        models: hasModels ? data[MODEL_STORAGE_KEY] : [],
+        selectedId: hasSelectedId ? data[MODEL_SELECTED_KEY] : '',
+        migrated: false
+      };
+    }
+  } catch (error) {
+  }
+
+  return {
+    models: localModels,
+    selectedId: localSelectedId,
+    migrated: !!(localModels.length || localSelectedId)
+  };
+}
+
+async function persistModelState(models, selectedId) {
+  saveJson(MODEL_STORAGE_KEY, models);
+  saveText(MODEL_SELECTED_KEY, selectedId);
+  const storage = extensionStorage();
+  if (!storage) return;
+  try {
+    await storage.set({
+      [MODEL_STORAGE_KEY]: models,
+      [MODEL_SELECTED_KEY]: selectedId || ''
+    });
+  } catch (error) {
+  }
+}
+
 function defaultModelForm() {
   return {
     id: '',
@@ -54,9 +131,13 @@ function normalizeModel(raw) {
   const item = raw || {};
   const type = item.type === 'api' ? 'api' : 'exec';
   const provider = item.provider === 'deepseek' ? 'deepseek' : 'custom';
+  const defaultName = provider === 'deepseek'
+    ? 'DeepSeek'
+    : (type === 'api' ? 'API 模型' : 'Cli 模型');
+  const normalizedName = item.name === 'Exec 模型' ? 'Cli 模型' : item.name;
   return {
     id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    name: item.name || (provider === 'deepseek' ? 'DeepSeek' : (type === 'api' ? 'API 模型' : 'Exec 模型')),
+    name: normalizedName || defaultName,
     provider,
     type,
     command: item.command || '',
@@ -70,7 +151,7 @@ function normalizeModel(raw) {
 
 export function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, setToast }) {
   const modelConfigs = ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
-  const selectedModelId = ref(window.localStorage.getItem(MODEL_SELECTED_KEY) || '');
+  const selectedModelId = ref(loadText(MODEL_SELECTED_KEY, ''));
   const useModelAssist = ref(!!selectedModelId.value);
   const modelEditorOpen = ref(false);
   const modelForm = ref(defaultModelForm());
@@ -78,6 +159,8 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
   const modelAssistError = ref('');
   const modelAssistLogs = ref([]);
   const modelAssistResult = ref(null);
+  const modelAssistStartedAt = ref(0);
+  const modelAssistFinishedAt = ref(0);
 
   const selectedModel = computed(() => {
     return modelConfigs.value.find(item => item.id === selectedModelId.value) || null;
@@ -88,11 +171,18 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
   });
 
   function persistModels() {
-    saveJson(MODEL_STORAGE_KEY, modelConfigs.value);
-    try {
-      if (selectedModelId.value) window.localStorage.setItem(MODEL_SELECTED_KEY, selectedModelId.value);
-      else window.localStorage.removeItem(MODEL_SELECTED_KEY);
-    } catch (error) {
+    void persistModelState(modelConfigs.value, selectedModelId.value);
+  }
+
+  async function hydratePersistedModels() {
+    const state = await loadPersistedModelState();
+    const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel);
+    const validSelectedId = nextModels.some(item => item.id === state.selectedId) ? state.selectedId : '';
+    modelConfigs.value = nextModels;
+    selectedModelId.value = validSelectedId;
+    useModelAssist.value = !!validSelectedId;
+    if (state.migrated || (state.selectedId && state.selectedId !== validSelectedId)) {
+      void persistModelState(nextModels, validSelectedId);
     }
   }
 
@@ -162,6 +252,8 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     modelAssistError.value = '';
     modelAssistLogs.value = [];
     modelAssistResult.value = null;
+    modelAssistStartedAt.value = 0;
+    modelAssistFinishedAt.value = 0;
   }
 
   function mergeModelTargets(result) {
@@ -207,6 +299,8 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
 
   async function runModelAssist() {
     if (!useModelAssist.value || !canUseModelAssist.value) return null;
+    modelAssistStartedAt.value = Date.now();
+    modelAssistFinishedAt.value = 0;
     modelAssistLoading.value = true;
     modelAssistError.value = '';
     modelAssistLogs.value = ['模型定位请求已发起'];
@@ -236,9 +330,12 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
       setToast('模型定位失败');
       return null;
     } finally {
+      modelAssistFinishedAt.value = Date.now();
       modelAssistLoading.value = false;
     }
   }
+
+  void hydratePersistedModels();
 
   return {
     modelConfigs,
@@ -252,6 +349,8 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     modelAssistError,
     modelAssistLogs,
     modelAssistResult,
+    modelAssistStartedAt,
+    modelAssistFinishedAt,
     openModelEditor,
     openProviderModelEditor,
     closeModelEditor,

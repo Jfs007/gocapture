@@ -5,8 +5,8 @@
   "scripts": {
     "app:build": "node scripts/app-build.js",
     "app:dev": "node scripts/app-build.js --watch",
-    "app:inspector:build": "node scripts/app-build.js --project vue --name element-inspector --entry src/sites/element-inspector/main.js --matches \"<all_urls>\" --iframe --no-minify",
-    "app:inspector:dev": "node scripts/app-build.js --project vue --name element-inspector --entry src/sites/element-inspector/main.js --matches \"<all_urls>\" --iframe --no-minify --watch",
+    "app:inspector:build": "node scripts/app-build.js --project vue --name magnus --entry src/sites/magnus/main.js --no-minify",
+    "app:inspector:dev": "node scripts/app-build.js --project vue --name magnus --entry src/sites/magnus/main.js --no-minify --watch",
     "source:server": "node scripts/source-server.js",
     "docs:dev": "vitepress dev docs --host 0.0.0.0",
     "docs:build": "node scripts/docs-build.js",

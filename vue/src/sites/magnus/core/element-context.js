@@ -8,6 +8,15 @@ export function compactText(text, limit = 240) {
   return value;
 }
 
+export function compactMarkup(text, limit = 720) {
+  let value = String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/>\s+</g, '><')
+    .trim();
+  if (value.length > limit) value = `${value.slice(0, limit)}...`;
+  return value;
+}
+
 export function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -101,11 +110,36 @@ export function getStyleInfo(element) {
     fontSize: style.fontSize,
     fontWeight: style.fontWeight,
     lineHeight: style.lineHeight,
+    textAlign: style.textAlign,
+    border: style.border,
+    borderRadius: style.borderRadius,
     margin: style.margin,
     padding: style.padding,
+    gap: style.gap,
+    alignItems: style.alignItems,
+    justifyContent: style.justifyContent,
     width: style.width,
     height: style.height
   };
+}
+
+export function getSelectorPart(element) {
+  if (!element || !element.tagName) return '';
+  const tag = element.tagName.toLowerCase();
+  const id = element.id ? `#${element.id}` : '';
+  const classes = Array.from(element.classList || []).slice(0, 3).map(name => `.${name}`).join('');
+  return `${tag}${id}${classes}`;
+}
+
+export function getSelectorPath(element, limit = 4) {
+  const parts = [];
+  let node = element;
+  while (node && node.nodeType === 1 && parts.length < limit) {
+    parts.unshift(getSelectorPart(node));
+    if (node.id) break;
+    node = node.parentElement;
+  }
+  return parts.join(' > ');
 }
 
 export function getAncestorInfo(element) {
@@ -127,8 +161,12 @@ export function getElementInfo(element) {
   const rect = element.getBoundingClientRect();
   return {
     tag: element.tagName.toLowerCase(),
+    selector: getSelectorPath(element),
     className: getClassName(element),
     text: getElementText(element),
+    innerHtml: compactMarkup(element.innerHTML || '', 960),
+    outerHtml: compactMarkup(element.outerHTML || '', 1200),
+    inlineStyle: compactText(element.getAttribute?.('style') || '', 480),
     computedStyle: getStyleInfo(element),
     ancestors: getAncestorInfo(element),
     box: {

@@ -6,6 +6,7 @@ export function useChatMessages({
   selectionConfirmed,
   evidenceMessages,
   candidateLoading,
+  searchRunning,
   includeApiEvidence,
   candidateHits,
   needsMoreEvidence,
@@ -17,6 +18,10 @@ export function useChatMessages({
   modelAssistError,
   modelAssistLogs,
   modelAssistResult,
+  searchStartedAt,
+  searchFinishedAt,
+  modelAssistStartedAt,
+  modelAssistFinishedAt,
   selectionChatSummary,
   searchLogLines
 }) {
@@ -59,7 +64,7 @@ export function useChatMessages({
         id: 'need-selection',
         role: 'system',
         title: '等待页面选区',
-        text: '移动鼠标高亮页面区域，按空格键添加选区，并在选区浮层填写改动点。'
+        text: '移动鼠标高亮页面区域，按空格键添加选区。选区会保存下来，可在输入框里用 @选区1 引用并描述修改要求。'
       });
       return messages;
     }
@@ -87,19 +92,27 @@ export function useChatMessages({
       });
     }
 
-    if (candidateLoading.value) {
+    if (searchRunning?.value) {
       messages.push({
         id: 'searching',
         role: 'system',
-        text: includeApiEvidence.value ? '正在基于选区和接口端点追踪候选文件。' : '正在基于选区文案、className 和页面路径检索候选文件。'
+        text: includeApiEvidence.value ? '正在基于选区和接口端点追踪候选文件。' : '正在基于选区文案、className 和页面路径检索候选文件。',
+        durationStartedAt: searchStartedAt?.value || 0,
+        durationFinishedAt: searchFinishedAt?.value || 0,
+        durationActive: true,
+        logExpanded: true
       });
-    } else if (candidateHits.value.length) {
+    } else if ((searchFinishedAt?.value || 0) > 0) {
       messages.push({
         id: 'search-log',
         role: 'system',
-        title: '检索日志',
-        text: `找到 ${candidateHits.value.length} 个候选文件。`,
-        logs: searchLogLines()
+        title: '源码检索',
+        text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : '未命中候选文件。',
+        logs: searchLogLines(),
+        durationStartedAt: searchStartedAt?.value || 0,
+        durationFinishedAt: searchFinishedAt?.value || 0,
+        durationActive: false,
+        logExpanded: false
       });
     }
 
@@ -110,7 +123,10 @@ export function useChatMessages({
         title: '模型定位',
         text: '正在让模型阅读本地预检索结果和候选文件内容，进一步判断应修改的源码文件。',
         logs: modelAssistLogs?.value || [],
-        logTitle: '查看模型操作日志'
+        durationStartedAt: modelAssistStartedAt?.value || 0,
+        durationFinishedAt: modelAssistFinishedAt?.value || 0,
+        durationActive: true,
+        logExpanded: true
       });
     } else if (modelAssistResult?.value) {
       const result = modelAssistResult.value;
@@ -128,13 +144,16 @@ export function useChatMessages({
         id: 'model-result',
         role: 'agent',
         title: `模型定位 · ${result.adapter?.name || '模型'}`,
-        text: targets.length ? '模型已定位到修改点，并已生成最终提示词。' : '模型未定位到可用修改点。',
+        text: targets.length ? '模型已定位到修改点，可继续生成最终提示词。' : '模型未定位到可用修改点。',
         logs: [
           ...(result.logs || []),
           ...targetLogs,
           !targetLogs.length && result.rawText ? `模型原始返回:\n${result.rawText}` : ''
         ].filter(Boolean),
-        logTitle: '查看模型操作日志'
+        durationStartedAt: modelAssistStartedAt?.value || 0,
+        durationFinishedAt: modelAssistFinishedAt?.value || 0,
+        durationActive: false,
+        logExpanded: false
       });
     } else if (modelAssistError?.value) {
       messages.push({
@@ -143,7 +162,10 @@ export function useChatMessages({
         title: '模型定位失败',
         text: modelAssistError.value,
         logs: modelAssistLogs?.value || [],
-        logTitle: '查看模型操作日志'
+        durationStartedAt: modelAssistStartedAt?.value || 0,
+        durationFinishedAt: modelAssistFinishedAt?.value || 0,
+        durationActive: false,
+        logExpanded: false
       });
     }
 
@@ -153,8 +175,8 @@ export function useChatMessages({
         role: 'system',
         title: '线索不足，需要补充页面证据',
         text: [
-          '当前选区命中了多个候选文件，但没有任何文件存在唯一精确命中文案。',
-          '这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只能定位到通用组件块。',
+          '当前选区命中了多个候选文件，但没有任何文件同时命中文案和当前页面上下文。',
+          '这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只命中了通用子组件里的重复字段。',
           '请继续选择更外层、更独特的页面区域，或在输入框补充业务位置/交互目标后重新检索。'
         ].join('\n')
       });
