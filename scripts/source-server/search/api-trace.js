@@ -2,14 +2,14 @@ const {
   COMMON_PATH_PREFIXES,
   GENERIC_SYMBOLS,
   STOP_TOKENS,
-} = require('../config');
+} = require('../core/config');
 const {
   escapeRegExp,
   makeSnippet,
   normalizeUrlPath,
   uniq,
 } = require('../utils');
-const { isTextFile, readProjectText } = require('../fs-utils');
+const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { scoreFileText } = require('./evidence');
 const { isPageLike } = require('./component-trace');
 

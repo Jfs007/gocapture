@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { compactText, escapeRegExp } from '../element-context';
+import { compactText, escapeRegExp } from '../core/element-context';
 
 export function usePageRequests() {
   const recentRequests = ref([]);

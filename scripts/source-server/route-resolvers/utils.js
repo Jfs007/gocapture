@@ -1,5 +1,5 @@
 const path = require('path');
-const { isTextFile, readProjectText } = require('../fs-utils');
+const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { makeSnippet, normalizeUrlPath, posixPath, uniq } = require('../utils');
 
 const SOURCE_EXTENSIONS = ['.vue', '.tsx', '.jsx', '.ts', '.js', '.mjs', '.cjs'];

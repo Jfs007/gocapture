@@ -130,14 +130,10 @@
               :title="assetTooltip(asset)"
               @mouseenter="openAssetPopover(asset, $event)"
               @mouseleave="scheduleAssetPopoverHide(asset.uid)"
-              @click="api.insertPromptAsset(asset.token)"
+              @click="handleAssetInsert(asset)"
             >
               <span v-if="asset.thumbnailUrl" class="mda-asset-thumb" :style="assetThumbStyle(asset)" />
               <span v-else class="mda-asset-thumb is-empty">{{ asset.index }}</span>
-              <span class="mda-asset-meta">
-                <strong>{{ asset.label }}</strong>
-                <em>{{ asset.summary }}</em>
-              </span>
             </button>
             <button class="mda-asset-remove" type="button" title="移除这个选区" @click="api.removeSelection(asset.uid)">×</button>
           </article>
@@ -147,9 +143,10 @@
       <PopoverPanel
         :visible="!!activeAssetPopover"
         :anchor-rect="activeAssetPopoverRect"
-        :width="392"
+        :width="344"
+        placement="top"
         :gap="6"
-        :max-height="380"
+        :max-height="320"
         @mouseenter="cancelAssetPopoverHide"
         @mouseleave="scheduleAssetPopoverHide()"
       >
@@ -204,15 +201,43 @@
     </div>
 
     <div class="mda-composer">
-      <input
+      <textarea
         ref="evidenceInput"
         :value="composerInputValue"
         class="mda-composer-input"
         :readonly="!composerEditable"
         :placeholder="composerPlaceholder"
-        @input="api.onComposerInput"
-        @keydown.enter.prevent="api.sendComposer"
+        rows="1"
+        @input="handleComposerInput"
+        @click="handleComposerCursor"
+        @keyup="handleComposerCursor"
+        @select="handleComposerCursor"
+        @focus="handleComposerCursor"
+        @keydown="handleComposerKeydown"
+      />
+      <div
+        ref="shortcutMenuRef"
+        v-if="shortcutMenuOpen"
+        class="mda-composer-shortcut"
       >
+        <button
+          v-for="(asset, index) in shortcutAssets"
+          :key="asset.uid"
+          class="mda-composer-shortcut-item"
+          :class="{ 'is-active': index === shortcutActiveIndex }"
+          type="button"
+          @mousedown.prevent
+          @click.prevent="selectShortcutAsset(asset)"
+        >
+          <span v-if="asset.thumbnailUrl" class="mda-composer-shortcut-thumb" :style="assetThumbStyle(asset)" />
+          <span v-else class="mda-composer-shortcut-thumb is-empty">{{ asset.index }}</span>
+          <span class="mda-composer-shortcut-meta">
+            <strong>{{ asset.token }}</strong>
+            <em>{{ asset.summary }}</em>
+          </span>
+        </button>
+        <div v-if="!shortcutAssets.length" class="mda-composer-shortcut-empty">@ 无匹配选区</div>
+      </div>
       <div class="mda-composer-toolbar">
         <div class="mda-toolbar-left">
           <button
@@ -321,19 +346,28 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { candidateDetailTitle, candidateLogText, candidateStageLabel } from '../candidate-presenter';
-import { useApi, useForm } from '../ctx';
-import PopoverPanel from './PopoverPanel.vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { candidateDetailTitle, candidateLogText, candidateStageLabel } from '../../presenters/candidate-presenter';
+import { useApi, useForm } from '../../core/ctx';
+import PopoverPanel from '../common/PopoverPanel.vue';
 
 const evidenceInput = ref(null);
+const shortcutMenuRef = ref(null);
 const modelMenuRef = ref(null);
 const modelMenuOpen = ref(false);
 const candidatePanelCollapsed = ref(false);
 const activeAssetPopoverUid = ref('');
 const activeAssetPopoverRect = ref(null);
+const shortcutMenuOpen = ref(false);
+const shortcutMenuQuery = ref('');
+const shortcutRangeStart = ref(-1);
+const shortcutRangeEnd = ref(-1);
+const shortcutActiveIndex = ref(0);
+const composerSelectionStart = ref(0);
+const composerSelectionEnd = ref(0);
 let activeAssetPopoverAnchor = null;
 let assetPopoverTimer = 0;
+let shortcutMenuTimer = 0;
 const api = useApi();
 const showCandidatePicker = useForm('showCandidatePicker');
 const needsMoreEvidence = useForm('needsMoreEvidence');
@@ -383,16 +417,57 @@ const activeAssetPopover = computed(() => {
   return promptAssets.value.find(item => item.uid === activeAssetPopoverUid.value) || null;
 });
 
+const shortcutAssets = computed(() => {
+  const query = shortcutMenuQuery.value.trim().toLowerCase();
+  const items = Array.isArray(promptAssets.value) ? promptAssets.value : [];
+  if (!query) return items;
+  return items.filter(asset => {
+    const text = [
+      asset.token,
+      asset.label,
+      asset.summary,
+      asset.text,
+      asset.className
+    ].filter(Boolean).join(' ').toLowerCase();
+    return text.includes(query);
+  });
+});
+
 watch(modelAssistLoading, value => {
   if (!value) return;
   candidatePanelCollapsed.value = true;
   modelMenuOpen.value = false;
 });
 
+watch(composerInputValue, () => {
+  nextTick(() => {
+    syncComposerHeight();
+  });
+});
+
+watch([promptAssets, composerEditable], ([assets, editable]) => {
+  if (!editable || !(assets && assets.length)) closeShortcutMenu();
+});
+
+watch(shortcutAssets, assets => {
+  if (!assets.length) {
+    shortcutActiveIndex.value = 0;
+    return;
+  }
+  if (shortcutActiveIndex.value >= assets.length) {
+    shortcutActiveIndex.value = assets.length - 1;
+  }
+});
+
 function handleGlobalPointerDown(event) {
   const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
   if (modelMenuRef.value && (path.includes(modelMenuRef.value) || modelMenuRef.value.contains(event.target))) return;
   modelMenuOpen.value = false;
+  const insideShortcutMenu = shortcutMenuRef.value && path.includes(shortcutMenuRef.value);
+  const insideComposerInput = evidenceInput.value && path.includes(evidenceInput.value);
+  if (!insideShortcutMenu && !insideComposerInput) {
+    closeShortcutMenu();
+  }
 }
 
 function updateAssetPopoverRect() {
@@ -404,6 +479,9 @@ onMounted(() => {
   window.addEventListener('pointerdown', handleGlobalPointerDown, true);
   window.addEventListener('scroll', updateAssetPopoverRect, true);
   window.addEventListener('resize', updateAssetPopoverRect, true);
+  nextTick(() => {
+    syncComposerHeight();
+  });
 });
 
 onBeforeUnmount(() => {
@@ -411,13 +489,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', updateAssetPopoverRect, true);
   window.removeEventListener('resize', updateAssetPopoverRect, true);
   clearAssetPopoverTimer();
+  clearShortcutMenuTimer();
 });
 
 defineExpose({
   focusEvidenceInput() {
-    if (evidenceInput.value && typeof evidenceInput.value.focus === 'function') {
-      evidenceInput.value.focus();
-    }
+    focusComposer();
   }
 });
 
@@ -516,6 +593,25 @@ function assetDetailSections(asset) {
   ];
 }
 
+function syncComposerHeight(target = evidenceInput.value) {
+  if (!target) return;
+  target.style.height = 'auto';
+  target.style.height = `${Math.min(Math.max(target.scrollHeight, 72), 184)}px`;
+}
+
+function focusComposer(cursor = null) {
+  nextTick(() => {
+    if (!evidenceInput.value || typeof evidenceInput.value.focus !== 'function') return;
+    evidenceInput.value.focus();
+    if (cursor != null && typeof evidenceInput.value.setSelectionRange === 'function') {
+      evidenceInput.value.setSelectionRange(cursor, cursor);
+      composerSelectionStart.value = cursor;
+      composerSelectionEnd.value = cursor;
+    }
+    syncComposerHeight(evidenceInput.value);
+  });
+}
+
 function clearAssetPopoverTimer() {
   if (!assetPopoverTimer) return;
   window.clearTimeout(assetPopoverTimer);
@@ -546,6 +642,134 @@ function openAssetPopover(asset, event) {
   activeAssetPopoverUid.value = asset.uid;
   activeAssetPopoverAnchor = event?.currentTarget || null;
   updateAssetPopoverRect();
+  window.requestAnimationFrame(updateAssetPopoverRect);
+}
+
+function clearShortcutMenuTimer() {
+  if (!shortcutMenuTimer) return;
+  window.clearTimeout(shortcutMenuTimer);
+  shortcutMenuTimer = 0;
+}
+
+function closeShortcutMenu() {
+  clearShortcutMenuTimer();
+  shortcutMenuOpen.value = false;
+  shortcutMenuQuery.value = '';
+  shortcutRangeStart.value = -1;
+  shortcutRangeEnd.value = -1;
+  shortcutActiveIndex.value = 0;
+}
+
+function resolveShortcutState(value, caret) {
+  if (!promptAssets.value.length) return null;
+  const before = String(value || '').slice(0, Math.max(0, caret));
+  const match = before.match(/(^|[\s(（,，;；])@([^\s@]*)$/);
+  if (!match) return null;
+  return {
+    start: before.length - match[2].length - 1,
+    end: before.length,
+    query: match[2] || ''
+  };
+}
+
+function updateComposerSelection(target) {
+  if (!target) return;
+  composerSelectionStart.value = Number(target.selectionStart || 0);
+  composerSelectionEnd.value = Number(target.selectionEnd || composerSelectionStart.value);
+}
+
+function updateShortcutMenu(target) {
+  if (!target || !composerEditable.value) {
+    closeShortcutMenu();
+    return;
+  }
+  const state = resolveShortcutState(target.value, target.selectionStart || 0);
+  if (!state) {
+    closeShortcutMenu();
+    return;
+  }
+  shortcutMenuOpen.value = true;
+  shortcutMenuQuery.value = state.query;
+  shortcutRangeStart.value = state.start;
+  shortcutRangeEnd.value = state.end;
+  if (shortcutActiveIndex.value >= shortcutAssets.value.length) {
+    shortcutActiveIndex.value = 0;
+  }
+}
+
+function handleComposerInput(event) {
+  api.onComposerInput(event);
+  updateComposerSelection(event.target);
+  updateShortcutMenu(event.target);
+  syncComposerHeight(event.target);
+}
+
+function handleComposerCursor(event) {
+  updateComposerSelection(event.target);
+  updateShortcutMenu(event.target);
+}
+
+function moveShortcutActive(step) {
+  if (!shortcutMenuOpen.value || !shortcutAssets.value.length) return;
+  const total = shortcutAssets.value.length;
+  shortcutActiveIndex.value = (shortcutActiveIndex.value + step + total) % total;
+}
+
+function handleComposerKeydown(event) {
+  if (!shortcutMenuOpen.value) return;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    moveShortcutActive(1);
+    return;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    moveShortcutActive(-1);
+    return;
+  }
+  if (event.key === 'Tab') {
+    if (!shortcutAssets.value.length) return;
+    event.preventDefault();
+    selectShortcutAsset(shortcutAssets.value[shortcutActiveIndex.value]);
+    return;
+  }
+  if (event.key === 'Enter') {
+    if (!shortcutAssets.value.length) return;
+    event.preventDefault();
+    selectShortcutAsset(shortcutAssets.value[shortcutActiveIndex.value]);
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeShortcutMenu();
+  }
+}
+
+function insertAssetToken(asset, options = {}) {
+  if (!asset) return;
+  const currentValue = String(composerInputValue.value || '');
+  const replaceMention = !!options.replaceMention;
+  const replaceStart = replaceMention && shortcutRangeStart.value >= 0
+    ? shortcutRangeStart.value
+    : Math.min(composerSelectionStart.value, currentValue.length);
+  const replaceEnd = replaceMention && shortcutRangeEnd.value >= replaceStart
+    ? shortcutRangeEnd.value
+    : Math.min(composerSelectionEnd.value, currentValue.length);
+  const result = api.insertPromptAsset(asset.token, {
+    replaceStart,
+    replaceEnd,
+    replaceMention
+  });
+  closeShortcutMenu();
+  focusComposer(result?.cursor ?? replaceStart + String(asset.token || '').length + 1);
+}
+
+function handleAssetInsert(asset) {
+  insertAssetToken(asset, { replaceMention: false });
+}
+
+function selectShortcutAsset(asset) {
+  insertAssetToken(asset, { replaceMention: true });
 }
 
 function selectDisabledModel() {

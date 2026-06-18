@@ -1,5 +1,5 @@
 const path = require('path');
-const { isTextFile, readProjectText } = require('../fs-utils');
+const { isTextFile, readProjectText } = require('../core/fs-utils');
 const {
   kebabCase,
   makeSnippet,

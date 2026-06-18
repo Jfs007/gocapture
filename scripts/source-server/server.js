@@ -6,12 +6,12 @@ const {
   HOST,
   PORT,
   VERSION,
-} = require('./config');
-const { selectDirectory } = require('./dialog');
-const { scanProject } = require('./project');
+} = require('./core/config');
+const { selectDirectory } = require('./resource/dialog');
+const { scanProject } = require('./core/project');
 const { searchProjectWithMeta } = require('./search');
 const { resolvePageRouteTrace } = require('./route-resolvers/registry');
-const { runModelLocate } = require('./model-adapters');
+const { runModelLocate } = require('./model/model-adapters');
 
 function sendJson(res, status, payload) {
   const text = JSON.stringify(payload, null, 2);

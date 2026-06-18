@@ -1,5 +1,5 @@
 const path = require('path');
-const { isTextFile, readProjectText } = require('../fs-utils');
+const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { makeSnippet, posixPath, uniq } = require('../utils');
 const { isPageLike } = require('./component-trace');
 

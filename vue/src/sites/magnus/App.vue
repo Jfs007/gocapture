@@ -56,15 +56,15 @@
 
 <script setup>
 import { computed, markRaw, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
-import { sourceServerJson } from './source-service';
-import { useCtx } from './ctx';
+import { sourceServerJson } from './services/source-service';
+import { useCtx } from './core/ctx';
 import {
   compactText,
   getClassName,
   getElementInfo,
   normalizeRequestInfo,
   round
-} from './element-context';
+} from './core/element-context';
 import { useChatMessages } from './hooks/use-chat-messages';
 import { useModelAdapters } from './hooks/use-model-adapters';
 import { usePageRequests } from './hooks/use-page-requests';
@@ -72,9 +72,9 @@ import { usePanelLayout } from './hooks/use-panel-layout';
 import { useSearchPrompt } from './hooks/use-search-prompt';
 import { useSourceProject } from './hooks/use-source-project';
 import { useToast } from './hooks/use-toast';
-import ChatThread from './components/ChatThread.vue';
-import ComposerPanel from './components/ComposerPanel.vue';
-import magnusLogo from './logo.jpg';
+import ChatThread from './components/chat/ChatThread.vue';
+import ComposerPanel from './components/composer/ComposerPanel.vue';
+import magnusLogo from './resources/logo.jpg';
 
 const props = defineProps({
   api: {
@@ -656,18 +656,49 @@ function onSearchOptionChange() {
 }
 
 function onComposerInput(event) {
-  if (!composerEditable.value) return;
-  if (promptText.value) invalidatePrompt();
-  promptIntent.value = event.target.value;
+  setComposerValue(event?.target?.value || '');
 }
 
-function insertPromptAsset(token) {
-  if (!selectedItems.value.length || promptText.value || !token) return;
+function setComposerValue(value) {
+  if (!composerEditable.value) return String(promptIntent.value || '');
+  if (promptText.value) invalidatePrompt();
+  promptIntent.value = String(value || '');
+  return promptIntent.value;
+}
+
+function insertPromptAsset(token, options = {}) {
+  if (!selectedItems.value.length || !token) {
+    return {
+      value: String(promptIntent.value || ''),
+      cursor: String(promptIntent.value || '').length
+    };
+  }
   const nextToken = String(token).trim();
-  if (!nextToken) return;
-  promptIntent.value = promptIntent.value.trim()
-    ? `${promptIntent.value.trim()} ${nextToken}`.trim()
-    : nextToken;
+  const currentValue = String(promptIntent.value || '');
+  if (!nextToken) {
+    return {
+      value: currentValue,
+      cursor: currentValue.length
+    };
+  }
+  const replaceMention = !!options.replaceMention;
+  const start = Number.isFinite(options.replaceStart)
+    ? Math.max(0, Math.min(Number(options.replaceStart), currentValue.length))
+    : currentValue.length;
+  const end = Number.isFinite(options.replaceEnd)
+    ? Math.max(start, Math.min(Number(options.replaceEnd), currentValue.length))
+    : start;
+  const before = currentValue.slice(0, start);
+  const after = currentValue.slice(end);
+  const prefix = replaceMention || !before || /\s$/.test(before) ? '' : ' ';
+  const suffix = after && /^\s/.test(after) ? '' : ' ';
+  const nextValue = `${before}${prefix}${nextToken}${suffix}${after}`;
+  const cursor = (before + prefix + nextToken + suffix).length;
+  setComposerValue(nextValue);
+  return {
+    value: nextValue,
+    cursor
+  };
 }
 
 function getMdWeb() {
@@ -744,9 +775,10 @@ async function cropSelectionThumbnail(sourceUrl, rect) {
   const sh = Math.max(1, Math.round(rect.height * scaleY));
   const sx = Math.max(0, Math.round(rect.left * scaleX));
   const sy = Math.max(0, Math.round(rect.top * scaleY));
-  const maxOutputWidth = 480;
-  const maxOutputHeight = 320;
-  const ratio = Math.min(maxOutputWidth / sw, maxOutputHeight / sh, 1);
+  const maxOutputWidth = 1200;
+  const maxOutputHeight = 1200;
+  const preferredScale = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const ratio = Math.min(maxOutputWidth / sw, maxOutputHeight / sh, preferredScale);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(sw * ratio));
   canvas.height = Math.max(1, Math.round(sh * ratio));

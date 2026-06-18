@@ -1,4 +1,4 @@
-const { readProjectText } = require('../../fs-utils');
+const { readProjectText } = require('../../core/fs-utils');
 const {
   cleanPagePath,
   projectFileMap,

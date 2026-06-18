@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue';
-import { sourceServerJson } from '../source-service';
+import { sourceServerJson } from '../services/source-service';
 
 const MODEL_STORAGE_KEY = 'magnus:model-adapters';
 const MODEL_SELECTED_KEY = 'magnus:model-adapters:selected';
@@ -294,7 +294,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
       ...promoted,
       ...oldHits.filter(hit => !promotedFiles.has(hit.file))
     ].sort((a, b) => b.score - a.score);
-    selectedCandidatePaths.value = [promoted[0].file];
+    selectedCandidatePaths.value = promoted.map(hit => hit.file);
   }
 
   async function runModelAssist() {

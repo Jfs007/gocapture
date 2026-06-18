@@ -1,6 +1,6 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import styles from './style.css?inline';
+import styles from './styles/style.css?inline';
 
 (function bootstrapDevAssistant() {
     const APP_KEY = '__MAGNUS_DEV_ASSISTANT__';

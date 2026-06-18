@@ -10,13 +10,14 @@
             "matches": [
                 "*host:9002",
                 "*host:9003",
-                "https://ad.itaored.com"
+                "https://ad.itaored.com",
+                "https://winsup.itaored.com"
             ],
             "supportIframe": false
         }
     },
     "canInjectIframeList": [],
-    "version": "20260618.141602.098",
+    "version": "20260619.012847.930",
     "success": true,
     "api": ""
 }

@@ -118,9 +118,28 @@ export function getStyleInfo(element) {
     gap: style.gap,
     alignItems: style.alignItems,
     justifyContent: style.justifyContent,
+    objectFit: style.objectFit,
     width: style.width,
     height: style.height
   };
+}
+
+export function getElementAttrs(element) {
+  if (!element || !element.tagName) return {};
+  const tag = element.tagName.toLowerCase();
+  const attrs = {};
+  const commonAttrs = ['id', 'name', 'role', 'title', 'aria-label', 'placeholder', 'href'];
+  for (const key of commonAttrs) {
+    const value = element.getAttribute?.(key);
+    if (value) attrs[key] = compactText(value, 240);
+  }
+  if (tag === 'img') {
+    if (element.currentSrc || element.src) attrs.src = compactText(element.currentSrc || element.src, 360);
+    if (element.alt) attrs.alt = compactText(element.alt, 240);
+    if (element.getAttribute?.('width')) attrs.width = compactText(element.getAttribute('width'), 40);
+    if (element.getAttribute?.('height')) attrs.height = compactText(element.getAttribute('height'), 40);
+  }
+  return attrs;
 }
 
 export function getSelectorPart(element) {
@@ -163,6 +182,7 @@ export function getElementInfo(element) {
     tag: element.tagName.toLowerCase(),
     selector: getSelectorPath(element),
     className: getClassName(element),
+    attrs: getElementAttrs(element),
     text: getElementText(element),
     innerHtml: compactMarkup(element.innerHTML || '', 960),
     outerHtml: compactMarkup(element.outerHTML || '', 1200),

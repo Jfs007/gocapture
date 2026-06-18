@@ -1,5 +1,5 @@
-import { candidateLogLines, candidateStageLabel } from '../candidate-presenter';
-import { compactText, extractSearchTerms } from '../element-context';
+import { candidateLogLines, candidateStageLabel } from '../presenters/candidate-presenter';
+import { compactText, extractSearchTerms } from '../core/element-context';
 
 export function useSearchPrompt({
   selectedItems,
@@ -178,6 +178,22 @@ export function useSearchPrompt({
     }).join('\n\n');
   }
 
+  function finalPromptTaskLines(command) {
+    const hits = selectedPromptHits();
+    return hits.map((hit, index) => {
+      const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || '');
+      const source = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || hit.modelCodeSnippet || '');
+      const requirement = sanitizeModelInstructionText(hit.modelPrompt) || command || '按当前页面上下文完成修改';
+      return [
+        hits.length > 1 ? `任务 ${index + 1}:` : '',
+        `文件: ${hit.file}`,
+        location ? `位置:\n${location}` : '',
+        source ? `源码:\n${source}` : '',
+        `需求: ${requirement}`
+      ].filter(Boolean).join('\n');
+    }).join('\n\n');
+  }
+
   function referencedPromptAssets(text) {
     const assets = promptAssetItems();
     if (!assets.length) return [];
@@ -241,8 +257,15 @@ export function useSearchPrompt({
 
   function selectionTextReferenceLines(text) {
     return referencedPromptAssets(text)
-      .map(asset => `${asset.token}: ${asset.text || '-'}`)
-      .join('\n');
+      .map(asset => {
+        const fallback = [asset.tag || '', asset.className || '']
+          .filter(Boolean)
+          .join('.')
+          .replace(/\.+/g, '.')
+          .replace(/\.$/, '') || '-';
+        return `${asset.token}: ${compactText(asset.text || fallback, 60)}`;
+      })
+      .join('；');
   }
 
   function selectionNodeLine(info) {
@@ -323,7 +346,13 @@ export function useSearchPrompt({
           ...ancestor,
           text: denoiseTextByApi(ancestor.text)
         }))
-      }
+      },
+      asset: item.asset
+        ? {
+          ...item.asset,
+          text: denoiseTextByApi(item.asset?.text),
+        }
+        : null
     }));
     const apiRequests = searchApiRequests.value.map(item => ({
       url: item.url,
@@ -409,28 +438,15 @@ export function useSearchPrompt({
   }
 
   function generatePrompt(options = {}) {
-    const files = selectedFilePromptLines();
-    const locations = locationPromptLines();
     const command = normalizeInstructionText(options.userInstruction || buildPromptIntentDraft()) || modificationCommand();
-    const reliableSnippets = reliableSnippetPromptLines();
-    const modelFinalPrompt = modelFinalPromptLines();
-    const manualEvidence = manualEvidencePrompt();
+    const tasks = finalPromptTaskLines(command);
+    const selectionReference = selectionTextReferenceLines(command);
     promptText.value = [
       `当前 page: ${window.location.href}`,
       `页面路径: ${pageUrlPath.value}`,
-      `当前命中文件:\n${files || '-'}`,
-      locations ? `定位位置:\n${locations}` : '',
-      `修改要求:\n${command}`,
-      manualEvidence ? `用户补充证据:\n${manualEvidence}` : '',
-      modelFinalPrompt ? `模型定位参考:\n${modelFinalPrompt}` : '',
-      reliableSnippets ? `唯一源码片段:\n${reliableSnippets}` : '',
-      `选区文本参考(仅作参考):\n${selectionTextReferenceLines(command) || '-'}`,
-      `选区引用:\n${assetReferencePromptLines(command) || '-'}`,
-      '实现约束:',
-      '- 严格沿用项目现有 API / 状态管理 / 组件封装 / 交互提示方式完成修改。',
-      '- 不要臆测或新增不存在的 http 工具、请求封装、路径别名、导入路径、公共方法或变量名。',
-      '- 如果需要调用接口，优先复用当前文件和项目里已经存在的实现方式。'
-    ].filter(Boolean).join('\n');
+      tasks || `需求: ${command}`,
+      selectionReference ? `选区文本参考: ${selectionReference}` : ''
+    ].filter(Boolean).join('\n\n');
     setToast('提示词已生成');
   }
 

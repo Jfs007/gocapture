@@ -10,7 +10,7 @@ const {
   isTextFile,
   safeReadText,
 } = require('./fs-utils');
-const { posixPath } = require('./utils');
+const { posixPath } = require('../utils');
 
 function walkFiles(rootDir) {
   const result = [];

@@ -2,7 +2,8 @@
   "matches": [
     "*host:9002",
     "*host:9003",
-    "https://ad.itaored.com"
+    "https://ad.itaored.com",
+    "https://winsup.itaored.com"
   ],
   "supportIframe": false
 }

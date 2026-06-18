@@ -2,8 +2,8 @@ import { ref, shallowRef } from 'vue';
 import {
   buildProjectFromFileList,
   scanDirectoryHandle
-} from '../project-scanner';
-import { normalizeSourceServerProject, sourceServerJson } from '../source-service';
+} from '../services/project-scanner';
+import { normalizeSourceServerProject, sourceServerJson } from '../services/source-service';
 
 export function useSourceProject({ projectStorageKey, resetProjectContext, setToast }) {
   const fileInputRef = ref(null);

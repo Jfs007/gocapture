@@ -1,4 +1,4 @@
-const { STOP_TOKENS } = require('./config');
+const { STOP_TOKENS } = require('../core/config');
 
 function posixPath(value) {
   return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');

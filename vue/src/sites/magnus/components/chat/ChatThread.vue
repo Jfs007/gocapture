@@ -61,7 +61,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useApi, useForm } from '../ctx';
+import { useApi, useForm } from '../../core/ctx';
 
 const messages = useForm('chatMessages');
 const sourceServiceStatus = useForm('sourceServiceStatus');

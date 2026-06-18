@@ -30,6 +30,10 @@ const props = defineProps({
     type: Number,
     default: 360
   },
+  placement: {
+    type: String,
+    default: 'auto'
+  },
   gap: {
     type: Number,
     default: 10
@@ -50,7 +54,13 @@ const panelStyle = computed(() => {
     props.viewportPadding,
     Math.min(rect.left, window.innerWidth - width - props.viewportPadding)
   );
-  const showBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
+  const roomBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
+  const roomAbove = rect.top - props.gap - props.maxHeight >= props.viewportPadding;
+  const showBelow = props.placement === 'bottom'
+    ? true
+    : props.placement === 'top'
+      ? !roomAbove && roomBelow
+      : roomBelow;
   const top = showBelow
     ? rect.bottom + props.gap
     : Math.max(props.viewportPadding, rect.top - props.gap - props.maxHeight);

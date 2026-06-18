@@ -1,4 +1,4 @@
-const { isTextFile, readProjectText } = require('../fs-utils');
+const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { buildSearchEvidence, scoreFileText } = require('./evidence');
 const { reverseComponentUsages } = require('./component-trace');
 const { traceApiReferences } = require('./api-trace');
@@ -53,6 +53,9 @@ function mergeHits(hits) {
         contextScore: Math.max(hit.contextScore || 0, old?.contextScore || 0),
         contextReasons: (hit.contextReasons && hit.contextReasons.length ? hit.contextReasons : old?.contextReasons) || [],
         contextSelectionIndex: hit.contextSelectionIndex || old?.contextSelectionIndex || 0,
+        contextScope: hit.contextScope || old?.contextScope || '',
+        contextLayerDepth: Math.max(hit.contextLayerDepth || 0, old?.contextLayerDepth || 0),
+        contextStrongMatchCount: Math.max(hit.contextStrongMatchCount || 0, old?.contextStrongMatchCount || 0),
         preciseEvidence: !!(hit.preciseEvidence || old?.preciseEvidence),
         preciseSnippet: hit.preciseSnippet || old?.preciseSnippet || '',
         uniqueSnippet: hit.uniqueSnippet || old?.uniqueSnippet || '',
@@ -74,6 +77,9 @@ function mergeHits(hits) {
         contextScore: Math.max(hit.contextScore || 0, old?.contextScore || 0),
         contextReasons: (hit.contextReasons && hit.contextReasons.length ? hit.contextReasons : old?.contextReasons) || [],
         contextSelectionIndex: hit.contextSelectionIndex || old?.contextSelectionIndex || 0,
+        contextScope: hit.contextScope || old?.contextScope || '',
+        contextLayerDepth: Math.max(hit.contextLayerDepth || 0, old?.contextLayerDepth || 0),
+        contextStrongMatchCount: Math.max(hit.contextStrongMatchCount || 0, old?.contextStrongMatchCount || 0),
         preciseEvidence: !!(hit.preciseEvidence || old?.preciseEvidence),
         preciseSnippet: hit.preciseSnippet || old?.preciseSnippet || '',
         uniqueSnippet: hit.uniqueSnippet,
@@ -95,6 +101,9 @@ function mergeHits(hits) {
         contextScore: Math.max(hit.contextScore || 0, old?.contextScore || 0),
         contextReasons: (hit.contextReasons && hit.contextReasons.length ? hit.contextReasons : old?.contextReasons) || [],
         contextSelectionIndex: hit.contextSelectionIndex || old?.contextSelectionIndex || 0,
+        contextScope: hit.contextScope || old?.contextScope || '',
+        contextLayerDepth: Math.max(hit.contextLayerDepth || 0, old?.contextLayerDepth || 0),
+        contextStrongMatchCount: Math.max(hit.contextStrongMatchCount || 0, old?.contextStrongMatchCount || 0),
         preciseEvidence: true,
         preciseSnippet: hit.preciseSnippet || old?.preciseSnippet || old?.snippet || '',
       });
@@ -105,6 +114,36 @@ function mergeHits(hits) {
         apiEvidence,
         apiEvidenceReasons,
         apiEvidenceFrom,
+      });
+    } else if (
+      (hit.contextScore || 0) > (old?.contextScore || 0) ||
+      (hit.exactMatchCount || 0) > (old?.exactMatchCount || 0) ||
+      (hit.uniqueMatchCount || 0) > (old?.uniqueMatchCount || 0) ||
+      (hit.snippet && !old?.snippet)
+    ) {
+      merged.set(hit.file, {
+        ...old,
+        stages: mergedStages,
+        apiEvidence,
+        apiEvidenceReasons,
+        apiEvidenceFrom,
+        snippet: old?.snippet || hit.snippet || '',
+        exactMatchLabel: hit.exactMatchLabel || old?.exactMatchLabel || '',
+        exactMatchText: hit.exactMatchText || old?.exactMatchText || '',
+        exactMatchCount: Math.max(hit.exactMatchCount || 0, old?.exactMatchCount || 0),
+        exactSnippet: hit.exactSnippet || old?.exactSnippet || '',
+        contextScore: Math.max(hit.contextScore || 0, old?.contextScore || 0),
+        contextReasons: (hit.contextReasons && hit.contextReasons.length ? hit.contextReasons : old?.contextReasons) || [],
+        contextSelectionIndex: hit.contextSelectionIndex || old?.contextSelectionIndex || 0,
+        contextScope: hit.contextScore >= (old?.contextScore || 0) ? (hit.contextScope || old?.contextScope || '') : (old?.contextScope || ''),
+        contextLayerDepth: Math.max(hit.contextLayerDepth || 0, old?.contextLayerDepth || 0),
+        contextStrongMatchCount: Math.max(hit.contextStrongMatchCount || 0, old?.contextStrongMatchCount || 0),
+        preciseEvidence: !!(hit.preciseEvidence || old?.preciseEvidence),
+        preciseSnippet: old?.preciseSnippet || hit.preciseSnippet || hit.snippet || '',
+        uniqueSnippet: old?.uniqueSnippet || hit.uniqueSnippet || '',
+        uniqueMatchLabel: old?.uniqueMatchLabel || hit.uniqueMatchLabel || '',
+        uniqueMatchText: old?.uniqueMatchText || hit.uniqueMatchText || '',
+        uniqueMatchCount: Math.max(old?.uniqueMatchCount || 0, hit.uniqueMatchCount || 0),
       });
     } else if (mergedStages.length !== (old?.stages || []).length) {
       merged.set(hit.file, {
@@ -149,6 +188,9 @@ function searchProjectWithMeta(project, body) {
         contextScore: scored.contextScore,
         contextReasons: scored.contextReasons,
         contextSelectionIndex: scored.contextSelectionIndex,
+        contextScope: scored.contextScope,
+        contextLayerDepth: scored.contextLayerDepth,
+        contextStrongMatchCount: scored.contextStrongMatchCount,
         preciseEvidence: scored.preciseEvidence,
         preciseSnippet: scored.preciseSnippet,
         uniqueSnippet: scored.uniqueSnippet,

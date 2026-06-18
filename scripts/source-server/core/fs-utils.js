@@ -5,7 +5,7 @@ const {
   SKIP_DIRS,
   TEXT_EXTENSIONS,
 } = require('./config');
-const { posixPath } = require('./utils');
+const { posixPath } = require('../utils');
 
 function isSkipped(relPath) {
   return posixPath(relPath).split('/').some(part => SKIP_DIRS.has(part));
