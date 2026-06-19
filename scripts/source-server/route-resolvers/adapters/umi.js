@@ -1,11 +1,22 @@
-const { fileConventionHits } = require('../utils');
+const { fileConventionHits, fileConventionRouteNodes } = require('../utils');
+
+const options = {
+  adapter: 'umi',
+  framework: 'umi',
+  roots: ['src/pages', 'pages'],
+  extensions: ['.tsx', '.jsx', '.ts', '.js', '.vue'],
+};
+
+function extractRoutes({ project }) {
+  return fileConventionRouteNodes(project, options);
+}
 
 function resolve({ project, pagePath, textCache }) {
   return fileConventionHits(project, pagePath, {
-    adapter: 'umi',
+    adapter: options.adapter,
     score: 520,
-    roots: ['src/pages', 'pages'],
-    extensions: ['.tsx', '.jsx', '.ts', '.js', '.vue'],
+    roots: options.roots,
+    extensions: options.extensions,
     reason: 'Umi pages 文件系统路由',
     textCache,
   });
@@ -14,5 +25,6 @@ function resolve({ project, pagePath, textCache }) {
 module.exports = {
   key: 'umi',
   kinds: ['umi'],
+  extractRoutes,
   resolve,
 };

@@ -5,17 +5,78 @@ const path = require('path');
 const { spawn } = require('child_process');
 const tls = require('tls');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
-const { tokenize, uniq } = require('../utils');
+const { escapeRegExp, tokenize, uniq } = require('../utils');
 
-const MAX_MODEL_FILES = 12;
+const MAX_MODEL_FILES = 4;
 const MAX_FILE_CHARS = 18000;
 const MAX_TOTAL_FILE_CHARS = 64000;
 const MAX_FOCUSED_FILE_CHARS = 5200;
-const MAX_MODEL_BATCH_FILE_CHARS = 30000;
-const MAX_MODEL_FILE_CHUNK_CHARS = 30000;
+const MAX_MODEL_BATCH_TOKENS = 30000;
+const TOKEN_ESTIMATE_CHARS = 3;
 const MODEL_RESULT_SNIPPET_CHARS = 1400;
 const MIN_FOCUSED_WINDOW_SCORE = 90;
 const DEFAULT_TIMEOUT_MS = 120000;
+const PRUNED_MODEL_FILE_CHARS = 22000;
+const DIRECT_RELATED_CHARS = 5200;
+const GENERIC_MODEL_SYMBOLS = new Set([
+  'api',
+  'app',
+  'config',
+  'data',
+  'fetch',
+  'http',
+  'index',
+  'item',
+  'list',
+  'params',
+  'request',
+  'response',
+  'result',
+  'service',
+  'state',
+  'store',
+  'value',
+]);
+const MARKUP_EXTENSIONS = new Set([
+  '.html',
+  '.htm',
+  '.vue',
+  '.svelte',
+  '.astro',
+  '.wxml',
+  '.xml',
+]);
+const SCRIPT_EXTENSIONS = new Set([
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.cjs',
+]);
+const STYLE_EXTENSIONS = new Set([
+  '.css',
+  '.less',
+  '.scss',
+  '.sass',
+  '.styl',
+]);
+const VOID_TAGS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
+]);
 
 function splitCommandLine(value) {
   const input = String(value || '').trim();
@@ -78,12 +139,37 @@ function compact(value, limit = 240) {
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
+function clipText(value, limit = 1200) {
+  const text = String(value || '').trim();
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function stringList(value, limit = 12) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[,，\s]+/);
+  return uniq(list
+    .map(item => String(item || '').trim())
+    .filter(item => item.length >= 1 && item.length <= 80))
+    .slice(0, limit);
+}
+
 function safeJson(value) {
   return JSON.stringify(value || null, null, 2);
 }
 
 function appendLog(logs, text) {
-  if (Array.isArray(logs) && text) logs.push(text);
+  if (!Array.isArray(logs) || !text) return;
+  logs.push(text);
+  if (typeof logs.onAppend === 'function') {
+    logs.onAppend(text, logs.slice());
+  }
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    const error = new Error('模型定位已停止');
+    error.name = 'AbortError';
+    throw error;
+  }
 }
 
 function safeUrlLabel(value) {
@@ -114,7 +200,7 @@ function proxyAuthHeader(proxyUrl) {
 }
 
 function projectFile(project, filePath) {
-  const normalized = String(filePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const normalized = normalizeModelFilePath(filePath);
   return (project.files || []).find(file => file.path === normalized);
 }
 
@@ -131,6 +217,46 @@ function addNeedle(map, needle, weight, label) {
   if (!old || old.weight < weight) {
     map.set(key, { needle: value, weight, label });
   }
+}
+
+function normalizeModelFilePath(filePath) {
+  return String(filePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+const MEDIA_ATTR_KEYS = new Set(['src', 'srcset', 'poster', 'data-src', 'data-original', 'data-lazy-src']);
+
+function resourceSeedValuesFromInfo(info) {
+  const attrs = info?.attrs || {};
+  const style = info?.computedStyle || {};
+  const values = [];
+  if (String(info?.tag || '').toLowerCase() === 'img') {
+    values.push('img', 'image', 'src');
+  }
+  for (const [key, value] of Object.entries(attrs)) {
+    if (!value) continue;
+    const lowerKey = key.toLowerCase();
+    if (MEDIA_ATTR_KEYS.has(lowerKey)) {
+      values.push(lowerKey, 'image', lowerKey === 'poster' ? 'poster' : 'src');
+    } else if (lowerKey === 'magnus-media' && String(value).toLowerCase() === 'image') {
+      values.push('img', 'image', 'src');
+    } else if (/^(alt|title|aria-label|placeholder|role)$/i.test(key)) {
+      values.push(value);
+    }
+  }
+  if (style.backgroundImage && style.backgroundImage !== 'none') {
+    values.push('background-image', 'backgroundImage', 'background', 'image');
+  }
+  if (String(info?.inlineStyle || '').includes('url(')) {
+    values.push('background-image', 'background', 'image');
+  }
+  return uniq(values
+    .map(value => String(value || '').replace(/\s+/g, ' ').trim())
+    .filter(value => value.length >= 3 && value.length <= 80 && !/^\d+(?:px)?$/i.test(value) && value !== '[present]'))
+    .slice(0, 24);
+}
+
+function sanitizeModelInlineStyle(value) {
+  return String(value || '').replace(/url\([^)]*\)/gi, 'url([runtime])');
 }
 
 function findSnippetIndex(text, snippet) {
@@ -161,6 +287,59 @@ function findSnippetIndex(text, snippet) {
   return -1;
 }
 
+function findAllNeedleIndexes(text, needle, limit = 12) {
+  const content = String(text || '');
+  const value = String(needle || '').trim();
+  if (!content || !value) return [];
+  const result = [];
+  let index = 0;
+  while (result.length < limit && index < content.length) {
+    const found = content.indexOf(value, index);
+    if (found === -1) break;
+    result.push({
+      index: found,
+      length: value.length,
+      needle: value,
+    });
+    index = found + Math.max(1, value.length);
+  }
+  return result;
+}
+
+function weakSelectionSeed(value) {
+  return /^(?:img|image|src|poster|background|backgroundImage|background-image|\[present\]|fill|auto|none|normal|static|relative|absolute|flex|block|inline|table|hidden|visible|center|left|right|top|bottom|nowrap)$/i.test(String(value || '').trim());
+}
+
+function addSubtreeNeedles(map, subtree, prefix, weights = {}) {
+  if (!subtree || typeof subtree !== 'object') return;
+  for (const className of (subtree.classNames || []).slice(0, 16)) {
+    addNeedle(map, className, weights.classWeight || 64, `${prefix} class`);
+  }
+  for (const text of (subtree.texts || []).slice(0, 12)) {
+    addNeedle(map, text, weights.textWeight || 84, `${prefix}文案`);
+  }
+  for (const attr of (subtree.attrs || []).slice(0, 16)) {
+    const key = String(attr?.key || '');
+    const value = String(attr?.value || '');
+    if (!key && !value) continue;
+    if (MEDIA_ATTR_KEYS.has(key.toLowerCase()) || key === 'magnus-media') {
+      addNeedle(map, 'image', weights.resourceWeight || 72, `${prefix}图片/资源`);
+      addNeedle(map, 'src', weakSelectionSeed('src') ? 24 : (weights.resourceWeight || 72), `${prefix}图片/资源`);
+    } else {
+      addNeedle(map, key, weights.attrWeight || 56, `${prefix}特殊属性`);
+      addNeedle(map, value, weights.attrWeight || 56, `${prefix}特殊属性`);
+    }
+  }
+  for (const item of (subtree.styles || []).slice(0, 12)) {
+    const style = item?.style || {};
+    for (const [key, value] of Object.entries(style).slice(0, 8)) {
+      if (!value) continue;
+      addNeedle(map, key, weights.styleWeight || 42, `${prefix}样式`);
+      addNeedle(map, value, weights.styleWeight || 42, `${prefix}样式`);
+    }
+  }
+}
+
 function rangeExcerpt(text, start, end, maxChars) {
   const content = String(text || '');
   if (!content) return '';
@@ -182,8 +361,379 @@ function aroundIndexExcerpt(text, index, tokenLength, maxChars) {
   return rangeExcerpt(text, index, index + Math.max(1, tokenLength), maxChars);
 }
 
+function pairedRanges(text, openChar, closeChar) {
+  const content = String(text || '');
+  const ranges = [];
+  const stack = [];
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = 0; index < content.length; index++) {
+    const char = content[index];
+    const next = content[index + 1] || '';
+    if (lineComment) {
+      if (char === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '/' && next === '/') {
+      lineComment = true;
+      index++;
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      blockComment = true;
+      index++;
+      continue;
+    }
+    if (char === '"' || char === '\'' || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === openChar) {
+      stack.push(index);
+      continue;
+    }
+    if (char === closeChar && stack.length) {
+      const start = stack.pop();
+      ranges.push({ start, end: index + 1, type: `${openChar}${closeChar}` });
+    }
+  }
+
+  return ranges;
+}
+
+function markupTagRangeAt(text, index) {
+  const content = String(text || '');
+  if (!content || index < 0) return null;
+  const before = content.lastIndexOf('<', index);
+  const previousClose = content.lastIndexOf('>', index);
+  if (before === -1 || previousClose > before) return null;
+
+  const openTag = parseMarkupTagAt(content, before);
+  if (!openTag || openTag.type !== 'tag') return null;
+  const after = openTag.end;
+  if (index > after) return null;
+  const openText = content.slice(before, after + 1);
+  const openMatch = openText.match(/^<\/?\s*([A-Za-z][\w:.-]*)\b/);
+  if (!openMatch) return null;
+  const tagName = openMatch[1];
+  if (/^<\//.test(openText)) return { start: before, end: after + 1, type: 'tag' };
+  if (/\/\s*>$/.test(openText) || VOID_TAGS.has(tagName.toLowerCase())) {
+    return { start: before, end: after + 1, type: 'tag' };
+  }
+
+  const closePattern = new RegExp(`</\\s*${escapeRegExp(tagName)}\\s*>`, 'ig');
+  closePattern.lastIndex = after + 1;
+  const close = closePattern.exec(content);
+  if (!close) return { start: before, end: after + 1, type: 'tag' };
+  const fullEnd = close.index + close[0].length;
+  if (fullEnd - before > DIRECT_RELATED_CHARS * 2) {
+    return { start: before, end: after + 1, type: 'tag' };
+  }
+  return { start: before, end: fullEnd, type: 'tag-block' };
+}
+
+function pushAstNode(nodes, node) {
+  if (!node || node.end <= node.start) return;
+  nodes.push(node);
+}
+
+function parseMarkupAstNodes(text, offset = 0, rootType = 'html') {
+  const content = String(text || '');
+  const nodes = [];
+  const stack = [];
+  for (let index = 0; index < content.length; index++) {
+    if (content[index] !== '<') continue;
+    const tag = parseMarkupTagAt(content, index);
+    if (!tag) continue;
+    const start = offset + index;
+    const end = offset + tag.end + 1;
+    if (tag.type !== 'tag') {
+      pushAstNode(nodes, { start, end, type: `${rootType}-${tag.type}`, name: tag.type, depth: stack.length });
+      index = tag.end;
+      continue;
+    }
+    if (tag.closing) {
+      const stackIndex = stack.map(item => item.name).lastIndexOf(tag.name);
+      if (stackIndex !== -1) {
+        const open = stack.splice(stackIndex)[0];
+        pushAstNode(nodes, {
+          start: open.start,
+          end,
+          type: `${rootType}-tag`,
+          name: tag.name,
+          depth: open.depth,
+        });
+      } else {
+        pushAstNode(nodes, { start, end, type: `${rootType}-tag`, name: tag.name, depth: stack.length });
+      }
+      index = tag.end;
+      continue;
+    }
+    if (tag.selfClosing) {
+      pushAstNode(nodes, { start, end, type: `${rootType}-tag`, name: tag.name, depth: stack.length });
+      index = tag.end;
+      continue;
+    }
+    stack.push({
+      start,
+      openEnd: end,
+      name: tag.name,
+      depth: stack.length,
+    });
+    index = tag.end;
+  }
+  for (const open of stack) {
+    pushAstNode(nodes, {
+      start: open.start,
+      end: open.openEnd,
+      type: `${rootType}-tag`,
+      name: open.name,
+      depth: open.depth,
+    });
+  }
+  return nodes;
+}
+
+function parseScriptAstNodes(text, offset = 0, includeJsx = false) {
+  const content = String(text || '');
+  const nodes = [];
+  const ranges = [
+    ...pairedRanges(content, '{', '}').map(range => ({ ...range, type: '{}', rank: 70 })),
+    ...pairedRanges(content, '[', ']').map(range => ({ ...range, type: '[]', rank: 64 })),
+    ...pairedRanges(content, '(', ')').map(range => ({ ...range, type: '()', rank: 58 })),
+  ];
+  for (const range of ranges) {
+    const withPrefix = includeDeclarationPrefix(content, range);
+    pushAstNode(nodes, {
+      start: offset + withPrefix.start,
+      end: offset + withPrefix.end,
+      type: `script-${range.type}`,
+      name: range.type,
+      depth: 0,
+      rank: range.rank,
+    });
+  }
+
+  const callRanges = ranges
+    .filter(range => range.type === '()')
+    .map(range => callRangeForIndex(content, range.start + 1, ranges))
+    .filter(Boolean);
+  for (const range of callRanges) {
+    pushAstNode(nodes, {
+      start: offset + range.start,
+      end: offset + range.end,
+      type: 'script-call',
+      name: 'call',
+      depth: 0,
+      rank: 92,
+    });
+  }
+
+  if (includeJsx) {
+    nodes.push(...parseMarkupAstNodes(content, offset, 'jsx'));
+  }
+  return nodes;
+}
+
+function parseStyleAstNodes(text, offset = 0) {
+  const content = String(text || '');
+  return pairedRanges(content, '{', '}').map(range => {
+    const start = Math.max(0, content.lastIndexOf('\n', range.start) + 1);
+    return {
+      start: offset + start,
+      end: offset + range.end,
+      type: 'style-rule',
+      name: 'style',
+      depth: 0,
+      rank: 86,
+    };
+  });
+}
+
+function parseVueSfcAstNodes(text) {
+  const content = String(text || '');
+  const nodes = [];
+  const regex = /<(template|script|style)\b[^>]*>[\s\S]*?<\/\1>/gi;
+  let match;
+  while ((match = regex.exec(content))) {
+    const blockText = match[0];
+    const blockStart = match.index;
+    const openTag = parseMarkupTagAt(content, blockStart);
+    if (!openTag) continue;
+    const innerStart = blockStart + openTag.end - blockStart + 1;
+    const closeStart = blockStart + blockText.lastIndexOf(`</${match[1]}`);
+    const blockEnd = blockStart + blockText.length;
+    const type = String(match[1] || '').toLowerCase();
+    pushAstNode(nodes, {
+      start: blockStart,
+      end: blockEnd,
+      type: `vue-${type}`,
+      name: type,
+      depth: 0,
+      rank: 45,
+    });
+    const innerText = content.slice(innerStart, closeStart);
+    if (type === 'template') nodes.push(...parseMarkupAstNodes(innerText, innerStart, 'vue-template'));
+    if (type === 'script') nodes.push(...parseScriptAstNodes(innerText, innerStart, true));
+    if (type === 'style') nodes.push(...parseStyleAstNodes(innerText, innerStart));
+  }
+  return nodes;
+}
+
+function parseSourceAstNodes(filePath, text) {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  const content = String(text || '');
+  const nodes = [];
+  if (ext === '.vue') {
+    nodes.push(...parseVueSfcAstNodes(content));
+  } else if (MARKUP_EXTENSIONS.has(ext)) {
+    nodes.push(...parseMarkupAstNodes(content, 0, 'html'));
+  } else if (SCRIPT_EXTENSIONS.has(ext)) {
+    nodes.push(...parseScriptAstNodes(content, 0, ext === '.jsx' || ext === '.tsx'));
+  } else if (STYLE_EXTENSIONS.has(ext)) {
+    nodes.push(...parseStyleAstNodes(content));
+  } else {
+    nodes.push(...parseScriptAstNodes(content, 0, true));
+    nodes.push(...parseMarkupAstNodes(content, 0, 'html'));
+  }
+  return mergeAstNodes(nodes);
+}
+
+function astNodeRank(node) {
+  const type = String(node?.type || '');
+  if (type.includes('call')) return 110;
+  if (type.includes('tag')) return 100;
+  if (type.includes('style-rule')) return 92;
+  if (type.includes('{}')) return 82;
+  if (type.includes('[]')) return 76;
+  if (type.includes('()')) return 64;
+  if (type.startsWith('vue-')) return 42;
+  return node?.rank || 20;
+}
+
+function mergeAstNodes(nodes) {
+  const seen = new Set();
+  return (nodes || [])
+    .filter(node => node && node.end > node.start)
+    .map(node => ({
+      ...node,
+      rank: astNodeRank(node),
+    }))
+    .sort((a, b) => a.start - b.start || a.end - b.end || b.rank - a.rank)
+    .filter(node => {
+      const key = `${node.start}:${node.end}:${node.type}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function astNodeRangeForAnchor(astNodes, anchor) {
+  const start = anchor?.index || 0;
+  const end = start + Math.max(1, anchor?.length || 1);
+  const candidates = (astNodes || [])
+    .filter(node => node.start <= start && end <= node.end)
+    .filter(node => node.end - node.start <= Math.max(PRUNED_MODEL_FILE_CHARS, DIRECT_RELATED_CHARS * 2))
+    .sort((a, b) => b.rank - a.rank || (a.end - a.start) - (b.end - b.start));
+  return candidates[0] || null;
+}
+
+function callRangeForIndex(text, index, ranges) {
+  const content = String(text || '');
+  const parens = (ranges || [])
+    .filter(range => range.type === '()' && range.start <= index && index < range.end)
+    .sort((a, b) => (a.end - a.start) - (b.end - b.start));
+  for (const range of parens) {
+    const prefix = content.slice(Math.max(0, range.start - 80), range.start);
+    const calleeMatch = prefix.match(/([A-Za-z_$][\w$.\])]*\s*)$/);
+    if (!calleeMatch) continue;
+    if (range.end - range.start > DIRECT_RELATED_CHARS * 2) continue;
+    return includeDeclarationPrefix(content, {
+      ...range,
+      start: range.start - calleeMatch[1].length,
+    });
+  }
+  return null;
+}
+
+function enclosingSyntaxRange(text, index) {
+  const content = String(text || '');
+  if (!content || index < 0) return null;
+  const markupRange = markupTagRangeAt(content, index);
+  if (markupRange) return markupRange;
+  const lineStart = content.lastIndexOf('\n', index) + 1;
+  const lineEndIndex = content.indexOf('\n', index);
+  const lineEnd = lineEndIndex === -1 ? content.length : lineEndIndex;
+  const lineRange = { start: lineStart, end: lineEnd, type: 'line' };
+  const ranges = [
+    ...pairedRanges(content, '{', '}'),
+    ...pairedRanges(content, '[', ']'),
+    ...pairedRanges(content, '(', ')'),
+  ]
+    .filter(range => range.start <= index && index < range.end)
+    .sort((a, b) => (a.end - a.start) - (b.end - b.start));
+  const callRange = callRangeForIndex(content, index, ranges);
+  if (callRange) return callRange;
+  const syntaxRange = ranges.find(range => range.end - range.start <= DIRECT_RELATED_CHARS * 2) || ranges[0];
+  if (!syntaxRange) return lineRange;
+  return includeDeclarationPrefix(content, syntaxRange);
+}
+
+function includeDeclarationPrefix(content, range) {
+  const source = String(content || '');
+  if (!range || range.start <= 0) return range;
+  let start = range.start;
+  let cursor = start - 1;
+  for (let depth = 0; depth < 4 && cursor >= 0; depth++) {
+    const lineStart = source.lastIndexOf('\n', cursor) + 1;
+    const fragment = source.slice(lineStart, start);
+    const trimmed = fragment.trim();
+    if (!trimmed) {
+      cursor = lineStart - 2;
+      continue;
+    }
+    const looksLikeDeclaration = /(?:\b(?:export\s+)?(?:const|let|var|return|function|class)\b|=\s*$|:\s*$|=>\s*$)/.test(trimmed);
+    if (!looksLikeDeclaration) break;
+    start = lineStart;
+    cursor = lineStart - 2;
+  }
+  return { ...range, start };
+}
+
+function mergeRanges(ranges) {
+  const sorted = ranges
+    .filter(range => range && range.end > range.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged = [];
+  for (const range of sorted) {
+    const last = merged[merged.length - 1];
+    if (!last || range.start > last.end) {
+      merged.push({ ...range });
+      continue;
+    }
+    last.end = Math.max(last.end, range.end);
+  }
+  return merged.slice(0, MAX_MODEL_FILES);
+}
+
 function candidateHitForFile(body, filePath) {
-  const normalized = String(filePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const normalized = normalizeModelFilePath(filePath);
   const pools = [
     body.selectedCandidateHits || [],
     body.candidateHits || [],
@@ -194,6 +744,101 @@ function candidateHitForFile(body, filePath) {
     if (hit) return hit;
   }
   return null;
+}
+
+function routeEntryFiles(body) {
+  const hits = Array.isArray(body?.routeResolver?.hits) ? body.routeResolver.hits : [];
+  return uniq(hits
+    .map(hit => normalizeModelFilePath(hit?.file))
+    .filter(Boolean))
+    .slice(0, 4);
+}
+
+function hitStages(hit) {
+  return uniq([...(hit?.stages || []), hit?.stage].filter(Boolean));
+}
+
+function isPageScopedHit(hit, routeEntries) {
+  if (!hit?.file || !routeEntries?.length) return true;
+  const file = normalizeModelFilePath(hit.file);
+  const routeSet = new Set(routeEntries);
+  if (routeSet.has(file)) return true;
+  const chain = (hit.importChain || []).map(normalizeModelFilePath).filter(Boolean);
+  if (chain.some(item => routeSet.has(item))) return true;
+  if (routeSet.has(normalizeModelFilePath(hit.anchorFile))) return true;
+  return hitStages(hit).includes('route-import-chain');
+}
+
+function hasStrongSelectionEvidence(hit) {
+  if (!hit) return false;
+  if (hit.preciseEvidence || hit.uniqueMatchText) return true;
+  if ((hit.contextScore || 0) >= 42 && (hit.contextStrongMatchCount || 0) >= 2) return true;
+  if ((hit.contextScore || 0) >= 34 && (hit.contextReasons || []).some(reason => /资源线索|className|样式|属性/.test(reason))) return true;
+  if ((hit.contextScore || 0) >= 24 && (hit.contextReasons || []).some(reason => /className/.test(reason))) return true;
+  if ((hit.exactMatchCount || 0) === 1 && (hit.contextScore || 0) >= 18) return true;
+  return false;
+}
+
+function modelCandidateHits(body, logs) {
+  const routeEntries = body?.routeResolver?.matched ? routeEntryFiles(body) : [];
+  const selectedSet = new Set((body.selectedCandidateHits || []).map(hit => normalizeModelFilePath(hit?.file)).filter(Boolean));
+  const merged = [];
+  const skipped = [];
+  const seen = new Set();
+  const push = (hit, source) => {
+    const file = normalizeModelFilePath(hit?.file);
+    if (!file || seen.has(file)) return;
+    const normalizedHit = { ...hit, file };
+    const pageScoped = isPageScopedHit(normalizedHit, routeEntries);
+    const strong = hasStrongSelectionEvidence(normalizedHit);
+    const routeEntry = routeEntries.includes(file);
+    if (routeEntries.length && !pageScoped && !strong && !routeEntry) {
+      skipped.push(file);
+      return;
+    }
+    seen.add(file);
+    merged.push({
+      ...normalizedHit,
+      modelCandidateSource: source,
+      pageScoped,
+      strongSelectionEvidence: strong,
+      selectedForModel: selectedSet.has(file),
+    });
+  };
+
+  if (routeEntries.length) {
+    for (const file of routeEntries) {
+      push(candidateHitForFile(body, file) || {
+        file,
+        score: 0,
+        stage: 'route-resolver',
+        stages: ['route-resolver'],
+        reasons: ['页面源码入口'],
+      }, 'route-entry');
+    }
+  }
+  for (const hit of body.selectedCandidateHits || []) push(hit, 'selected');
+  for (const hit of body.candidateHits || []) {
+    if (!routeEntries.length && !isSelectionMatchedHit(hit)) continue;
+    if (routeEntries.length && !isSelectionMatchedHit(hit) && !isPageScopedHit(hit, routeEntries)) continue;
+    push(hit, 'candidate');
+  }
+
+  if (routeEntries.length && Array.isArray(logs)) {
+    appendLog(logs, `页面源码范围：${routeEntries.join('，')}；模型只读取页面入口、页面 import 链路或强选区证据候选`);
+    if (skipped.length) {
+      appendLog(logs, `页面范围过滤：跳过 ${uniq(skipped).length} 个弱关联候选：${uniq(skipped).slice(0, 8).join('；')}`);
+    }
+  }
+  return merged;
+}
+
+function isSelectionMatchedHit(hit) {
+  if (!hit || !hit.file) return false;
+  if (hit.preciseEvidence || hit.exactMatchText || hit.uniqueMatchText) return true;
+  if ((hit.contextScore || 0) > 0 || (hit.contextStrongMatchCount || 0) > 0) return true;
+  if ((hit.contextReasons || []).length) return true;
+  return (hit.stages || [hit.stage].filter(Boolean)).includes('keyword');
 }
 
 function buildExcerptNeedles(payload, hit) {
@@ -216,6 +861,16 @@ function buildExcerptNeedles(payload, hit) {
     for (const token of tokenize(info.className).slice(0, 8)) {
       addNeedle(map, token, 72, '选区 class token');
     }
+    for (const seed of resourceSeedValuesFromInfo(info).slice(0, 12)) {
+      addNeedle(map, seed, weakSelectionSeed(seed) ? 24 : 96, '选区图片/资源线索');
+    }
+    addSubtreeNeedles(map, info.subtree, '选区向下', {
+      classWeight: 76,
+      textWeight: 92,
+      attrWeight: 68,
+      styleWeight: 48,
+      resourceWeight: 82,
+    });
 
     for (const ancestor of (info.ancestors || []).slice(0, 4)) {
       addNeedle(map, ancestor?.text, 84, '父级文案');
@@ -223,6 +878,16 @@ function buildExcerptNeedles(payload, hit) {
       for (const token of tokenize(ancestor?.className).slice(0, 6)) {
         addNeedle(map, token, 48, '父级 class token');
       }
+      for (const seed of resourceSeedValuesFromInfo(ancestor).slice(0, 8)) {
+        addNeedle(map, seed, weakSelectionSeed(seed) ? 18 : 64, '父级图片/资源线索');
+      }
+      addSubtreeNeedles(map, ancestor?.subtree, '父级向下', {
+        classWeight: 50,
+        textWeight: 68,
+        attrWeight: 44,
+        styleWeight: 30,
+        resourceWeight: 54,
+      });
     }
 
     const widthValues = uniq([
@@ -252,6 +917,16 @@ function buildExcerptNeedles(payload, hit) {
       addNeedle(map, `objectFit: "${style.objectFit}"`, 82, 'objectFit');
       addNeedle(map, `object-fit: ${style.objectFit}`, 72, 'object-fit');
     }
+    if (style.backgroundImage && style.backgroundImage !== 'none') {
+      addNeedle(map, 'backgroundImage', 72, 'backgroundImage');
+      addNeedle(map, 'background-image', 72, 'background-image');
+      addNeedle(map, 'background', 58, 'background');
+      addNeedle(map, 'image', 44, 'background image');
+    }
+    if (style.backgroundSize) {
+      addNeedle(map, `backgroundSize: '${style.backgroundSize}'`, 58, 'backgroundSize');
+      addNeedle(map, `background-size: ${style.backgroundSize}`, 52, 'background-size');
+    }
     if (style.borderRadius) {
       addNeedle(map, `borderRadius: '${style.borderRadius}'`, 66, 'borderRadius');
       addNeedle(map, `borderRadius: "${style.borderRadius}"`, 66, 'borderRadius');
@@ -259,9 +934,11 @@ function buildExcerptNeedles(payload, hit) {
     }
 
     if (tag === 'img') {
+      addNeedle(map, 'NImage', 134, '图片组件');
+      addNeedle(map, 'h(NImage', 136, '图片 render 组件');
       addNeedle(map, `h('img'`, 118, 'img render');
       addNeedle(map, '<img', 108, 'img tag');
-      addNeedle(map, 'n-image', 44, 'img wrapper');
+      addNeedle(map, 'n-image', 96, 'img wrapper');
     }
   }
 
@@ -375,41 +1052,376 @@ function pickRelevantExcerpt(text, payload, hit, maxChars) {
   };
 }
 
-function fileContentChunks(project, filePath, textCache) {
+function parseMarkupTagAt(content, index) {
+  if (content[index] !== '<') return null;
+  if (content.startsWith('<!--', index)) {
+    const end = content.indexOf('-->', index + 4);
+    return {
+      end: end === -1 ? content.length - 1 : end + 2,
+      type: 'comment',
+    };
+  }
+  if (content[index + 1] === '!' || content[index + 1] === '?') {
+    const end = content.indexOf('>', index + 1);
+    return {
+      end: end === -1 ? content.length - 1 : end,
+      type: 'meta',
+    };
+  }
+  let quote = '';
+  let escaped = false;
+  let braceDepth = 0;
+  let tagEnd = -1;
+  for (let cursor = index + 1; cursor < content.length; cursor++) {
+    const char = content[cursor];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === '\'' || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === '{') {
+      braceDepth++;
+      continue;
+    }
+    if (char === '}') {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === '>' && braceDepth === 0) {
+      tagEnd = cursor;
+      break;
+    }
+  }
+  if (tagEnd === -1) return null;
+  const raw = content.slice(index, tagEnd + 1);
+  const match = raw.match(/^<\/?\s*([A-Za-z][\w:.-]*)\b/);
+  if (!match) return null;
+  const name = String(match[1] || '').toLowerCase();
+  const closing = /^<\//.test(raw);
+  const selfClosing = /\/\s*>$/.test(raw) || VOID_TAGS.has(name);
+  return {
+    start: index,
+    end: tagEnd,
+    type: 'tag',
+    name,
+    closing,
+    selfClosing,
+  };
+}
+
+function cleanModelSymbol(value) {
+  const symbol = String(value || '').trim();
+  if (!/^[A-Za-z_$][\w$]*$/.test(symbol)) return '';
+  if (symbol.length < 3 || symbol.length > 80) return '';
+  if (GENERIC_MODEL_SYMBOLS.has(symbol.toLowerCase())) return '';
+  return symbol;
+}
+
+function symbolsFromText(value, limit = 18) {
+  const result = [];
+  const seen = new Set();
+  const regex = /\b[A-Za-z_$][\w$]*\b/g;
+  let match;
+  while ((match = regex.exec(String(value || ''))) && result.length < limit) {
+    const symbol = cleanModelSymbol(match[0]);
+    if (!symbol || seen.has(symbol)) continue;
+    seen.add(symbol);
+    result.push(symbol);
+  }
+  return result;
+}
+
+function importLinesForSymbols(text, symbols) {
+  const symbolSet = new Set((symbols || []).map(cleanModelSymbol).filter(Boolean));
+  return String(text || '')
+    .split('\n')
+    .filter(line => /^\s*import\b/.test(line) || /^\s*(?:const|let|var)\s+\{?[^=]*\}?\s*=\s*require\s*\(/.test(line))
+    .filter(line => {
+      if (!symbolSet.size) return true;
+      return [...symbolSet].some(symbol => line.includes(symbol));
+    })
+    .slice(0, 24)
+    .join('\n');
+}
+
+function directDefinitionExcerpt(text, symbol, maxChars = DIRECT_RELATED_CHARS) {
+  const content = String(text || '');
+  const name = cleanModelSymbol(symbol);
+  if (!content || !name) return '';
+  const patterns = [
+    new RegExp(`\\b(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s+${escapeRegExp(name)}\\s*\\(`),
+    new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${escapeRegExp(name)}\\b`),
+    new RegExp(`\\bclass\\s+${escapeRegExp(name)}\\b`),
+    new RegExp(`\\b${escapeRegExp(name)}\\s*:\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>|[A-Za-z_$][\\w$]*\\s*=>|[\\[{])`),
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(content);
+    if (!match) continue;
+    const structuralIndex = findDefinitionStructuralIndex(content, match.index + match[0].length);
+    const range = structuralIndex === -1
+      ? enclosingSyntaxRange(content, match.index)
+      : enclosingSyntaxRange(content, structuralIndex);
+    const textBlock = range
+      ? content.slice(range.start, range.end).trim()
+      : completeLineAt(content, match.index);
+    return textBlock;
+  }
+  return '';
+}
+
+function findDefinitionStructuralIndex(content, fromIndex) {
+  const source = String(content || '');
+  const window = source.slice(fromIndex, Math.min(source.length, fromIndex + 1200));
+  const structural = ['{', '[']
+    .map(char => {
+      const index = window.indexOf(char);
+      return index === -1 ? -1 : fromIndex + index + 1;
+    })
+    .filter(index => index >= 0)
+    .sort((a, b) => a - b);
+  if (structural.length) return structural[0];
+  const paren = window.indexOf('(');
+  return paren === -1 ? -1 : fromIndex + paren + 1;
+}
+
+function completeLineAt(content, index) {
+  const source = String(content || '');
+  const start = source.lastIndexOf('\n', index) + 1;
+  const endIndex = source.indexOf('\n', index);
+  const end = endIndex === -1 ? source.length : endIndex;
+  return source.slice(start, end).trim();
+}
+
+function styleSeedValuesFromInfo(info) {
+  const style = info?.computedStyle || {};
+  return uniq([
+    sanitizeModelInlineStyle(info?.inlineStyle),
+    style.objectFit,
+    style.borderRadius,
+    style.backgroundSize,
+    style.backgroundPosition,
+    style.backgroundRepeat,
+    ...(style.backgroundImage && style.backgroundImage !== 'none' ? ['background-image', 'backgroundImage', 'background', 'image'] : []),
+    ...resourceSeedValuesFromInfo(info),
+  ]
+    .map(value => String(value || '').replace(/\s+/g, ' ').trim())
+    .filter(value => value.length >= 3 && value.length <= 180 && value !== '[present]' && !/^\d+(?:px)?$/i.test(value)))
+    .slice(0, 24);
+}
+
+function selectionAnchorSeeds(payload) {
+  return uniq((payload?.selections || [])
+    .flatMap(selection => {
+      const infos = [
+        selection?.element,
+        selection?.asset,
+        ...(selection?.element?.ancestors || []),
+      ].filter(Boolean);
+      return infos.flatMap(info => [
+        info?.text,
+        ...tokenize(info?.text).slice(0, 16),
+        info?.className,
+        ...tokenize(info?.className).slice(0, 10),
+        ...Object.values(info?.attrs || {}),
+        ...styleSeedValuesFromInfo(info),
+      ]);
+    })
+    .map(value => String(value || '').replace(/\s+/g, ' ').trim())
+    .filter(value => value.length >= 2 && value.length <= 180 && value !== '[present]' && !/^\d+(?:px)?$/i.test(value)))
+    .slice(0, 48);
+}
+
+function completeRangeText(content, range) {
+  const source = String(content || '');
+  if (!range || range.end <= range.start) return '';
+  return source.slice(Math.max(0, range.start), Math.min(source.length, range.end)).trim();
+}
+
+function weightedAnchorSeeds(hit, payload, needles) {
+  const map = new Map();
+  const add = (seed, weight, label) => {
+    const raw = String(seed || '').trim();
+    const text = /片段/.test(String(label || '')) ? raw : raw.replace(/\s+/g, ' ').trim();
+    if (!text || text === '[present]' || text.length < 2) return;
+    const key = text.toLowerCase();
+    const old = map.get(key);
+    if (!old || old.weight < weight) {
+      map.set(key, { text, weight, label });
+    }
+  };
+
+  add(hit?.preciseSnippet, 1000, '本地精准片段');
+  add(hit?.uniqueSnippet, 940, '本地唯一片段');
+  add(hit?.snippet, 820, '候选片段');
+  add(hit?.exactMatchText, 760, '精确文案');
+  add(hit?.uniqueMatchText, 740, '唯一文案');
+
+  for (const seed of selectionAnchorSeeds(payload)) {
+    add(seed, weakSelectionSeed(seed) ? 18 : 420, '选区结构化证据');
+  }
+  for (const item of needles || []) {
+    add(item.needle, item.weight || 0, item.label || '检索锚点');
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => b.weight - a.weight || b.text.length - a.text.length)
+    .slice(0, 80);
+}
+
+function pruneFileForModel(project, filePath, hit, payload, textCache) {
   const file = projectFile(project, filePath);
-  if (!file || !isTextFile(file.path)) return [];
+  if (!file || !isTextFile(file.path)) return null;
+  const rawText = readProjectText(project, file, textCache || new Map());
+  if (!rawText) return null;
+  const astNodes = parseSourceAstNodes(file.path, rawText);
+  const needles = buildExcerptNeedles(payload, hit);
+  const seedItems = weightedAnchorSeeds(hit, payload, needles);
+
+  const anchors = [];
+  const seenAnchors = new Set();
+  const addAnchor = (index, length, seed) => {
+    if (index < 0) return;
+    const key = `${index}:${length}`;
+    if (seenAnchors.has(key)) return;
+    seenAnchors.add(key);
+    anchors.push({
+      index,
+      length: Math.max(1, length || 1),
+      needle: seed.text,
+      weight: seed.weight || 0,
+      label: seed.label || '',
+    });
+  };
+
+  for (const seed of seedItems) {
+    const useSnippetSearch = seed.text.length > 220 || seed.text.includes('\n');
+    if (useSnippetSearch) {
+      const index = findSnippetIndex(rawText, seed.text);
+      addAnchor(index, String(seed.text).trim().length || 1, seed);
+      continue;
+    }
+    const limit = weakSelectionSeed(seed.text) ? 4 : 10;
+    for (const item of findAllNeedleIndexes(rawText, seed.text, limit)) {
+      addAnchor(item.index, item.length, seed);
+    }
+  }
+
+  const sortedAnchors = anchors
+    .sort((a, b) => b.weight - a.weight || b.length - a.length || a.index - b.index)
+  const nodeAnchors = sortedAnchors
+    .filter(anchor => anchor.weight >= 90 || !weakSelectionSeed(anchor.needle));
+  const anchorRanges = mergeRanges((nodeAnchors.length ? nodeAnchors : sortedAnchors.slice(0, 12))
+    .slice(0, 48)
+    .map(anchor => {
+      const astRange = astNodeRangeForAnchor(astNodes, anchor);
+      const syntaxRange = astRange || enclosingSyntaxRange(rawText, anchor.index);
+      return syntaxRange || { start: anchor.index, end: anchor.index + anchor.length };
+    }));
+  let anchorText = '';
+  let skippedCompleteBlocks = 0;
+  if (anchorRanges.length) {
+    const anchorBlocks = [];
+    let anchorSize = 0;
+    for (const [index, range] of anchorRanges.entries()) {
+      const excerpt = completeRangeText(rawText, range);
+      if (!excerpt) continue;
+      const block = `// anchor ${index + 1}: complete syntax unit around matched selection evidence\n${excerpt}`;
+      if (!anchorBlocks.length || anchorSize + block.length <= PRUNED_MODEL_FILE_CHARS) {
+        anchorBlocks.push(block);
+        anchorSize += block.length;
+      } else {
+        skippedCompleteBlocks++;
+      }
+    }
+    anchorText = anchorBlocks.join('\n\n');
+  } else {
+    anchorText = rawText;
+  }
+  const directSymbols = symbolsFromText(anchorText, 18);
+  const importText = importLinesForSymbols(rawText, directSymbols);
+  const directBlocks = [];
+  for (const symbol of directSymbols.slice(0, 10)) {
+    const block = directDefinitionExcerpt(rawText, symbol, 2800);
+    if (block && !directBlocks.some(item => item.includes(block.slice(0, 80)))) {
+      directBlocks.push(block);
+    }
+  }
+  const sections = [
+  ];
+  let textSize = 0;
+  const pushSection = (title, body, required = false) => {
+    const value = String(body || '').trim();
+    if (!value) return;
+    const section = `${title}\n${value}`;
+    if (required || !sections.length || textSize + section.length <= PRUNED_MODEL_FILE_CHARS) {
+      sections.push(section);
+      textSize += section.length;
+    } else {
+      skippedCompleteBlocks++;
+    }
+  };
+  pushSection('// imports directly related to visible symbols', importText);
+  pushSection('// selection/code anchor', anchorText, true);
+  for (const block of directBlocks) {
+    pushSection('// one-hop direct definition/usage', block);
+  }
+  let text = sections.join('\n\n');
+  if (skippedCompleteBlocks) {
+    text = `${text}\n\n// pruned ${skippedCompleteBlocks} additional complete syntax unit(s) after budget`;
+  }
+  return {
+    file: file.path,
+    text,
+    mode: 'pruned-chain',
+    note: '多候选未敲定：按 AST/结构节点保留选区命中、相关 import 和一层直接关系代码，未保留内容按整节点剔除',
+    rawLength: rawText.length,
+    tokenEstimate: estimateModelTokens(text),
+    chunkIndex: 1,
+    chunkTotal: 1,
+    start: 0,
+    end: rawText.length,
+  };
+}
+
+function estimateModelTokens(value) {
+  return Math.max(1, Math.ceil(String(value || '').length / TOKEN_ESTIMATE_CHARS));
+}
+
+function fileContentBlock(project, filePath, textCache) {
+  const file = projectFile(project, filePath);
+  if (!file || !isTextFile(file.path)) return null;
   const rawText = readProjectText(project, file, textCache || new Map());
   if (!rawText) {
-    return [{
+    return {
       file: file.path,
       text: '',
       mode: 'full',
       note: '空文件',
       rawLength: 0,
+      tokenEstimate: 1,
       chunkIndex: 1,
       chunkTotal: 1,
       start: 0,
       end: 0,
-    }];
+    };
   }
-  const chunkTotal = Math.max(1, Math.ceil(rawText.length / MAX_MODEL_FILE_CHUNK_CHARS));
-  const chunks = [];
-  for (let index = 0; index < chunkTotal; index++) {
-    const start = index * MAX_MODEL_FILE_CHUNK_CHARS;
-    const end = Math.min(rawText.length, start + MAX_MODEL_FILE_CHUNK_CHARS);
-    chunks.push({
-      file: file.path,
-      text: rawText.slice(start, end),
-      mode: chunkTotal === 1 ? 'full' : 'chunk',
-      note: chunkTotal === 1 ? '文件完整纳入当前批次' : `文件连续分片 ${index + 1}/${chunkTotal}`,
-      rawLength: rawText.length,
-      chunkIndex: index + 1,
-      chunkTotal,
-      start,
-      end,
-    });
-  }
-  return chunks;
+  return {
+    file: file.path,
+    text: rawText,
+    mode: 'full',
+    note: '完整文件纳入模型请求；文件内部不切片',
+    rawLength: rawText.length,
+    tokenEstimate: estimateModelTokens(rawText),
+    chunkIndex: 1,
+    chunkTotal: 1,
+    start: 0,
+    end: rawText.length,
+  };
 }
 
 function collectModelFiles(project, body, textCache, logs) {
@@ -423,20 +1435,57 @@ function collectModelFiles(project, body, textCache, logs) {
     files.push(normalized);
   };
 
-  for (const item of body.selectedCandidateHits || []) add(item.file);
-  for (const item of body.candidateHits || []) add(item.file);
-  for (const item of body.routeResolver?.hits || []) add(item.file);
+  const modelHits = modelCandidateHits(body, logs);
+  for (const item of modelHits) {
+    add(item.file);
+  }
   for (const item of body.extraFiles || []) add(item);
 
   const blocks = [];
+  const multiCandidateMode = modelHits.length > 1;
+  const localMap = multiCandidateMode ? localCandidateMap(body) : new Map();
   for (const file of files.slice(0, MAX_MODEL_FILES)) {
-    const chunks = fileContentChunks(project, file, textCache);
-    if (!chunks.length) continue;
-    blocks.push(...chunks);
-    appendLog(logs, `读取候选文件：${file}（原始 ${chunks[0].rawLength} 字符；分片 ${chunks.length} 个；单片上限 ${MAX_MODEL_FILE_CHUNK_CHARS} 字符）`);
+    const pruned = multiCandidateMode
+      ? pruneFileForModel(project, file, localMap.get(file) || candidateHitForFile(body, file) || { file }, body.searchPayload || {}, textCache)
+      : null;
+    const block = pruned || fileContentBlock(project, file, textCache);
+    if (!block) continue;
+    block.tokenEstimate = block.tokenEstimate || estimateModelTokens(block.text);
+    blocks.push(block);
+    appendLog(logs, pruned
+      ? `读取候选文件：${file}（原始 ${block.rawLength} 字符；AST 剪枝后 ${block.text.length} 字符；估算 ${block.tokenEstimate} tokens；文件不切片）`
+      : `读取候选文件：${file}（完整 ${block.rawLength} 字符；估算 ${block.tokenEstimate} tokens；文件不切片）`);
   }
-  appendLog(logs, `候选文件内容：纳入 ${blocks.length} 个源码分片 / ${files.length} 个候选文件；不会在文件内部使用省略截断`);
+  appendLog(logs, multiCandidateMode
+    ? `候选文件内容：纳入 ${blocks.length} 个 AST 剪枝文件 / ${files.length} 个候选文件；每个文件作为不可拆 block 分批`
+    : `候选文件内容：纳入 ${blocks.length} 个完整文件 / ${files.length} 个候选文件；每个文件作为不可拆 block 分批`);
   return blocks;
+}
+
+function compactSubtreeSummary(subtree) {
+  if (!subtree || typeof subtree !== 'object') return null;
+  const attrs = (subtree.attrs || []).slice(0, 12).map(item => ({
+    tag: item?.tag || '',
+    className: item?.className || '',
+    key: item?.key || '',
+    value: compact(item?.value || '', 160),
+  }));
+  const styles = (subtree.styles || []).slice(0, 10).map(item => ({
+    tag: item?.tag || '',
+    className: item?.className || '',
+    style: Object.fromEntries(
+      Object.entries(item?.style || {})
+        .slice(0, 8)
+        .map(([key, value]) => [key, compact(value, 120)])
+    ),
+  }));
+  return {
+    nodeCount: subtree.nodeCount || 0,
+    class: (subtree.classNames || []).slice(0, 20),
+    text: (subtree.texts || []).slice(0, 12).map(text => compact(text, 160)),
+    attrs,
+    style: styles,
+  };
 }
 
 function selectionSummary(searchPayload) {
@@ -460,27 +1509,44 @@ function selectionSummary(searchPayload) {
       className: info.className,
       attrs: info.attrs || {},
       text: compact(info.text, 400),
+      subtree: compactSubtreeSummary(info.subtree),
       inlineStyle: compact(info.inlineStyle, 220),
       style: {
         width: styleSignals.width || '',
         height: styleSignals.height || '',
         objectFit: styleSignals.objectFit || '',
-        borderRadius: styleSignals.borderRadius || ''
+        borderRadius: styleSignals.borderRadius || '',
+        backgroundImage: compact(styleSignals.backgroundImage || '', 220),
+        backgroundSize: styleSignals.backgroundSize || '',
+        backgroundPosition: styleSignals.backgroundPosition || ''
       },
       box: info.box || null,
-      assetContext: {
+      expandedContext: {
         tag: asset.tag || '',
         selector: asset.selector || '',
         className: asset.className || '',
         text: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(asset.text, 120) : '',
         width: assetStyleSignals.width || '',
         height: assetStyleSignals.height || '',
+        backgroundImage: compact(assetStyleSignals.backgroundImage || '', 220),
         box: asset.box || null
       },
       ancestors: (info.ancestors || []).slice(0, 4).map(ancestor => ({
         tag: ancestor.tag,
+        selector: ancestor.selector || '',
         className: ancestor.className,
+        attrs: ancestor.attrs || {},
         text: compact(ancestor.text, 220),
+        inlineStyle: compact(ancestor.inlineStyle, 160),
+        subtree: compactSubtreeSummary(ancestor.subtree),
+        style: ancestor.computedStyle ? {
+          width: ancestor.computedStyle.width || '',
+          height: ancestor.computedStyle.height || '',
+          display: ancestor.computedStyle.display || '',
+          position: ancestor.computedStyle.position || '',
+          backgroundImage: compact(ancestor.computedStyle.backgroundImage || '', 180),
+        } : {},
+        box: ancestor.box || null,
       })),
     };
   });
@@ -496,6 +1562,26 @@ function apiReferenceSummary(candidateHits) {
       from: hit.apiEvidenceFrom || [],
       reasons: (hit.apiEvidenceReasons || []).slice(0, 6),
     }));
+}
+
+function apiTraceSummary(trace) {
+  if (!trace || !Array.isArray(trace.endpoints)) return [];
+  return trace.endpoints.slice(0, 5).map(endpoint => ({
+    path: endpoint.path || '',
+    method: endpoint.method || '',
+    requestKeys: endpoint.requestKeys || [],
+    symbols: endpoint.symbols || [],
+    files: (endpoint.files || []).slice(0, 6).map(file => ({
+      file: file.file,
+      symbols: file.symbols || [],
+    })),
+    chains: (endpoint.chains || []).slice(0, 8).map(chain => ({
+      file: chain.file,
+      symbol: chain.symbol || '',
+      chain: chain.chain || [],
+      stage: chain.stage || '',
+    })),
+  }));
 }
 
 function selectionTextReferences(searchPayload) {
@@ -536,7 +1622,7 @@ function routeResolverSummary(trace) {
 }
 
 function candidateFactsSummary(candidateHits) {
-  return (candidateHits || []).slice(0, 12).map(hit => ({
+  return (candidateHits || []).slice(0, 30).map(hit => ({
     file: hit.file,
     score: hit.score,
     stage: hit.stage,
@@ -555,8 +1641,8 @@ function candidateFactsSummary(candidateHits) {
 function mergedCandidateFacts(body) {
   const merged = [];
   const seen = new Set();
-  for (const hit of [...(body.selectedCandidateHits || []), ...(body.candidateHits || [])]) {
-    const file = String(hit?.file || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  for (const hit of modelCandidateHits(body)) {
+    const file = normalizeModelFilePath(hit?.file);
     if (!file || seen.has(file)) continue;
     seen.add(file);
     merged.push(hit);
@@ -568,42 +1654,61 @@ function mergeList(...lists) {
   return uniq(lists.flatMap(list => Array.isArray(list) ? list : [list]).filter(Boolean));
 }
 
+function previousModelClues(previousItems) {
+  return (previousItems || []).slice(0, 6).map(item => ({
+    file: item.file,
+    confidence: item.confidence || 0,
+    selectionEvidenceScore: item.selectionEvidenceScore || 0,
+    prompt: compact(item.prompt || item.reason || '', 320),
+    code片段: clipText(item.codeSnippet || '', 1200),
+  }));
+}
+
 function buildModelPrompt(project, body, textCache, logs, options = {}) {
   const payload = body.searchPayload || {};
   const files = options.files || collectModelFiles(project, body, textCache, logs);
   const apiRequests = Array.isArray(payload.apiRequests) ? payload.apiRequests : [];
   const routeSummary = routeResolverSummary(body.routeResolver);
+  const apiTraceFacts = apiTraceSummary(body.apiTrace);
   const candidateFacts = candidateFactsSummary(mergedCandidateFacts(body));
   const batchIndex = Math.max(1, Number(options.batchIndex || 1));
   const batchTotal = Math.max(batchIndex, Number(options.batchTotal || 1));
   const previousItems = Array.isArray(options.previousItems) ? options.previousItems : [];
-  const batchFiles = files.map(file => {
-    return file.chunkTotal > 1
-      ? `${file.file}#chunk-${file.chunkIndex}/${file.chunkTotal}`
-      : file.file;
-  });
+  const batchFiles = files.map(file => ({
+    file: file.file,
+    mode: file.mode || 'full',
+    tokenEstimate: file.tokenEstimate || estimateModelTokens(file.text || ''),
+    chars: String(file.text || '').length,
+  }));
 
   return [
-    '你是本地源码定位 agent。你的任务是在本地预检索结果基础上，进一步判断最应该修改的源码文件。',
+    '你是本地源码定位 agent。你的任务是阅读当前批次的候选源码文件，理解当前选区在页面上的语义、区域和用户需求，判断哪段源码最可能生成或控制这个 UI。',
     '',
     '判断规则：',
-    '- 必须优先结合当前选区本身的证据：tag、selector、className、节点属性、inline style、宽高、父级线索、修改要求。',
-    '- 如果选区是 img、icon、纯视觉节点或文本为空，不要依赖页面文案，优先根据 className、selector、src、宽高、inline style 去判断。',
-    '- 页面路由命中文件只是入口线索；如果入口只是容器或页面壳子，需要继续判断更具体的子组件或列渲染位置。',
-    '- 不要因为页面入口文件包含 table columns、列表配置或路由组件，就直接认定它是最终修改文件；除非选区证据明确落在该文件。',
-    '- 接口线索只作为辅助，不得覆盖当前选区的结构化证据。',
+    '- 第一步先理解当前选区和扩大选区上下文：tag、selector、className、属性、src/href/background 图片资源、inline style、computed style、宽高、文案、父级线索、区域文本集合、用户需求。',
+    '- 不要要求源码结构和页面 DOM 结构严格一致。源码可能来自组件封装、配置对象、render 函数、hook、常量映射、props 组合、样式文件或间接引用。',
+    '- 你需要判断源码块在语义、区域、文案集合、class/style/src/background 资源、引用链、接口线索和用户需求上，是否最可能对应当前选区，而不是机械比较 tag/class 层级。',
+    '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
+    '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
+    '- 页面路由、接口线索、本地候选分数只是辅助，不得覆盖当前选区语义证据。',
+    '- 如果命中文案来自常量/配置定义文件，而 importChain 中间文件包含真实组件使用、渲染函数、交互逻辑或样式逻辑，优先返回真实使用文件；只有需求明确修改常量/配置本身时才返回定义文件。',
+    '- 当候选摘要包含 importChain 时，链路文件会一起出现在候选源码中；你需要把链路作为一个整体理解，而不是孤立判断单个文案定义文件。',
     '- 接口线索只会提供请求地址、method 和请求参数字段，不包含响应结果。',
-    `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码；只能依据当前批次源码返回结果。当前批次没有命中就返回 []。`,
-    '- 如果同一个文件被拆成多个 chunk，必须只根据当前 chunk 可见内容判断；需要后续 chunk 才能判断时返回 []。',
-    '- 本轮允许返回多个命中文件；后续批次还会继续读取其他候选文件，最后会再和本地检索结果复核。',
-    '- "code片段" 必须直接摘自候选文件内容，尽量短，足够定位即可；找不到就返回 []。',
+    `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码文件；当前批次没有足够证据时返回 []。`,
+    '- 候选源码由本地系统按 AST/结构节点切分，原则上不会从标签、语句、对象、函数、参数、样式块中间截断。你返回的 "code片段" 也必须是完整闭合源码。',
+    '- 当文件标记为 pruned-chain 时，源码已按 Vue/React/HTML/JS/CSS 结构节点剪枝：选区和扩大选区命中的节点必须完整保留，未保留的内容只会按整节点删除；不要要求看到被剪掉的二层调用链。',
+    '- "code片段" 必须直接摘自当前批次文件内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接。',
+    '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码、需求。',
+    '- 本轮允许返回多个真正涉及改动的文件；不确定、只是疑似、只有孤立文本命中的文件返回 []。',
     '',
     '返回格式必须严格为：',
     '[',
     '  {',
     '    "path": "相对项目根路径",',
-    '    "code片段": "用于定位的源码片段，尽量短，必须来自该文件内容",',
-    '    "提示词": "结合选区对应的修改要求，只描述已确认事实：在哪个文件、哪个位置需要做什么调整；不要猜测 import、http 工具或封装"',
+    '    "code片段": "当前批次文件内容中完整闭合的源码片段，必须连续且原样存在，不允许 ...",',
+    '    "提示词": "页面: ...\\n文件: ...\\n源码:\\n...\\n需求: ...",',
+    '    "confidence": 0-100,',
+    '    "selectionEvidence": { "score": 0-100, "reasons": ["为什么该源码块在语义、区域或引用链上最可能对应当前选区，而不是只命中文案"] }',
     '  }',
     ']',
     '',
@@ -621,18 +1726,15 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     routeSummary ? `路由入口线索:\n${safeJson(routeSummary)}` : '',
     candidateFacts.length ? `候选文件摘要:\n${safeJson(candidateFacts)}` : '',
     apiRequests.length ? `接口线索:\n${safeJson(apiRequests.slice(0, 4))}` : '',
-    previousItems.length ? `前序批次已命中:\n${safeJson(previousItems.slice(0, 6).map(item => ({ file: item.file, prompt: item.prompt || '', confidence: item.confidence || 0 })))}` : '',
+    apiTraceFacts.length ? `接口引用链:\n${safeJson(apiTraceFacts)}` : '',
+    previousItems.length ? `前序批次已确认结果:\n${safeJson(previousModelClues(previousItems))}` : '',
     body.candidateHits?.some(hit => hit && hit.apiEvidence) ? `候选文件接口关联:\n${safeJson(apiReferenceSummary(body.candidateHits || []))}` : '',
     '',
     '候选源码内容：',
     files.map(file => [
-      file.chunkTotal > 1
-        ? `--- FILE: ${file.file} (chunk ${file.chunkIndex}/${file.chunkTotal}, chars ${file.start}-${file.end} of ${file.rawLength}) ---`
-        : `--- FILE: ${file.file} (full, chars 0-${file.rawLength} of ${file.rawLength}) ---`,
+      `--- FILE: ${file.file} (${file.mode || 'full'}, chars ${String(file.text || '').length}, raw ${file.rawLength}, tokens~${file.tokenEstimate || estimateModelTokens(file.text || '')}, ${file.note}) ---`,
       file.text,
-      file.chunkTotal > 1
-        ? `--- END FILE: ${file.file} (chunk ${file.chunkIndex}/${file.chunkTotal}) ---`
-        : `--- END FILE: ${file.file} ---`,
+      `--- END FILE: ${file.file} ---`,
     ].join('\n')).join('\n\n') || '-',
   ].join('\n');
 }
@@ -681,24 +1783,28 @@ function modelOutputItems(parsed) {
       'code片段': item['code片段'] || item['位置'] || item.codeSnippet || item.location || item.snippet || '',
       '提示词': item['提示词'] || item.prompt || item.reason || parsed.summary || '',
       confidence: item.confidence,
+      selectionEvidence: item.selectionEvidence || item.match || item.evidence,
     }));
   }
   return [];
 }
 
-function chunkFileBlocks(blocks, maxChars = MAX_MODEL_BATCH_FILE_CHARS) {
+function chunkFileBlocks(blocks, maxTokens = MAX_MODEL_BATCH_TOKENS, logs = null) {
   const batches = [];
   let current = [];
-  let currentSize = 0;
+  let currentTokens = 0;
   for (const block of blocks || []) {
-    const size = String(block?.text || '').length;
-    if (current.length && currentSize + size > maxChars) {
+    const tokens = block?.tokenEstimate || estimateModelTokens(block?.text || '');
+    if (current.length && currentTokens + tokens > maxTokens) {
       batches.push(current);
       current = [];
-      currentSize = 0;
+      currentTokens = 0;
+    }
+    if (!current.length && tokens > maxTokens) {
+      appendLog(logs, `模型分批：${block.file} 估算 ${tokens} tokens，超过单批预算 ${maxTokens}，将单独请求且不截断文件`);
     }
     current.push(block);
-    currentSize += size;
+    currentTokens += tokens;
   }
   if (current.length) batches.push(current);
   return batches.length ? batches : [[]];
@@ -707,15 +1813,59 @@ function chunkFileBlocks(blocks, maxChars = MAX_MODEL_BATCH_FILE_CHARS) {
 function localCandidateMap(body) {
   const map = new Map();
   for (const hit of [...(body.selectedCandidateHits || []), ...(body.candidateHits || [])]) {
-    if (!hit?.file || map.has(hit.file)) continue;
-    map.set(hit.file, hit);
+    if (!hit?.file) continue;
+    const hitFile = normalizeModelFilePath(hit.file);
+    if (!map.has(hitFile)) map.set(hitFile, { ...hit, file: hitFile });
+    const chain = Array.isArray(hit.importChain) ? hit.importChain : [];
+    if (chain.length <= 1) continue;
+    chain.forEach((file, index) => {
+      const normalized = normalizeModelFilePath(file);
+      if (!normalized || map.has(normalized)) return;
+      map.set(normalized, {
+        file: normalized,
+        score: Math.max(0, (hit.score || 0) - Math.max(12, index * 18)),
+        stage: hit.stage || 'route-import-chain',
+        stages: mergeList(hit.stages || hit.stage, 'import-chain-context'),
+        reasons: mergeList(
+          `引用链路上下文：${chain.join(' -> ')}`,
+          index === chain.length - 1 ? '链路终点命中文件' : '链路中间文件，可能包含真实使用/渲染逻辑',
+          (hit.reasons || []).slice(0, 4)
+        ),
+        contextScore: hit.contextScore || 0,
+        contextReasons: hit.contextReasons || [],
+        preciseEvidence: !!hit.preciseEvidence && index === chain.length - 1,
+      });
+    });
   }
   return map;
 }
 
 function modelItemRank(item) {
   const localScore = Math.min(120, Math.round((item.localScore || 0) / 6));
-  return (item.confidence || 0) + localScore + (item.localPreciseEvidence ? 48 : 0) + (item.snippetVerified ? 18 : 0);
+  const selectionScore = Math.round((item.selectionEvidenceScore || 0) * 0.8);
+  const contextScore = Math.min(80, item.localContextScore || 0);
+  return (item.confidence || 0) + selectionScore + contextScore + localScore + (item.localPreciseEvidence ? 48 : 0) + (item.snippetVerified ? 18 : 0);
+}
+
+function hasRouteOrApiSupport(item) {
+  return (item.localStages || []).some(stage => {
+    return stage === 'route'
+      || stage === 'route-import-chain'
+      || stage === 'import-chain'
+      || stage === 'import-chain-context'
+      || stage === 'api-endpoint'
+      || stage === 'api-usage'
+      || stage === 'api-upstream';
+  });
+}
+
+function modelItemAccepted(item) {
+  if (!item?.exists || !item.snippetVerified || !item.codeSnippet) return false;
+  if (item.localPreciseEvidence) return true;
+  if ((item.localContextScore || 0) >= 42) return true;
+  if ((item.selectionEvidenceScore || 0) >= 70) return true;
+  if (hasRouteOrApiSupport(item) && (item.confidence || 0) >= 70 && (item.selectionEvidenceScore || 0) >= 45) return true;
+  return false;
 }
 
 function reconcileModelItems(items, body) {
@@ -732,6 +1882,7 @@ function reconcileModelItems(items, body) {
       localStages: mergeList(local?.stages || local?.stage, item.localStages || []),
       localReasons: mergeList((local?.reasons || []).slice(0, 6), item.localReasons || []),
       localContextReasons: mergeList((local?.contextReasons || []).slice(0, 4), item.localContextReasons || []),
+      localContextScore: Math.max(local?.contextScore || 0, item.localContextScore || 0),
     };
     const old = merged.get(item.file);
     if (!old || modelItemRank(enriched) > modelItemRank(old)) {
@@ -750,11 +1901,24 @@ function reconcileModelItems(items, body) {
       localStages: mergeList(old.localStages || [], enriched.localStages || []),
       localReasons: mergeList(old.localReasons || [], enriched.localReasons || []),
       localContextReasons: mergeList(old.localContextReasons || [], enriched.localContextReasons || []),
+      localContextScore: Math.max(old.localContextScore || 0, enriched.localContextScore || 0),
+      selectionEvidenceScore: Math.max(old.selectionEvidenceScore || 0, enriched.selectionEvidenceScore || 0),
+      selectionEvidenceReasons: mergeList(old.selectionEvidenceReasons || [], enriched.selectionEvidenceReasons || []),
     });
   }
 
   return Array.from(merged.values())
     .sort((a, b) => modelItemRank(b) - modelItemRank(a));
+}
+
+function exactSnippetIndex(text, snippet) {
+  const content = String(text || '');
+  const raw = String(snippet || '').trim();
+  if (!content || !raw) return -1;
+  if (raw.includes('...<omitted') || raw.includes('<omitted')) return -1;
+  const direct = content.indexOf(raw);
+  if (direct !== -1) return direct;
+  return content.replace(/\r\n/g, '\n').indexOf(raw.replace(/\r\n/g, '\n'));
 }
 
 function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
@@ -768,39 +1932,19 @@ function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
   }
 
   const text = readProjectText(project, file, textCache || new Map());
-  const hit = candidateHitForFile(body, filePath);
-  const needles = buildExcerptNeedles(body.searchPayload || {}, hit);
-  const fallback = pickRelevantExcerpt(text, body.searchPayload || {}, hit, MODEL_RESULT_SNIPPET_CHARS);
-  const directIndex = findSnippetIndex(text, codeSnippet);
+  const directIndex = exactSnippetIndex(text, codeSnippet);
   if (directIndex !== -1) {
-    const modelExcerpt = aroundIndexExcerpt(text, directIndex, Math.max(1, String(codeSnippet || '').trim().length), MODEL_RESULT_SNIPPET_CHARS);
-    const modelScore = scoreNeedleMatches(modelExcerpt, needles);
-    if (fallback && (fallback.mode === 'focused-snippet' || fallback.mode === 'focused-window') && fallback.score > modelScore + 40) {
-      return {
-        codeSnippet: fallback.text,
-        snippetVerified: false,
-        snippetSource: fallback.mode,
-      };
-    }
     return {
-      codeSnippet: modelExcerpt,
+      codeSnippet: String(codeSnippet || '').trim(),
       snippetVerified: true,
       snippetSource: 'model',
-    };
-  }
-
-  if (fallback.mode === 'focused-snippet' || fallback.mode === 'focused-window' || fallback.mode === 'full') {
-    return {
-      codeSnippet: fallback.text,
-      snippetVerified: false,
-      snippetSource: fallback.mode,
     };
   }
 
   return {
     codeSnippet: '',
     snippetVerified: false,
-    snippetSource: fallback.mode || 'none',
+    snippetSource: codeSnippet ? 'unverified-model-snippet' : 'none',
   };
 }
 
@@ -809,11 +1953,19 @@ function validateModelItems(project, parsed, body, textCache) {
     const file = String(item.path || item.file || '').replace(/\\/g, '/').replace(/^\/+/, '');
     const rawCodeSnippet = String(item['code片段'] || item['位置'] || item.codeSnippet || item.location || item.snippet || item.code || '').trim();
     const prompt = String(item['提示词'] || item.prompt || item.instruction || item.reason || '').trim();
+    const selectionEvidence = item.selectionEvidence || item.match || item.evidence || {};
+    const selectionEvidenceScore = Math.max(0, Math.min(Number(
+      selectionEvidence.score ?? item.selectionEvidenceScore ?? item.matchScore ?? item.score ?? 0
+    ), 100));
+    const selectionEvidenceReasons = stringList(selectionEvidence.reasons || item.selectionEvidenceReasons || item.matchReasons, 8);
+    const confidence = Math.max(0, Math.min(Number(item.confidence ?? item.confidenceScore ?? 0), 100));
     const snippetResult = resolveModelSnippet(project, file, rawCodeSnippet, body, textCache);
     return {
       path: file,
       file,
-      confidence: Math.max(0, Math.min(Number(item.confidence || 0), 100)),
+      confidence,
+      selectionEvidenceScore,
+      selectionEvidenceReasons,
       codeSnippet: snippetResult.codeSnippet,
       prompt,
       reason: prompt || snippetResult.codeSnippet || rawCodeSnippet,
@@ -824,9 +1976,10 @@ function validateModelItems(project, parsed, body, textCache) {
   }).filter(item => item.file);
 }
 
-function runExecAdapter(adapter, prompt, cwd, logs) {
+function runExecAdapter(adapter, prompt, cwd, logs, signal) {
   const parts = splitCommandLine(adapter.command);
   if (!parts.length) throw new Error('Cli 模型缺少 command，例如：codex exec');
+  throwIfAborted(signal);
   const [command, ...args] = parts;
   const env = { ...process.env };
   if (adapter.proxyUrl) {
@@ -850,6 +2003,20 @@ function runExecAdapter(adapter, prompt, cwd, logs) {
       child.kill('SIGTERM');
       reject(new Error(`模型执行超过 ${Math.round(adapter.timeoutMs / 1000)} 秒`));
     }, adapter.timeoutMs);
+    const abortHandler = () => {
+      clearTimeout(timer);
+      child.kill('SIGTERM');
+      const error = new Error('模型定位已停止');
+      error.name = 'AbortError';
+      reject(error);
+    };
+    if (signal) {
+      if (signal.aborted) {
+        abortHandler();
+        return;
+      }
+      signal.addEventListener('abort', abortHandler, { once: true });
+    }
 
     child.stdout.on('data', chunk => {
       stdout += chunk.toString();
@@ -859,10 +2026,12 @@ function runExecAdapter(adapter, prompt, cwd, logs) {
     });
     child.on('error', error => {
       clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', abortHandler);
       reject(error);
     });
     child.on('close', code => {
       clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', abortHandler);
       appendLog(logs, `Cli 模型结束：退出码 ${code}，耗时 ${Date.now() - startedAt}ms，stdout ${stdout.length} 字符，stderr ${stderr.length} 字符`);
       if (code !== 0) {
         reject(new Error(stderr || `模型命令退出码 ${code}`));
@@ -886,6 +2055,7 @@ function requestTextDirect(targetUrl, options) {
     headers: options.headers,
     timeoutMs: options.timeoutMs,
     body: options.body,
+    signal: options.signal,
   });
 }
 
@@ -907,10 +2077,11 @@ function requestTextHttpProxy(targetUrl, proxyUrl, options) {
     headers,
     timeoutMs: options.timeoutMs,
     body: options.body,
+    signal: options.signal,
   });
 }
 
-function createHttpsProxyAgent(proxyUrl, targetUrl, timeoutMs) {
+function createHttpsProxyAgent(proxyUrl, targetUrl, timeoutMs, signal) {
   const proxyClient = proxyUrl.protocol === 'https:' ? https : http;
   const targetPort = targetUrl.port || 443;
   return new https.Agent({
@@ -937,7 +2108,16 @@ function createHttpsProxyAgent(proxyUrl, targetUrl, timeoutMs) {
       connectReq.setTimeout(timeoutMs, () => {
         connectReq.destroy(new Error('代理连接超时'));
       });
+      const abortHandler = () => connectReq.destroy(new Error('模型定位已停止'));
+      if (signal) {
+        if (signal.aborted) {
+          abortHandler();
+          return;
+        }
+        signal.addEventListener('abort', abortHandler, { once: true });
+      }
       connectReq.on('connect', (res, socket) => {
+        if (signal) signal.removeEventListener('abort', abortHandler);
         if (res.statusCode !== 200) {
           socket.destroy();
           done(new Error(`代理 CONNECT 失败：HTTP ${res.statusCode}`));
@@ -949,7 +2129,10 @@ function createHttpsProxyAgent(proxyUrl, targetUrl, timeoutMs) {
         }, () => done(null, secureSocket));
         secureSocket.once('error', error => done(error));
       });
-      connectReq.once('error', error => done(error));
+      connectReq.once('error', error => {
+        if (signal) signal.removeEventListener('abort', abortHandler);
+        done(error);
+      });
       connectReq.end();
     },
   });
@@ -957,7 +2140,7 @@ function createHttpsProxyAgent(proxyUrl, targetUrl, timeoutMs) {
 
 function requestTextHttpsProxy(targetUrl, proxyUrl, options) {
   const url = new URL(targetUrl);
-  const agent = createHttpsProxyAgent(proxyUrl, url, options.timeoutMs);
+  const agent = createHttpsProxyAgent(proxyUrl, url, options.timeoutMs, options.signal);
   return requestTextWithClient(https, {
     protocol: url.protocol,
     hostname: url.hostname,
@@ -968,6 +2151,7 @@ function requestTextHttpsProxy(targetUrl, proxyUrl, options) {
     timeoutMs: options.timeoutMs,
     body: options.body,
     agent,
+    signal: options.signal,
   });
 }
 
@@ -988,6 +2172,7 @@ function requestTextWithClient(client, options) {
         text += chunk;
       });
       response.on('end', () => {
+        if (options.signal) options.signal.removeEventListener('abort', abortHandler);
         resolve({
           statusCode: response.statusCode || 0,
           statusMessage: response.statusMessage || '',
@@ -999,7 +2184,18 @@ function requestTextWithClient(client, options) {
     req.setTimeout(options.timeoutMs, () => {
       req.destroy(new Error(`API 模型请求超过 ${Math.round(options.timeoutMs / 1000)} 秒`));
     });
-    req.once('error', reject);
+    const abortHandler = () => req.destroy(new Error('模型定位已停止'));
+    if (options.signal) {
+      if (options.signal.aborted) {
+        abortHandler();
+        return;
+      }
+      options.signal.addEventListener('abort', abortHandler, { once: true });
+    }
+    req.once('error', error => {
+      if (options.signal) options.signal.removeEventListener('abort', abortHandler);
+      reject(error);
+    });
     req.end(options.body);
   });
 }
@@ -1014,8 +2210,9 @@ function requestApiText(endpoint, options) {
   return requestTextHttpProxy(endpoint, proxyUrl, options);
 }
 
-async function runApiAdapter(adapter, prompt, logs) {
+async function runApiAdapter(adapter, prompt, logs, signal) {
   if (!adapter.endpoint) throw new Error('API 模型缺少 endpoint');
+  throwIfAborted(signal);
   const headers = {
     'Content-Type': 'application/json',
   };
@@ -1037,6 +2234,7 @@ async function runApiAdapter(adapter, prompt, logs) {
     body: JSON.stringify(body),
     timeoutMs: adapter.timeoutMs,
     proxyUrl: adapter.proxyUrl,
+    signal,
   });
   appendLog(logs, `API 模型响应：HTTP ${response.statusCode}，耗时 ${Date.now() - startedAt}ms，响应 ${response.text.length} 字符`);
   if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -1050,37 +2248,43 @@ async function runApiAdapter(adapter, prompt, logs) {
   }
 }
 
-async function runModelLocate(project, body, textCache = new Map()) {
+async function runModelLocate(project, body, textCache = new Map(), options = {}) {
   if (!project) throw new Error('No project selected.');
   const logs = [];
+  if (typeof options.onLog === 'function') {
+    logs.onAppend = options.onLog;
+  }
   try {
+    throwIfAborted(options.signal);
     const adapter = normalizeAdapter(body.adapter);
     appendLog(logs, `模型定位开始：${adapter.name}（${adapter.type}）`);
     appendLog(logs, `本地预检索：候选 ${Array.isArray(body.candidateHits) ? body.candidateHits.length : 0} 个，已选 ${Array.isArray(body.selectedCandidateHits) ? body.selectedCandidateHits.length : 0} 个`);
-    appendLog(logs, '缩略图说明：当前模型定位不会发送图片字节，只会发送截图区域节点的结构化信息，例如 selector、盒模型、HTML 和样式摘要。');
+    appendLog(logs, '缩略图说明：当前模型定位不会发送图片字节；截图只用于前端展示，模型只接收当前选区和扩大选区的结构化信息。');
     const fileBlocks = collectModelFiles(project, body, textCache, logs);
-    const batches = chunkFileBlocks(fileBlocks, MAX_MODEL_BATCH_FILE_CHARS);
-    appendLog(logs, `模型分批读取：${batches.length} 批；单批文件内容上限 ${MAX_MODEL_BATCH_FILE_CHARS} 字符`);
+    const batches = chunkFileBlocks(fileBlocks, MAX_MODEL_BATCH_TOKENS, logs);
+    appendLog(logs, `模型分批读取：${batches.length} 批；单批预算约 ${MAX_MODEL_BATCH_TOKENS} tokens；文件作为不可拆 block，超预算文件单独请求`);
     const rawTexts = [];
     const parsedList = [];
     let aggregatedItems = [];
 
     for (let index = 0; index < batches.length; index++) {
+      throwIfAborted(options.signal);
       const batchFiles = batches[index];
       appendLog(logs, `开始读取第 ${index + 1}/${batches.length} 批：${batchFiles.map(item => item.file).join('；') || '-'}`);
       const prompt = buildModelPrompt(project, body, textCache, logs, {
         files: batchFiles,
         batchIndex: index + 1,
         batchTotal: batches.length,
-        previousItems: aggregatedItems,
+        previousItems: aggregatedItems.filter(modelItemAccepted),
       });
       appendLog(logs, `第 ${index + 1}/${batches.length} 批提示词长度：${prompt.length} 字符`);
       appendLog(logs, `模型定位提示词(第 ${index + 1}/${batches.length} 批):\n${prompt}`);
       const rawText = adapter.type === 'api'
-        ? await runApiAdapter(adapter, prompt, logs)
-        : await runExecAdapter(adapter, prompt, project.path, logs);
+        ? await runApiAdapter(adapter, prompt, logs, options.signal)
+        : await runExecAdapter(adapter, prompt, project.path, logs, options.signal);
       rawTexts.push(rawText);
       appendLog(logs, `第 ${index + 1}/${batches.length} 批模型原始输出：${rawText.length} 字符`);
+      appendLog(logs, `第 ${index + 1}/${batches.length} 批模型原始输出内容:\n${rawText || '-'}`);
       const parsed = parseModelJson(rawText);
       parsedList.push(parsed);
       appendLog(logs, parsed ? `第 ${index + 1}/${batches.length} 批 JSON 解析成功` : `第 ${index + 1}/${batches.length} 批 JSON 解析失败`);
@@ -1089,12 +2293,19 @@ async function runModelLocate(project, body, textCache = new Map()) {
       aggregatedItems = reconcileModelItems([...aggregatedItems, ...batchItems], body);
     }
 
-    const modelItems = reconcileModelItems(aggregatedItems, body);
-    appendLog(logs, `模型推荐文件：${modelItems.length} 个`);
+    const allModelItems = reconcileModelItems(aggregatedItems, body);
+    const modelItems = allModelItems.filter(modelItemAccepted);
+    appendLog(logs, `模型推荐文件：${modelItems.length} 个；AI返回但未通过验证 ${allModelItems.length - modelItems.length} 个`);
+    for (const item of allModelItems.filter(item => !modelItemAccepted(item)).slice(0, 8)) {
+      appendLog(
+        logs,
+        `模型结果丢弃：${item.file}；原因：${!item.snippetVerified ? '代码片段未验证' : '缺少选区语义证据'}；confidence ${item.confidence || 0}；selectionEvidence ${item.selectionEvidenceScore || 0}；本地上下文分 ${item.localContextScore || 0}`
+      );
+    }
     for (const item of modelItems.slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果复核：${item.file}；本地分数 ${item.localScore || 0}；本地精确证据 ${item.localPreciseEvidence ? '是' : '否'}；代码片段${item.snippetVerified ? '已在本地源码命中' : item.codeSnippet ? `改用本地${item.snippetSource}片段` : '未找到可验证片段'}`
+        `模型结果接收：${item.file}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}；AI语义匹配分 ${item.selectionEvidenceScore || 0}；代码片段${item.snippetVerified ? '已按连续源码原样命中' : '未验证'}`
       );
     }
     const multiFileMatches = modelItems.filter(item => item.localPreciseEvidence || item.localScore >= 120);
@@ -1117,7 +2328,10 @@ async function runModelLocate(project, body, textCache = new Map()) {
         reason: item.reason,
         codeSnippet: item.codeSnippet,
         prompt: item.prompt,
+        selectionEvidenceScore: item.selectionEvidenceScore,
+        selectionEvidenceReasons: item.selectionEvidenceReasons || [],
         localScore: item.localScore,
+        localContextScore: item.localContextScore,
         localPreciseEvidence: item.localPreciseEvidence,
         exists: item.exists,
       })),

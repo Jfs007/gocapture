@@ -7,6 +7,7 @@ export function useSearchPrompt({
   selectedCandidateHits,
   candidateHits,
   routeResolverTrace,
+  apiTrace,
   evidenceMessages,
   customEvidence,
   promptIntent,
@@ -142,7 +143,11 @@ export function useSearchPrompt({
     if (!text) return '';
     text = text.replace(/需要引入[^。\n；]*(?:http|axios|request|fetch)[^。\n；]*/ig, '沿用项目现有 API 调用方式完成接口请求');
     text = text.replace(/[（(]如[^）)]*(?:http|axios|request|fetch|@\/)[^）)]*[）)]/ig, '');
-    text = text.replace(/\s{2,}/g, ' ').trim();
+    text = text
+      .split('\n')
+      .map(line => line.replace(/[ \t]{2,}/g, ' ').trimEnd())
+      .join('\n')
+      .trim();
     return text;
   }
 
@@ -181,6 +186,9 @@ export function useSearchPrompt({
   function finalPromptTaskLines(command) {
     const hits = selectedPromptHits();
     return hits.map((hit, index) => {
+      if (hit.stage === 'model-agent' && hit.modelPrompt) {
+        return sanitizeModelInstructionText(hit.modelPrompt);
+      }
       const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || '');
       const source = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || hit.modelCodeSnippet || '');
       const requirement = sanitizeModelInstructionText(hit.modelPrompt) || command || '按当前页面上下文完成修改';
@@ -328,12 +336,38 @@ export function useSearchPrompt({
     for (const item of selectedItems.value) {
       terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
       terms.push(...extractSearchTerms(item.info.className));
+      terms.push(...subtreeSearchTerms(item.info.subtree));
       for (const ancestor of item.info.ancestors || []) {
         terms.push(...extractSearchTerms(denoiseTextByApi(ancestor.text)));
         terms.push(...extractSearchTerms(ancestor.className));
+        terms.push(...subtreeSearchTerms(ancestor.subtree));
       }
     }
     return Array.from(new Set(terms)).slice(0, 28).join(' ');
+  }
+
+  function subtreeSearchTerms(subtree) {
+    if (!subtree) return [];
+    const terms = [];
+    for (const className of subtree.classNames || []) terms.push(...extractSearchTerms(className));
+    for (const text of subtree.texts || []) terms.push(...extractSearchTerms(denoiseTextByApi(text)));
+    for (const attr of subtree.attrs || []) {
+      terms.push(...extractSearchTerms(attr?.key));
+      terms.push(...extractSearchTerms(attr?.value));
+    }
+    for (const item of subtree.styles || []) {
+      const style = item?.style || {};
+      for (const value of Object.values(style)) terms.push(...extractSearchTerms(value));
+    }
+    return terms;
+  }
+
+  function denoiseSubtree(subtree) {
+    if (!subtree) return subtree;
+    return {
+      ...subtree,
+      texts: (subtree.texts || []).map(text => denoiseTextByApi(text)),
+    };
   }
 
   function searchPayload() {
@@ -342,9 +376,11 @@ export function useSearchPrompt({
       element: {
         ...item.element,
         text: denoiseTextByApi(item.element?.text),
+        subtree: denoiseSubtree(item.element?.subtree),
         ancestors: (item.element?.ancestors || []).map(ancestor => ({
           ...ancestor,
-          text: denoiseTextByApi(ancestor.text)
+          text: denoiseTextByApi(ancestor.text),
+          subtree: denoiseSubtree(ancestor.subtree)
         }))
       },
       asset: item.asset
@@ -380,7 +416,7 @@ export function useSearchPrompt({
       mode: 'ui-first',
       apiPaths: apiRequests.map(item => item.pathname || item.url),
       apiKeys: apiRequests.flatMap(item => item.requestKeys || []),
-      limit: 8
+      limit: 30
     };
   }
 
@@ -400,9 +436,28 @@ export function useSearchPrompt({
         .filter(Boolean)
         .slice(0, 5);
       lines.push(`7. 接口线索: ${endpoints.length ? endpoints.join('；') : '未捕获到接口端点'}`);
+      lines.push(...apiTraceLogLines());
     }
     for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
       lines.push(...candidateLogLines(hit, index));
+    }
+    return lines;
+  }
+
+  function apiTraceLogLines() {
+    const trace = apiTrace?.value;
+    if (!trace || !Array.isArray(trace.endpoints) || !trace.endpoints.length) return [];
+    const lines = [];
+    for (const endpoint of trace.endpoints.slice(0, 4)) {
+      const endpointLabel = [endpoint.method, endpoint.path].filter(Boolean).join(' ') || endpoint.path || endpoint.url || '-';
+      const names = (endpoint.symbols || []).slice(0, 6).join(', ') || '-';
+      lines.push(`8. 接口识别: ${endpointLabel}；接口名=${names}`);
+      for (const file of endpoint.files || []) {
+        lines.push(`   接口文件: ${file.file}${file.symbols?.length ? `；符号=${file.symbols.join(', ')}` : ''}`);
+      }
+      for (const chain of endpoint.chains || []) {
+        lines.push(`   接口引用链: ${chain.chain.join(' -> ')}${chain.symbol ? `；引用=${chain.symbol}` : ''}`);
+      }
     }
     return lines;
   }

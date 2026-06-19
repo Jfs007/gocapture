@@ -83,6 +83,15 @@ export function getElementText(element) {
   return compactText(element.innerText || element.textContent || '', 320);
 }
 
+export function getComparableElementText(element, normalizeText, limit = 1200) {
+  const raw = String(element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  if (typeof normalizeText === 'function') {
+    return String(normalizeText(raw, limit) || '').replace(/\s+/g, ' ').trim();
+  }
+  return compactText(raw, limit);
+}
+
 export function extractSearchTerms(text) {
   const value = String(text || '').replace(/\s+/g, ' ').trim();
   const pieces = value
@@ -102,11 +111,16 @@ export function extractSearchTerms(text) {
 
 export function getStyleInfo(element) {
   const style = window.getComputedStyle(element);
+  const hasBackgroundImage = style.backgroundImage && style.backgroundImage !== 'none';
   return {
     display: style.display,
     position: style.position,
     color: style.color,
     backgroundColor: style.backgroundColor,
+    backgroundImage: hasBackgroundImage ? '[present]' : '',
+    backgroundSize: style.backgroundSize,
+    backgroundPosition: style.backgroundPosition,
+    backgroundRepeat: style.backgroundRepeat,
     fontSize: style.fontSize,
     fontWeight: style.fontWeight,
     lineHeight: style.lineHeight,
@@ -124,6 +138,121 @@ export function getStyleInfo(element) {
   };
 }
 
+export function getFirstClassName(element) {
+  const list = Array.from(element?.classList || []);
+  return compactText(list[0] || '', 120);
+}
+
+export function getDirectText(element) {
+  if (!element || !element.childNodes) return '';
+  const text = Array.from(element.childNodes)
+    .filter(node => node.nodeType === Node.TEXT_NODE)
+    .map(node => node.nodeValue || '')
+    .join(' ');
+  return compactText(text, 160);
+}
+
+export function getSubtreeStyleEvidence(element) {
+  if (!element) return null;
+  const inlineStyle = compactText(element.getAttribute?.('style') || '', 240);
+  const style = getStyleInfo(element);
+  const result = {};
+  const backgroundColor = String(style.backgroundColor || '').trim();
+  const color = String(style.color || '').trim();
+
+  if (inlineStyle) result.inlineStyle = inlineStyle;
+  if (style.display && /flex|grid|table|inline-flex|inline-grid/i.test(style.display)) result.display = style.display;
+  if (style.position && /absolute|fixed|sticky/i.test(style.position)) result.position = style.position;
+  if (color && !/^rgb\(0,\s*0,\s*0\)$/i.test(color)) result.color = color;
+  if (backgroundColor && !/^(rgba\(0,\s*0,\s*0,\s*0\)|transparent)$/i.test(backgroundColor)) {
+    result.backgroundColor = backgroundColor;
+  }
+  if (style.backgroundImage && style.backgroundImage !== 'none') result.backgroundImage = '[present]';
+  if (style.backgroundSize && style.backgroundSize !== 'auto') result.backgroundSize = style.backgroundSize;
+  if (style.backgroundPosition && style.backgroundPosition !== '0% 0%') result.backgroundPosition = style.backgroundPosition;
+  if (style.fontSize) result.fontSize = style.fontSize;
+  if (style.fontWeight && !/^400$|^normal$/i.test(style.fontWeight)) result.fontWeight = style.fontWeight;
+  if (style.textAlign && !/^start|left$/i.test(style.textAlign)) result.textAlign = style.textAlign;
+  if (style.borderRadius && !/^0(px)?$/i.test(style.borderRadius)) result.borderRadius = style.borderRadius;
+  if (style.objectFit && style.objectFit !== 'fill') result.objectFit = style.objectFit;
+  if (style.width && !/^auto$/i.test(style.width)) result.width = style.width;
+  if (style.height && !/^auto$/i.test(style.height)) result.height = style.height;
+
+  return Object.keys(result).length ? result : null;
+}
+
+export function getSubtreeEvidence(element, options = {}) {
+  if (!element) {
+    return {
+      classNames: [],
+      texts: [],
+      attrs: [],
+      styles: [],
+      nodeCount: 0
+    };
+  }
+
+  const nodeLimit = options.nodeLimit || 80;
+  const queue = [element];
+  const classNames = [];
+  const texts = [];
+  const attrs = [];
+  const styles = [];
+  let inspected = 0;
+
+  const addUnique = (list, value, limit) => {
+    const text = compactText(value, 240);
+    if (!text || list.includes(text) || list.length >= limit) return;
+    list.push(text);
+  };
+
+  while (queue.length && inspected < nodeLimit) {
+    const node = queue.shift();
+    if (!node || node.nodeType !== 1) continue;
+    const tag = String(node.tagName || '').toLowerCase();
+    if (['script', 'style', 'noscript', 'template'].includes(tag)) continue;
+    inspected++;
+
+    addUnique(classNames, getFirstClassName(node), options.classLimit || 48);
+
+    if (node === element) addUnique(texts, getElementText(node), options.textLimit || 48);
+    addUnique(texts, getDirectText(node), options.textLimit || 48);
+
+    const attrInfo = getElementAttrs(node);
+    for (const [key, value] of Object.entries(attrInfo)) {
+      if (!value || attrs.length >= (options.attrLimit || 48)) continue;
+      attrs.push({
+        tag,
+        className: getFirstClassName(node),
+        key,
+        value: compactText(value, 240)
+      });
+    }
+
+    const styleInfo = getSubtreeStyleEvidence(node);
+    if (styleInfo && styles.length < (options.styleLimit || 36)) {
+      styles.push({
+        tag,
+        className: getFirstClassName(node),
+        style: styleInfo
+      });
+    }
+
+    for (const child of Array.from(node.children || [])) {
+      if (queue.length + inspected >= nodeLimit) break;
+      queue.push(child);
+    }
+  }
+
+  return {
+    classNames,
+    texts,
+    attrs,
+    styles,
+    nodeCount: inspected
+  };
+}
+
 export function getElementAttrs(element) {
   if (!element || !element.tagName) return {};
   const tag = element.tagName.toLowerCase();
@@ -133,12 +262,30 @@ export function getElementAttrs(element) {
     const value = element.getAttribute?.(key);
     if (value) attrs[key] = compactText(value, 240);
   }
+  for (const attr of Array.from(element.attributes || [])) {
+    const key = String(attr.name || '').toLowerCase();
+    if (!key.startsWith('data-') || /^data-v-/.test(key)) continue;
+    const value = element.getAttribute?.(key);
+    attrs[key] = value ? compactText(value, 240) : '[present]';
+  }
+  let hasMediaSource = false;
+  for (const key of ['src', 'srcset', 'poster', 'data-src', 'data-original', 'data-lazy-src']) {
+    const value = element.getAttribute?.(key);
+    if (value) {
+      attrs[key] = '[present]';
+      hasMediaSource = true;
+    }
+  }
   if (tag === 'img') {
-    if (element.currentSrc || element.src) attrs.src = compactText(element.currentSrc || element.src, 360);
+    if (element.currentSrc || element.src) {
+      attrs.src = '[present]';
+      hasMediaSource = true;
+    }
     if (element.alt) attrs.alt = compactText(element.alt, 240);
     if (element.getAttribute?.('width')) attrs.width = compactText(element.getAttribute('width'), 40);
     if (element.getAttribute?.('height')) attrs.height = compactText(element.getAttribute('height'), 40);
   }
+  if (tag === 'img' || hasMediaSource) attrs['magnus-media'] = 'image';
   return attrs;
 }
 
@@ -161,21 +308,48 @@ export function getSelectorPath(element, limit = 4) {
   return parts.join(' > ');
 }
 
-export function getAncestorInfo(element) {
+export function getAncestorInfo(element, options = {}) {
   const result = [];
   let node = element.parentElement;
-  while (node && node !== document.body && result.length < 4) {
+  let currentText = getComparableElementText(element, options.normalizeText, 1200);
+  let inspected = 0;
+  while (node && node !== document.body && result.length < 4 && inspected < 16) {
+    inspected++;
+    const comparableText = getComparableElementText(node, options.normalizeText, 1200);
+    if (!comparableText || comparableText.length <= currentText.length) {
+      node = node.parentElement;
+      continue;
+    }
+    const rect = node.getBoundingClientRect();
     result.push({
       tag: node.tagName.toLowerCase(),
+      selector: getSelectorPath(node),
       className: getClassName(node),
-      text: compactText(node.innerText || node.textContent || '', 120)
+      attrs: getElementAttrs(node),
+      text: compactText(comparableText, 180),
+      subtree: getSubtreeEvidence(node, {
+        nodeLimit: 64,
+        classLimit: 36,
+        textLimit: 36,
+        attrLimit: 36,
+        styleLimit: 28
+      }),
+      inlineStyle: compactText(node.getAttribute?.('style') || '', 240),
+      computedStyle: getStyleInfo(node),
+      box: {
+        x: round(rect.left + window.scrollX),
+        y: round(rect.top + window.scrollY),
+        width: round(rect.width),
+        height: round(rect.height)
+      }
     });
+    currentText = comparableText;
     node = node.parentElement;
   }
   return result;
 }
 
-export function getElementInfo(element) {
+export function getElementInfo(element, options = {}) {
   if (!element) return null;
   const rect = element.getBoundingClientRect();
   return {
@@ -184,11 +358,12 @@ export function getElementInfo(element) {
     className: getClassName(element),
     attrs: getElementAttrs(element),
     text: getElementText(element),
+    subtree: getSubtreeEvidence(element),
     innerHtml: compactMarkup(element.innerHTML || '', 960),
     outerHtml: compactMarkup(element.outerHTML || '', 1200),
     inlineStyle: compactText(element.getAttribute?.('style') || '', 480),
     computedStyle: getStyleInfo(element),
-    ancestors: getAncestorInfo(element),
+    ancestors: getAncestorInfo(element, options),
     box: {
       x: round(rect.left + window.scrollX),
       y: round(rect.top + window.scrollY),

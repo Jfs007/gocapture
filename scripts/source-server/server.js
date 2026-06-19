@@ -24,6 +24,22 @@ function sendJson(res, status, payload) {
   res.end(text);
 }
 
+function sendStreamHeaders(res) {
+  res.writeHead(200, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'content-type',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Content-Type': 'application/x-ndjson; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+}
+
+function writeStreamEvent(res, event) {
+  if (res.destroyed || res.writableEnded) return;
+  res.write(`${JSON.stringify(event)}\n`);
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -133,7 +149,7 @@ function createSourceServer() {
       if (req.method === 'POST' && url.pathname === '/api/search') {
         const body = await readBody(req);
         const result = searchProjectWithMeta(currentProject, body);
-        sendJson(res, 200, { success: true, hits: result.hits, routeResolver: result.routeResolver });
+        sendJson(res, 200, { success: true, hits: result.hits, routeResolver: result.routeResolver, apiTrace: result.apiTrace });
         return;
       }
 
@@ -150,6 +166,35 @@ function createSourceServer() {
         const body = await readBody(req);
         const result = await runModelLocate(currentProject, body, new Map());
         sendJson(res, 200, { success: true, result });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/model/locate/stream') {
+        if (!currentProject) throw new Error('No project selected.');
+        const body = await readBody(req);
+        sendStreamHeaders(res);
+        const controller = new AbortController();
+        let finished = false;
+        req.on('close', () => {
+          if (!finished) controller.abort();
+        });
+        try {
+          const result = await runModelLocate(currentProject, body, new Map(), {
+            signal: controller.signal,
+            onLog: log => writeStreamEvent(res, { type: 'log', log }),
+          });
+          finished = true;
+          writeStreamEvent(res, { type: 'result', result });
+          res.end();
+        } catch (error) {
+          finished = true;
+          writeStreamEvent(res, {
+            type: 'error',
+            error: error.message || String(error),
+            logs: Array.isArray(error.modelLogs) ? error.modelLogs : undefined,
+          });
+          res.end();
+        }
         return;
       }
 

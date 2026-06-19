@@ -1,5 +1,6 @@
 const { readProjectText } = require('../../core/fs-utils');
 const {
+  detectLayoutLike,
   projectFileMap,
   resolveImportFile,
   routeHit,
@@ -80,6 +81,38 @@ function componentSpecFromBlock(blockText, imports) {
   return '';
 }
 
+function extractRoutes({ project, pagePath, textCache }) {
+  const fileMap = projectFileMap(project);
+  const nodes = [];
+
+  for (const file of routeSourceFiles(project, REACT_ROUTE_FILES)) {
+    const text = readProjectText(project, file, textCache);
+    if (!text) continue;
+    const imports = importedNameMap(text);
+
+    for (const block of routeBlocks(text, pagePath || '/')) {
+      const specifier = componentSpecFromBlock(block.text, imports);
+      const componentFile = resolveImportFile(project, file.path, specifier, fileMap);
+      nodes.push({
+        routePath: block.routePath,
+        rawPath: block.routePath,
+        componentFile,
+        sourceFile: file.path,
+        framework: 'react',
+        adapter: 'react',
+        isLeaf: true,
+        isLayoutLike: detectLayoutLike(project, componentFile, textCache),
+        parent: '',
+        meta: {
+          componentSpecifier: specifier,
+        },
+      });
+    }
+  }
+
+  return nodes;
+}
+
 function resolve({ project, pagePath, textCache }) {
   const fileMap = projectFileMap(project);
   const hits = [];
@@ -128,5 +161,6 @@ function resolve({ project, pagePath, textCache }) {
 module.exports = {
   key: 'react',
   kinds: ['react-vite', 'react-webpack'],
+  extractRoutes,
   resolve,
 };

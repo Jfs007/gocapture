@@ -214,6 +214,8 @@ function traceImportChainHits(project, anchorHits, candidateHits, textCache) {
 }
 
 module.exports = {
+  buildFileMap,
+  importedFiles,
   importSpecifiers,
   traceImportChainHits,
 };

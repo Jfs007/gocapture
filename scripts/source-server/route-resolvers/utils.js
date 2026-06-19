@@ -20,19 +20,34 @@ function cleanPagePath(value) {
   return normalized || '/';
 }
 
+function cleanRoutePath(value) {
+  return cleanPagePath(value || '/');
+}
+
+function joinRoutePaths(paths) {
+  let result = '';
+  for (const rawPath of paths.filter(value => value !== undefined && value !== null)) {
+    const routePath = String(rawPath || '').trim();
+    if (!routePath) continue;
+    if (routePath.startsWith('/')) {
+      result = routePath;
+      continue;
+    }
+    result = `${result.replace(/\/+$/, '')}/${routePath.replace(/^\/+/, '')}`;
+  }
+  return cleanRoutePath(result || '/');
+}
+
 function routePathMatches(routePath, pagePath) {
   return routeMatchRank(routePath, pagePath) > 0;
 }
 
 function routeMatchRank(routePath, pagePath) {
-  const route = cleanPagePath(routePath);
-  const page = cleanPagePath(pagePath);
-  const routeDepth = routeSegments(route).length;
-  if (route === page) return 1000 + routeDepth;
-  if (route !== '/' && page.startsWith(`${route}/`)) return 500 + routeDepth;
-  const routeTail = route.replace(/^\/+/, '');
-  if (!routeTail || routeTail.includes(':') || routeTail.includes('*')) return 0;
-  return page.endsWith(`/${routeTail}`) ? 100 + routeDepth : 0;
+  const match = matchPathPattern(pagePath, routePath);
+  if (!match.ok) return 0;
+  if (match.exact) return 1000 + match.staticCount * 10 - match.dynamicCount * 2 - match.wildcardCount * 5;
+  if (match.prefix) return 500 + match.staticCount * 10 - match.dynamicCount * 2 - match.wildcardCount * 5;
+  return 0;
 }
 
 function routeSegments(pagePath) {
@@ -40,6 +55,84 @@ function routeSegments(pagePath) {
     .replace(/^\/+/, '')
     .split('/')
     .filter(Boolean);
+}
+
+function isDynamicRouteSegment(segment) {
+  const value = String(segment || '').trim();
+  return /^:/.test(value) || /^\[.+\]$/.test(value) || /^\$[A-Za-z0-9_]+/.test(value);
+}
+
+function isWildcardRouteSegment(segment) {
+  const value = String(segment || '').trim();
+  return value === '*' || value === '/*' || value === '**' || /^:\w+\(\.\*\)\*?$/.test(value) || /^\[\.\.\..+\]$/.test(value);
+}
+
+function matchPathPattern(pagePath, routePath) {
+  const page = routeSegments(pagePath).map(segment => segment.toLowerCase());
+  const route = routeSegments(routePath).map(segment => segment.toLowerCase());
+  if (!route.length) {
+    return {
+      ok: page.length === 0,
+      exact: page.length === 0,
+      prefix: false,
+      staticCount: 0,
+      dynamicCount: 0,
+      wildcardCount: 0,
+    };
+  }
+
+  let staticCount = 0;
+  let dynamicCount = 0;
+  let wildcardCount = 0;
+  for (let index = 0; index < route.length; index++) {
+    const routeSegment = route[index];
+    const pageSegment = page[index];
+    if (isWildcardRouteSegment(routeSegment)) {
+      wildcardCount += 1;
+      return {
+        ok: true,
+        exact: false,
+        prefix: true,
+        staticCount,
+        dynamicCount,
+        wildcardCount,
+      };
+    }
+    if (pageSegment === undefined) {
+      return {
+        ok: false,
+        exact: false,
+        prefix: false,
+        staticCount,
+        dynamicCount,
+        wildcardCount,
+      };
+    }
+    if (isDynamicRouteSegment(routeSegment)) {
+      dynamicCount += 1;
+      continue;
+    }
+    if (routeSegment !== pageSegment) {
+      return {
+        ok: false,
+        exact: false,
+        prefix: false,
+        staticCount,
+        dynamicCount,
+        wildcardCount,
+      };
+    }
+    staticCount += 1;
+  }
+
+  return {
+    ok: true,
+    exact: page.length === route.length,
+    prefix: page.length > route.length,
+    staticCount,
+    dynamicCount,
+    wildcardCount,
+  };
 }
 
 function candidatePathsForImport(fromFile, specifier) {
@@ -116,6 +209,61 @@ function fileConventionCandidates(pagePath, roots = PAGE_ROOTS, extensions = SOU
   return uniq(candidates);
 }
 
+function routePathFromFile(filePath, root) {
+  const normalized = posixPath(filePath);
+  const prefix = `${posixPath(root).replace(/\/+$/, '')}/`;
+  if (!normalized.startsWith(prefix)) return '';
+  let rel = normalized.slice(prefix.length);
+  rel = rel.replace(/\.(vue|tsx|jsx|ts|js|mjs|cjs)$/, '');
+  rel = rel
+    .replace(/\/index$/, '')
+    .replace(/\/page$/, '')
+    .replace(/^index$/, '')
+    .replace(/^page$/, '');
+  if (!rel) return '/';
+  const segments = rel
+    .split('/')
+    .filter(Boolean)
+    .filter(segment => !segment.startsWith('_') || /^_/.test(segment) && !/^_(app|document|error|layout)$/.test(segment))
+    .map(segment => {
+      if (/^\[\.\.\..+\]$/.test(segment)) return '*';
+      if (/^\[.+\]$/.test(segment)) return `:${segment.slice(1, -1)}`;
+      if (/^_.+/.test(segment)) return `:${segment.slice(1)}`;
+      return segment;
+    });
+  return cleanRoutePath(`/${segments.join('/')}`);
+}
+
+function fileConventionRouteNodes(project, options = {}) {
+  const roots = options.roots || PAGE_ROOTS;
+  const extensions = new Set(options.extensions || SOURCE_EXTENSIONS);
+  const adapter = options.adapter || 'file-convention';
+  const framework = options.framework || adapter;
+  const nodes = [];
+  for (const file of project.files || []) {
+    const ext = path.posix.extname(file.path);
+    if (!extensions.has(ext)) continue;
+    if (/(^|\/)(api|components?|hooks?|utils?|services?|stores?|assets?|styles?)\//.test(file.path)) continue;
+    if (/(^|\/)(_?(app|document|error|layout)|layout|template|loading|not-found)\.(vue|tsx|jsx|ts|js)$/.test(file.path)) continue;
+    for (const root of roots) {
+      const routePath = routePathFromFile(file.path, root);
+      if (!routePath) continue;
+      nodes.push({
+        routePath,
+        rawPath: routePath,
+        componentFile: file.path,
+        sourceFile: file.path,
+        framework,
+        adapter,
+        isLeaf: true,
+        isLayoutLike: false,
+      });
+      break;
+    }
+  }
+  return nodes;
+}
+
 function fileConventionHits(project, pagePath, options = {}) {
   const fileMap = options.fileMap || projectFileMap(project);
   const roots = options.roots || PAGE_ROOTS;
@@ -160,6 +308,120 @@ function routeHit(project, filePath, options = {}) {
   };
 }
 
+function routeNodeHit(project, routeNode, pagePath, options = {}) {
+  if (!routeNode?.componentFile) return null;
+  const hit = routeHit(project, routeNode.componentFile, {
+    adapter: routeNode.adapter || routeNode.framework || options.adapter || 'route-node',
+    score: options.score || 600,
+    from: routeNode.sourceFile,
+    routePath: routeNode.routePath,
+    reasons: options.reasons || [],
+    textCache: options.textCache,
+  });
+  if (!hit) return null;
+  hit.routeNode = routeNode;
+  hit.routeMatch = options.match || null;
+  hit.bestPageFile = routeNode.componentFile;
+  hit.reasons = uniq([
+    ...(hit.reasons || []),
+    `页面路径 ${cleanPagePath(pagePath)} 命中路由：${routeNode.routePath}`,
+    routeNode.rawPath && routeNode.rawPath !== routeNode.routePath ? `路由声明 path：${routeNode.rawPath}` : '',
+    routeNode.isLeaf ? '叶子路由' : '父级/容器路由',
+    routeNode.isLayoutLike ? '像布局容器，已降权' : '',
+    routeNode.sourceFile ? `路由文件：${routeNode.sourceFile}` : '',
+  ]).slice(0, 10);
+  return hit;
+}
+
+function normalizeRouteNode(route) {
+  if (!route) return null;
+  const routePath = cleanRoutePath(route.routePath || route.fullPath || route.path || '/');
+  if (!routePath) return null;
+  return {
+    routePath,
+    rawPath: String(route.rawPath ?? route.path ?? route.routePath ?? ''),
+    componentFile: route.componentFile || '',
+    sourceFile: route.sourceFile || '',
+    framework: route.framework || route.adapter || 'unknown',
+    adapter: route.adapter || route.framework || 'unknown',
+    isLeaf: route.isLeaf !== false,
+    isLayoutLike: !!route.isLayoutLike,
+    parent: route.parent || '',
+    meta: route.meta || {},
+  };
+}
+
+function normalizeRoutes(routes) {
+  const map = new Map();
+  for (const rawRoute of routes || []) {
+    const route = normalizeRouteNode(rawRoute);
+    if (!route) continue;
+    const key = [
+      route.adapter,
+      route.routePath,
+      route.componentFile,
+      route.sourceFile,
+      route.rawPath,
+    ].join('|');
+    if (!map.has(key)) map.set(key, route);
+  }
+  return Array.from(map.values());
+}
+
+function scoreRouteMatch(route, match) {
+  let score = 0;
+  const reasons = [];
+  if (match.exact) {
+    score += 1000;
+    reasons.push('路径精确匹配');
+  } else if (match.prefix) {
+    score += 360;
+    reasons.push('父级路径匹配');
+  }
+  score += match.staticCount * 100;
+  score -= match.dynamicCount * 20;
+  score -= match.wildcardCount * 300;
+  if (route.isLeaf) {
+    score += 80;
+    reasons.push('叶子路由');
+  }
+  if (route.componentFile) {
+    score += 60;
+    reasons.push('存在页面组件文件');
+  }
+  if (route.isLayoutLike) {
+    score -= 80;
+    reasons.push('像布局容器，降权');
+  }
+  return { score, reasons };
+}
+
+function matchRoutes(pathname, routes) {
+  const pagePath = cleanPagePath(pathname);
+  const hits = [];
+  for (const route of normalizeRoutes(routes)) {
+    const match = matchPathPattern(pagePath, route.routePath);
+    if (!match.ok) continue;
+    const scored = scoreRouteMatch(route, match);
+    hits.push({
+      route,
+      match,
+      score: scored.score,
+      reasons: scored.reasons,
+    });
+  }
+  return hits.sort((a, b) => b.score - a.score);
+}
+
+function detectLayoutLike(project, filePath, textCache) {
+  if (!filePath) return false;
+  if (/(^|\/)(layout|layouts|Layout)\b/.test(filePath) || /layout/i.test(filePath)) return true;
+  const file = (project.files || []).find(item => item.path === filePath);
+  if (!file || !isTextFile(file.path)) return false;
+  const text = readProjectText(project, file, textCache);
+  return /<router-view\b|<RouterView\b|<Outlet\b|\{\s*children\s*\}/.test(text || '');
+}
+
 function routeSourceFiles(project, includePatterns) {
   return (project.files || []).filter(file => {
     if (!isTextFile(file.path)) return false;
@@ -170,10 +432,18 @@ function routeSourceFiles(project, includePatterns) {
 module.exports = {
   SOURCE_EXTENSIONS,
   cleanPagePath,
+  cleanRoutePath,
+  detectLayoutLike,
   fileConventionHits,
+  fileConventionRouteNodes,
+  joinRoutePaths,
+  matchPathPattern,
+  matchRoutes,
+  normalizeRoutes,
   projectFileMap,
   resolveImportFile,
   routeHit,
+  routeNodeHit,
   routeMatchRank,
   routePathMatches,
   routeSegments,

@@ -179,11 +179,11 @@
               <pre>{{ formatAssetValue(activeAssetPopover.box) }}</pre>
             </div>
             <div class="mda-asset-popover-grid-item">
-              <span>截图区域 selector</span>
+              <span>扩大选区 selector</span>
               <pre>{{ activeAssetPopover.assetSelector || '-' }}</pre>
             </div>
             <div class="mda-asset-popover-grid-item">
-              <span>截图区域盒模型</span>
+              <span>扩大选区盒模型</span>
               <pre>{{ formatAssetValue(activeAssetPopover.assetBox) }}</pre>
             </div>
           </div>
@@ -317,8 +317,16 @@
               </button>
             </div>
           </div>
-          <button class="mda-send-btn" type="button" :disabled="!composerCanSend" @click="api.sendComposer">
-            <span v-if="candidateLoading">{{ modelAssistLoading ? '模型' : '检索' }}</span>
+          <button
+            class="mda-send-btn"
+            type="button"
+            :class="{ 'is-stopping': modelAssistLoading }"
+            :title="modelAssistLoading ? '停止模型定位' : '提交'"
+            :disabled="!composerCanSend"
+            @click="api.sendComposer"
+          >
+            <span v-if="modelAssistLoading" class="mda-stop-icon" />
+            <span v-else-if="candidateLoading">检索</span>
             <span v-else class="mda-send-arrow" />
           </button>
         </div>
@@ -586,10 +594,10 @@ function assetDetailSections(asset) {
     { label: '选区 inline style', value: asset.inlineStyle || '-' },
     { label: '选区 computed style', value: formatAssetValue(asset.computedStyle) },
     { label: '选区 innerHTML', value: asset.innerHtml || '-' },
-    { label: '截图区域文案', value: asset.assetText || '-' },
-    { label: '截图区域 inline style', value: asset.assetInlineStyle || '-' },
-    { label: '截图区域 computed style', value: formatAssetValue(asset.assetComputedStyle) },
-    { label: '截图区域 innerHTML', value: asset.assetInnerHtml || '-' }
+    { label: '扩大选区文案', value: asset.assetText || '-' },
+    { label: '扩大选区 inline style', value: asset.assetInlineStyle || '-' },
+    { label: '扩大选区 computed style', value: formatAssetValue(asset.assetComputedStyle) },
+    { label: '扩大选区 innerHTML', value: asset.assetInnerHtml || '-' }
   ];
 }
 

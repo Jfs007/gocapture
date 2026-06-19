@@ -19,16 +19,21 @@ function componentNeedles(filePath) {
   const ext = path.extname(filePath);
   const base = path.basename(filePath, ext);
   const stem = filePath.slice(0, -ext.length);
+  const genericBase = /^(?:index|main|app|layout)$/i.test(base);
+  const baseNeedles = genericBase
+    ? []
+    : [
+      `/${base}`,
+      `./${base}`,
+      `../${base}`,
+      `<${base}`,
+      `<${kebabCase(base)}`,
+    ];
   return uniq([
-    base,
-    kebabCase(base),
     stem,
     `/${stem}`,
     `@/${stem}`,
-    `./${base}`,
-    `../${base}`,
-    `<${base}`,
-    `<${kebabCase(base)}`,
+    ...baseNeedles,
   ]).filter(item => item.length >= 3);
 }
 

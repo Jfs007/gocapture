@@ -1,6 +1,7 @@
 const { readProjectText } = require('../../core/fs-utils');
 const {
   cleanPagePath,
+  detectLayoutLike,
   projectFileMap,
   resolveImportFile,
   routeHit,
@@ -396,6 +397,47 @@ function rootAppShellHits(project, pagePath, textCache) {
   return hits;
 }
 
+function extractRoutes({ project, textCache }) {
+  const fileMap = projectFileMap(project);
+  const nodes = [];
+
+  for (const file of routeSourceFiles(project, VUE_ROUTE_FILES)) {
+    const text = readProjectText(project, file, textCache);
+    if (!text) continue;
+    const imports = importedNameMap(text);
+    const entries = routeEntries(text);
+    if (!entries.length) continue;
+    const descendantStarts = new Set();
+    for (const entry of entries) {
+      for (const ancestor of entry.ancestors || []) {
+        descendantStarts.add(ancestor.start);
+      }
+    }
+
+    for (const entry of entries) {
+      const specifier = componentSpecFromBlock(entry.directText, imports);
+      const componentFile = resolveImportFile(project, file.path, specifier, fileMap);
+      const isLeaf = !descendantStarts.has(entry.start);
+      nodes.push({
+        routePath: entry.fullPath,
+        rawPath: entry.routePath,
+        componentFile,
+        sourceFile: file.path,
+        framework: 'vue',
+        adapter: 'vue',
+        isLeaf,
+        isLayoutLike: !isLeaf || detectLayoutLike(project, componentFile, textCache),
+        parent: entry.ancestors?.length ? entry.ancestors[entry.ancestors.length - 1].fullPath : '',
+        meta: {
+          componentSpecifier: specifier,
+        },
+      });
+    }
+  }
+
+  return nodes;
+}
+
 function resolve({ project, pagePath, textCache }) {
   const fileMap = projectFileMap(project);
   const hits = [];
@@ -460,5 +502,6 @@ function resolve({ project, pagePath, textCache }) {
 module.exports = {
   key: 'vue',
   kinds: ['vue', 'vue-vite', 'vue-webpack'],
+  extractRoutes,
   resolve,
 };

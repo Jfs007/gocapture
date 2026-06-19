@@ -78,6 +78,22 @@ function collectApiEndpoints(body) {
   return uniq(raw.map(endpointPath)).slice(0, MAX_API_ENDPOINTS);
 }
 
+function collectApiRequestMetas(body) {
+  const metas = new Map();
+  const apiRequests = Array.isArray(body.apiRequests) ? body.apiRequests : [];
+  for (const item of apiRequests) {
+    const path = endpointPath(item.pathname || item.url);
+    if (!path || metas.has(path)) continue;
+    metas.set(path, {
+      path,
+      url: item.url || '',
+      method: item.method || '',
+      requestKeys: Array.isArray(item.requestKeys) ? item.requestKeys.slice(0, 12) : [],
+    });
+  }
+  return metas;
+}
+
 function cleanSymbol(value) {
   const symbol = String(value || '').trim();
   if (!/^[A-Za-z_$][\w$]*$/.test(symbol)) return '';
@@ -183,7 +199,7 @@ function uniqueSeeds(seeds, limit = MAX_TRACE_SEEDS_PER_DEPTH) {
     const key = `${seed.depth}:${seed.file}:${symbol}:${seed.endpoint}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    result.push({ ...seed, symbol });
+    result.push({ ...seed, symbol, chain: Array.isArray(seed.chain) ? seed.chain : [seed.file].filter(Boolean) });
     if (result.length >= limit) break;
   }
   return result;
@@ -259,6 +275,7 @@ function findEndpointDefinitionHits(project, endpoints, evidence, textCache) {
         uniqueMatchText: uiScore.uniqueMatchText,
         uniqueMatchCount: uiScore.uniqueMatchCount,
         symbols,
+        apiName: symbols.join(', '),
       });
 
       for (const symbol of symbols) {
@@ -266,6 +283,7 @@ function findEndpointDefinitionHits(project, endpoints, evidence, textCache) {
           symbol,
           endpoint,
           file: file.path,
+          chain: [file.path],
           depth: 1,
         });
       }
@@ -325,6 +343,9 @@ function traceReferenceUsage(project, seeds, evidence, textCache) {
       score,
       stage,
       from: seed.file,
+      endpoint: seed.endpoint,
+      symbol: usage.symbol,
+      apiChain: uniq([...(seed.chain || [seed.file]), file.path]),
       reasons: uniq(reasons).slice(0, 10),
       snippet: makeSnippet(text, usage.index, usage.symbol.length),
       exactMatchLabel: uiScore.exactMatchLabel,
@@ -349,6 +370,7 @@ function traceReferenceUsage(project, seeds, evidence, textCache) {
         symbol: nextSymbol,
         endpoint: seed.endpoint,
         file: file.path,
+        chain: uniq([...(seed.chain || [seed.file]), file.path]),
         depth: seed.depth + 1,
       });
     }
@@ -363,6 +385,7 @@ function traceReferenceUsage(project, seeds, evidence, textCache) {
 
 function traceApiReferences(project, body, evidence, textCache) {
   const endpoints = collectApiEndpoints(body);
+  const requestMetas = collectApiRequestMetas(body);
   const { hits: endpointHits, seeds } = findEndpointDefinitionHits(project, endpoints, evidence, textCache);
   const hits = [...endpointHits];
   const queue = uniqueSeeds(seeds);
@@ -390,10 +413,43 @@ function traceApiReferences(project, body, evidence, textCache) {
     if (hits.length >= MAX_TRACE_HITS) break;
   }
 
-  return hits
+  const result = hits
     .sort((a, b) => b.score - a.score)
-    .slice(0, 18)
-    .map(({ symbols, ...hit }) => hit);
+    .slice(0, 18);
+  result.apiTrace = buildApiTrace(endpoints, requestMetas, result);
+  return result;
+}
+
+function buildApiTrace(endpoints, requestMetas, hits) {
+  return {
+    endpoints: endpoints.map(endpoint => {
+      const meta = requestMetas.get(endpoint) || { path: endpoint };
+      const endpointHits = (hits || []).filter(hit => hit.from === endpoint || hit.endpoint === endpoint);
+      const files = endpointHits
+        .filter(hit => hit.stage === 'api-endpoint')
+        .map(hit => ({
+          file: hit.file,
+          symbols: hit.symbols || [],
+          apiName: hit.apiName || (hit.symbols || []).join(', '),
+          reasons: (hit.reasons || []).slice(0, 4),
+        }));
+      const chains = endpointHits
+        .filter(hit => Array.isArray(hit.apiChain) && hit.apiChain.length > 1)
+        .map(hit => ({
+          file: hit.file,
+          symbol: hit.symbol || '',
+          chain: hit.apiChain,
+          stage: hit.stage,
+          reasons: (hit.reasons || []).slice(0, 4),
+        }));
+      return {
+        ...meta,
+        symbols: uniq(files.flatMap(item => item.symbols || [])),
+        files,
+        chains,
+      };
+    })
+  };
 }
 
 module.exports = {

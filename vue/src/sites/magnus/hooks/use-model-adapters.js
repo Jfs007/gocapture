@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue';
-import { sourceServerJson } from '../services/source-service';
+import { sourceServerNdjson } from '../services/source-service';
 
 const MODEL_STORAGE_KEY = 'magnus:model-adapters';
 const MODEL_SELECTED_KEY = 'magnus:model-adapters:selected';
@@ -149,7 +149,7 @@ function normalizeModel(raw) {
   };
 }
 
-export function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, setToast }) {
+export function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, setToast }) {
   const modelConfigs = ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
   const selectedModelId = ref(loadText(MODEL_SELECTED_KEY, ''));
   const useModelAssist = ref(!!selectedModelId.value);
@@ -161,6 +161,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
   const modelAssistResult = ref(null);
   const modelAssistStartedAt = ref(0);
   const modelAssistFinishedAt = ref(0);
+  let modelAssistController = null;
 
   const selectedModel = computed(() => {
     return modelConfigs.value.find(item => item.id === selectedModelId.value) || null;
@@ -299,6 +300,9 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
 
   async function runModelAssist() {
     if (!useModelAssist.value || !canUseModelAssist.value) return null;
+    if (modelAssistLoading.value) return null;
+    const controller = new AbortController();
+    modelAssistController = controller;
     modelAssistStartedAt.value = Date.now();
     modelAssistFinishedAt.value = 0;
     modelAssistLoading.value = true;
@@ -306,25 +310,57 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     modelAssistLogs.value = ['模型定位请求已发起'];
     modelAssistResult.value = null;
     try {
-      const data = await sourceServerJson('/api/model/locate', {
+      const result = await sourceServerNdjson('/api/model/locate/stream', {
         method: 'POST',
+        controller,
         body: {
           adapter: selectedModel.value,
           searchPayload: searchPayload(),
           pagePath: routeResolverTrace.value?.pagePath || '',
           routeResolver: routeResolverTrace.value,
-          candidateHits: candidateHits.value.slice(0, 12),
-          selectedCandidateHits: candidateHits.value.filter(hit => selectedCandidatePaths.value.includes(hit.file)).slice(0, 8),
+          apiTrace: apiTrace?.value || null,
+          candidateHits: candidateHits.value.slice(0, 4),
+          selectedCandidateHits: candidateHits.value.filter(hit => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4),
         },
         timeoutMs: Number(selectedModel.value.timeoutMs || 120000) + 5000,
-        timeoutMessage: '模型定位超时'
+        timeoutMessage: '模型定位超时',
+        abortMessage: '模型定位已停止',
+        onEvent(event) {
+          if (event.type === 'log' && event.log) {
+            modelAssistLogs.value = [...modelAssistLogs.value, event.log];
+          }
+          if (event.type === 'result') {
+            modelAssistResult.value = event.result || null;
+          }
+          if (event.type === 'error' && Array.isArray(event.logs)) {
+            modelAssistLogs.value = event.logs;
+          }
+        }
       });
-      modelAssistResult.value = data.result || null;
+      modelAssistResult.value = result || modelAssistResult.value || null;
       modelAssistLogs.value = modelAssistResult.value?.logs || [];
       mergeModelTargets(modelAssistResult.value);
       setToast('模型定位已完成');
       return modelAssistResult.value;
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        const stoppedLogs = [...modelAssistLogs.value, '已手动停止'];
+        modelAssistLogs.value = stoppedLogs;
+        modelAssistResult.value = {
+          adapter: {
+            id: selectedModel.value?.id || '',
+            name: selectedModel.value?.name || '模型',
+            type: selectedModel.value?.type || ''
+          },
+          stopped: true,
+          modelItems: [],
+          targetFiles: [],
+          logs: stoppedLogs
+        };
+        modelAssistError.value = '';
+        setToast('已手动停止');
+        return modelAssistResult.value;
+      }
       modelAssistError.value = error.message || String(error);
       modelAssistLogs.value = error.payload?.logs || modelAssistLogs.value;
       setToast('模型定位失败');
@@ -332,7 +368,14 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     } finally {
       modelAssistFinishedAt.value = Date.now();
       modelAssistLoading.value = false;
+      if (modelAssistController === controller) modelAssistController = null;
     }
+  }
+
+  function stopModelAssist() {
+    if (!modelAssistLoading.value || !modelAssistController) return;
+    modelAssistLogs.value = [...modelAssistLogs.value, '正在停止模型定位...'];
+    modelAssistController.abort();
   }
 
   void hydratePersistedModels();
@@ -361,6 +404,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     disableModelAssist,
     setUseModelAssist,
     resetModelAssist,
-    runModelAssist
+    runModelAssist,
+    stopModelAssist
   };
 }

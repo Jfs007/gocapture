@@ -144,7 +144,11 @@ export function useChatMessages({
         id: 'model-result',
         role: 'agent',
         title: `模型定位 · ${result.adapter?.name || '模型'}`,
-        text: targets.length ? '模型已定位到修改点，可继续生成最终提示词。' : '模型未定位到可用修改点。',
+        text: result.stopped
+          ? '模型定位已手动停止。'
+          : targets.length
+            ? '模型已定位到修改点，可继续生成最终提示词。'
+            : '模型未定位到可用修改点。',
         logs: [
           ...(result.logs || []),
           ...targetLogs,
@@ -153,7 +157,7 @@ export function useChatMessages({
         durationStartedAt: modelAssistStartedAt?.value || 0,
         durationFinishedAt: modelAssistFinishedAt?.value || 0,
         durationActive: false,
-        logExpanded: false
+        logExpanded: true
       });
     } else if (modelAssistError?.value) {
       messages.push({
@@ -165,7 +169,7 @@ export function useChatMessages({
         durationStartedAt: modelAssistStartedAt?.value || 0,
         durationFinishedAt: modelAssistFinishedAt?.value || 0,
         durationActive: false,
-        logExpanded: false
+        logExpanded: true
       });
     }
 

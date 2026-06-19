@@ -1,4 +1,9 @@
-const { cleanPagePath } = require('./utils');
+const {
+  cleanPagePath,
+  matchRoutes,
+  routeHit,
+  routeNodeHit,
+} = require('./utils');
 const vue = require('./adapters/vue');
 const vueVite = require('./adapters/vue-vite');
 const vueWebpack = require('./adapters/vue-webpack');
@@ -39,6 +44,83 @@ function uniqueHits(hits) {
   return Array.from(map.values());
 }
 
+function uniqueRouteMatches(matches) {
+  const map = new Map();
+  for (const item of matches || []) {
+    const route = item.route || {};
+    const key = route.componentFile
+      ? `${route.routePath || ''}|${route.componentFile}`
+      : `${route.routePath || ''}|${route.sourceFile || ''}|${route.rawPath || ''}`;
+    const old = map.get(key);
+    if (!old || old.score < item.score) map.set(key, item);
+  }
+  return Array.from(map.values()).sort((a, b) => b.score - a.score);
+}
+
+function collectRouteNodes(project, body, pagePath, textCache, activeAdapters, trace) {
+  const routes = [];
+  for (const adapter of activeAdapters) {
+    if (typeof adapter.extractRoutes !== 'function') continue;
+    try {
+      routes.push(...adapter.extractRoutes({
+        project,
+        pagePath,
+        body,
+        textCache,
+      }));
+    } catch (error) {
+      trace.errors.push(`${adapter.key}.extractRoutes: ${error.message || error}`);
+    }
+  }
+  return routes;
+}
+
+function routeDeclarationHit(project, routeMatch, pagePath, textCache) {
+  const route = routeMatch.route;
+  if (!route?.sourceFile) return null;
+  return routeHit(project, route.sourceFile, {
+    adapter: route.adapter || route.framework || 'route',
+    score: Math.max(180, routeMatch.score - 240),
+    from: route.sourceFile,
+    routePath: route.routePath,
+    reasons: [
+      ...routeMatch.reasons,
+      `页面路径 ${pagePath} 命中路由：${route.routePath}`,
+      '未解析到页面组件文件，保留路由声明文件作为候选',
+      route.sourceFile ? `路由文件：${route.sourceFile}` : '',
+    ],
+    textCache,
+  });
+}
+
+function routeMatchToHit(project, routeMatch, pagePath, textCache) {
+  const hit = routeNodeHit(project, routeMatch.route, pagePath, {
+    score: routeMatch.score,
+    reasons: routeMatch.reasons,
+    match: routeMatch.match,
+    textCache,
+  });
+  return hit || routeDeclarationHit(project, routeMatch, pagePath, textCache);
+}
+
+function fallbackResolveHits(project, body, pagePath, textCache, activeAdapters, trace) {
+  const hits = [];
+  for (const adapter of activeAdapters) {
+    if (typeof adapter.resolve !== 'function') continue;
+    try {
+      hits.push(...adapter.resolve({
+        project,
+        pagePath,
+        body,
+        textCache,
+      }));
+    } catch (error) {
+      trace.errors.push(`${adapter.key}.resolve: ${error.message || error}`);
+    }
+  }
+  return hits;
+}
+
 function resolvePageRouteTrace(project, body, textCache) {
   const pagePath = cleanPagePath(body.url || body.pagePath || body.path || '/');
   const projectKind = project.kind || 'unknown';
@@ -48,29 +130,44 @@ function resolvePageRouteTrace(project, body, textCache) {
     pagePath,
     adapters: activeAdapters.map(adapter => adapter.key),
     matched: false,
+    bestPageFile: '',
+    bestRoute: null,
+    routeHits: [],
+    fallbackFiles: [],
     hits: [],
     errors: [],
   };
   if (!pagePath) return { hits: [], trace };
 
-  const hits = [];
-  for (const adapter of activeAdapters) {
-    try {
-      hits.push(...adapter.resolve({
-        project,
-        pagePath,
-        body,
-        textCache,
-      }));
-    } catch (error) {
-      trace.errors.push(`${adapter.key}: ${error.message || error}`);
-    }
+  const routeNodes = collectRouteNodes(project, body, pagePath, textCache, activeAdapters, trace);
+  const allRouteMatches = uniqueRouteMatches(matchRoutes(pagePath, routeNodes));
+  const exactRouteMatches = allRouteMatches.filter(item => item.match?.exact);
+  const routeMatches = exactRouteMatches.length ? exactRouteMatches : allRouteMatches;
+  trace.routeHits = routeMatches.slice(0, 12).map(item => ({
+    route: item.route,
+    score: item.score,
+    reasons: item.reasons,
+  }));
+
+  let hits = [];
+  if (routeMatches.length) {
+    hits = routeMatches
+      .map(item => routeMatchToHit(project, item, pagePath, textCache))
+      .filter(Boolean);
+    const best = routeMatches[0];
+    trace.matched = true;
+    trace.bestRoute = best.route;
+    trace.bestPageFile = best.route.componentFile || '';
+  } else {
+    hits = fallbackResolveHits(project, body, pagePath, textCache, activeAdapters, trace);
   }
 
   const resolvedHits = uniqueHits(hits)
     .sort((a, b) => b.score - a.score)
     .slice(0, 12);
-  trace.matched = resolvedHits.length > 0;
+  trace.matched = trace.matched || resolvedHits.length > 0;
+  if (!trace.bestPageFile) trace.bestPageFile = resolvedHits[0]?.file || '';
+  if (!routeMatches.length) trace.fallbackFiles = resolvedHits.map(hit => hit.file).slice(0, 20);
   trace.hits = resolvedHits.slice(0, 8).map(hit => ({
     file: hit.file,
     adapter: hit.routeAdapter || '',

@@ -61,6 +61,7 @@ import { useCtx } from './core/ctx';
 import {
   compactText,
   getClassName,
+  getComparableElementText,
   getElementInfo,
   normalizeRequestInfo,
   round
@@ -92,6 +93,7 @@ const displayInfo = shallowRef(null);
 const selectedItems = ref([]);
 const candidateHits = ref([]);
 const routeResolverTrace = ref(null);
+const apiTrace = ref(null);
 const candidateLoading = ref(false);
 const searchRunning = ref(false);
 const candidateError = ref('');
@@ -112,8 +114,13 @@ const currentPageHref = ref(readCurrentHref());
 let selectionUid = 0;
 let routeResolveSeq = 0;
 let routeResolveTimer = 0;
+let webRequestApiRetryTimer = 0;
+let webRequestApiRetryCount = 0;
+let webRequestApiInstalled = false;
 let cleanupLocationWatcher = null;
 const PROJECT_STORAGE_PREFIX = 'magnus:source-project:';
+const WEB_REQUEST_HANDLER_KEY = '__MAGNUS_WEB_REQUEST_HANDLER__';
+const WEB_REQUEST_LISTENER_KEY = '__MAGNUS_WEB_REQUEST_LISTENER_INSTALLED__';
 
 const {
   collapsed,
@@ -211,6 +218,7 @@ const composerText = computed(() => {
 });
 const composerInputValue = computed(() => composerEditable.value ? promptIntent.value : composerText.value);
 const composerCanSend = computed(() => {
+  if (modelAssistLoading.value) return true;
   if (candidateLoading.value) return false;
   if (!project.value) return false;
   if (!selectedItems.value.length) return false;
@@ -238,6 +246,7 @@ const {
   selectedCandidateHits,
   candidateHits,
   routeResolverTrace,
+  apiTrace,
   evidenceMessages,
   customEvidence,
   promptIntent,
@@ -258,7 +267,7 @@ const promptAssets = computed(() => {
     token: `@选区${index + 1}`,
     index: index + 1,
     label: `选区 ${index + 1}`,
-    summary: compactText(item.assetInfo?.text || item.info?.text || item.info?.className || item.info?.tag || `选区${index + 1}`, 24),
+    summary: compactText(item.info?.text || item.info?.className || item.info?.tag || item.assetInfo?.text || `选区${index + 1}`, 24),
     thumbnailUrl: item.thumbnailUrl || '',
     className: item.info?.className || '',
     text: item.info?.text || '',
@@ -303,13 +312,15 @@ const {
   disableModelAssist,
   setUseModelAssist,
   resetModelAssist,
-  runModelAssist
+  runModelAssist,
+  stopModelAssist
 } = useModelAdapters({
   project,
   candidateHits,
   selectedCandidatePaths,
   searchPayload,
   routeResolverTrace,
+  apiTrace,
   setToast
 });
 
@@ -400,6 +411,7 @@ const ctx = useCtx({
   disableModelAssist,
   setUseModelAssist,
   resetModelAssist,
+  stopModelAssist,
   clearSelections,
   onComposerInput,
   insertPromptAsset,
@@ -441,7 +453,7 @@ function dispatchSelected() {
 }
 
 function updateInfo(element) {
-  const info = getElementInfo(element);
+  const info = getElementInfo(element, { normalizeText: denoiseTextByApi });
   if (!info) return;
   displayInfo.value = info;
 }
@@ -715,16 +727,20 @@ function getMdWeb() {
 }
 
 function resolveSelectionAssetElement(element) {
-  let node = element;
   let resolved = element;
-  while (node && node.nodeType === 1) {
-    resolved = node;
-    const rect = node.getBoundingClientRect();
-    if (
-      (rect.width >= 300 && rect.height >= 300) ||
-      node === document.body ||
-      node === document.documentElement
-    ) break;
+  let node = element?.parentElement || null;
+  let currentText = getComparableElementText(element, denoiseTextByApi, 1200);
+  let usefulDepth = 0;
+  let inspected = 0;
+  while (node && node.nodeType === 1 && usefulDepth < 4 && inspected < 16) {
+    inspected++;
+    const nextText = getComparableElementText(node, denoiseTextByApi, 1200);
+    if (nextText && nextText.length > currentText.length) {
+      resolved = node;
+      usefulDepth++;
+      break;
+    }
+    if (node === document.body || node === document.documentElement) break;
     node = node.parentElement;
   }
   return resolved;
@@ -794,8 +810,8 @@ async function updateSelectionAssetPreview(item) {
   if (!item?.uid || !item.element) return;
   try {
     const assetElement = resolveSelectionAssetElement(item.element);
-    const assetInfo = getElementInfo(assetElement) || item.info;
-    const viewportBox = clipRectToViewport(assetElement.getBoundingClientRect());
+    const assetInfo = getElementInfo(assetElement, { normalizeText: denoiseTextByApi }) || item.info;
+    const viewportBox = clipRectToViewport(item.element.getBoundingClientRect());
     const fullCapture = await captureVisibleTabDataUrl();
     const thumbnailUrl = await cropSelectionThumbnail(fullCapture, viewportBox);
     const current = selectedItems.value.find(selection => selection.uid === item.uid);
@@ -852,10 +868,57 @@ function confirmCandidateFiles() {
   generatePrompt({ userInstruction: promptIntent.value.trim() });
 }
 
+function rememberWebRequestPayload(payload) {
+  rememberRequest(normalizeRequestInfo(payload || {}, window.location.href));
+}
+
+function normalizeWebRequestCacheItem(item) {
+  if (!item) return null;
+  if (item.type === 'WEB_REQUEST_RESPONSE' && item.data) return item.data;
+  return item;
+}
+
+function replayWebRequestCaches(api) {
+  if (!api || !Array.isArray(api.caches) || !api.caches.length) return;
+  const caches = api.caches.splice(0);
+  caches.forEach(item => {
+    const payload = normalizeWebRequestCacheItem(item);
+    if (payload) rememberWebRequestPayload(payload);
+  });
+}
+
+function installWebRequestApiListener() {
+  const api = window.__WEB_REQUEST_API__;
+  if (!api || typeof api.onResponse !== 'function') return false;
+
+  webRequestApiInstalled = true;
+  window[WEB_REQUEST_HANDLER_KEY] = rememberWebRequestPayload;
+
+  if (!api[WEB_REQUEST_LISTENER_KEY]) {
+    api.onResponse(payload => {
+      const handler = window[WEB_REQUEST_HANDLER_KEY];
+      if (typeof handler === 'function') handler(payload);
+    });
+    api[WEB_REQUEST_LISTENER_KEY] = true;
+  }
+
+  replayWebRequestCaches(api);
+  if (typeof api.ready === 'function') api.ready();
+  return true;
+}
+
+function installWebRequestApiListenerWithRetry() {
+  if (installWebRequestApiListener()) return;
+  if (webRequestApiRetryCount >= 20) return;
+  webRequestApiRetryCount += 1;
+  webRequestApiRetryTimer = window.setTimeout(installWebRequestApiListenerWithRetry, 250);
+}
+
 function onPageMessage(event) {
+  if (webRequestApiInstalled) return;
   const message = event.data || {};
   if (message.type !== 'WEB_REQUEST_RESPONSE') return;
-  rememberRequest(normalizeRequestInfo(message.data || {}, window.location.href));
+  rememberWebRequestPayload(message.data || {});
 }
 
 function elementFromPoint(event) {
@@ -896,7 +959,7 @@ function onMouseMove(event) {
 }
 
 function addSelection(element) {
-  const info = getElementInfo(element);
+  const info = getElementInfo(element, { normalizeText: denoiseTextByApi });
   if (!info) return;
 
   const item = {
@@ -1011,6 +1074,7 @@ async function searchCandidateFiles() {
     })();
     candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
     routeResolverTrace.value = data.routeResolver || null;
+    apiTrace.value = data.apiTrace || null;
     if (!candidateHits.value.length) {
       selectedCandidatePaths.value = [];
       candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
@@ -1021,6 +1085,7 @@ async function searchCandidateFiles() {
     }
     if (candidateHits.value.length && useModelAssist.value && canUseModelAssist.value) {
       const modelResult = await runModelAssist();
+      if (modelResult?.stopped) return [];
       if (hasUsableModelResult(modelResult)) {
         filesConfirmed.value = true;
         generatePrompt({ userInstruction: promptIntent.value.trim() });
@@ -1037,6 +1102,10 @@ async function searchCandidateFiles() {
 }
 
 async function sendComposer() {
+  if (modelAssistLoading.value) {
+    stopModelAssist();
+    return;
+  }
   if (!project.value) return;
   const instruction = promptIntent.value.trim();
   if (!instruction) return;
@@ -1105,6 +1174,13 @@ function cleanup() {
     window.clearTimeout(routeResolveTimer);
     routeResolveTimer = 0;
   }
+  if (webRequestApiRetryTimer) {
+    window.clearTimeout(webRequestApiRetryTimer);
+    webRequestApiRetryTimer = 0;
+  }
+  if (window[WEB_REQUEST_HANDLER_KEY] === rememberWebRequestPayload) {
+    window[WEB_REQUEST_HANDLER_KEY] = null;
+  }
   if (cleanupLocationWatcher) {
     cleanupLocationWatcher();
     cleanupLocationWatcher = null;
@@ -1147,6 +1223,7 @@ onMounted(() => {
   props.api.shadowRoot.addEventListener('pointerdown', stopAssistantEvent);
   props.api.shadowRoot.addEventListener('click', stopAssistantEvent);
   window.addEventListener('message', onPageMessage, true);
+  installWebRequestApiListenerWithRetry();
   window.addEventListener('mousemove', onMouseMove, true);
   window.addEventListener('keydown', onKeyDown, true);
   window.addEventListener('scroll', onScrollOrResize, true);

@@ -10,10 +10,166 @@ function normalizePhrase(value, minLength = 2) {
   return text.length >= minLength ? text : '';
 }
 
+function maskCommentsPreserveLength(value) {
+  const text = String(value || '');
+  let result = '';
+  let quote = '';
+  let escaped = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    const next = text[index + 1] || '';
+
+    if (quote) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+
+    if (char === '"' || char === '\'' || char === '`') {
+      quote = char;
+      result += char;
+      continue;
+    }
+
+    if (char === '<' && text.startsWith('<!--', index)) {
+      const end = text.indexOf('-->', index + 4);
+      const stop = end === -1 ? text.length : end + 3;
+      const raw = text.slice(index, stop);
+      result += raw.replace(/[^\n\r]/g, ' ');
+      index = stop - 1;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      const end = text.indexOf('\n', index + 2);
+      const stop = end === -1 ? text.length : end;
+      const raw = text.slice(index, stop);
+      result += raw.replace(/[^\n\r]/g, ' ');
+      index = stop - 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      const end = text.indexOf('*/', index + 2);
+      const stop = end === -1 ? text.length : end + 2;
+      const raw = text.slice(index, stop);
+      result += raw.replace(/[^\n\r]/g, ' ');
+      index = stop - 1;
+      continue;
+    }
+
+    result += char;
+  }
+  return result;
+}
+
+function isTextContinuationChar(char) {
+  return /[\p{L}\p{N}_$-]/u.test(String(char || ''));
+}
+
+function isBoundaryMatch(text, index, length, needle) {
+  const value = String(needle || '');
+  const first = value[0] || '';
+  const last = value[value.length - 1] || '';
+  const before = index > 0 ? text[index - 1] : '';
+  const after = index + length < text.length ? text[index + length] : '';
+  const beforeOk = !isTextContinuationChar(first) || !isTextContinuationChar(before);
+  const afterOk = !isTextContinuationChar(last) || !isTextContinuationChar(after);
+  return beforeOk && afterOk;
+}
+
+function findNeedleIndex(text, needle, fromIndex = 0) {
+  const content = String(text || '');
+  const value = String(needle || '');
+  if (!content || !value) return -1;
+  let index = Math.max(0, fromIndex);
+  while (index < content.length) {
+    const found = content.indexOf(value, index);
+    if (found === -1) return -1;
+    if (isBoundaryMatch(content, found, value.length, value)) return found;
+    index = found + Math.max(1, value.length);
+  }
+  return -1;
+}
+
 function numericStyleValue(value) {
   const matched = String(value || '').trim().match(/^(\d+(?:\.\d+)?)px$/i);
   return matched ? matched[1] : '';
 }
+
+const MEDIA_ATTR_KEYS = new Set(['src', 'srcset', 'poster', 'data-src', 'data-original', 'data-lazy-src']);
+const NOISE_CLASS_PREFIXES = ['n-', 'el-', 'ant-', 'ivu-', 'van-', 'arco-', 'semi-', 'q-', 'v-', 'router-link-'];
+const RUNTIME_CLASS_PARTS = [
+  '--active',
+  '--selected',
+  '--disabled',
+  '--focus',
+  '--focused',
+  '--hover',
+  '--open',
+  '--checked',
+  '--expanded',
+  'is-active',
+  'is-selected',
+  'is-disabled',
+  'is-focus',
+  'is-hover',
+  'active',
+  'selected',
+  'disabled',
+  'checked',
+];
+const GENERIC_STYLE_VALUES = new Set([
+  'auto',
+  'none',
+  'normal',
+  'initial',
+  'inherit',
+  'unset',
+  'static',
+  'relative',
+  'block',
+  'inline',
+  'flex',
+  'grid',
+  'table',
+  'visible',
+  'hidden',
+  'center',
+  'left',
+  'right',
+  'top',
+  'bottom',
+  'transparent',
+  'rgba(0, 0, 0, 0)',
+  'rgba(0,0,0,0)',
+]);
+const USEFUL_STYLE_KEYS = new Set([
+  'width',
+  'height',
+  'minWidth',
+  'min-width',
+  'maxWidth',
+  'max-width',
+  'objectFit',
+  'object-fit',
+  'borderRadius',
+  'border-radius',
+  'backgroundSize',
+  'background-size',
+  'backgroundPosition',
+  'background-position',
+  'fontSize',
+  'font-size',
+  'fontWeight',
+  'font-weight',
+]);
 
 function tokenizeUrlValue(value) {
   const raw = String(value || '').trim();
@@ -35,8 +191,401 @@ function tokenizeUrlValue(value) {
   ).slice(0, 10);
 }
 
+function sanitizeInlineStyle(value) {
+  return String(value || '').replace(/url\([^)]*\)/gi, 'url([runtime])');
+}
+
+function infoResourceTokens(info, limit = 16) {
+  const attrs = info?.attrs || {};
+  const style = info?.computedStyle || {};
+  const tokens = [];
+  if (String(info?.tag || '').toLowerCase() === 'img') {
+    tokens.push('img', 'image', 'src');
+  }
+  for (const [key, value] of Object.entries(attrs)) {
+    if (!value) continue;
+    const lowerKey = key.toLowerCase();
+    if (MEDIA_ATTR_KEYS.has(lowerKey)) {
+      tokens.push(lowerKey, 'image', lowerKey === 'poster' ? 'poster' : 'src');
+    }
+    if (lowerKey === 'magnus-media' && String(value).toLowerCase() === 'image') {
+      tokens.push('img', 'image', 'src');
+    }
+  }
+  if (style.backgroundImage && style.backgroundImage !== 'none') {
+    tokens.push('background-image', 'backgroundImage', 'background', 'image');
+  }
+  if (/background-image|url\(/i.test(String(info?.inlineStyle || ''))) {
+    tokens.push('background-image', 'background', 'image');
+  }
+  return uniq(tokens).slice(0, limit);
+}
+
 function infoClassTokens(info, limit = 12) {
-  return tokenize(info?.className).slice(0, limit);
+  return orderedClassTokens(info?.className, limit);
+}
+
+function orderedClassTokens(value, limit = 12) {
+  return uniq(
+    String(value || '')
+      .split(/\s+/)
+      .map(item => item.trim())
+      .filter(item => {
+        if (item.length < 2 || item.length > 80) return false;
+        if (/^\d+$/.test(item)) return false;
+        return true;
+      })
+  ).slice(0, limit);
+}
+
+function looksHashedClass(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (/^css-[a-z0-9]{5,}$/i.test(text)) return true;
+  if (/^_[a-z0-9]{5,}$/i.test(text)) return true;
+  if (/[a-z]__[a-z0-9_-]+__[a-z0-9]{5,}$/i.test(text)) return true;
+  if (/^[a-z0-9_-]*[a-f0-9]{7,}[a-z0-9_-]*$/i.test(text) && !/[A-Z]/.test(text)) return true;
+  return false;
+}
+
+function isRuntimeClass(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return RUNTIME_CLASS_PARTS.some(part => text === part || text.includes(part));
+}
+
+function isNoiseClass(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  if (looksHashedClass(text)) return true;
+  if (isRuntimeClass(text)) return true;
+  return NOISE_CLASS_PREFIXES.some(prefix => text.startsWith(prefix));
+}
+
+function isIconClass(value) {
+  const text = String(value || '').trim();
+  return /(^|[-_])icon($|[-_])|^iconfont$|^i-/.test(text);
+}
+
+function isGenericText(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length < 2 || text.length > 80) return true;
+  if (/^\d+(?:\.\d+)?$/.test(text)) return true;
+  if (/^[\s\W_]+$/u.test(text)) return true;
+  return /^(true|false|null|undefined|yes|no|ok|确定|取消|编辑|删除|复制|保存|提交|关闭|更多|展开|收起)$/i.test(text);
+}
+
+function textEvidenceValues(value, limit = 10) {
+  const raw = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return [];
+  const pieces = raw.length <= 40
+    ? [raw]
+    : raw.split(/[\n\r\t,，。；;|/\\()[\]{}<>:：]+|\s{2,}/);
+  return uniq(pieces
+    .map(item => item.trim())
+    .filter(item => !isGenericText(item)))
+    .sort((a, b) => b.length - a.length)
+    .slice(0, limit);
+}
+
+function isBusinessHref(value) {
+  const text = String(value || '').trim();
+  if (!text || text === '[present]') return false;
+  if (/^(javascript:|#|mailto:|tel:)/i.test(text)) return false;
+  try {
+    const url = new URL(text, 'http://local.invalid');
+    const path = `${url.pathname || ''}${url.hash || ''}`;
+    return path.length > 1 && !/^\/?$/.test(path);
+  } catch (error) {
+    return /\/[\w-]+/.test(text);
+  }
+}
+
+function selectorTailValues(selector, limit = 3) {
+  return uniq(String(selector || '')
+    .split('>')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(-limit)
+    .flatMap(part => {
+      const values = [];
+      const classMatches = Array.from(part.matchAll(/\.([a-zA-Z0-9_-]+)/g)).map(match => match[1]);
+      values.push(...classMatches.filter(item => !isNoiseClass(item)).slice(0, 2));
+      const idMatch = part.match(/#([a-zA-Z0-9_-]+)/);
+      if (idMatch) values.push(idMatch[1]);
+      return values;
+    }))
+    .slice(0, 6);
+}
+
+function dataAttrEntries(attrs) {
+  return Object.entries(attrs || {})
+    .filter(([key]) => /^data-/i.test(key) && !/^data-v-/i.test(key));
+}
+
+function styleEvidencePairs(styleValue = {}, inlineStyle = '') {
+  const result = [];
+  for (const [key, rawValue] of Object.entries(styleValue || {})) {
+    if (!USEFUL_STYLE_KEYS.has(key)) continue;
+    const value = String(rawValue || '').trim();
+    if (!value || GENERIC_STYLE_VALUES.has(value.toLowerCase())) continue;
+    if (/^0(?:px|%)?$/i.test(value)) continue;
+    result.push(`${key}:${value}`);
+  }
+  const inline = String(inlineStyle || '');
+  for (const part of inline.split(';')) {
+    const [rawKey, ...rest] = part.split(':');
+    const key = String(rawKey || '').trim();
+    const value = rest.join(':').trim();
+    if (!key || !value || !USEFUL_STYLE_KEYS.has(key)) continue;
+    if (GENERIC_STYLE_VALUES.has(value.toLowerCase())) continue;
+    result.push(`${key}:${sanitizeInlineStyle(value)}`);
+  }
+  return uniq(result).slice(0, 10);
+}
+
+function addStructuredEvidence(result, evidence) {
+  const value = String(evidence.value || '').replace(/\s+/g, ' ').trim();
+  if (!value) return;
+  if (value.length > 160) return;
+  const normalized = {
+    kind: evidence.kind,
+    value,
+    weight: Number(evidence.weight || 0),
+    strong: !!evidence.strong,
+    label: evidence.label || evidence.kind,
+    scope: evidence.scope || '',
+    selectionIndex: evidence.selectionIndex || 0,
+  };
+  const key = `${normalized.kind}:${normalized.value.toLowerCase()}:${normalized.scope}:${normalized.selectionIndex}`;
+  const old = result.map.get(key);
+  if (!old || old.weight < normalized.weight || (!old.strong && normalized.strong)) {
+    result.map.set(key, normalized);
+  }
+}
+
+function addNodeStructuredEvidences(result, info, options = {}) {
+  if (!info) return;
+  const scope = options.scope || 'self';
+  const selectionIndex = options.selectionIndex || 0;
+  const factor = options.factor || 1;
+  const includeAttributeStyleEvidence = options.includeAttributeStyleEvidence !== false;
+  const tag = String(info.tag || '').toLowerCase();
+  const noTextNode = ['img', 'svg', 'button', 'i'].includes(tag) && !normalizePhrase(info.text, 2);
+
+  for (const text of textEvidenceValues(info.text, noTextNode ? 2 : 8)) {
+    addStructuredEvidence(result, {
+      kind: 'text',
+      value: text,
+      weight: Math.round((noTextNode ? 30 : 96) * factor),
+      strong: !noTextNode,
+      label: `${options.label || '选区'}文案`,
+      scope,
+      selectionIndex,
+    });
+  }
+
+  for (const cls of orderedClassTokens(info.className, 16)) {
+    const icon = isIconClass(cls);
+    const noise = isNoiseClass(cls);
+    addStructuredEvidence(result, {
+      kind: icon ? 'icon' : 'class',
+      value: cls,
+      weight: Math.round((icon ? 92 : noise ? 12 : noTextNode ? 86 : 72) * factor),
+      strong: icon || !noise,
+      label: noise ? `${options.label || '选区'}组件库/状态 class` : `${options.label || '选区'}业务 class`,
+      scope,
+      selectionIndex,
+    });
+  }
+
+  const attrs = info.attrs || {};
+  if (includeAttributeStyleEvidence) {
+    for (const [key, value] of dataAttrEntries(attrs)) {
+      addStructuredEvidence(result, {
+        kind: 'attr',
+        value: String(value || '').trim() && value !== '[present]' ? `${key}=${value}` : key,
+        weight: Math.round(88 * factor),
+        strong: true,
+        label: `${options.label || '选区'} data-*`,
+        scope,
+        selectionIndex,
+      });
+    }
+    if (isBusinessHref(attrs.href)) {
+      addStructuredEvidence(result, {
+        kind: 'attr',
+        value: attrs.href,
+        weight: Math.round(84 * factor),
+        strong: true,
+        label: `${options.label || '选区'}业务 href`,
+        scope,
+        selectionIndex,
+      });
+    }
+    for (const key of Object.keys(attrs)) {
+      if (MEDIA_ATTR_KEYS.has(key.toLowerCase()) || key === 'magnus-media') {
+        addStructuredEvidence(result, {
+          kind: 'attr',
+          value: key === 'magnus-media' ? 'image' : key,
+          weight: Math.round((noTextNode ? 72 : 54) * factor),
+          strong: noTextNode,
+          label: `${options.label || '选区'}图片/资源属性`,
+          scope,
+          selectionIndex,
+        });
+      }
+    }
+
+    for (const value of styleEvidencePairs(info.computedStyle || {}, info.inlineStyle || '')) {
+      addStructuredEvidence(result, {
+        kind: 'style',
+        value,
+        weight: Math.round((noTextNode ? 42 : 30) * factor),
+        strong: false,
+        label: `${options.label || '选区'}关键样式`,
+        scope,
+        selectionIndex,
+      });
+    }
+
+    for (const value of selectorTailValues(info.selector, noTextNode ? 4 : 2)) {
+      addStructuredEvidence(result, {
+        kind: 'selector',
+        value,
+        weight: Math.round((noTextNode ? 46 : 24) * factor),
+        strong: noTextNode && !isNoiseClass(value),
+        label: `${options.label || '选区'} selector`,
+        scope,
+        selectionIndex,
+      });
+    }
+  }
+
+  const subtree = subtreeInfo(info);
+  for (const cls of (Array.isArray(subtree.classNames) ? subtree.classNames : []).slice(0, 24)) {
+    if (!cls) continue;
+    const icon = isIconClass(cls);
+    const noise = isNoiseClass(cls);
+    addStructuredEvidence(result, {
+      kind: icon ? 'icon' : 'class',
+      value: cls,
+      weight: Math.round((icon ? 76 : noise ? 8 : 58) * factor),
+      strong: icon || !noise,
+      label: `${options.label || '选区'}向下 class`,
+      scope,
+      selectionIndex,
+    });
+  }
+  for (const text of (Array.isArray(subtree.texts) ? subtree.texts : []).flatMap(item => textEvidenceValues(item, 3)).slice(0, 16)) {
+    addStructuredEvidence(result, {
+      kind: 'text',
+      value: text,
+      weight: Math.round(68 * factor),
+      strong: true,
+      label: `${options.label || '选区'}向下文案`,
+      scope,
+      selectionIndex,
+    });
+  }
+  if (includeAttributeStyleEvidence) {
+    for (const attr of (Array.isArray(subtree.attrs) ? subtree.attrs : []).slice(0, 18)) {
+      const key = String(attr?.key || '');
+      const value = String(attr?.value || '');
+      if (/^data-/i.test(key) && !/^data-v-/i.test(key)) {
+        addStructuredEvidence(result, {
+          kind: 'attr',
+          value: value && value !== '[present]' ? `${key}=${value}` : key,
+          weight: Math.round(58 * factor),
+          strong: true,
+          label: `${options.label || '选区'}向下 data-*`,
+          scope,
+          selectionIndex,
+        });
+      } else if (MEDIA_ATTR_KEYS.has(key.toLowerCase()) || key === 'magnus-media') {
+        addStructuredEvidence(result, {
+          kind: 'attr',
+          value: key === 'magnus-media' ? 'image' : key,
+          weight: Math.round(42 * factor),
+          strong: noTextNode,
+          label: `${options.label || '选区'}向下资源属性`,
+          scope,
+          selectionIndex,
+        });
+      }
+    }
+    for (const item of (Array.isArray(subtree.styles) ? subtree.styles : []).slice(0, 12)) {
+      for (const value of styleEvidencePairs(item?.style || {}, item?.inlineStyle || '')) {
+        addStructuredEvidence(result, {
+          kind: 'style',
+          value,
+          weight: Math.round(24 * factor),
+          strong: false,
+          label: `${options.label || '选区'}向下样式`,
+          scope,
+          selectionIndex,
+        });
+      }
+    }
+  }
+}
+
+function extractStructuredEvidences(body, selections, selectionInstructions) {
+  const result = { map: new Map() };
+  const pagePath = normalizeUrlPath(body.url || body.pageUrl || body.pagePath || '');
+  if (pagePath && pagePath !== '/') {
+    addStructuredEvidence(result, {
+      kind: 'route',
+      value: pagePath,
+      weight: 120,
+      strong: true,
+      label: '业务路由',
+      scope: 'page',
+    });
+  }
+
+  for (const selection of selections) {
+    const index = Number(selection.index || 0);
+    const instruction = selectionInstructions.get(index) || '';
+    addNodeStructuredEvidences(result, selection.element, {
+      scope: 'self',
+      selectionIndex: index,
+      factor: 1,
+      label: '当前选区',
+    });
+    for (const ancestor of (selection.element?.ancestors || []).slice(0, 4)) {
+      addNodeStructuredEvidences(result, ancestor, {
+        scope: 'ancestor',
+        selectionIndex: index,
+        factor: 0.62,
+        label: '父级扩区',
+        includeAttributeStyleEvidence: false,
+      });
+    }
+    if (selection.asset) {
+      addNodeStructuredEvidences(result, selection.asset, {
+        scope: 'asset',
+        selectionIndex: index,
+        factor: 0.72,
+        label: '扩大选区',
+      });
+    }
+    for (const text of textEvidenceValues(instruction, 6)) {
+      addStructuredEvidence(result, {
+        kind: 'text',
+        value: text,
+        weight: 62,
+        strong: true,
+        label: '用户修改要求',
+        scope: 'instruction',
+        selectionIndex: index,
+      });
+    }
+  }
+
+  return Array.from(result.map.values())
+    .sort((a, b) => Number(b.strong) - Number(a.strong) || b.weight - a.weight)
+    .slice(0, 120);
 }
 
 function infoTextPhrases(info, limit = 4) {
@@ -54,32 +603,201 @@ function infoAttrTokens(info, limit = 16) {
   const tokens = [];
   for (const [key, value] of Object.entries(attrs)) {
     if (!value) continue;
-    if (key === 'src' || key === 'href') {
+    const lowerKey = key.toLowerCase();
+    if (MEDIA_ATTR_KEYS.has(lowerKey)) {
+      tokens.push(lowerKey, 'image', lowerKey === 'poster' ? 'poster' : 'src');
+      continue;
+    }
+    if (lowerKey === 'href') {
       tokens.push(...tokenizeUrlValue(value));
       continue;
     }
-    if (key === 'width' || key === 'height') {
+    if (lowerKey === 'width' || lowerKey === 'height') {
       continue;
     }
+    if (String(value).trim() === '[present]') continue;
     tokens.push(...tokenize(value));
   }
   return uniq(tokens.filter(token => String(token || '').length >= 3)).slice(0, limit);
 }
 
 function infoStyleTokens(info, limit = 16) {
-  const style = info?.computedStyle || {};
+  return styleTokensFromValue(info?.computedStyle || {}, info?.inlineStyle || '', limit);
+}
+
+function styleTokensFromValue(styleValue, inlineStyle = '', limit = 16) {
+  const style = styleValue || {};
   const tokens = uniq([
+    style.display || '',
+    style.position || '',
+    style.color || '',
+    style.backgroundColor || '',
     style.objectFit || '',
     style.borderRadius || '',
+    style.fontSize || '',
+    style.fontWeight || '',
+    style.textAlign || '',
+    style.padding || '',
+    style.margin || '',
+    style.gap || '',
+    style.alignItems || '',
+    style.justifyContent || '',
     style.width || '',
     style.height || '',
-    ...tokenize(String(info?.inlineStyle || '').replace(/[:;]/g, ' ')),
+    style.backgroundSize || '',
+    style.backgroundPosition || '',
+    style.backgroundRepeat || '',
+    ...(style.backgroundImage && style.backgroundImage !== 'none' ? ['background-image', 'backgroundImage', 'background', 'image'] : []),
+    ...tokenize(sanitizeInlineStyle(inlineStyle).replace(/[:;]/g, ' ')),
   ].filter(Boolean));
   const widthPx = numericStyleValue(style.width);
   const heightPx = numericStyleValue(style.height);
   if (widthPx) tokens.push(`${widthPx}px`);
   if (heightPx) tokens.push(`${heightPx}px`);
   return uniq(tokens.filter(token => String(token || '').length >= 3)).slice(0, limit);
+}
+
+function subtreeInfo(info) {
+  const subtree = info?.subtree || info?.descendants || {};
+  return subtree && typeof subtree === 'object' ? subtree : {};
+}
+
+function subtreeClassTokens(info, limit = 32) {
+  const subtree = subtreeInfo(info);
+  return uniq((Array.isArray(subtree.classNames) ? subtree.classNames : [])
+    .flatMap(value => orderedClassTokens(value, 4)))
+    .slice(0, limit);
+}
+
+function subtreeTextPhrases(info, limit = 12) {
+  const subtree = subtreeInfo(info);
+  return uniq((Array.isArray(subtree.texts) ? subtree.texts : [])
+    .map(value => normalizePhrase(value, 3))
+    .filter(Boolean))
+    .slice(0, limit);
+}
+
+function subtreeTextTokens(info, limit = 32) {
+  const subtree = subtreeInfo(info);
+  return uniq((Array.isArray(subtree.texts) ? subtree.texts : [])
+    .flatMap(value => tokenize(value)))
+    .slice(0, limit);
+}
+
+function attrEntryTokens(key, value) {
+  const lowerKey = String(key || '').toLowerCase();
+  const rawValue = String(value || '').trim();
+  const tokens = [];
+  if (!rawValue) return tokens;
+  if (MEDIA_ATTR_KEYS.has(lowerKey)) {
+    tokens.push(lowerKey, 'image', lowerKey === 'poster' ? 'poster' : 'src');
+    return tokens;
+  }
+  if (lowerKey === 'magnus-media' && rawValue.toLowerCase() === 'image') {
+    tokens.push('img', 'image', 'src');
+    return tokens;
+  }
+  if (lowerKey === 'href') {
+    tokens.push(...tokenizeUrlValue(rawValue));
+    return tokens;
+  }
+  if (lowerKey !== 'width' && lowerKey !== 'height') tokens.push(...tokenize(lowerKey));
+  if (rawValue !== '[present]') tokens.push(...tokenize(rawValue));
+  return tokens;
+}
+
+function subtreeAttrTokens(info, limit = 28) {
+  const subtree = subtreeInfo(info);
+  const attrs = Array.isArray(subtree.attrs) ? subtree.attrs : [];
+  const tokens = [];
+  for (const entry of attrs) {
+    if (!entry || typeof entry !== 'object') continue;
+    tokens.push(...attrEntryTokens(entry.key, entry.value));
+  }
+  return uniq(tokens.filter(token => String(token || '').length >= 3)).slice(0, limit);
+}
+
+function subtreeStyleTokens(info, limit = 28) {
+  const subtree = subtreeInfo(info);
+  const styles = Array.isArray(subtree.styles) ? subtree.styles : [];
+  const tokens = [];
+  for (const entry of styles) {
+    if (!entry || typeof entry !== 'object') continue;
+    const style = entry.style || entry.computedStyle || {};
+    tokens.push(...styleTokensFromValue(style, style.inlineStyle || entry.inlineStyle || '', 12));
+  }
+  return uniq(tokens.filter(token => String(token || '').length >= 3)).slice(0, limit);
+}
+
+function subtreeResourceTokens(info, limit = 16) {
+  const subtree = subtreeInfo(info);
+  const tokens = [];
+  for (const entry of Array.isArray(subtree.attrs) ? subtree.attrs : []) {
+    if (!entry || typeof entry !== 'object') continue;
+    const lowerKey = String(entry.key || '').toLowerCase();
+    const value = String(entry.value || '').toLowerCase();
+    if (MEDIA_ATTR_KEYS.has(lowerKey) || (lowerKey === 'magnus-media' && value === 'image')) {
+      tokens.push('img', 'image', 'src', lowerKey);
+    }
+  }
+  for (const entry of Array.isArray(subtree.styles) ? subtree.styles : []) {
+    const style = entry?.style || entry?.computedStyle || {};
+    if (style.backgroundImage && style.backgroundImage !== 'none') {
+      tokens.push('background-image', 'backgroundImage', 'background', 'image');
+    }
+  }
+  return uniq(tokens).slice(0, limit);
+}
+
+function infoSubtreeSignal(info, limits = {}) {
+  return {
+    classTokens: subtreeClassTokens(info, limits.classLimit || 32),
+    classOrderTokens: subtreeClassTokens(info, limits.classOrderLimit || limits.classLimit || 32),
+    textPhrases: subtreeTextPhrases(info, limits.phraseLimit || 12),
+    textTokens: subtreeTextTokens(info, limits.textLimit || 32),
+    attrTokens: subtreeAttrTokens(info, limits.attrLimit || 28),
+    styleTokens: subtreeStyleTokens(info, limits.styleLimit || 28),
+    resourceTokens: subtreeResourceTokens(info, limits.resourceLimit || 16),
+  };
+}
+
+function infoSignal(info, limits = {}) {
+  const classLimit = limits.classLimit || 24;
+  const classOrderLimit = limits.classOrderLimit || classLimit;
+  const phraseLimit = limits.phraseLimit || 10;
+  const textLimit = limits.textLimit || 28;
+  const attrLimit = limits.attrLimit || 24;
+  const styleLimit = limits.styleLimit || 24;
+  const resourceLimit = limits.resourceLimit || 16;
+  const classTokens = infoClassTokens(info, classLimit);
+  const subtreeSignal = infoSubtreeSignal(info, {
+    classLimit,
+    classOrderLimit,
+    phraseLimit,
+    textLimit,
+    attrLimit,
+    styleLimit,
+    resourceLimit,
+  });
+  return {
+    classTokens: uniq([...classTokens, ...subtreeSignal.classTokens]).slice(0, classLimit),
+    classOrderTokens: uniq([...classTokens, ...subtreeSignal.classOrderTokens]).slice(0, classOrderLimit),
+    textPhrases: uniq([...infoTextPhrases(info, phraseLimit), ...subtreeSignal.textPhrases]).slice(0, phraseLimit),
+    textTokens: uniq([...infoTextTokens(info, textLimit), ...subtreeSignal.textTokens]).slice(0, textLimit),
+    attrTokens: uniq([...infoAttrTokens(info, attrLimit), ...subtreeSignal.attrTokens]).slice(0, attrLimit),
+    styleTokens: uniq([...infoStyleTokens(info, styleLimit), ...subtreeSignal.styleTokens]).slice(0, styleLimit),
+    resourceTokens: uniq([...infoResourceTokens(info, resourceLimit), ...subtreeSignal.resourceTokens]).slice(0, resourceLimit),
+  };
+}
+
+function appendInfoSignal(target, signal) {
+  target.classTokens.push(...signal.classTokens);
+  target.classOrderTokens.push(...signal.classOrderTokens);
+  target.textPhrases.push(...signal.textPhrases);
+  target.textTokens.push(...signal.textTokens);
+  target.attrTokens.push(...signal.attrTokens);
+  target.styleTokens.push(...signal.styleTokens);
+  target.resourceTokens.push(...signal.resourceTokens);
 }
 
 function isLikelyComponentPath(filePath) {
@@ -92,60 +810,86 @@ function buildSelectionLayers(selection) {
   const ancestors = Array.isArray(element.ancestors) ? element.ancestors : [];
   const layers = [];
 
-  const classTokens = [];
-  const textPhrases = [];
-  const textTokens = [];
-  const attrTokens = [];
-  const styleTokens = [];
-
-  const pushInfo = info => {
-    classTokens.push(...infoClassTokens(info));
-    textPhrases.push(...infoTextPhrases(info));
-    textTokens.push(...infoTextTokens(info));
-    attrTokens.push(...infoAttrTokens(info));
-    styleTokens.push(...infoStyleTokens(info));
+  const aggregate = {
+    classTokens: [],
+    classOrderTokens: [],
+    textPhrases: [],
+    textTokens: [],
+    attrTokens: [],
+    styleTokens: [],
+    resourceTokens: [],
   };
 
-  pushInfo(element);
+  const elementSignal = infoSignal(element);
+  appendInfoSignal(aggregate, elementSignal);
   layers.push({
     scope: 'self',
     label: '当前选区',
     depth: 0,
     tag: String(element.tag || '').toLowerCase(),
-    classTokens: uniq(classTokens).slice(0, 14),
-    textPhrases: uniq(textPhrases).slice(0, 6),
-    textTokens: uniq(textTokens).slice(0, 14),
-    attrTokens: uniq(attrTokens).slice(0, 16),
-    styleTokens: uniq(styleTokens).slice(0, 16),
+    ownClassTokens: uniq(elementSignal.classTokens).slice(0, 14),
+    ownClassOrderTokens: uniq(elementSignal.classOrderTokens).slice(0, 14),
+    ownTextPhrases: uniq(elementSignal.textPhrases).slice(0, 6),
+    ownTextTokens: uniq(elementSignal.textTokens).slice(0, 14),
+    ownAttrTokens: uniq(elementSignal.attrTokens).slice(0, 16),
+    ownStyleTokens: uniq(elementSignal.styleTokens).slice(0, 16),
+    ownResourceTokens: uniq(elementSignal.resourceTokens).slice(0, 16),
+    classTokens: uniq(aggregate.classTokens).slice(0, 14),
+    classOrderTokens: uniq(aggregate.classOrderTokens).slice(0, 14),
+    textPhrases: uniq(aggregate.textPhrases).slice(0, 6),
+    textTokens: uniq(aggregate.textTokens).slice(0, 14),
+    attrTokens: uniq(aggregate.attrTokens).slice(0, 16),
+    styleTokens: uniq(aggregate.styleTokens).slice(0, 16),
+    resourceTokens: uniq(aggregate.resourceTokens).slice(0, 16),
   });
 
   for (let index = 0; index < ancestors.length; index++) {
-    pushInfo(ancestors[index]);
+    const ancestorSignal = infoSignal(ancestors[index]);
+    appendInfoSignal(aggregate, ancestorSignal);
     layers.push({
       scope: 'ancestor',
       label: `向上扩大 ${index + 1} 层`,
       depth: index + 1,
       tag: String(element.tag || '').toLowerCase(),
-      classTokens: uniq(classTokens).slice(0, 16),
-      textPhrases: uniq(textPhrases).slice(0, 8),
-      textTokens: uniq(textTokens).slice(0, 18),
-      attrTokens: uniq(attrTokens).slice(0, 18),
-      styleTokens: uniq(styleTokens).slice(0, 18),
+      ownClassTokens: uniq(ancestorSignal.classTokens).slice(0, 14),
+      ownClassOrderTokens: uniq(ancestorSignal.classOrderTokens).slice(0, 14),
+      ownTextPhrases: uniq(ancestorSignal.textPhrases).slice(0, 6),
+      ownTextTokens: uniq(ancestorSignal.textTokens).slice(0, 16),
+      ownAttrTokens: uniq(ancestorSignal.attrTokens).slice(0, 16),
+      ownStyleTokens: uniq(ancestorSignal.styleTokens).slice(0, 12),
+      ownResourceTokens: uniq(ancestorSignal.resourceTokens).slice(0, 14),
+      classTokens: uniq(aggregate.classTokens).slice(0, 16),
+      classOrderTokens: uniq(aggregate.classOrderTokens).slice(0, 16),
+      textPhrases: uniq(aggregate.textPhrases).slice(0, 8),
+      textTokens: uniq(aggregate.textTokens).slice(0, 18),
+      attrTokens: uniq(aggregate.attrTokens).slice(0, 18),
+      styleTokens: uniq(aggregate.styleTokens).slice(0, 18),
+      resourceTokens: uniq(aggregate.resourceTokens).slice(0, 18),
     });
   }
 
   if (asset && (asset.selector || asset.className || asset.text)) {
-    pushInfo(asset);
+    const assetSignal = infoSignal(asset);
+    appendInfoSignal(aggregate, assetSignal);
     layers.push({
       scope: 'asset',
-      label: '截图区域',
+      label: '扩大选区',
       depth: ancestors.length + 1,
       tag: String(element.tag || '').toLowerCase(),
-      classTokens: uniq(classTokens).slice(0, 18),
-      textPhrases: uniq(textPhrases).slice(0, 10),
-      textTokens: uniq(textTokens).slice(0, 22),
-      attrTokens: uniq(attrTokens).slice(0, 18),
-      styleTokens: uniq(styleTokens).slice(0, 18),
+      ownClassTokens: uniq(assetSignal.classTokens).slice(0, 16),
+      ownClassOrderTokens: uniq(assetSignal.classOrderTokens).slice(0, 16),
+      ownTextPhrases: uniq(assetSignal.textPhrases).slice(0, 8),
+      ownTextTokens: uniq(assetSignal.textTokens).slice(0, 20),
+      ownAttrTokens: uniq(assetSignal.attrTokens).slice(0, 18),
+      ownStyleTokens: uniq(assetSignal.styleTokens).slice(0, 14),
+      ownResourceTokens: uniq(assetSignal.resourceTokens).slice(0, 16),
+      classTokens: uniq(aggregate.classTokens).slice(0, 18),
+      classOrderTokens: uniq(aggregate.classOrderTokens).slice(0, 18),
+      textPhrases: uniq(aggregate.textPhrases).slice(0, 10),
+      textTokens: uniq(aggregate.textTokens).slice(0, 22),
+      attrTokens: uniq(aggregate.attrTokens).slice(0, 18),
+      styleTokens: uniq(aggregate.styleTokens).slice(0, 18),
+      resourceTokens: uniq(aggregate.resourceTokens).slice(0, 18),
     });
   }
 
@@ -163,6 +907,7 @@ function buildSearchEvidence(body) {
   const phrases = [];
   const selectionSignals = [];
   const weightedTokens = [];
+  const structuredEvidences = extractStructuredEvidences(body, selections, selectionInstructions);
   const addToken = (value, weight, label) => {
     for (const token of tokenize(value)) {
       weightedTokens.push({ token, weight, label });
@@ -171,6 +916,28 @@ function buildSearchEvidence(body) {
   const addPhrase = (value, weight, label) => {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
     if (text.length >= 2) phrases.push({ text, weight, label });
+  };
+  const addResourceTokens = (info, weight, label) => {
+    for (const token of infoResourceTokens(info, 12)) {
+      weightedTokens.push({ token, weight, label });
+    }
+  };
+  const addSubtreeEvidence = (info, weights, labelPrefix) => {
+    const signal = infoSubtreeSignal(info, {
+      classLimit: 28,
+      classOrderLimit: 28,
+      phraseLimit: 12,
+      textLimit: 28,
+      attrLimit: 24,
+      styleLimit: 20,
+      resourceLimit: 16,
+    });
+    for (const token of signal.classTokens) weightedTokens.push({ token, weight: weights.classWeight, label: `${labelPrefix} class` });
+    for (const text of signal.textPhrases) addPhrase(text, weights.textWeight, `${labelPrefix}文案`);
+    for (const token of signal.textTokens) weightedTokens.push({ token, weight: weights.textTokenWeight, label: `${labelPrefix}文案` });
+    for (const token of signal.attrTokens) weightedTokens.push({ token, weight: weights.attrWeight, label: `${labelPrefix}特殊属性` });
+    for (const token of signal.styleTokens) weightedTokens.push({ token, weight: weights.styleWeight, label: `${labelPrefix}样式` });
+    for (const token of signal.resourceTokens) weightedTokens.push({ token, weight: weights.resourceWeight, label: `${labelPrefix}资源` });
   };
 
   addToken(body.query, 18, 'query');
@@ -190,13 +957,32 @@ function buildSearchEvidence(body) {
     addToken(selection.element?.className, 46, 'className');
     addPhrase(selection.element?.text, 90, '选区文案');
     addToken(selection.element?.text, 28, '选区文案');
-    addToken(selection.asset?.className, 26, '截图区域 className');
-    addPhrase(selection.asset?.text, 34, '截图区域文案');
-    addToken(selection.asset?.text, 12, '截图区域文案');
+    addResourceTokens(selection.element, 54, '选区资源');
+    addSubtreeEvidence(selection.element, {
+      classWeight: 42,
+      textWeight: 64,
+      textTokenWeight: 24,
+      attrWeight: 42,
+      styleWeight: 22,
+      resourceWeight: 54,
+    }, '选区向下');
+    addToken(selection.asset?.className, 26, '扩大选区 className');
+    addPhrase(selection.asset?.text, 34, '扩大选区文案');
+    addToken(selection.asset?.text, 12, '扩大选区文案');
+    addResourceTokens(selection.asset, 38, '扩大选区资源');
     for (const ancestor of selection.element?.ancestors || []) {
       addToken(ancestor.className, 24, '父级 className');
       addPhrase(ancestor.text, 42, '父级文案');
       addToken(ancestor.text, 14, '父级文案');
+      addResourceTokens(ancestor, 30, '父级资源');
+      addSubtreeEvidence(ancestor, {
+        classWeight: 24,
+        textWeight: 38,
+        textTokenWeight: 14,
+        attrWeight: 26,
+        styleWeight: 12,
+        resourceWeight: 30,
+      }, '父级向下');
     }
 
     const signal = {
@@ -208,6 +994,7 @@ function buildSearchEvidence(body) {
     };
     if (
       signal.layers.some(layer => layer.textPhrases.length || layer.textTokens.length || layer.classTokens.length || layer.attrTokens.length || layer.styleTokens.length) ||
+      signal.layers.some(layer => layer.resourceTokens.length) ||
       signal.instructionText ||
       signal.instructionTokens.length
     ) {
@@ -228,6 +1015,7 @@ function buildSearchEvidence(body) {
     tokens: Array.from(merged.values()).slice(0, 180),
     phrases: phrases.slice(0, 80),
     selectionSignals: selectionSignals.slice(0, 24),
+    structuredEvidences,
   };
 }
 
@@ -250,7 +1038,7 @@ function countOccurrences(lowerText, lowerNeedle, limit = 2) {
   let count = 0;
   let index = 0;
   while (count < limit) {
-    index = lowerText.indexOf(lowerNeedle, index);
+    index = findNeedleIndex(lowerText, lowerNeedle, index);
     if (index === -1) break;
     count++;
     index += lowerNeedle.length;
@@ -258,8 +1046,8 @@ function countOccurrences(lowerText, lowerNeedle, limit = 2) {
   return count;
 }
 
-function findBestExactTextMatch(text, evidence) {
-  const lowerText = String(text || '').toLowerCase();
+function findBestExactTextMatch(text, evidence, searchableText = text) {
+  const lowerText = String(searchableText || '').toLowerCase();
   const phrases = evidence.phrases
     .filter(phrase => phrase.label === '选区文案' || phrase.label === '用户补充证据')
     .map(phrase => ({
@@ -274,7 +1062,7 @@ function findBestExactTextMatch(text, evidence) {
     const lower = phrase.text.toLowerCase();
     const matchCount = countOccurrences(lowerText, lower, 6);
     if (matchCount < 1) continue;
-    const index = lowerText.indexOf(lower);
+    const index = findNeedleIndex(lowerText, lower);
     const current = {
       exactMatchLabel: phrase.label,
       exactMatchText: phrase.text,
@@ -318,7 +1106,7 @@ function matchedTokenList(lowerText, tokens, minLength = 3, limit = 2) {
   for (const token of tokens || []) {
     const value = String(token || '').trim();
     if (value.length < minLength) continue;
-    if (!lowerText.includes(value.toLowerCase())) continue;
+    if (findNeedleIndex(lowerText, value.toLowerCase()) === -1) continue;
     result.push(value);
     if (result.length >= limit) break;
   }
@@ -330,7 +1118,7 @@ function matchedPhraseList(lowerText, phrases, minLength = 3, limit = 2) {
   for (const phrase of phrases || []) {
     const value = normalizePhrase(phrase, minLength);
     if (!value) continue;
-    if (!lowerText.includes(value.toLowerCase())) continue;
+    if (findNeedleIndex(lowerText, value.toLowerCase()) === -1) continue;
     result.push(value);
     if (result.length >= limit) break;
   }
@@ -347,7 +1135,7 @@ function tagPatternIndex(text, tag) {
   ];
   const lowerText = String(text || '').toLowerCase();
   for (const pattern of patterns) {
-    const index = lowerText.indexOf(pattern.toLowerCase());
+    const index = findNeedleIndex(lowerText, pattern.toLowerCase());
     if (index !== -1) return { index, pattern };
   }
   return null;
@@ -358,14 +1146,14 @@ function firstMatchedValue(text, values) {
   for (const value of values || []) {
     const raw = String(value || '').trim();
     if (!raw) continue;
-    const index = lowerText.indexOf(raw.toLowerCase());
+    const index = findNeedleIndex(lowerText, raw.toLowerCase());
     if (index !== -1) return { index, value: raw };
   }
   return null;
 }
 
-function scoreSelectionContext(text, evidence) {
-  const lowerText = String(text || '').toLowerCase();
+function scoreSelectionContext(text, evidence, searchableText = text) {
+  const lowerText = String(searchableText || '').toLowerCase();
   let best = {
     selectionIndex: 0,
     contextScore: 0,
@@ -384,12 +1172,14 @@ function scoreSelectionContext(text, evidence) {
       const textMatches = matchedPhraseList(lowerText, layer.textPhrases, 3, 3);
       const textTokenMatches = matchedTokenList(lowerText, layer.textTokens, 3, 4)
         .filter(token => !textMatches.some(phrase => phrase.includes(token)));
-      const attrMatches = matchedTokenList(lowerText, layer.attrTokens, 3, 4);
-      const styleMatches = matchedTokenList(lowerText, layer.styleTokens, 3, 4);
+      const includeAttributeStyleMatches = layer.depth <= 0;
+      const attrMatches = includeAttributeStyleMatches ? matchedTokenList(lowerText, layer.attrTokens, 3, 4) : [];
+      const styleMatches = includeAttributeStyleMatches ? matchedTokenList(lowerText, layer.styleTokens, 3, 4) : [];
+      const resourceMatches = matchedTokenList(lowerText, layer.resourceTokens, 3, 4);
       const instructionTokenMatches = matchedTokenList(lowerText, signal.instructionTokens, 3, 2);
-      const hasInstructionPhrase = signal.instructionText && lowerText.includes(signal.instructionText.toLowerCase());
-      const tagMatch = signal.tag ? tagPatternIndex(text, signal.tag) : null;
-      const anchorMatchCount = classMatches.length + textMatches.length + textTokenMatches.length + attrMatches.length + (tagMatch ? 1 : 0);
+      const hasInstructionPhrase = signal.instructionText && findNeedleIndex(lowerText, signal.instructionText.toLowerCase()) !== -1;
+      const tagMatch = signal.tag ? tagPatternIndex(searchableText, signal.tag) : null;
+      const anchorMatchCount = classMatches.length + textMatches.length + textTokenMatches.length + attrMatches.length + resourceMatches.length + (tagMatch ? 1 : 0);
       const strongMatchCount = anchorMatchCount;
 
       if (classMatches.length) {
@@ -407,6 +1197,10 @@ function scoreSelectionContext(text, evidence) {
       if (attrMatches.length) {
         score += attrMatches.length * 18;
         reasons.push(`${layer.label}属性同文件命中：${attrMatches.join('、')}`);
+      }
+      if (resourceMatches.length) {
+        score += resourceMatches.length * 34;
+        reasons.push(`${layer.label}图片/资源线索同文件命中：${resourceMatches.join('、')}`);
       }
       if (styleMatches.length) {
         if (anchorMatchCount > 0) {
@@ -438,15 +1232,16 @@ function scoreSelectionContext(text, evidence) {
       }
       if (layer.scope === 'asset' && anchorMatchCount >= 2) {
         score += 18;
-        reasons.push('截图区域证据命中');
+        reasons.push('扩大选区证据命中');
       }
 
       if (score > best.contextScore) {
-        const snippetSource = firstMatchedValue(text, [
+        const snippetSource = firstMatchedValue(searchableText, [
           ...textMatches,
           ...textTokenMatches,
           ...classMatches,
           ...attrMatches,
+          ...resourceMatches,
           ...styleMatches,
           ...instructionTokenMatches,
         ]);
@@ -472,14 +1267,57 @@ function scoreSelectionContext(text, evidence) {
   return best;
 }
 
+function scoreRefinementLayerText(text, layer) {
+  const searchableText = maskCommentsPreserveLength(text);
+  const lowerText = String(searchableText || '').toLowerCase();
+  if (!lowerText || !layer) {
+    return {
+      matched: false,
+      score: 0,
+      strongMatchCount: 0,
+      reasons: [],
+    };
+  }
+
+  const classMatches = matchedTokenList(lowerText, layer.ownClassTokens || [], 3, 4);
+  const textMatches = matchedPhraseList(lowerText, layer.ownTextPhrases || [], 3, 3);
+  const textTokenMatches = matchedTokenList(lowerText, layer.ownTextTokens || [], 3, 5)
+    .filter(token => !textMatches.some(phrase => phrase.includes(token)));
+  const attrMatches = [];
+  const styleMatches = [];
+  const resourceMatches = matchedTokenList(lowerText, layer.ownResourceTokens || [], 3, 4);
+  const strongMatchCount = classMatches.length + textMatches.length + textTokenMatches.length + attrMatches.length + resourceMatches.length;
+  const score = (classMatches.length * 24)
+    + (textMatches.length * 42)
+    + (textTokenMatches.length * 18)
+    + (attrMatches.length * 22)
+    + (resourceMatches.length * 34)
+    + (styleMatches.length * 5);
+  const reasons = [];
+  if (classMatches.length) reasons.push(`${layer.label} className 命中：${classMatches.join('、')}`);
+  if (textMatches.length) reasons.push(`${layer.label}文案命中：${textMatches.join('、')}`);
+  if (textTokenMatches.length) reasons.push(`${layer.label}文案 token 命中：${textTokenMatches.join('、')}`);
+  if (attrMatches.length) reasons.push(`${layer.label}属性命中：${attrMatches.join('、')}`);
+  if (resourceMatches.length) reasons.push(`${layer.label}图片/资源线索命中：${resourceMatches.join('、')}`);
+  if (styleMatches.length) reasons.push(`${layer.label}样式命中：${styleMatches.join('、')}`);
+
+  return {
+    matched: strongMatchCount >= 2 || resourceMatches.length >= 1 || (textMatches.length >= 1 && score >= 42),
+    score,
+    strongMatchCount,
+    reasons: reasons.slice(0, 6),
+  };
+}
+
 function scoreFileText(file, text, evidence) {
   const pathScore = scoreFile(file, evidence);
   let score = pathScore.score;
   const reasons = [...pathScore.reasons];
   let snippet = '';
-  const lowerText = String(text || '').toLowerCase();
-  const exactMatch = findBestExactTextMatch(text, evidence);
-  const contextMatch = scoreSelectionContext(text, evidence);
+  const searchableText = maskCommentsPreserveLength(text);
+  const lowerText = String(searchableText || '').toLowerCase();
+  const exactMatch = findBestExactTextMatch(text, evidence, searchableText);
+  const contextMatch = scoreSelectionContext(text, evidence, searchableText);
   const exactMatchCount = exactMatch.exactMatchCount || 0;
   const exactTextLength = String(exactMatch.exactMatchText || '').trim().length;
   const uniqueExactMatch = {
@@ -524,7 +1362,7 @@ function scoreFileText(file, text, evidence) {
     reasons.push(`上下文精准命中(${exactMatch.exactMatchLabel})：${exactMatch.exactMatchText.slice(0, 80)}；文件内出现 ${exactMatchCount} 次`);
   } else if (structuralEvidence) {
     score += 96;
-    reasons.push(`结构化精准命中：扩大到${contextMatch.contextScope === 'asset' ? '截图区域' : '上层上下文'}后仍能稳定命中`);
+    reasons.push(`结构化精准命中：扩大到${contextMatch.contextScope === 'asset' ? '扩大选区' : '上层上下文'}后仍能稳定命中`);
   }
 
   if (isLikelyComponentPath(file.path) && exactMatchCount === 1 && !preciseEvidence && contextMatch.contextScore < 18) {
@@ -534,7 +1372,7 @@ function scoreFileText(file, text, evidence) {
 
   for (const phrase of evidence.phrases) {
     const lower = phrase.text.toLowerCase();
-    const index = lowerText.indexOf(lower);
+    const index = findNeedleIndex(lowerText, lower);
     if (index === -1) continue;
     score += phrase.weight;
     reasons.push(`内容命中(${phrase.label})：${phrase.text.slice(0, 80)}`);
@@ -543,7 +1381,7 @@ function scoreFileText(file, text, evidence) {
 
   for (const item of evidence.tokens) {
     const lower = item.token.toLowerCase();
-    const index = lowerText.indexOf(lower);
+    const index = findNeedleIndex(lowerText, lower);
     if (index === -1) continue;
     score += item.token.length >= 6 ? item.weight : Math.max(10, Math.round(item.weight * 0.65));
     reasons.push(`内容命中(${item.label})：${item.token}`);
@@ -574,6 +1412,10 @@ function scoreFileText(file, text, evidence) {
 
 module.exports = {
   buildSearchEvidence,
+  findNeedleIndex,
+  maskCommentsPreserveLength,
+  orderedClassTokens,
   scoreFile,
+  scoreRefinementLayerText,
   scoreFileText,
 };

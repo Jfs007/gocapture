@@ -946,9 +946,11 @@
   font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   white-space: pre-wrap;
 }
+
 .mda-log-file-label {
   flex: none;
 }
+
 .mda-log-file-link {
   min-width: 0;
   padding: 0;
@@ -1236,6 +1238,7 @@
 .mda-chat-message.is-user .mda-message-avatar {
   display: none;
 }
+
 .mda-chat-message.is-agent .mda-message-avatar {
   color: #fff;
 }
@@ -1477,6 +1480,9 @@
 }
 
 .mda-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 58px;
   height: 34px;
   padding: 0;
@@ -1625,6 +1631,8 @@
   height: 100%;
   border-radius: 1px;
   background: #e5e7eb center center / cover no-repeat;
+  background-size: contain;
+  background-position: center;
   color: #667085;
   font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
   text-align: center;
@@ -1662,7 +1670,7 @@
 
 .mda-asset-card:hover .mda-asset-remove,
 .mda-asset-card:focus-within .mda-asset-remove,
-.mda-asset-chip:hover + .mda-asset-remove {
+.mda-asset-chip:hover+.mda-asset-remove {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
@@ -2161,6 +2169,26 @@
 
 .mda-send-btn:not(:disabled):hover {
   background: #1f2937;
+}
+
+.mda-send-btn.is-stopping {
+  border-color: #101828;
+  background: #101828;
+  color: #ffffff;
+  opacity: 0.72;
+}
+
+.mda-send-btn.is-stopping:not(:disabled):hover {
+  background: #101828;
+  opacity: 0.86;
+}
+
+.mda-stop-icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: currentColor;
 }
 
 .mda-send-btn:disabled {
