@@ -101,6 +101,14 @@ function isUiSourceFile(filePath) {
     || /(^|\/)src\/(?:views?|pages?|components?|layouts?|layout)\//i.test(filePath);
 }
 
+function isStyleSourceFile(filePath) {
+  return /(^|\/)src\/.*\.(css|less|scss|sass|styl)$/i.test(filePath);
+}
+
+function isUiOrStyleSourceFile(filePath) {
+  return isUiSourceFile(filePath) || isStyleSourceFile(filePath);
+}
+
 function isRouteFile(filePath) {
   return /(^|\/)(router|routes|route|config\/routes)[/.]/i.test(filePath)
     || /(^|\/)(router|routes)\//i.test(filePath);
@@ -448,6 +456,7 @@ function scoreDomGroupCoverageForText(text, evidence) {
     ];
     let groupScore = 0;
     let firstIndex = -1;
+    let coreMatched = false;
     for (const item of values) {
       const index = findDomGroupValueIndex(searchableText, rawText, item.value, {
         classToken: item.kind === 'class',
@@ -455,9 +464,10 @@ function scoreDomGroupCoverageForText(text, evidence) {
       if (index === -1) continue;
       matched.push(`${item.kind}:${item.value}`);
       groupScore += item.weight;
+      if (item.kind !== 'style') coreMatched = true;
       if (firstIndex === -1 || index < firstIndex) firstIndex = index;
     }
-    if (!matched.length) continue;
+    if (!matched.length || !coreMatched) continue;
     const capped = Math.min(120, groupScore);
     score += capped;
     matchedGroups.push({
@@ -1639,7 +1649,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         ]).slice(0, 12),
       }));
     const groupHits = domGroupCoverageHits(project, evidence, textCache, scope.files, {
-      fileFilter: isUiSourceFile,
+      fileFilter: isUiOrStyleSourceFile,
     }).map(hit => ({
       ...hit,
       reasons: uniq([
