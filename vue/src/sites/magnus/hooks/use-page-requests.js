@@ -1,11 +1,52 @@
 import { ref } from 'vue';
 import { compactText, escapeRegExp } from '../core/element-context';
+import {
+  MAGNUS_INTERNAL_REQUEST_HEADER,
+  MAGNUS_INTERNAL_REQUEST_VALUE,
+  SOURCE_SERVER_URL
+} from '../services/source-service';
 
 export function usePageRequests() {
   const recentRequests = ref([]);
 
+  function getHeaderValue(headers, name) {
+    if (!headers || !name) return '';
+    const target = String(name).toLowerCase();
+    if (typeof headers.get === 'function') return headers.get(name) || headers.get(target) || '';
+    if (Array.isArray(headers)) {
+      const item = headers.find(([key]) => String(key || '').toLowerCase() === target);
+      return item ? String(item[1] || '') : '';
+    }
+    if (typeof headers === 'object') {
+      const key = Object.keys(headers).find(item => item.toLowerCase() === target);
+      return key ? String(headers[key] || '') : '';
+    }
+    return '';
+  }
+
+  function hasInternalMagnusHeader(info) {
+    return getHeaderValue(info.headers, MAGNUS_INTERNAL_REQUEST_HEADER) === MAGNUS_INTERNAL_REQUEST_VALUE;
+  }
+
+  function isInternalMagnusRequest(info) {
+    if (hasInternalMagnusHeader(info)) return true;
+    try {
+      const url = new URL(info.url || '', window.location.href);
+      const sourceUrl = new URL(SOURCE_SERVER_URL);
+      if (url.origin !== sourceUrl.origin) return false;
+      return url.pathname === '/health'
+        || url.pathname.startsWith('/api/source/')
+        || url.pathname.startsWith('/api/route/')
+        || url.pathname.startsWith('/api/model/')
+        || url.pathname.startsWith('/api/search');
+    } catch (error) {
+      return false;
+    }
+  }
+
   function rememberRequest(info) {
     if (!info.url) return;
+    if (isInternalMagnusRequest(info)) return;
     recentRequests.value = [
       info,
       ...recentRequests.value.filter(item => !(item.url === info.url && item.method === info.method))

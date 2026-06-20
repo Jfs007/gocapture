@@ -1,4 +1,14 @@
 export const SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
+export const MAGNUS_INTERNAL_REQUEST_HEADER = 'X-Magnus-Internal';
+export const MAGNUS_INTERNAL_REQUEST_VALUE = 'source-server';
+
+function createSourceServerHeaders(extraHeaders) {
+  return {
+    'Content-Type': 'application/json',
+    [MAGNUS_INTERNAL_REQUEST_HEADER]: MAGNUS_INTERNAL_REQUEST_VALUE,
+    ...(extraHeaders || {})
+  };
+}
 
 export async function sourceServerJson(pathname, options = {}) {
   const timeoutMs = Number(options.timeoutMs || 10000);
@@ -10,9 +20,7 @@ export async function sourceServerJson(pathname, options = {}) {
   try {
     const response = await fetch(`${SOURCE_SERVER_URL}${pathname}`, {
       method: options.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: createSourceServerHeaders(options.headers),
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal
     });
@@ -45,9 +53,7 @@ export async function sourceServerNdjson(pathname, options = {}) {
   try {
     const response = await fetch(`${SOURCE_SERVER_URL}${pathname}`, {
       method: options.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: createSourceServerHeaders(options.headers),
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal
     });

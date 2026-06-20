@@ -6610,6 +6610,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return container;
   }
   const SOURCE_SERVER_URL = "http://127.0.0.1:17321";
+  const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
+  const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
+  function createSourceServerHeaders(extraHeaders) {
+    return __spreadValues({
+      "Content-Type": "application/json",
+      [MAGNUS_INTERNAL_REQUEST_HEADER]: MAGNUS_INTERNAL_REQUEST_VALUE
+    }, extraHeaders || {});
+  }
   function sourceServerJson(_0) {
     return __async(this, arguments, function* (pathname, options = {}) {
       const timeoutMs = Number(options.timeoutMs || 1e4);
@@ -6620,9 +6628,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       try {
         const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
           method: options.method || "GET",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: createSourceServerHeaders(options.headers),
           body: options.body ? JSON.stringify(options.body) : void 0,
           signal: controller.signal
         });
@@ -6655,9 +6661,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       try {
         const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
           method: options.method || "GET",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: createSourceServerHeaders(options.headers),
           body: options.body ? JSON.stringify(options.body) : void 0,
           signal: controller.signal
         });
@@ -6798,8 +6802,33 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return result;
   }
+  function normalizeHeaders(value) {
+    if (!value) return {};
+    if (typeof Headers !== "undefined" && value instanceof Headers) {
+      const result = {};
+      value.forEach((headerValue, headerKey) => {
+        result[String(headerKey).toLowerCase()] = String(headerValue || "");
+      });
+      return result;
+    }
+    if (Array.isArray(value)) {
+      return value.reduce((result, item) => {
+        if (Array.isArray(item) && item.length >= 2) {
+          result[String(item[0]).toLowerCase()] = String(item[1] || "");
+        }
+        return result;
+      }, {});
+    }
+    if (typeof value === "object") {
+      return Object.entries(value).reduce((result, [key, headerValue]) => {
+        result[String(key).toLowerCase()] = String(headerValue || "");
+        return result;
+      }, {});
+    }
+    return {};
+  }
   function normalizeRequestInfo(raw, baseUrl) {
-    var _a;
+    var _a, _b;
     const data = raw || {};
     let pathname = data.url || "";
     try {
@@ -6810,7 +6839,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       url: data.url || "",
       pathname,
       method: data.method || "GET",
-      requestKeys: flattenKeys(((_a = data.request) == null ? void 0 : _a.body) || {}, "", [], 0, 28),
+      headers: normalizeHeaders(((_a = data.request) == null ? void 0 : _a.headers) || data.headers),
+      requestKeys: flattenKeys(((_b = data.request) == null ? void 0 : _b.body) || {}, "", [], 0, 28),
       responseKeys: flattenKeys(data.result || {}, "", [], 0, 36),
       responseValues: flattenPrimitiveValues(data.result || {}, [], 0, 80),
       capturedAt: Date.now()
@@ -7801,8 +7831,37 @@ ${result.rawText}` : ""
   }
   function usePageRequests() {
     const recentRequests = /* @__PURE__ */ ref([]);
+    function getHeaderValue(headers, name) {
+      if (!headers || !name) return "";
+      const target = String(name).toLowerCase();
+      if (typeof headers.get === "function") return headers.get(name) || headers.get(target) || "";
+      if (Array.isArray(headers)) {
+        const item = headers.find(([key]) => String(key || "").toLowerCase() === target);
+        return item ? String(item[1] || "") : "";
+      }
+      if (typeof headers === "object") {
+        const key = Object.keys(headers).find((item) => item.toLowerCase() === target);
+        return key ? String(headers[key] || "") : "";
+      }
+      return "";
+    }
+    function hasInternalMagnusHeader(info) {
+      return getHeaderValue(info.headers, MAGNUS_INTERNAL_REQUEST_HEADER) === MAGNUS_INTERNAL_REQUEST_VALUE;
+    }
+    function isInternalMagnusRequest(info) {
+      if (hasInternalMagnusHeader(info)) return true;
+      try {
+        const url = new URL(info.url || "", window.location.href);
+        const sourceUrl = new URL(SOURCE_SERVER_URL);
+        if (url.origin !== sourceUrl.origin) return false;
+        return url.pathname === "/health" || url.pathname.startsWith("/api/source/") || url.pathname.startsWith("/api/route/") || url.pathname.startsWith("/api/model/") || url.pathname.startsWith("/api/search");
+      } catch (error) {
+        return false;
+      }
+    }
     function rememberRequest(info) {
       if (!info.url) return;
+      if (isInternalMagnusRequest(info)) return;
       recentRequests.value = [
         info,
         ...recentRequests.value.filter((item) => !(item.url === info.url && item.method === info.method))

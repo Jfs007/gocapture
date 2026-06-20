@@ -55,6 +55,32 @@ export function flattenPrimitiveValues(value, result = [], depth = 0, limit = 80
   return result;
 }
 
+export function normalizeHeaders(value) {
+  if (!value) return {};
+  if (typeof Headers !== 'undefined' && value instanceof Headers) {
+    const result = {};
+    value.forEach((headerValue, headerKey) => {
+      result[String(headerKey).toLowerCase()] = String(headerValue || '');
+    });
+    return result;
+  }
+  if (Array.isArray(value)) {
+    return value.reduce((result, item) => {
+      if (Array.isArray(item) && item.length >= 2) {
+        result[String(item[0]).toLowerCase()] = String(item[1] || '');
+      }
+      return result;
+    }, {});
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value).reduce((result, [key, headerValue]) => {
+      result[String(key).toLowerCase()] = String(headerValue || '');
+      return result;
+    }, {});
+  }
+  return {};
+}
+
 export function normalizeRequestInfo(raw, baseUrl) {
   const data = raw || {};
   let pathname = data.url || '';
@@ -66,6 +92,7 @@ export function normalizeRequestInfo(raw, baseUrl) {
     url: data.url || '',
     pathname,
     method: data.method || 'GET',
+    headers: normalizeHeaders(data.request?.headers || data.headers),
     requestKeys: flattenKeys(data.request?.body || {}, '', [], 0, 28),
     responseKeys: flattenKeys(data.result || {}, '', [], 0, 36),
     responseValues: flattenPrimitiveValues(data.result || {}, [], 0, 80),

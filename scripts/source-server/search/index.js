@@ -91,12 +91,21 @@ function isLikelyFrameworkFile(filePath) {
     || /(^|\/)(components?\/(?:base|common|ui)|ui|icons?)\//i.test(filePath);
 }
 
+function isNonRuntimeSourceFile(filePath) {
+  return /(^|\/)(public|static|assets?)\/.*\.html$/i.test(filePath)
+    || /(^|\/)__tests__\//i.test(filePath)
+    || /\.(test|spec)\.(js|jsx|ts|tsx)$/i.test(filePath);
+}
+
 function isViewOrComponentFile(filePath) {
+  if (isNonRuntimeSourceFile(filePath)) return false;
   return /(^|\/)(src\/)?(views?|pages?|components?|layouts?)\//i.test(filePath)
-    || /\.(vue|jsx|tsx|svelte|astro|html)$/i.test(filePath);
+    || /\.(vue|jsx|tsx|svelte|astro)$/i.test(filePath)
+    || /(^|\/)src\/.*\.html$/i.test(filePath);
 }
 
 function isUiSourceFile(filePath) {
+  if (isNonRuntimeSourceFile(filePath)) return false;
   return isViewOrComponentFile(filePath)
     || /(^|\/)src\/(?:views?|pages?|components?|layouts?|layout)\//i.test(filePath);
 }
@@ -118,6 +127,9 @@ function findEvidenceIndex(text, ev) {
   const lowerText = String(text || '').toLowerCase();
   const value = String(ev?.value || '').trim();
   if (!lowerText || !value) return -1;
+  if (ev?.kind === 'class' || ev?.kind === 'icon') {
+    return findClassTokenIndex(text, value);
+  }
   const exact = findNeedleIndex(lowerText, value.toLowerCase());
   if (exact !== -1) return exact;
 
@@ -420,7 +432,7 @@ function findDomGroupValueIndex(searchableText, rawText, value, options = {}) {
   if (!raw) return -1;
   if (options.classToken) {
     const classIndex = findClassTokenIndex(searchableText, raw);
-    if (classIndex !== -1) return classIndex;
+    return classIndex;
   }
   const lowerText = String(searchableText || '').toLowerCase();
   for (const variant of valueSearchVariants(raw)) {
@@ -713,6 +725,7 @@ function recallByStructuredEvidence(project, routeHits, evidence, textCache, opt
   for (const file of project.files || []) {
     if (!scopeFiles.has(file.path)) continue;
     if (!isTextFile(file.path)) continue;
+    if (isNonRuntimeSourceFile(file.path)) continue;
     const text = readProjectText(project, file, textCache);
     if (!text) continue;
     const searchableText = maskCommentsPreserveLength(text);
@@ -1636,7 +1649,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
       'local-initial',
       `${scope.name}：仅用当前选区文案/class 初始命中`,
       {
-        allowAncestorFallback: !scope.name.startsWith('L0'),
+        allowAncestorFallback: true,
         fileFilter: isUiSourceFile,
       }
     );

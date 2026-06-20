@@ -340,7 +340,7 @@ function isGenericText(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (text.length < 2 || text.length > 80) return true;
   if (/^\d+(?:\.\d+)?$/.test(text)) return true;
-  if (/^[\s\W_]+$/u.test(text)) return true;
+  if (!/[\p{L}\p{N}]/u.test(text)) return true;
   return /^(true|false|null|undefined|yes|no|ok|确定|取消|编辑|删除|复制|保存|提交|关闭|更多|展开|收起)$/i.test(text);
 }
 
@@ -1030,6 +1030,8 @@ function buildSelectionLayers(selection) {
 
 const GROUP_WEAK_TOKENS = new Set([
   'role',
+  'app',
+  'index',
   'menu',
   'menuitem',
   'button',
@@ -1042,14 +1044,37 @@ const GROUP_WEAK_TOKENS = new Set([
   'relative',
 ]);
 
+function routeLikeAttrValues(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '[present]') return [];
+  const values = [];
+  const cleaned = raw
+    .replace(/^#/, '')
+    .replace(/[?#].*$/, '')
+    .replace(/\/+/g, '/')
+    .replace(/\/$/, '');
+  if (/^\/[\w./-]{2,}$/.test(cleaned)) values.push(cleaned);
+  return uniq(values).filter(item => item.length >= 6 && item !== '/app' && item !== '/index');
+}
+
+function isRuntimeAttrKey(key) {
+  const lowerKey = String(key || '').toLowerCase();
+  return lowerKey === 'tabindex'
+    || lowerKey === 'draggable'
+    || lowerKey === 'aria-describedby'
+    || lowerKey.startsWith('data-rbd-')
+    || lowerKey.startsWith('data-react')
+    || lowerKey.startsWith('data-v-');
+}
+
 function groupAttrTokens(attrs = {}, tag = '') {
   const tokens = [];
   for (const [key, value] of Object.entries(attrs || {})) {
     const lowerKey = String(key || '').toLowerCase();
     const rawValue = String(value || '').trim();
     if (!rawValue) continue;
+    if (isRuntimeAttrKey(lowerKey)) continue;
     if (lowerKey === 'role' || lowerKey.startsWith('aria-expanded') || lowerKey.startsWith('aria-haspopup')) continue;
-    if (/^data-v-/.test(lowerKey)) continue;
     if (lowerKey === 'class' || lowerKey === 'style') continue;
     if (lowerKey === 'magnus-media' && rawValue === 'image') {
       tokens.push('img', 'image');
@@ -1064,11 +1089,15 @@ function groupAttrTokens(attrs = {}, tag = '') {
       continue;
     }
     if (lowerKey === 'href') {
-      tokens.push(...attrEntryTokens(lowerKey, rawValue));
+      tokens.push(...routeLikeAttrValues(rawValue));
+      continue;
+    }
+    if (lowerKey === 'id' || lowerKey === 'name') {
+      tokens.push(...routeLikeAttrValues(rawValue));
       continue;
     }
     if (lowerKey.startsWith('data-')) {
-      tokens.push(...tokenize(rawValue));
+      tokens.push(...routeLikeAttrValues(rawValue));
     }
   }
   if (String(tag || '').toLowerCase() === 'img') tokens.push('img', 'image');
@@ -1269,6 +1298,13 @@ function countOccurrences(lowerText, lowerNeedle, limit = 2) {
   return count;
 }
 
+function isExactTextCandidate(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length >= 4) return true;
+  const compact = text.replace(/\s+/g, '');
+  return /[\u3400-\u9fff]/u.test(compact) && compact.length >= 2 && !isGenericText(text);
+}
+
 function findBestExactTextMatch(text, evidence, searchableText = text) {
   const lowerText = String(searchableText || '').toLowerCase();
   const phrases = evidence.phrases
@@ -1277,7 +1313,7 @@ function findBestExactTextMatch(text, evidence, searchableText = text) {
       label: phrase.label,
       text: String(phrase.text || '').replace(/\s+/g, ' ').trim(),
     }))
-    .filter(phrase => phrase.text.length >= 4)
+    .filter(phrase => isExactTextCandidate(phrase.text))
     .sort((a, b) => b.text.length - a.text.length);
 
   let best = null;
