@@ -308,18 +308,136 @@ export function getSelectorPath(element, limit = 4) {
   return parts.join(' > ');
 }
 
+function addEvidenceTerms(target, values, perValueLimit = 12, totalLimit = 72) {
+  if (!(target instanceof Set) || target.size >= totalLimit) return;
+  for (const value of values) {
+    if (target.size >= totalLimit) break;
+    for (const term of extractSearchTerms(value).slice(0, perValueLimit)) {
+      target.add(term);
+      if (target.size >= totalLimit) break;
+    }
+  }
+}
+
+function evidenceGrowth(baseSet, nextSet) {
+  let added = 0;
+  let duplicated = 0;
+  for (const item of nextSet || []) {
+    if (baseSet?.has(item)) duplicated++;
+    else added++;
+  }
+  return { added, duplicated };
+}
+
+export function getContextEvidence(element, options = {}) {
+  if (!element) {
+    return {
+      text: '',
+      nodeCount: 0,
+      textTerms: new Set(),
+      classTerms: new Set(),
+      attrTerms: new Set(),
+      styleTerms: new Set()
+    };
+  }
+  const normalizeText = options.normalizeText;
+  const subtree = getSubtreeEvidence(element, options.subtreeOptions || {
+    nodeLimit: 40,
+    classLimit: 24,
+    textLimit: 24,
+    attrLimit: 24,
+    styleLimit: 16
+  });
+  const attrs = getElementAttrs(element);
+  const text = getComparableElementText(element, normalizeText, options.textLimit || 1200);
+  const textTerms = new Set();
+  const classTerms = new Set();
+  const attrTerms = new Set();
+  const styleTerms = new Set();
+
+  addEvidenceTerms(textTerms, [text, ...subtree.texts], 12, 36);
+  addEvidenceTerms(classTerms, [getClassName(element), ...subtree.classNames], 8, 24);
+  addEvidenceTerms(attrTerms, Object.entries(attrs).flatMap(([key, value]) => [key, value]), 8, 24);
+  addEvidenceTerms(attrTerms, subtree.attrs.flatMap(item => [item?.key, item?.value]), 8, 36);
+  addEvidenceTerms(styleTerms, subtree.styles.flatMap(item => {
+    return Object.entries(item?.style || {}).flatMap(([key, value]) => [key, value]);
+  }), 8, 24);
+
+  return {
+    text,
+    nodeCount: subtree.nodeCount || 0,
+    textTerms,
+    classTerms,
+    attrTerms,
+    styleTerms
+  };
+}
+
+export function scoreContextPromotion(baseEvidence, nextEvidence) {
+  const textGrowth = evidenceGrowth(baseEvidence?.textTerms, nextEvidence?.textTerms);
+  const classGrowth = evidenceGrowth(baseEvidence?.classTerms, nextEvidence?.classTerms);
+  const attrGrowth = evidenceGrowth(baseEvidence?.attrTerms, nextEvidence?.attrTerms);
+  const styleGrowth = evidenceGrowth(baseEvidence?.styleTerms, nextEvidence?.styleTerms);
+
+  const novelScore = textGrowth.added * 4
+    + classGrowth.added * 3
+    + attrGrowth.added * 5
+    + styleGrowth.added * 2;
+  const duplicatePenalty = textGrowth.duplicated
+    + classGrowth.duplicated
+    + attrGrowth.duplicated
+    + styleGrowth.duplicated;
+  const breadthPenalty = Math.max(0, Number(nextEvidence?.nodeCount || 0) - Number(baseEvidence?.nodeCount || 0) - 4) * 2;
+  const textLengthPenalty = Math.max(0, String(nextEvidence?.text || '').length - String(baseEvidence?.text || '').length - 160) / 24;
+  const score = novelScore - duplicatePenalty - breadthPenalty - textLengthPenalty;
+
+  return {
+    score,
+    novelCount: textGrowth.added + classGrowth.added + attrGrowth.added + styleGrowth.added,
+    duplicateCount: duplicatePenalty,
+    breadthPenalty
+  };
+}
+
+export function shouldPromoteContext(baseEvidence, nextEvidence) {
+  const result = scoreContextPromotion(baseEvidence, nextEvidence);
+  if (result.novelCount <= 0) return false;
+  if (result.novelCount >= 3 && result.score >= 6) return true;
+  if (result.novelCount >= 2 && result.score >= 8) return true;
+  return result.score >= 10;
+}
+
 export function getAncestorInfo(element, options = {}) {
   const result = [];
   let node = element.parentElement;
-  let currentText = getComparableElementText(element, options.normalizeText, 1200);
+  let currentEvidence = getContextEvidence(element, {
+    normalizeText: options.normalizeText,
+    subtreeOptions: {
+      nodeLimit: 40,
+      classLimit: 24,
+      textLimit: 24,
+      attrLimit: 24,
+      styleLimit: 16
+    }
+  });
   let inspected = 0;
   while (node && node !== document.body && result.length < 4 && inspected < 16) {
     inspected++;
-    const comparableText = getComparableElementText(node, options.normalizeText, 1200);
-    if (!comparableText || comparableText.length <= currentText.length) {
+    const nextEvidence = getContextEvidence(node, {
+      normalizeText: options.normalizeText,
+      subtreeOptions: {
+        nodeLimit: 40,
+        classLimit: 24,
+        textLimit: 24,
+        attrLimit: 24,
+        styleLimit: 16
+      }
+    });
+    if (!shouldPromoteContext(currentEvidence, nextEvidence)) {
       node = node.parentElement;
       continue;
     }
+    const comparableText = nextEvidence.text;
     const rect = node.getBoundingClientRect();
     result.push({
       tag: node.tagName.toLowerCase(),
@@ -343,7 +461,7 @@ export function getAncestorInfo(element, options = {}) {
         height: round(rect.height)
       }
     });
-    currentText = comparableText;
+    currentEvidence = nextEvidence;
     node = node.parentElement;
   }
   return result;

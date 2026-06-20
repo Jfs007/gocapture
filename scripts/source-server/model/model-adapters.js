@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const tls = require('tls');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
+const { findClassTokenIndex } = require('../search/evidence');
 const { escapeRegExp, tokenize, uniq } = require('../utils');
 
 function optionalRequire(name) {
@@ -361,6 +362,36 @@ function findAllNeedleIndexes(text, needle, limit = 12) {
     index = found + Math.max(1, value.length);
   }
   return result;
+}
+
+function findAllClassNeedleIndexes(text, needle, limit = 12) {
+  const content = String(text || '');
+  const value = String(needle || '').trim();
+  if (!content || !value) return [];
+  const result = [];
+  let index = 0;
+  while (result.length < limit && index < content.length) {
+    const found = findClassTokenIndex(content, value, index);
+    if (found === -1) break;
+    result.push({
+      index: found,
+      length: value.length,
+      needle: value,
+    });
+    index = found + Math.max(1, value.length);
+  }
+  return result;
+}
+
+function isClassSeedLabel(label) {
+  return /class/i.test(String(label || ''));
+}
+
+function findAllSeedIndexes(text, seed, limit = 12) {
+  if (isClassSeedLabel(seed?.label)) {
+    return findAllClassNeedleIndexes(text, seed?.text, limit);
+  }
+  return findAllNeedleIndexes(text, seed?.text, limit);
 }
 
 function weakSelectionSeed(value) {
@@ -1117,6 +1148,29 @@ function hasStrongSelectionEvidence(hit) {
   return false;
 }
 
+function stableLocalModelCandidate(body) {
+  const byFile = new Map();
+  for (const hit of [...(body.selectedCandidateHits || []), ...(body.candidateHits || [])]) {
+    const file = normalizeModelFilePath(hit?.file);
+    if (!file || !isSelectionMatchedHit(hit)) continue;
+    if (hitStages(hit).includes('route-resolver') && !(hit.contextScore || hit.preciseEvidence || hit.exactMatchText)) continue;
+    const old = byFile.get(file);
+    if (!old || Number(old.score || 0) < Number(hit.score || 0)) {
+      byFile.set(file, { ...hit, file });
+    }
+  }
+  const sorted = Array.from(byFile.values()).sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+  const top = sorted[0];
+  const second = sorted[1];
+  if (!top) return null;
+  const topScore = Number(top.score || 0);
+  const secondScore = Number(second?.score || 0);
+  if (topScore >= 220 && (!second || topScore - secondScore >= 60)) {
+    return top;
+  }
+  return null;
+}
+
 function modelCandidateHits(body, logs) {
   const routeEntries = body?.routeResolver?.matched ? routeEntryFiles(body) : [];
   const selectedSet = new Set((body.selectedCandidateHits || []).map(hit => normalizeModelFilePath(hit?.file)).filter(Boolean));
@@ -1143,6 +1197,15 @@ function modelCandidateHits(body, logs) {
       selectedForModel: selectedSet.has(file),
     });
   };
+
+  const stableLocalHit = stableLocalModelCandidate(body);
+  if (stableLocalHit) {
+    push(stableLocalHit, 'stable-local');
+    if (Array.isArray(logs)) {
+      appendLog(logs, `本地稳定候选：${stableLocalHit.file}；分数 ${stableLocalHit.score || 0}，模型只读取该文件以避免同名候选干扰`);
+    }
+    return merged;
+  }
 
   if (routeEntries.length) {
     for (const file of routeEntries) {
@@ -1578,8 +1641,8 @@ function selectionAnchorSeedItems(payload) {
         ...(selection?.element?.ancestors || []),
       ].filter(Boolean);
       for (const info of infos) {
-        add(info?.text, 760, '选区/父级文案');
-        for (const token of tokenize(info?.text).slice(0, 16)) add(token, 460, '选区/父级文本 token');
+        add(infoSearchText(info), 760, '选区/父级文案');
+        for (const token of tokenize(infoSearchText(info)).slice(0, 16)) add(token, 460, '选区/父级文本 token');
         add(info?.className, 620, '选区/父级 CSS class');
         for (const token of tokenize(info?.className).slice(0, 10)) add(token, 520, '选区/父级 CSS class token');
         for (const seed of usefulStyleSeedsFromStyle(info?.computedStyle || {}, info?.inlineStyle || '', 18)) add(seed, 560, '选区/父级 CSS/样式');
@@ -1618,8 +1681,9 @@ function weightedAnchorSeeds(hit, payload, needles) {
     if (!text || text === '[present]' || text.length < 2) return;
     const key = text.toLowerCase();
     const old = map.get(key);
-    if (!old || old.weight < weight) {
-      map.set(key, { text, weight, label });
+    const priority = pruneEvidencePriority(label);
+    if (!old || old.priority < priority || (old.priority === priority && old.weight < weight)) {
+      map.set(key, { text, weight, label, priority });
     }
   };
 
@@ -1795,7 +1859,7 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
       continue;
     }
     const limit = weakSelectionSeed(seed.text) ? 4 : 10;
-    for (const item of findAllNeedleIndexes(rawText, seed.text, limit)) {
+    for (const item of findAllSeedIndexes(rawText, seed, limit)) {
       addAnchor(item.index, item.length, seed);
     }
   }
@@ -2026,6 +2090,10 @@ function compactSubtreeSummary(subtree) {
   };
 }
 
+function infoSearchText(info) {
+  return String(info?.searchText || info?.text || '');
+}
+
 function selectionSummary(searchPayload) {
   const instructions = new Map(
     (searchPayload.selectionInstructions || [])
@@ -2047,6 +2115,7 @@ function selectionSummary(searchPayload) {
       className: info.className,
       attrs: info.attrs || {},
       text: compact(info.text, 400),
+      searchText: compact(infoSearchText(info), 240),
       subtree: compactSubtreeSummary(info.subtree),
       inlineStyle: compact(info.inlineStyle, 220),
       style: {
@@ -2064,6 +2133,7 @@ function selectionSummary(searchPayload) {
         selector: asset.selector || '',
         className: asset.className || '',
         text: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(asset.text, 120) : '',
+        searchText: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(infoSearchText(asset), 120) : '',
         width: assetStyleSignals.width || '',
         height: assetStyleSignals.height || '',
         backgroundImage: compact(assetStyleSignals.backgroundImage || '', 220),
@@ -2075,6 +2145,7 @@ function selectionSummary(searchPayload) {
         className: ancestor.className,
         attrs: ancestor.attrs || {},
         text: compact(ancestor.text, 220),
+        searchText: compact(infoSearchText(ancestor), 160),
         inlineStyle: compact(ancestor.inlineStyle, 160),
         subtree: compactSubtreeSummary(ancestor.subtree),
         style: ancestor.computedStyle ? {
@@ -2135,6 +2206,7 @@ function selectionTextReferences(searchPayload) {
         index: item.index,
         token: item.token || `@选区${item.index}`,
         text: compact(info.text, 240),
+        searchText: compact(infoSearchText(info), 180),
         selector: info.selector || '',
         className: info.className || '',
         attrs: info.attrs || {},
@@ -2164,6 +2236,11 @@ function candidateFactsSummary(candidateHits) {
     file: hit.file,
     score: hit.score,
     stage: hit.stage,
+    fileRole: /(^|\/)(const|constants|enums?|options?)\.(js|ts)$/i.test(String(hit.file || ''))
+      ? 'definition-file'
+      : /(index|page|view)\.(vue|jsx|tsx|js|ts)$/i.test(String(hit.file || ''))
+        ? 'render-file'
+        : '',
     from: hit.from || '',
     preciseEvidence: !!hit.preciseEvidence,
     exactMatchText: hit.exactMatchText || '',
@@ -2228,8 +2305,10 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 你需要判断源码块在语义、区域、文案集合、class/style/src/background 资源、引用链、接口线索和用户需求上，是否最可能对应当前选区，而不是机械比较 tag/class 层级。',
     '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
     '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
+    '- 如果候选里同时存在渲染文件和只承载局部文案/枚举/配置的定义文件，优先返回真正组装当前选区所在界面区域的渲染文件；只有需求明确针对定义源本身时，才返回定义文件。',
     '- 页面路由、接口线索、本地候选分数只是辅助，不得覆盖当前选区语义证据。',
     '- 如果命中文案来自常量/配置定义文件，而 importChain 中间文件包含真实组件使用、渲染函数、交互逻辑或样式逻辑，优先返回真实使用文件；只有需求明确修改常量/配置本身时才返回定义文件。',
+    '- 对没有明确指向配置源的普通界面改动请求，默认理解为修改渲染或组装该区域的源码；只有当需求明确指向状态映射、选项源、枚举或配置定义时，才考虑常量/配置文件。',
     '- 当候选摘要包含 importChain 时，链路文件会一起出现在候选源码中；你需要把链路作为一个整体理解，而不是孤立判断单个文案定义文件。',
     '- 接口线索只会提供请求地址、method 和请求参数字段，不包含响应结果。',
     `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码文件；当前批次没有足够证据时返回 []。`,

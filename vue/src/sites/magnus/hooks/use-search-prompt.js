@@ -21,6 +21,102 @@ export function useSearchPrompt({
   selectionPayloads,
   setToast
 }) {
+  function isNoiseClassTerm(term) {
+    return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term)
+      || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
+  }
+
+  function contextTextTerms(info) {
+    return extractSearchTerms(denoiseTextByApi(info?.text || ''));
+  }
+
+  function contextClassTerms(info) {
+    return extractSearchTerms(info?.className || '').filter(term => !isNoiseClassTerm(term));
+  }
+
+  function contextAttrTerms(info) {
+    const attrs = info?.attrs || {};
+    const terms = [];
+    for (const [key, value] of Object.entries(attrs)) {
+      if (String(value || '').trim() === '[present]') continue;
+      terms.push(...extractSearchTerms(key));
+      terms.push(...extractSearchTerms(value));
+    }
+    return Array.from(new Set(terms));
+  }
+
+  function contextStyleTerms(info) {
+    const style = info?.computedStyle || {};
+    const terms = [];
+    for (const key of ['width', 'height', 'objectFit', 'fontSize', 'fontWeight', 'backgroundSize', 'backgroundPosition']) {
+      terms.push(...extractSearchTerms(style[key] || ''));
+    }
+    return Array.from(new Set(terms));
+  }
+
+  function searchContextTerms(info) {
+    return Array.from(new Set([
+      ...contextTextTerms(info),
+      ...contextClassTerms(info),
+      ...contextAttrTerms(info),
+      ...contextStyleTerms(info)
+    ]));
+  }
+
+  function searchContextSpecificityScore(info) {
+    const phrase = String(denoiseTextByApi(info?.text || '') || '').trim();
+    const phraseScore = phrase.length >= 2 && phrase.length <= 32
+      ? 14
+      : phrase.length > 32
+        ? 8
+        : 0;
+    return phraseScore
+      + contextTextTerms(info).length * 6
+      + contextClassTerms(info).length * 6
+      + contextAttrTerms(info).length * 8
+      + contextStyleTerms(info).length * 4;
+  }
+
+  function searchContextBreadthScore(info) {
+    const subtree = info?.subtree || {};
+    const nodeCount = Number(subtree.nodeCount || 0);
+    const textCount = Array.isArray(subtree.texts) ? subtree.texts.length : 0;
+    const attrCount = Array.isArray(subtree.attrs) ? subtree.attrs.length : 0;
+    const styleCount = Array.isArray(subtree.styles) ? subtree.styles.length : 0;
+    const textLength = String(denoiseTextByApi(info?.text || '') || '').length;
+    const boxWidth = Number(info?.box?.width || 0);
+    const boxHeight = Number(info?.box?.height || 0);
+    const area = Math.max(0, boxWidth * boxHeight);
+    return nodeCount * 2
+      + textCount * 3
+      + attrCount
+      + styleCount
+      + Math.min(30, Math.floor(textLength / 12))
+      + Math.min(40, Math.floor(area / 50000));
+  }
+
+  function shouldKeepExpandedSearchContext(selfInfo, expandedInfo) {
+    if (!selfInfo || !expandedInfo) return false;
+    const selfSpecificity = searchContextSpecificityScore(selfInfo);
+    if (selfSpecificity < 18) return true;
+
+    const selfTerms = new Set(searchContextTerms(selfInfo));
+    const expandedTerms = searchContextTerms(expandedInfo);
+    const novelTerms = expandedTerms.filter(term => !selfTerms.has(term));
+    const breadthGap = searchContextBreadthScore(expandedInfo) - searchContextBreadthScore(selfInfo);
+
+    if (novelTerms.length >= 4 && breadthGap <= 18) return true;
+    return breadthGap <= 12;
+  }
+
+  function filteredAncestorsForSearch(info) {
+    return (info?.ancestors || []).filter(ancestor => shouldKeepExpandedSearchContext(info, ancestor));
+  }
+
+  function filteredAssetForSearch(info, asset) {
+    return shouldKeepExpandedSearchContext(info, asset) ? asset : null;
+  }
+
   function promptAssetToken(index) {
     return `@选区${index}`;
   }
@@ -105,10 +201,38 @@ export function useSearchPrompt({
     return evidenceMessages.value.length ? evidenceMessages.value.join('\n') : '';
   }
 
+  function selectionAttrSummary(info) {
+    const attrs = Object.entries(info?.attrs || {})
+      .filter(([key, value]) => {
+        const text = String(value || '').trim();
+        if (!text || text === '[present]' || text.length > 40) return false;
+        return !/^(class|style|src|href)$/i.test(String(key || ''));
+      })
+      .slice(0, 3)
+      .map(([key, value]) => `${key}=${value}`);
+    return attrs.join('；');
+  }
+
+  function selectionReferenceSummary(info) {
+    const text = compactText(info?.text || '', 40);
+    const attrText = selectionAttrSummary(info);
+    const nodeParts = [
+      info?.tag ? `tag=${info.tag}` : '',
+      info?.className ? `className=${compactText(info.className, 30)}` : '',
+      attrText ? `attrs=${attrText}` : ''
+    ].filter(Boolean);
+    const nodeText = nodeParts.join('；');
+    if (!text) return compactText(nodeText || '-', 80);
+    if (text.length <= 8 || /^[A-Za-z0-9_\u4e00-\u9fa5-]+$/.test(text)) {
+      return compactText([text, nodeText].filter(Boolean).join('；'), 80);
+    }
+    return compactText(text, 80);
+  }
+
   function promptAssetItems() {
     return selectionPayloads().map(item => {
       const info = item.element || {};
-      const text = denoiseTextByApi(info.text, 120);
+      const text = compactText(info.text || '', 120);
       const fallback = compactText([info.tag || '-', info.className || ''].filter(Boolean).join('.').replace(/\.+/g, '.'), 40);
       return {
         token: promptAssetToken(item.index),
@@ -116,8 +240,9 @@ export function useSearchPrompt({
         tag: info.tag || '-',
         className: info.className || '',
         text,
+        attrs: info.attrs || {},
         ancestors: ancestorPromptLine(info),
-        summary: compactText(text || fallback || `选区${item.index}`, 40)
+        summary: compactText(selectionReferenceSummary(info) || text || fallback || `选区${item.index}`, 40)
       };
     });
   }
@@ -266,12 +391,7 @@ export function useSearchPrompt({
   function selectionTextReferenceLines(text) {
     return referencedPromptAssets(text)
       .map(asset => {
-        const fallback = [asset.tag || '', asset.className || '']
-          .filter(Boolean)
-          .join('.')
-          .replace(/\.+/g, '.')
-          .replace(/\.$/, '') || '-';
-        return `${asset.token}: ${compactText(asset.text || fallback, 60)}`;
+        return `${asset.token}: ${selectionReferenceSummary(asset)}`;
       })
       .join('；');
   }
@@ -318,7 +438,8 @@ export function useSearchPrompt({
       .join('\n');
   }
 
-  function combinedSelectionText() {
+  function combinedSelectionText(options = {}) {
+    const expandedRetry = options.expandedRetry === true;
     if (searchKeywords.value.trim()) return searchKeywords.value.trim();
     const terms = [];
     const promptInstructions = selectionPromptInstructions(promptIntent.value);
@@ -337,10 +458,18 @@ export function useSearchPrompt({
       terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
       terms.push(...extractSearchTerms(item.info.className));
       terms.push(...subtreeSearchTerms(item.info.subtree));
-      for (const ancestor of item.info.ancestors || []) {
+      const ancestors = expandedRetry
+        ? (item.info?.ancestors || [])
+        : filteredAncestorsForSearch(item.info);
+      for (const ancestor of ancestors) {
         terms.push(...extractSearchTerms(denoiseTextByApi(ancestor.text)));
         terms.push(...extractSearchTerms(ancestor.className));
         terms.push(...subtreeSearchTerms(ancestor.subtree));
+      }
+      if (expandedRetry && item.assetInfo) {
+        terms.push(...extractSearchTerms(denoiseTextByApi(item.assetInfo.text)));
+        terms.push(...extractSearchTerms(item.assetInfo.className));
+        terms.push(...subtreeSearchTerms(item.assetInfo.subtree));
       }
     }
     return Array.from(new Set(terms)).slice(0, 28).join(' ');
@@ -370,33 +499,46 @@ export function useSearchPrompt({
     };
   }
 
-  function searchPayload() {
-    const selections = selectionPayloads().map(item => ({
-      ...item,
-      element: {
-        ...item.element,
-        text: denoiseTextByApi(item.element?.text),
-        subtree: denoiseSubtree(item.element?.subtree),
-        ancestors: (item.element?.ancestors || []).map(ancestor => ({
-          ...ancestor,
-          text: denoiseTextByApi(ancestor.text),
-          subtree: denoiseSubtree(ancestor.subtree)
-        }))
-      },
-      asset: item.asset
-        ? {
-          ...item.asset,
-          text: denoiseTextByApi(item.asset?.text),
-        }
-        : null
-    }));
+  function searchReadyInfo(info, options = {}) {
+    if (!info) return info;
+    const includeAncestors = options.includeAncestors !== false;
+    return {
+      ...info,
+      searchText: denoiseTextByApi(info.text || ''),
+      searchSubtree: denoiseSubtree(info.subtree),
+      ...(includeAncestors ? {
+        ancestors: (info.ancestors || []).map(ancestor => searchReadyInfo(ancestor, { includeAncestors: false }))
+      } : {})
+    };
+  }
+
+  function searchPayload(options = {}) {
+    const expandedRetry = options.expandedRetry === true;
+    const selections = selectionPayloads().map(item => {
+      const filteredAncestors = expandedRetry
+        ? (item.element?.ancestors || [])
+        : filteredAncestorsForSearch(item.element);
+      const filteredAsset = expandedRetry
+        ? (item.asset || null)
+        : filteredAssetForSearch(item.element, item.asset);
+      return {
+        ...item,
+        element: {
+          ...searchReadyInfo(item.element),
+          ancestors: filteredAncestors.map(ancestor => searchReadyInfo(ancestor, { includeAncestors: false }))
+        },
+        asset: filteredAsset
+          ? searchReadyInfo(filteredAsset, { includeAncestors: false })
+          : null
+      };
+    });
     const apiRequests = searchApiRequests.value.map(item => ({
       url: item.url,
       pathname: item.pathname,
       method: item.method,
       requestKeys: item.requestKeys
     }));
-    const query = combinedSelectionText();
+    const query = combinedSelectionText({ expandedRetry });
     return {
       query,
       url: window.location.href,
@@ -408,12 +550,14 @@ export function useSearchPrompt({
       selectionTexts: selections.map(item => ({
         index: item.index,
         text: item.element?.text || '',
+        searchText: item.element?.searchText || '',
         className: item.element?.className || ''
       })),
       selections,
       apiRequests,
       includeApi: includeApiEvidence.value,
       mode: 'ui-first',
+      expansionMode: expandedRetry ? 'expanded-retry' : 'base',
       apiPaths: apiRequests.map(item => item.pathname || item.url),
       apiKeys: apiRequests.flatMap(item => item.requestKeys || []),
       limit: 30

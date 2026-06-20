@@ -4,6 +4,10 @@ const {
   uniq,
 } = require('../utils');
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function normalizePhrase(value, minLength = 2) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length >= minLength ? text : '';
@@ -95,6 +99,72 @@ function findNeedleIndex(text, needle, fromIndex = 0) {
     index = found + Math.max(1, value.length);
   }
   return -1;
+}
+
+function isClassContinuationChar(char) {
+  return /[\p{L}\p{N}_-]/u.test(String(char || ''));
+}
+
+function isClassTokenBoundary(text, index, length) {
+  const before = index > 0 ? text[index - 1] : '';
+  const after = index + length < text.length ? text[index + length] : '';
+  return !isClassContinuationChar(before) && !isClassContinuationChar(after);
+}
+
+function findTokenInClassContext(source, token, contextStart = 0) {
+  const text = String(source || '');
+  const value = String(token || '').trim();
+  if (!text || !value) return -1;
+  const lowerText = text.toLowerCase();
+  const lowerValue = value.toLowerCase();
+  let index = 0;
+  while (index < lowerText.length) {
+    const found = lowerText.indexOf(lowerValue, index);
+    if (found === -1) return -1;
+    if (value.includes(' ') || isClassTokenBoundary(text, found, value.length)) {
+      return contextStart + found;
+    }
+    index = found + Math.max(1, value.length);
+  }
+  return -1;
+}
+
+function findClassTokenIndex(text, token, fromIndex = 0) {
+  const content = String(text || '');
+  const value = String(token || '').trim();
+  if (!content || !value) return -1;
+  const startAt = Math.max(0, fromIndex);
+  const contexts = [];
+  const pushContext = (start, body) => {
+    if (start < startAt && start + String(body || '').length < startAt) return;
+    const index = findTokenInClassContext(body, value, start);
+    if (index >= startAt) contexts.push(index);
+  };
+
+  const quotedClassPattern = /(?:[:@])?\bclass(?:Name)?\s*=\s*(["'`])([\s\S]{0,1200}?)\1/gi;
+  let match;
+  while ((match = quotedClassPattern.exec(content))) {
+    pushContext(match.index, match[0]);
+  }
+
+  const propClassPattern = /\bclass(?:Name)?\s*:\s*(["'`])([\s\S]{0,1200}?)\1/gi;
+  while ((match = propClassPattern.exec(content))) {
+    pushContext(match.index, match[0]);
+  }
+
+  const expressionClassPattern = /\bclass(?:Name)?\s*[:=]\s*[\[{][\s\S]{0,900}?[\]}]/gi;
+  while ((match = expressionClassPattern.exec(content))) {
+    pushContext(match.index, match[0]);
+  }
+
+  const cssSelectorPattern = new RegExp(`(^|[^\\p{L}\\p{N}_-])\\.${escapeRegExp(value)}(?![\\p{L}\\p{N}_-])`, 'giu');
+  while ((match = cssSelectorPattern.exec(content))) {
+    const dotOffset = match[0].lastIndexOf('.');
+    const index = match.index + dotOffset + 1;
+    if (index >= startAt) contexts.push(index);
+  }
+
+  return contexts.length ? Math.min(...contexts) : -1;
 }
 
 function numericStyleValue(value) {
@@ -300,6 +370,138 @@ function isBusinessHref(value) {
   }
 }
 
+function getInfoAttr(info, key) {
+  return String(info?.attrs?.[key] || '').trim();
+}
+
+function searchTextValue(info) {
+  return String(info?.searchText || info?.text || '');
+}
+
+function subtreeAttrValues(info, key, limit = 6) {
+  return uniq((Array.isArray(subtreeInfo(info).attrs) ? subtreeInfo(info).attrs : [])
+    .filter(entry => String(entry?.key || '').toLowerCase() === String(key || '').toLowerCase())
+    .map(entry => String(entry?.value || '').trim())
+    .filter(Boolean))
+    .slice(0, limit);
+}
+
+function businessHrefValues(info, limit = 4) {
+  const values = [
+    getInfoAttr(info, 'href'),
+    ...subtreeAttrValues(info, 'href', limit),
+  ].filter(isBusinessHref);
+  return uniq(values.map(value => {
+    try {
+      const url = new URL(value, 'http://local.invalid');
+      return `${url.pathname || ''}${url.hash || ''}` || value;
+    } catch (error) {
+      return value;
+    }
+  })).slice(0, limit);
+}
+
+function numericBridgeValues(info) {
+  const values = [];
+  for (const key of ['width', 'height']) {
+    const attrValue = numericStyleValue(getInfoAttr(info, key));
+    const computedValue = numericStyleValue(info?.computedStyle?.[key]);
+    for (const value of [attrValue, computedValue]) {
+      if (!value) continue;
+      values.push(`${key}: ${value}`);
+      values.push(`${key}:${value}`);
+    }
+  }
+  return uniq(values).slice(0, 6);
+}
+
+function slashJoinBridgeValues(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  const parts = text.split(/\s*\/\s*/).map(item => item.trim()).filter(Boolean);
+  if (parts.length < 2) return [];
+  if (parts.some(item => item.length > 24)) return [];
+  return [
+    `join(' / ')`,
+    `join(" / ")`,
+    `' / '`,
+    `" / "`,
+  ];
+}
+
+function infoTextCandidates(info, limit = 8) {
+  return uniq([
+    ...textEvidenceValues(searchTextValue(info), Math.min(limit, 6)),
+    ...(Array.isArray(subtreeInfo(info).texts) ? subtreeInfo(info).texts : [])
+      .flatMap(item => textEvidenceValues(item, 2)),
+  ])
+    .filter(item => item.length <= 24)
+    .slice(0, limit);
+}
+
+function navLikeClassHit(info) {
+  const values = [
+    String(info?.className || ''),
+    String(info?.selector || ''),
+    ...((Array.isArray(subtreeInfo(info).classNames) ? subtreeInfo(info).classNames : []).slice(0, 10)),
+  ].join(' ');
+  return /(nav|menu|submenu|sidebar|sider|topnav|navbar|header|tab|tabs)/i.test(values);
+}
+
+function menuRoleHit(info) {
+  const role = getInfoAttr(info, 'role');
+  return /^(menu|menuitem|menubar|navigation|tab|tablist)$/i.test(role);
+}
+
+function detectSelectionKind(selection) {
+  const index = Number(selection?.index || 0);
+  const infos = [
+    selection?.element,
+    ...(selection?.element?.ancestors || []).slice(0, 2),
+    selection?.asset,
+  ].filter(Boolean);
+  const hrefs = uniq(infos.flatMap(info => businessHrefValues(info, 2))).slice(0, 4);
+  const texts = uniq(infos.flatMap(info => infoTextCandidates(info, 6))).slice(0, 8);
+  const shortTexts = texts.filter(text => text.length <= 12);
+  const hasNavClass = infos.some(navLikeClassHit);
+  const hasMenuRole = infos.some(menuRoleHit);
+  const hasIcon = infos.some(info => orderedClassTokens(info?.className, 12).some(isIconClass));
+
+  if (hrefs.length && (hasNavClass || hasMenuRole || (hasIcon && shortTexts.length > 0))) {
+    return {
+      selectionIndex: index,
+      kind: 'route-link-like',
+      confidence: 0.95,
+      reasons: uniq([
+        hrefs.length ? `包含业务路由：${hrefs.join('，')}` : '',
+        hasNavClass ? 'class/selector 命中 nav/menu 语义' : '',
+        hasMenuRole ? 'role 命中 menu/menuitem/navigation' : '',
+        hasIcon ? '同时存在业务 icon' : '',
+      ].filter(Boolean)),
+    };
+  }
+
+  const multiLabelText = texts.some(text => text.length <= 24 && /\s/.test(text.trim()));
+  if ((hasNavClass || hasMenuRole) && (shortTexts.length >= 2 || multiLabelText)) {
+    return {
+      selectionIndex: index,
+      kind: 'global-nav-like',
+      confidence: 0.88,
+      reasons: uniq([
+        hasNavClass ? 'class/selector 命中 nav/menu 语义' : '',
+        hasMenuRole ? 'role 命中 menu/menuitem/navigation' : '',
+        shortTexts.length ? `存在多个短文案：${shortTexts.slice(0, 4).join('，')}` : '',
+      ].filter(Boolean)),
+    };
+  }
+
+  return {
+    selectionIndex: index,
+    kind: 'generic',
+    confidence: 0.4,
+    reasons: [],
+  };
+}
+
 function selectorTailValues(selector, limit = 3) {
   return uniq(String(selector || '')
     .split('>')
@@ -370,9 +572,9 @@ function addNodeStructuredEvidences(result, info, options = {}) {
   const selectionIndex = options.selectionIndex || 0;
   const factor = options.factor || 1;
   const tag = String(info.tag || '').toLowerCase();
-  const noTextNode = ['img', 'svg', 'button', 'i'].includes(tag) && !normalizePhrase(info.text, 2);
+  const noTextNode = ['img', 'svg', 'button', 'i'].includes(tag) && !normalizePhrase(searchTextValue(info), 2);
 
-  for (const text of textEvidenceValues(info.text, noTextNode ? 2 : 8)) {
+  for (const text of textEvidenceValues(searchTextValue(info), noTextNode ? 2 : 8)) {
     addStructuredEvidence(result, {
       kind: 'text',
       value: text,
@@ -426,6 +628,48 @@ function addNodeStructuredEvidences(result, info, options = {}) {
   }
 }
 
+function addBridgeStructuredEvidences(result, info, options = {}) {
+  if (!info) return;
+  const scope = options.scope || 'self';
+  const selectionIndex = options.selectionIndex || 0;
+  const factor = options.factor || 1;
+  const dataColKey = getInfoAttr(info, 'data-col-key');
+  const bridgeValues = [];
+
+  if (/^[a-zA-Z0-9_.-]{2,40}$/.test(dataColKey)) {
+    bridgeValues.push(
+      `key: '${dataColKey}'`,
+      `key: "${dataColKey}"`,
+      `dataIndex: '${dataColKey}'`,
+      `dataIndex: "${dataColKey}"`
+    );
+  }
+
+  for (const href of businessHrefValues(info, 4)) {
+    bridgeValues.push(href);
+  }
+
+  for (const dimension of numericBridgeValues(info)) {
+    bridgeValues.push(dimension);
+  }
+
+  for (const text of infoTextCandidates(info, 4)) {
+    bridgeValues.push(...slashJoinBridgeValues(text));
+  }
+
+  for (const value of uniq(bridgeValues).slice(0, 16)) {
+    addStructuredEvidence(result, {
+      kind: 'text',
+      value,
+      weight: Math.round((value.startsWith('key:') || value.startsWith('dataIndex:') ? 118 : value.startsWith('/') ? 104 : value.includes('join(') ? 96 : 44) * factor),
+      strong: value.startsWith('key:') || value.startsWith('dataIndex:') || value.startsWith('/') || value.includes('join('),
+      label: `${options.label || '选区'}桥接证据`,
+      scope,
+      selectionIndex,
+    });
+  }
+}
+
 function extractStructuredEvidences(body, selections, selectionInstructions) {
   const result = { map: new Map() };
 
@@ -438,8 +682,20 @@ function extractStructuredEvidences(body, selections, selectionInstructions) {
       factor: 1,
       label: '当前选区',
     });
+    addBridgeStructuredEvidences(result, selection.element, {
+      scope: 'self',
+      selectionIndex: index,
+      factor: 1,
+      label: '当前选区',
+    });
     for (const ancestor of (selection.element?.ancestors || []).slice(0, 4)) {
       addNodeStructuredEvidences(result, ancestor, {
+        scope: 'ancestor',
+        selectionIndex: index,
+        factor: 0.62,
+        label: '父级扩区',
+      });
+      addBridgeStructuredEvidences(result, ancestor, {
         scope: 'ancestor',
         selectionIndex: index,
         factor: 0.62,
@@ -448,6 +704,12 @@ function extractStructuredEvidences(body, selections, selectionInstructions) {
     }
     if (selection.asset) {
       addNodeStructuredEvidences(result, selection.asset, {
+        scope: 'asset',
+        selectionIndex: index,
+        factor: 0.72,
+        label: '扩大选区',
+      });
+      addBridgeStructuredEvidences(result, selection.asset, {
         scope: 'asset',
         selectionIndex: index,
         factor: 0.72,
@@ -463,12 +725,12 @@ function extractStructuredEvidences(body, selections, selectionInstructions) {
 
 function infoTextPhrases(info, limit = 4) {
   return uniq([
-    normalizePhrase(info?.text, 3),
+    normalizePhrase(searchTextValue(info), 3),
   ].filter(Boolean)).slice(0, limit);
 }
 
 function infoTextTokens(info, limit = 18) {
-  return uniq(tokenize(info?.text)).slice(0, limit);
+  return uniq(tokenize(searchTextValue(info))).slice(0, limit);
 }
 
 function infoAttrTokens(info, limit = 16) {
@@ -531,7 +793,7 @@ function styleTokensFromValue(styleValue, inlineStyle = '', limit = 16) {
 }
 
 function subtreeInfo(info) {
-  const subtree = info?.subtree || info?.descendants || {};
+  const subtree = info?.searchSubtree || info?.subtree || info?.descendants || {};
   return subtree && typeof subtree === 'object' ? subtree : {};
 }
 
@@ -778,6 +1040,7 @@ function buildSearchEvidence(body) {
   const selectionSignals = [];
   const weightedTokens = [];
   const structuredEvidences = extractStructuredEvidences(body, selections, selectionInstructions);
+  const selectionKinds = selections.map(selection => detectSelectionKind(selection));
   const addToken = (value, weight, label) => {
     for (const token of tokenize(value)) {
       weightedTokens.push({ token, weight, label });
@@ -810,20 +1073,20 @@ function buildSearchEvidence(body) {
 
   for (const selection of selections) {
     addToken(selection.element?.className, 46, 'className');
-    addPhrase(selection.element?.text, 90, '选区文案');
-    addToken(selection.element?.text, 28, '选区文案');
+    addPhrase(searchTextValue(selection.element), 90, '选区文案');
+    addToken(searchTextValue(selection.element), 28, '选区文案');
     addSubtreeEvidence(selection.element, {
       classWeight: 42,
       textWeight: 64,
       textTokenWeight: 24,
     }, '选区向下');
     addToken(selection.asset?.className, 26, '扩大选区 className');
-    addPhrase(selection.asset?.text, 34, '扩大选区文案');
-    addToken(selection.asset?.text, 12, '扩大选区文案');
+    addPhrase(searchTextValue(selection.asset), 34, '扩大选区文案');
+    addToken(searchTextValue(selection.asset), 12, '扩大选区文案');
     for (const ancestor of selection.element?.ancestors || []) {
       addToken(ancestor.className, 24, '父级 className');
-      addPhrase(ancestor.text, 42, '父级文案');
-      addToken(ancestor.text, 14, '父级文案');
+      addPhrase(searchTextValue(ancestor), 42, '父级文案');
+      addToken(searchTextValue(ancestor), 14, '父级文案');
       addSubtreeEvidence(ancestor, {
         classWeight: 24,
         textWeight: 38,
@@ -859,6 +1122,9 @@ function buildSearchEvidence(body) {
     phrases: phrases.slice(0, 80),
     selectionSignals: selectionSignals.slice(0, 24),
     structuredEvidences,
+    selectionKinds: selectionKinds
+      .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+      .slice(0, 24),
   };
 }
 
@@ -956,6 +1222,18 @@ function matchedTokenList(lowerText, tokens, minLength = 3, limit = 2) {
   return result;
 }
 
+function matchedClassTokenList(text, tokens, minLength = 3, limit = 2) {
+  const result = [];
+  for (const token of tokens || []) {
+    const value = String(token || '').trim();
+    if (value.length < minLength) continue;
+    if (findClassTokenIndex(text, value) === -1) continue;
+    result.push(value);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 function matchedPhraseList(lowerText, phrases, minLength = 3, limit = 2) {
   const result = [];
   for (const phrase of phrases || []) {
@@ -1011,7 +1289,7 @@ function scoreSelectionContext(text, evidence, searchableText = text) {
     for (const layer of signal.layers || []) {
       let score = 0;
       const reasons = [];
-      const classMatches = matchedTokenList(lowerText, layer.classTokens, 3, 4);
+      const classMatches = matchedClassTokenList(searchableText, layer.classTokens, 3, 4);
       const textMatches = matchedPhraseList(lowerText, layer.textPhrases, 3, 3);
       const textTokenMatches = matchedTokenList(lowerText, layer.textTokens, 3, 4)
         .filter(token => !textMatches.some(phrase => phrase.includes(token)));
@@ -1043,8 +1321,9 @@ function scoreSelectionContext(text, evidence, searchableText = text) {
         const snippetSource = firstMatchedValue(searchableText, [
           ...textMatches,
           ...textTokenMatches,
-          ...classMatches,
-        ]);
+        ]) || (classMatches.length
+          ? { index: findClassTokenIndex(searchableText, classMatches[0]), value: classMatches[0] }
+          : null);
         const snippet = snippetSource
           ? makeSnippet(text, snippetSource.index, snippetSource.value.length)
           : '';
@@ -1076,7 +1355,7 @@ function scoreRefinementLayerText(text, layer) {
     };
   }
 
-  const classMatches = matchedTokenList(lowerText, layer.ownClassTokens || [], 3, 4);
+  const classMatches = matchedClassTokenList(searchableText, layer.ownClassTokens || [], 3, 4);
   const textMatches = matchedPhraseList(lowerText, layer.ownTextPhrases || [], 3, 3);
   const textTokenMatches = matchedTokenList(lowerText, layer.ownTextTokens || [], 3, 5)
     .filter(token => !textMatches.some(phrase => phrase.includes(token)));
@@ -1169,7 +1448,10 @@ function scoreFileText(file, text, evidence) {
 
   for (const item of evidence.tokens) {
     const lower = item.token.toLowerCase();
-    const index = findNeedleIndex(lowerText, lower);
+    const isClassToken = /class/i.test(String(item.label || ''));
+    const index = isClassToken
+      ? findClassTokenIndex(searchableText, item.token)
+      : findNeedleIndex(lowerText, lower);
     if (index === -1) continue;
     score += item.token.length >= 6 ? item.weight : Math.max(10, Math.round(item.weight * 0.65));
     reasons.push(`内容命中(${item.label})：${item.token}`);
@@ -1200,6 +1482,7 @@ function scoreFileText(file, text, evidence) {
 
 module.exports = {
   buildSearchEvidence,
+  findClassTokenIndex,
   findNeedleIndex,
   maskCommentsPreserveLength,
   orderedClassTokens,

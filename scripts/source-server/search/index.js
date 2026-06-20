@@ -1,6 +1,7 @@
 const { isTextFile, readProjectText } = require('../core/fs-utils');
 const {
   buildSearchEvidence,
+  findClassTokenIndex,
   findNeedleIndex,
   maskCommentsPreserveLength,
   scoreFileText,
@@ -33,6 +34,21 @@ const WEAK_CONTEXT_TOKENS = new Set([
   'rgb',
   'rgba',
   'transparent',
+]);
+const WEAK_EXACT_TEXTS = new Set([
+  '详情',
+  '更多',
+  '编辑',
+  '删除',
+  '复制',
+  '保存',
+  '取消',
+  '确认',
+  '提交',
+  '关闭',
+  '返回',
+  '查询',
+  '重置',
 ]);
 
 function boundedLimit(value, fallback = 10) {
@@ -497,9 +513,22 @@ function filterExpandedHitsByComponentRelation(project, hits, currentFiles, text
 }
 
 function exactTextIsUniqueEnough(hits) {
-  const exactHits = hits.filter(hasExactTextEvidence);
-  if (exactHits.length !== 1) return false;
-  return true;
+  const exactHits = hits
+    .filter(hasExactTextEvidence)
+    .filter(hit => {
+      const text = String(hit.exactMatchText || '').replace(/\s+/g, ' ').trim();
+      if (!text) return false;
+      if (WEAK_EXACT_TEXTS.has(text)) return false;
+      if (text.length < 4) return false;
+      return true;
+    });
+  const files = uniq(exactHits.map(hit => hit.file));
+  if (files.length !== 1) return false;
+  const best = exactHits.sort((a, b) => b.score - a.score)[0];
+  if (!best) return false;
+  if (best.preciseEvidence) return true;
+  if ((best.uniqueMatchCount || 0) >= 1) return true;
+  return String(best.exactMatchText || '').length >= 6 && (best.exactMatchCount || 0) <= 2;
 }
 
 function layerScopeName(scope, layer) {
@@ -880,10 +909,7 @@ function selectionClassBasisCandidates(evidence, options = {}) {
 }
 
 function classTokenIndex(text, token) {
-  const lowerText = String(text || '').toLowerCase();
-  const lowerToken = String(token || '').trim().toLowerCase();
-  if (!lowerText || !lowerToken) return -1;
-  return findNeedleIndex(lowerText, lowerToken);
+  return findClassTokenIndex(text, token);
 }
 
 function findOrderedClassBasisHits(project, evidence, textCache, scopeFiles = null, options = {}) {
@@ -1271,7 +1297,7 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
           bundle.relation.siblingFiles,
           bundle.relation.localFiles
         );
-        const score = relationBoost(kind) + Math.min(92, layerScore.score);
+        const score = relationBoost(kind) + Math.min(128, layerScore.score);
         if (!best || score > best.score) {
           const source = firstLayerSnippetSource(text, layer);
           best = {
@@ -1309,10 +1335,11 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
 
   return bundles.map(bundle => {
     const promote = bundle.promotedFile && bundle.promotedFile !== bundle.hit.file;
+    const chainDepthPenalty = Math.min(128, Math.max(0, (bundle.relation.chain.length || 1) - 3) * 24);
     return {
       ...bundle.hit,
       file: promote ? bundle.promotedFile : bundle.hit.file,
-      score: bundle.hit.score + bundle.layerScore + (bundle.relation.chain.length > 1 ? 28 : 0),
+      score: bundle.hit.score + bundle.layerScore + (bundle.relation.chain.length > 1 ? 28 : 0) - chainDepthPenalty,
       stage: bundle.hit.stage || 'local-bundle',
       stages: mergeList(bundle.hit.stages || bundle.hit.stage, 'local-bundle'),
       from: promote ? bundle.hit.file : '',
@@ -1321,6 +1348,7 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
       reasons: uniq([
         promote ? `初始命中：${bundle.hit.file}` : '',
         bundle.relation.chain.length > 1 ? `页面引用链：${bundle.relation.chain.join(' -> ')}` : '',
+        chainDepthPenalty ? `降权：页面引用链较深，优先当前组件或父组件关系` : '',
         ...bundle.layerReasons,
         ...(bundle.hit.reasons || []),
       ]).slice(0, 12),
@@ -1329,11 +1357,16 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
 }
 
 function firstLayerSnippetSource(text, layer) {
-  return firstMatchedValueInText(text, [
+  const textSource = firstMatchedValueInText(text, [
     ...(layer.ownTextPhrases || []),
     ...(layer.ownTextTokens || []),
-    ...(layer.ownClassTokens || []),
   ]);
+  if (textSource) return textSource;
+  for (const token of layer.ownClassTokens || []) {
+    const index = findClassTokenIndex(text, token);
+    if (index !== -1) return { index, value: token };
+  }
+  return null;
 }
 
 function stableLocalHits(hits) {
@@ -1355,19 +1388,62 @@ function legacyKeywordFallback(project, evidence, textCache) {
   });
 }
 
-function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
+function strongestSelectionKind(evidence) {
+  return (evidence?.selectionKinds || [])
+    .slice()
+    .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))[0] || null;
+}
+
+function isNavLikeSelectionKind(kind) {
+  return kind === 'route-link-like' || kind === 'global-nav-like';
+}
+
+function hasSharedNavEvidence(evidence) {
+  const structured = Array.isArray(evidence?.structuredEvidences) ? evidence.structuredEvidences : [];
+  const hasNavClass = structured.some(item =>
+    (item.kind === 'class' || item.kind === 'icon')
+    && /(nav|menu|submenu|sidebar|sider|topnav|navbar|header|tab|tabs)/i.test(String(item.value || ''))
+  );
+  if (!hasNavClass) return false;
+  const iconCount = structured.filter(item => item.kind === 'icon').length;
+  const shortTexts = structured
+    .filter(item => item.kind === 'text' && String(item.value || '').trim().length <= 12)
+    .map(item => String(item.value || '').trim())
+    .filter(Boolean);
+  const hasHrefPath = structured.some(item => item.kind === 'text' && /^\/[\w/-]+/.test(String(item.value || '')));
+  return uniq(shortTexts).length >= 2 || hasHrefPath || iconCount >= 1;
+}
+
+function buildLayeredScopePlan(project, routeHits, evidence, textCache, scopes) {
   const routeEntry = routeHits?.[0]?.file || '';
-  const graph = buildImportGraph(project, textCache);
   const allScope = scopes[scopes.length - 1] || { name: 'fullRepo', files: fileSetFromProject(project) };
   const routeClosureFiles = routeEntry
     ? importClosure(project, [routeEntry], textCache, 8)
     : new Set();
-  const scopePlan = [
+  const navLike = isNavLikeSelectionKind(strongestSelectionKind(evidence)?.kind)
+    || hasSharedNavEvidence(evidence);
+
+  if (navLike) {
+    return [
+      scopes[0] ? { name: 'L0 共享布局 + router 优先', files: scopes[0].files } : null,
+      scopes[2] ? { name: 'L1 共享组件兜底', files: scopes[2].files } : null,
+      { name: 'L2 全仓类/文案兜底', files: allScope.files },
+    ].filter(scope => scope && scope.files && scope.files.size);
+  }
+
+  return [
     routeEntry ? { name: 'L0 当前页面模块闭包', files: routeClosureFiles } : null,
     scopes[0] ? { name: 'L1 页面闭包 + 共享入口', files: scopes[0].files } : null,
     scopes[2] ? { name: 'L2 共享组件兜底', files: scopes[2].files } : null,
     { name: 'L3 全仓类/文案兜底', files: allScope.files },
   ].filter(scope => scope && scope.files && scope.files.size);
+}
+
+function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
+  const routeEntry = routeHits?.[0]?.file || '';
+  const graph = buildImportGraph(project, textCache);
+  const allScope = scopes[scopes.length - 1] || { name: 'fullRepo', files: fileSetFromProject(project) };
+  const scopePlan = buildLayeredScopePlan(project, routeHits, evidence, textCache, scopes);
 
   let last = { hits: [], activeScope: allScope, layer: 'L3' };
   for (const scope of scopePlan) {
@@ -1391,13 +1467,33 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
           ...(hit.reasons || []),
         ]).slice(0, 12),
       }));
+    if (stableLocalHits(bundledHits) || exactTextIsUniqueEnough(bundledHits)) {
+      return {
+        hits: bundledHits,
+        activeScope: scope,
+        layer: scope.name.replace(/：.*$/, ''),
+      };
+    }
+    const recalledHits = recallByStructuredEvidence(project, routeHits, evidence, textCache, {
+      scopeFiles: scope.files,
+    }).map(hit => ({
+      ...hit,
+      reasons: uniq([
+        `检索层级：${scope.name}`,
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    }));
+    const mergedScopeHits = mergeHits([
+      ...bundledHits,
+      ...recalledHits,
+    ]).sort((a, b) => b.score - a.score);
     last = {
-      hits: bundledHits,
+      hits: mergedScopeHits,
       activeScope: scope,
       layer: scope.name.replace(/：.*$/, ''),
     };
-    if (stableLocalHits(bundledHits)) return last;
-    if (scope.name.startsWith('L0') && exactTextIsUniqueEnough(bundledHits)) return last;
+    if (stableLocalHits(mergedScopeHits)) return last;
+    if (exactTextIsUniqueEnough(mergedScopeHits)) return last;
   }
   return last;
 }

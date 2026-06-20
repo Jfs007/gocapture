@@ -7024,19 +7024,122 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return parts.join(" > ");
   }
+  function addEvidenceTerms(target, values, perValueLimit = 12, totalLimit = 72) {
+    if (!(target instanceof Set) || target.size >= totalLimit) return;
+    for (const value of values) {
+      if (target.size >= totalLimit) break;
+      for (const term of extractSearchTerms(value).slice(0, perValueLimit)) {
+        target.add(term);
+        if (target.size >= totalLimit) break;
+      }
+    }
+  }
+  function evidenceGrowth(baseSet, nextSet) {
+    let added = 0;
+    let duplicated = 0;
+    for (const item of nextSet || []) {
+      if (baseSet == null ? void 0 : baseSet.has(item)) duplicated++;
+      else added++;
+    }
+    return { added, duplicated };
+  }
+  function getContextEvidence(element, options = {}) {
+    if (!element) {
+      return {
+        text: "",
+        nodeCount: 0,
+        textTerms: /* @__PURE__ */ new Set(),
+        classTerms: /* @__PURE__ */ new Set(),
+        attrTerms: /* @__PURE__ */ new Set(),
+        styleTerms: /* @__PURE__ */ new Set()
+      };
+    }
+    const normalizeText = options.normalizeText;
+    const subtree = getSubtreeEvidence(element, options.subtreeOptions || {
+      nodeLimit: 40,
+      classLimit: 24,
+      textLimit: 24,
+      attrLimit: 24,
+      styleLimit: 16
+    });
+    const attrs = getElementAttrs(element);
+    const text = getComparableElementText(element, normalizeText, options.textLimit || 1200);
+    const textTerms = /* @__PURE__ */ new Set();
+    const classTerms = /* @__PURE__ */ new Set();
+    const attrTerms = /* @__PURE__ */ new Set();
+    const styleTerms = /* @__PURE__ */ new Set();
+    addEvidenceTerms(textTerms, [text, ...subtree.texts], 12, 36);
+    addEvidenceTerms(classTerms, [getClassName(element), ...subtree.classNames], 8, 24);
+    addEvidenceTerms(attrTerms, Object.entries(attrs).flatMap(([key, value]) => [key, value]), 8, 24);
+    addEvidenceTerms(attrTerms, subtree.attrs.flatMap((item) => [item == null ? void 0 : item.key, item == null ? void 0 : item.value]), 8, 36);
+    addEvidenceTerms(styleTerms, subtree.styles.flatMap((item) => {
+      return Object.entries((item == null ? void 0 : item.style) || {}).flatMap(([key, value]) => [key, value]);
+    }), 8, 24);
+    return {
+      text,
+      nodeCount: subtree.nodeCount || 0,
+      textTerms,
+      classTerms,
+      attrTerms,
+      styleTerms
+    };
+  }
+  function scoreContextPromotion(baseEvidence, nextEvidence) {
+    const textGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.textTerms, nextEvidence == null ? void 0 : nextEvidence.textTerms);
+    const classGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.classTerms, nextEvidence == null ? void 0 : nextEvidence.classTerms);
+    const attrGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.attrTerms, nextEvidence == null ? void 0 : nextEvidence.attrTerms);
+    const styleGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.styleTerms, nextEvidence == null ? void 0 : nextEvidence.styleTerms);
+    const novelScore = textGrowth.added * 4 + classGrowth.added * 3 + attrGrowth.added * 5 + styleGrowth.added * 2;
+    const duplicatePenalty = textGrowth.duplicated + classGrowth.duplicated + attrGrowth.duplicated + styleGrowth.duplicated;
+    const breadthPenalty = Math.max(0, Number((nextEvidence == null ? void 0 : nextEvidence.nodeCount) || 0) - Number((baseEvidence == null ? void 0 : baseEvidence.nodeCount) || 0) - 4) * 2;
+    const textLengthPenalty = Math.max(0, String((nextEvidence == null ? void 0 : nextEvidence.text) || "").length - String((baseEvidence == null ? void 0 : baseEvidence.text) || "").length - 160) / 24;
+    const score = novelScore - duplicatePenalty - breadthPenalty - textLengthPenalty;
+    return {
+      score,
+      novelCount: textGrowth.added + classGrowth.added + attrGrowth.added + styleGrowth.added,
+      duplicateCount: duplicatePenalty,
+      breadthPenalty
+    };
+  }
+  function shouldPromoteContext(baseEvidence, nextEvidence) {
+    const result = scoreContextPromotion(baseEvidence, nextEvidence);
+    if (result.novelCount <= 0) return false;
+    if (result.novelCount >= 3 && result.score >= 6) return true;
+    if (result.novelCount >= 2 && result.score >= 8) return true;
+    return result.score >= 10;
+  }
   function getAncestorInfo(element, options = {}) {
     var _a;
     const result = [];
     let node = element.parentElement;
-    let currentText = getComparableElementText(element, options.normalizeText, 1200);
+    let currentEvidence = getContextEvidence(element, {
+      normalizeText: options.normalizeText,
+      subtreeOptions: {
+        nodeLimit: 40,
+        classLimit: 24,
+        textLimit: 24,
+        attrLimit: 24,
+        styleLimit: 16
+      }
+    });
     let inspected = 0;
     while (node && node !== document.body && result.length < 4 && inspected < 16) {
       inspected++;
-      const comparableText = getComparableElementText(node, options.normalizeText, 1200);
-      if (!comparableText || comparableText.length <= currentText.length) {
+      const nextEvidence = getContextEvidence(node, {
+        normalizeText: options.normalizeText,
+        subtreeOptions: {
+          nodeLimit: 40,
+          classLimit: 24,
+          textLimit: 24,
+          attrLimit: 24,
+          styleLimit: 16
+        }
+      });
+      if (!shouldPromoteContext(currentEvidence, nextEvidence)) {
         node = node.parentElement;
         continue;
       }
+      const comparableText = nextEvidence.text;
       const rect = node.getBoundingClientRect();
       result.push({
         tag: node.tagName.toLowerCase(),
@@ -7060,7 +7163,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           height: round(rect.height)
         }
       });
-      currentText = comparableText;
+      currentEvidence = nextEvidence;
       node = node.parentElement;
     }
     return result;
@@ -7940,6 +8043,76 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     selectionPayloads,
     setToast
   }) {
+    function isNoiseClassTerm(term) {
+      return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term) || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
+    }
+    function contextTextTerms(info) {
+      return extractSearchTerms(denoiseTextByApi((info == null ? void 0 : info.text) || ""));
+    }
+    function contextClassTerms(info) {
+      return extractSearchTerms((info == null ? void 0 : info.className) || "").filter((term) => !isNoiseClassTerm(term));
+    }
+    function contextAttrTerms(info) {
+      const attrs = (info == null ? void 0 : info.attrs) || {};
+      const terms = [];
+      for (const [key, value] of Object.entries(attrs)) {
+        if (String(value || "").trim() === "[present]") continue;
+        terms.push(...extractSearchTerms(key));
+        terms.push(...extractSearchTerms(value));
+      }
+      return Array.from(new Set(terms));
+    }
+    function contextStyleTerms(info) {
+      const style = (info == null ? void 0 : info.computedStyle) || {};
+      const terms = [];
+      for (const key of ["width", "height", "objectFit", "fontSize", "fontWeight", "backgroundSize", "backgroundPosition"]) {
+        terms.push(...extractSearchTerms(style[key] || ""));
+      }
+      return Array.from(new Set(terms));
+    }
+    function searchContextTerms(info) {
+      return Array.from(/* @__PURE__ */ new Set([
+        ...contextTextTerms(info),
+        ...contextClassTerms(info),
+        ...contextAttrTerms(info),
+        ...contextStyleTerms(info)
+      ]));
+    }
+    function searchContextSpecificityScore(info) {
+      const phrase = String(denoiseTextByApi((info == null ? void 0 : info.text) || "") || "").trim();
+      const phraseScore = phrase.length >= 2 && phrase.length <= 32 ? 14 : phrase.length > 32 ? 8 : 0;
+      return phraseScore + contextTextTerms(info).length * 6 + contextClassTerms(info).length * 6 + contextAttrTerms(info).length * 8 + contextStyleTerms(info).length * 4;
+    }
+    function searchContextBreadthScore(info) {
+      var _a, _b;
+      const subtree = (info == null ? void 0 : info.subtree) || {};
+      const nodeCount = Number(subtree.nodeCount || 0);
+      const textCount = Array.isArray(subtree.texts) ? subtree.texts.length : 0;
+      const attrCount = Array.isArray(subtree.attrs) ? subtree.attrs.length : 0;
+      const styleCount = Array.isArray(subtree.styles) ? subtree.styles.length : 0;
+      const textLength = String(denoiseTextByApi((info == null ? void 0 : info.text) || "") || "").length;
+      const boxWidth = Number(((_a = info == null ? void 0 : info.box) == null ? void 0 : _a.width) || 0);
+      const boxHeight = Number(((_b = info == null ? void 0 : info.box) == null ? void 0 : _b.height) || 0);
+      const area = Math.max(0, boxWidth * boxHeight);
+      return nodeCount * 2 + textCount * 3 + attrCount + styleCount + Math.min(30, Math.floor(textLength / 12)) + Math.min(40, Math.floor(area / 5e4));
+    }
+    function shouldKeepExpandedSearchContext(selfInfo, expandedInfo) {
+      if (!selfInfo || !expandedInfo) return false;
+      const selfSpecificity = searchContextSpecificityScore(selfInfo);
+      if (selfSpecificity < 18) return true;
+      const selfTerms = new Set(searchContextTerms(selfInfo));
+      const expandedTerms = searchContextTerms(expandedInfo);
+      const novelTerms = expandedTerms.filter((term) => !selfTerms.has(term));
+      const breadthGap = searchContextBreadthScore(expandedInfo) - searchContextBreadthScore(selfInfo);
+      if (novelTerms.length >= 4 && breadthGap <= 18) return true;
+      return breadthGap <= 12;
+    }
+    function filteredAncestorsForSearch(info) {
+      return ((info == null ? void 0 : info.ancestors) || []).filter((ancestor) => shouldKeepExpandedSearchContext(info, ancestor));
+    }
+    function filteredAssetForSearch(info, asset) {
+      return shouldKeepExpandedSearchContext(info, asset) ? asset : null;
+    }
     function promptAssetToken(index) {
       return `@选区${index}`;
     }
@@ -7952,10 +8125,33 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         latestText ? `最近选区：${compactText(latestText, 80)}` : ""
       ].filter(Boolean).join("\n");
     }
+    function selectionAttrSummary(info) {
+      const attrs = Object.entries((info == null ? void 0 : info.attrs) || {}).filter(([key, value]) => {
+        const text = String(value || "").trim();
+        if (!text || text === "[present]" || text.length > 40) return false;
+        return !/^(class|style|src|href)$/i.test(String(key || ""));
+      }).slice(0, 3).map(([key, value]) => `${key}=${value}`);
+      return attrs.join("；");
+    }
+    function selectionReferenceSummary(info) {
+      const text = compactText((info == null ? void 0 : info.text) || "", 40);
+      const attrText = selectionAttrSummary(info);
+      const nodeParts = [
+        (info == null ? void 0 : info.tag) ? `tag=${info.tag}` : "",
+        (info == null ? void 0 : info.className) ? `className=${compactText(info.className, 30)}` : "",
+        attrText ? `attrs=${attrText}` : ""
+      ].filter(Boolean);
+      const nodeText = nodeParts.join("；");
+      if (!text) return compactText(nodeText || "-", 80);
+      if (text.length <= 8 || /^[A-Za-z0-9_\u4e00-\u9fa5-]+$/.test(text)) {
+        return compactText([text, nodeText].filter(Boolean).join("；"), 80);
+      }
+      return compactText(text, 80);
+    }
     function promptAssetItems() {
       return selectionPayloads().map((item) => {
         const info = item.element || {};
-        const text = denoiseTextByApi(info.text, 120);
+        const text = compactText(info.text || "", 120);
         const fallback = compactText([info.tag || "-", info.className || ""].filter(Boolean).join(".").replace(/\.+/g, "."), 40);
         return {
           token: promptAssetToken(item.index),
@@ -7963,8 +8159,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           tag: info.tag || "-",
           className: info.className || "",
           text,
+          attrs: info.attrs || {},
           ancestors: ancestorPromptLine(info),
-          summary: compactText(text || fallback || `选区${item.index}`, 40)
+          summary: compactText(selectionReferenceSummary(info) || text || fallback || `选区${item.index}`, 40)
         };
       });
     }
@@ -8058,8 +8255,7 @@ ${source}` : "",
     }
     function selectionTextReferenceLines(text) {
       return referencedPromptAssets(text).map((asset) => {
-        const fallback = [asset.tag || "", asset.className || ""].filter(Boolean).join(".").replace(/\.+/g, ".").replace(/\.$/, "") || "-";
-        return `${asset.token}: ${compactText(asset.text || fallback, 60)}`;
+        return `${asset.token}: ${selectionReferenceSummary(asset)}`;
       }).join("；");
     }
     function selectionNodeLine(info) {
@@ -8116,7 +8312,7 @@ ${source}` : "",
         terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
         terms.push(...extractSearchTerms(item.info.className));
         terms.push(...subtreeSearchTerms(item.info.subtree));
-        for (const ancestor of item.info.ancestors || []) {
+        for (const ancestor of filteredAncestorsForSearch(item.info)) {
           terms.push(...extractSearchTerms(denoiseTextByApi(ancestor.text)));
           terms.push(...extractSearchTerms(ancestor.className));
           terms.push(...subtreeSearchTerms(ancestor.subtree));
@@ -8145,21 +8341,25 @@ ${source}` : "",
         texts: (subtree.texts || []).map((text) => denoiseTextByApi(text))
       });
     }
+    function searchReadyInfo(info, options = {}) {
+      if (!info) return info;
+      const includeAncestors = options.includeAncestors !== false;
+      return __spreadValues(__spreadProps(__spreadValues({}, info), {
+        searchText: denoiseTextByApi(info.text || ""),
+        searchSubtree: denoiseSubtree(info.subtree)
+      }), includeAncestors ? {
+        ancestors: (info.ancestors || []).map((ancestor) => searchReadyInfo(ancestor, { includeAncestors: false }))
+      } : {});
+    }
     function searchPayload() {
       const selections = selectionPayloads().map((item) => {
-        var _a, _b, _c, _d;
+        const filteredAncestors = filteredAncestorsForSearch(item.element);
+        const filteredAsset = filteredAssetForSearch(item.element, item.asset);
         return __spreadProps(__spreadValues({}, item), {
-          element: __spreadProps(__spreadValues({}, item.element), {
-            text: denoiseTextByApi((_a = item.element) == null ? void 0 : _a.text),
-            subtree: denoiseSubtree((_b = item.element) == null ? void 0 : _b.subtree),
-            ancestors: (((_c = item.element) == null ? void 0 : _c.ancestors) || []).map((ancestor) => __spreadProps(__spreadValues({}, ancestor), {
-              text: denoiseTextByApi(ancestor.text),
-              subtree: denoiseSubtree(ancestor.subtree)
-            }))
+          element: __spreadProps(__spreadValues({}, searchReadyInfo(item.element)), {
+            ancestors: filteredAncestors.map((ancestor) => searchReadyInfo(ancestor, { includeAncestors: false }))
           }),
-          asset: item.asset ? __spreadProps(__spreadValues({}, item.asset), {
-            text: denoiseTextByApi((_d = item.asset) == null ? void 0 : _d.text)
-          }) : null
+          asset: filteredAsset ? searchReadyInfo(filteredAsset, { includeAncestors: false }) : null
         });
       });
       const apiRequests = searchApiRequests.value.map((item) => ({
@@ -8178,11 +8378,12 @@ ${source}` : "",
         manualEvidence: evidenceMessages.value.join("\n"),
         selectionInstructions: selectionPromptInstructions(promptIntent.value),
         selectionTexts: selections.map((item) => {
-          var _a, _b;
+          var _a, _b, _c;
           return {
             index: item.index,
             text: ((_a = item.element) == null ? void 0 : _a.text) || "",
-            className: ((_b = item.element) == null ? void 0 : _b.className) || ""
+            searchText: ((_b = item.element) == null ? void 0 : _b.searchText) || "",
+            className: ((_c = item.element) == null ? void 0 : _c.className) || ""
           };
         }),
         selections,
@@ -10656,6 +10857,23 @@ ${source}` : "",
           return item && item.exists !== false && (item.path || item.file);
         });
       }
+      function singleHitHasStrongLocalEvidence(hit) {
+        if (!hit) return false;
+        if (hit.stage === "model-agent") return true;
+        if (!hit.preciseEvidence) return false;
+        if (hit.uniqueSnippet || hit.uniqueMatchText) return true;
+        if (Number(hit.exactMatchCount || 0) === 1) return true;
+        if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
+        if (Number(hit.contextScore || 0) >= 36) return true;
+        if ((hit.contextReasons || []).some((reason) => /className|资源线索|样式|属性|结构/.test(String(reason || "")))) return true;
+        return false;
+      }
+      function shouldAutoRunModelAssist(hits) {
+        const list = Array.isArray(hits) ? hits : [];
+        if (!list.length) return false;
+        if (list.length > 1) return true;
+        return !singleHitHasStrongLocalEvidence(list[0]);
+      }
       const {
         selectionChatSummary,
         searchPayload,
@@ -11112,14 +11330,33 @@ ${source}` : "",
       function resolveSelectionAssetElement(element) {
         let resolved = element;
         let node = (element == null ? void 0 : element.parentElement) || null;
-        let currentText = getComparableElementText(element, denoiseTextByApi, 1200);
+        let currentEvidence = getContextEvidence(element, {
+          normalizeText: denoiseTextByApi,
+          subtreeOptions: {
+            nodeLimit: 32,
+            classLimit: 20,
+            textLimit: 20,
+            attrLimit: 20,
+            styleLimit: 12
+          }
+        });
         let usefulDepth = 0;
         let inspected = 0;
         while (node && node.nodeType === 1 && usefulDepth < 4 && inspected < 16) {
           inspected++;
-          const nextText = getComparableElementText(node, denoiseTextByApi, 1200);
-          if (nextText && nextText.length > currentText.length) {
+          const nextEvidence = getContextEvidence(node, {
+            normalizeText: denoiseTextByApi,
+            subtreeOptions: {
+              nodeLimit: 32,
+              classLimit: 20,
+              textLimit: 20,
+              attrLimit: 20,
+              styleLimit: 12
+            }
+          });
+          if (shouldPromoteContext(currentEvidence, nextEvidence)) {
             resolved = node;
+            currentEvidence = nextEvidence;
             usefulDepth++;
             break;
           }
@@ -11441,7 +11678,7 @@ ${source}` : "",
               expandedCandidatePath.value = "";
               setToast(`找到 ${candidateHits.value.length} 个候选文件`);
             }
-            if (candidateHits.value.length && useModelAssist.value && canUseModelAssist.value) {
+            if (shouldAutoRunModelAssist(candidateHits.value) && useModelAssist.value && canUseModelAssist.value) {
               const modelResult = yield runModelAssist();
               if (modelResult == null ? void 0 : modelResult.stopped) return [];
               if (hasUsableModelResult(modelResult)) {
@@ -11475,6 +11712,7 @@ ${source}` : "",
           if (!canConfirmSelection.value) return;
           confirmSelectionContext();
           const hits = yield searchCandidateFiles();
+          if (filesConfirmed.value) return;
           if (hits.length === 1) {
             selectedCandidatePaths.value = [hits[0].file];
             filesConfirmed.value = true;

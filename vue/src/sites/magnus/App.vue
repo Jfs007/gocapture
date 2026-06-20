@@ -61,10 +61,11 @@ import { useCtx } from './core/ctx';
 import {
   compactText,
   getClassName,
-  getComparableElementText,
+  getContextEvidence,
   getElementInfo,
   normalizeRequestInfo,
-  round
+  round,
+  shouldPromoteContext
 } from './core/element-context';
 import { useChatMessages } from './hooks/use-chat-messages';
 import { useModelAdapters } from './hooks/use-model-adapters';
@@ -229,6 +230,68 @@ const composerCanSend = computed(() => {
 function hasUsableModelResult(result) {
   return (result?.modelItems || result?.targetFiles || []).some(item => {
     return item && item.exists !== false && (item.path || item.file);
+  });
+}
+
+function singleHitHasStrongLocalEvidence(hit) {
+  if (!hit) return false;
+  if (hit.stage === 'model-agent') return true;
+  if (!hit.preciseEvidence) return false;
+  if (hit.uniqueSnippet || hit.uniqueMatchText) return true;
+  if (Number(hit.exactMatchCount || 0) === 1) return true;
+  if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
+  if (Number(hit.contextScore || 0) >= 36) return true;
+  if ((hit.contextReasons || []).some(reason => /className|资源线索|样式|属性|结构/.test(String(reason || '')))) return true;
+  return false;
+}
+
+function shouldAutoRunModelAssist(hits) {
+  const list = Array.isArray(hits) ? hits : [];
+  if (!list.length) return false;
+  if (list.length > 1) return true;
+  return !singleHitHasStrongLocalEvidence(list[0]);
+}
+
+function hasStrongSearchEvidence(hits) {
+  const list = Array.isArray(hits) ? hits : [];
+  return list.some(hit => {
+    if (!hit) return false;
+    if (hit.preciseEvidence || hit.uniqueMatchText || hit.uniqueSnippet) return true;
+    if (Number(hit.exactMatchCount || 0) === 1 && Number(hit.contextScore || 0) >= 18) return true;
+    if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
+    if (Number(hit.contextScore || 0) >= 32 && (hit.contextReasons || []).length >= 2) return true;
+    return false;
+  });
+}
+
+function shouldRetryExpandedSearch(hits) {
+  const list = Array.isArray(hits) ? hits : [];
+  if (list.length < 2) return false;
+  if (hasStrongSearchEvidence(list)) return false;
+  if (list.length >= 6) return true;
+  const exactLikeHits = list.filter(hit => hit?.exactMatchText || hit?.uniqueMatchText).length;
+  return exactLikeHits <= 1;
+}
+
+function isBetterSearchResult(nextHits, currentHits) {
+  const next = Array.isArray(nextHits) ? nextHits : [];
+  const current = Array.isArray(currentHits) ? currentHits : [];
+  if (!next.length) return false;
+  const nextStrong = hasStrongSearchEvidence(next);
+  const currentStrong = hasStrongSearchEvidence(current);
+  if (nextStrong !== currentStrong) return nextStrong;
+  if (next.length !== current.length) return next.length < current.length;
+  return Number(next[0]?.score || 0) > Number(current[0]?.score || 0);
+}
+
+async function runSearchRequest(body, timeoutMs) {
+  return await sourceServerJson('/api/search', {
+    method: 'POST',
+    body,
+    timeoutMs,
+    timeoutMessage: includeApiEvidence.value
+      ? '接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试'
+      : '源码检索超过 12 秒，请补充关键词后重试'
   });
 }
 
@@ -729,14 +792,33 @@ function getMdWeb() {
 function resolveSelectionAssetElement(element) {
   let resolved = element;
   let node = element?.parentElement || null;
-  let currentText = getComparableElementText(element, denoiseTextByApi, 1200);
+  let currentEvidence = getContextEvidence(element, {
+    normalizeText: denoiseTextByApi,
+    subtreeOptions: {
+      nodeLimit: 32,
+      classLimit: 20,
+      textLimit: 20,
+      attrLimit: 20,
+      styleLimit: 12
+    }
+  });
   let usefulDepth = 0;
   let inspected = 0;
   while (node && node.nodeType === 1 && usefulDepth < 4 && inspected < 16) {
     inspected++;
-    const nextText = getComparableElementText(node, denoiseTextByApi, 1200);
-    if (nextText && nextText.length > currentText.length) {
+    const nextEvidence = getContextEvidence(node, {
+      normalizeText: denoiseTextByApi,
+      subtreeOptions: {
+        nodeLimit: 32,
+        classLimit: 20,
+        textLimit: 20,
+        attrLimit: 20,
+        styleLimit: 12
+      }
+    });
+    if (shouldPromoteContext(currentEvidence, nextEvidence)) {
       resolved = node;
+      currentEvidence = nextEvidence;
       usefulDepth++;
       break;
     }
@@ -1057,16 +1139,15 @@ async function searchCandidateFiles() {
     searchRunning.value = true;
     searchStartedAt.value = Date.now();
     searchFinishedAt.value = 0;
+    const timeoutMs = includeApiEvidence.value ? 30000 : 12000;
     const data = await (async () => {
       try {
-        return await sourceServerJson('/api/search', {
-          method: 'POST',
-          body: searchPayload(),
-          timeoutMs: includeApiEvidence.value ? 30000 : 12000,
-          timeoutMessage: includeApiEvidence.value
-            ? '接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试'
-            : '源码检索超过 12 秒，请补充关键词后重试'
-        });
+        const firstPass = await runSearchRequest(searchPayload(), timeoutMs);
+        const firstHits = Array.isArray(firstPass?.hits) ? firstPass.hits : [];
+        if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
+        const secondPass = await runSearchRequest(searchPayload({ expandedRetry: true }), timeoutMs);
+        const secondHits = Array.isArray(secondPass?.hits) ? secondPass.hits : [];
+        return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
       } finally {
         searchFinishedAt.value = Date.now();
         searchRunning.value = false;
@@ -1083,7 +1164,7 @@ async function searchCandidateFiles() {
       expandedCandidatePath.value = '';
       setToast(`找到 ${candidateHits.value.length} 个候选文件`);
     }
-    if (candidateHits.value.length && useModelAssist.value && canUseModelAssist.value) {
+    if (shouldAutoRunModelAssist(candidateHits.value) && useModelAssist.value && canUseModelAssist.value) {
       const modelResult = await runModelAssist();
       if (modelResult?.stopped) return [];
       if (hasUsableModelResult(modelResult)) {
@@ -1116,6 +1197,7 @@ async function sendComposer() {
   if (!canConfirmSelection.value) return;
   confirmSelectionContext();
   const hits = await searchCandidateFiles();
+  if (filesConfirmed.value) return;
   if (hits.length === 1) {
     selectedCandidatePaths.value = [hits[0].file];
     filesConfirmed.value = true;
