@@ -149,6 +149,12 @@ function joinRoutePaths(paths) {
   return cleanPagePath(result || '/');
 }
 
+function joinImportedRoutePaths(parentPath, childPath) {
+  const parent = cleanPagePath(parentPath || '/').replace(/\/+$/, '');
+  const child = String(childPath || '').replace(/^\/+/, '');
+  return cleanPagePath(`${parent || ''}/${child}` || '/');
+}
+
 function findEnclosingObjectStart(text, index) {
   const stack = [];
   let quote = '';
@@ -347,6 +353,85 @@ function topLevelObjectText(text) {
   return result;
 }
 
+function findPropertyArrayText(text, propertyName) {
+  const pattern = new RegExp(`\\b${propertyName}\\s*:`);
+  const match = pattern.exec(text);
+  if (!match) return '';
+  const openIndex = text.indexOf('[', match.index + match[0].length);
+  if (openIndex === -1) return '';
+
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = openIndex; index < text.length; index++) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (lineComment) {
+      if (char === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+    if (char === '/' && next === '/') {
+      lineComment = true;
+      index++;
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      blockComment = true;
+      index++;
+      continue;
+    }
+    if (char === '"' || char === '\'' || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === '[') {
+      depth++;
+      continue;
+    }
+    if (char === ']') {
+      depth--;
+      if (depth === 0) return text.slice(openIndex + 1, index);
+    }
+  }
+  return '';
+}
+
+function importedChildRouteFiles(entryText, imports, fromFile, fileMap) {
+  const arrayText = findPropertyArrayText(entryText, 'children');
+  if (!arrayText) return [];
+  const names = [];
+  const pattern = /(?:\.\.\.)?\b([A-Za-z_$][\w$]*)\b/g;
+  let match;
+  while ((match = pattern.exec(arrayText))) {
+    const name = match[1];
+    if (!imports.has(name)) continue;
+    names.push(name);
+  }
+  return Array.from(new Set(names))
+    .map(name => resolveImportFile({ files: [] }, fromFile, imports.get(name), fileMap))
+    .filter(Boolean);
+}
+
 function componentSpecFromBlock(blockText, imports) {
   const dynamic = blockText.match(/\bcomponent\s*:\s*(?:\(\s*\)\s*=>\s*)?import\s*\(\s*['"]([^'"]+)['"]\s*\)/);
   if (dynamic) return dynamic[1];
@@ -418,6 +503,7 @@ function extractRoutes({ project, textCache }) {
       const specifier = componentSpecFromBlock(entry.directText, imports);
       const componentFile = resolveImportFile(project, file.path, specifier, fileMap);
       const isLeaf = !descendantStarts.has(entry.start);
+      const importedChildren = importedChildRouteFiles(entry.text, imports, file.path, fileMap);
       nodes.push({
         routePath: entry.fullPath,
         rawPath: entry.routePath,
@@ -430,12 +516,47 @@ function extractRoutes({ project, textCache }) {
         parent: entry.ancestors?.length ? entry.ancestors[entry.ancestors.length - 1].fullPath : '',
         meta: {
           componentSpecifier: specifier,
+          importedChildren,
         },
       });
     }
   }
 
-  return nodes;
+  return expandImportedChildRoutes(nodes);
+}
+
+function expandImportedChildRoutes(nodes) {
+  const result = [...nodes];
+  const seen = new Set(result.map(node => `${node.routePath}|${node.componentFile}|${node.sourceFile}|${node.rawPath}`));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const snapshot = [...result];
+    for (const parent of snapshot) {
+      const childFiles = parent.meta?.importedChildren || [];
+      if (!childFiles.length) continue;
+      for (const child of nodes) {
+        if (!childFiles.includes(child.sourceFile)) continue;
+        const routePath = joinImportedRoutePaths(parent.routePath, child.routePath);
+        const key = `${routePath}|${child.componentFile}|${child.sourceFile}|${child.rawPath}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push({
+          ...child,
+          routePath,
+          parent: child.parent ? joinImportedRoutePaths(parent.routePath, child.parent) : parent.routePath,
+          isLayoutLike: child.isLayoutLike,
+          meta: {
+            ...(child.meta || {}),
+            importedBy: parent.sourceFile,
+            importedFromRoute: parent.routePath,
+          },
+        });
+        changed = true;
+      }
+    }
+  }
+  return result;
 }
 
 function resolve({ project, pagePath, textCache }) {

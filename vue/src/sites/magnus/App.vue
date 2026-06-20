@@ -206,7 +206,9 @@ const hasReliableCandidateEvidence = computed(() => {
   });
 });
 const needsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
-const showCandidatePicker = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value);
+const showCandidatePicker = computed(() => {
+  return candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value;
+});
 const composerEditable = computed(() => selectedItems.value.length > 0);
 const composerPlaceholder = computed(() => selectedItems.value.length
   ? '输入修改要求，可用 @选区 或 @选区1 引用已选区'
@@ -233,23 +235,9 @@ function hasUsableModelResult(result) {
   });
 }
 
-function singleHitHasStrongLocalEvidence(hit) {
-  if (!hit) return false;
-  if (hit.stage === 'model-agent') return true;
-  if (!hit.preciseEvidence) return false;
-  if (hit.uniqueSnippet || hit.uniqueMatchText) return true;
-  if (Number(hit.exactMatchCount || 0) === 1) return true;
-  if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
-  if (Number(hit.contextScore || 0) >= 36) return true;
-  if ((hit.contextReasons || []).some(reason => /className|资源线索|样式|属性|结构/.test(String(reason || '')))) return true;
-  return false;
-}
-
 function shouldAutoRunModelAssist(hits) {
   const list = Array.isArray(hits) ? hits : [];
-  if (!list.length) return false;
-  if (list.length > 1) return true;
-  return !singleHitHasStrongLocalEvidence(list[0]);
+  return list.length > 0;
 }
 
 function hasStrongSearchEvidence(hits) {
@@ -944,10 +932,30 @@ function toggleCandidateDetail(hit) {
   expandedCandidatePath.value = expandedCandidatePath.value === hit.file ? '' : hit.file;
 }
 
-function confirmCandidateFiles() {
-  if (!selectedCandidateHits.value.length) return;
-  filesConfirmed.value = true;
-  generatePrompt({ userInstruction: promptIntent.value.trim() });
+function modelAssistUnavailableText() {
+  if (!selectedModel.value) return '模型定位未启用：请先在输入框模型菜单里选择或配置模型。';
+  if (!project.value || project.value.source !== 'source-server') {
+    return '模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。';
+  }
+  return '模型定位不可用：请检查模型配置。';
+}
+
+async function runModelAssistForCandidates(userInstruction) {
+  if (!candidateHits.value.length) return false;
+  if (!useModelAssist.value || !canUseModelAssist.value) {
+    const text = modelAssistUnavailableText();
+    candidateError.value = text;
+    setToast(text);
+    return true;
+  }
+  const modelResult = await runModelAssist();
+  if (modelResult?.stopped) return true;
+  if (hasUsableModelResult(modelResult)) {
+    filesConfirmed.value = true;
+    generatePrompt({ userInstruction });
+    return true;
+  }
+  return false;
 }
 
 function rememberWebRequestPayload(payload) {
@@ -1164,13 +1172,9 @@ async function searchCandidateFiles() {
       expandedCandidatePath.value = '';
       setToast(`找到 ${candidateHits.value.length} 个候选文件`);
     }
-    if (shouldAutoRunModelAssist(candidateHits.value) && useModelAssist.value && canUseModelAssist.value) {
-      const modelResult = await runModelAssist();
-      if (modelResult?.stopped) return [];
-      if (hasUsableModelResult(modelResult)) {
-        filesConfirmed.value = true;
-        generatePrompt({ userInstruction: promptIntent.value.trim() });
-      }
+    if (shouldAutoRunModelAssist(candidateHits.value)) {
+      const modelHandled = await runModelAssistForCandidates(promptIntent.value.trim());
+      if (modelHandled) return modelAssistResult.value?.stopped ? [] : candidateHits.value;
     }
     return candidateHits.value;
   } catch (error) {
@@ -1191,18 +1195,12 @@ async function sendComposer() {
   const instruction = promptIntent.value.trim();
   if (!instruction) return;
   if (showCandidatePicker.value) {
-    confirmCandidateFiles();
+    await runModelAssistForCandidates(instruction);
     return;
   }
   if (!canConfirmSelection.value) return;
   confirmSelectionContext();
-  const hits = await searchCandidateFiles();
-  if (filesConfirmed.value) return;
-  if (hits.length === 1) {
-    selectedCandidatePaths.value = [hits[0].file];
-    filesConfirmed.value = true;
-    generatePrompt({ userInstruction: instruction });
-  }
+  await searchCandidateFiles();
 }
 
 function copyText(text) {

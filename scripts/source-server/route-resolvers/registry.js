@@ -57,6 +57,23 @@ function uniqueRouteMatches(matches) {
   return Array.from(map.values()).sort((a, b) => b.score - a.score);
 }
 
+function isWildcardRouteMatch(item) {
+  const route = item?.route || {};
+  const routePath = String(route.routePath || route.rawPath || '');
+  return /(^|\/)\*$/.test(routePath) || routePath === '/*' || Number(item?.match?.wildcardCount || 0) > 0;
+}
+
+function isFallbackRouteHit(hit) {
+  const routePath = String(hit?.routePath || '');
+  const file = String(hit?.file || '');
+  const reasonText = (hit?.reasons || []).join('\n');
+  return /(^|\/)\*$/.test(routePath)
+    || routePath === '/*'
+    || /(^|\/)(404|not-found)\.(vue|jsx|tsx|js|ts)$/i.test(file)
+    || /(^|\/)error-page\//i.test(file)
+    || /根组件锚点|app import|入口文件/.test(reasonText);
+}
+
 function collectRouteNodes(project, body, pagePath, textCache, activeAdapters, trace) {
   const routes = [];
   for (const adapter of activeAdapters) {
@@ -141,8 +158,9 @@ function resolvePageRouteTrace(project, body, textCache) {
 
   const routeNodes = collectRouteNodes(project, body, pagePath, textCache, activeAdapters, trace);
   const allRouteMatches = uniqueRouteMatches(matchRoutes(pagePath, routeNodes));
-  const exactRouteMatches = allRouteMatches.filter(item => item.match?.exact);
-  const routeMatches = exactRouteMatches.length ? exactRouteMatches : allRouteMatches;
+  const nonFallbackRouteMatches = allRouteMatches.filter(item => !isWildcardRouteMatch(item));
+  const exactRouteMatches = nonFallbackRouteMatches.filter(item => item.match?.exact);
+  const routeMatches = exactRouteMatches.length ? exactRouteMatches : nonFallbackRouteMatches;
   trace.routeHits = routeMatches.slice(0, 12).map(item => ({
     route: item.route,
     score: item.score,
@@ -163,6 +181,7 @@ function resolvePageRouteTrace(project, body, textCache) {
   }
 
   const resolvedHits = uniqueHits(hits)
+    .filter(hit => routeMatches.length || !isFallbackRouteHit(hit))
     .sort((a, b) => b.score - a.score)
     .slice(0, 12);
   trace.matched = trace.matched || resolvedHits.length > 0;

@@ -13,13 +13,14 @@
                 "https://ad.itaored.com",
                 "https://winsup.itaored.com",
                 "https://www.itaored.com",
-                "https://dc.tongmingmedia.com"
+                "https://dc.tongmingmedia.com",
+                "http://localhost:3006"
             ],
             "supportIframe": false
         }
     },
     "canInjectIframeList": [],
-    "version": "20260620.170651.718",
+    "version": "20260620.212314.076",
     "success": true,
     "api": ""
 }

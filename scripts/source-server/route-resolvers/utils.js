@@ -14,7 +14,9 @@ function projectFileMap(project) {
 }
 
 function cleanPagePath(value) {
-  const normalized = normalizeUrlPath(value || '/')
+  const raw = String(value || '/');
+  const routeLike = /^\/{2,}[^/]/.test(raw) ? raw.replace(/^\/+/, '/') : raw;
+  const normalized = normalizeUrlPath(routeLike)
     .replace(/\/+/g, '/')
     .replace(/\/$/, '');
   return normalized || '/';

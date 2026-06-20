@@ -195,7 +195,7 @@ export function useChatMessages({
       messages.push({
         id: 'single-candidate',
         role: 'system',
-        text: `已命中 ${candidateHits.value[0].file}，将作为修改文件。`
+        text: `本地检索命中 ${candidateHits.value[0].file}，等待模型定位确认。`
       });
     }
 

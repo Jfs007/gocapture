@@ -7380,7 +7380,7 @@ ${result.rawText}` : ""
         messages.push({
           id: "single-candidate",
           role: "system",
-          text: `已命中 ${candidateHits.value[0].file}，将作为修改文件。`
+          text: `本地检索命中 ${candidateHits.value[0].file}，等待模型定位确认。`
         });
       }
       if (filesConfirmed.value) {
@@ -8293,7 +8293,9 @@ ${source}` : "",
         ].filter(Boolean).join("\n");
       }).join("\n");
     }
-    function combinedSelectionText() {
+    function combinedSelectionText(options = {}) {
+      var _a;
+      const expandedRetry = options.expandedRetry === true;
       if (searchKeywords.value.trim()) return searchKeywords.value.trim();
       const terms = [];
       const promptInstructions = selectionPromptInstructions(promptIntent.value);
@@ -8312,10 +8314,16 @@ ${source}` : "",
         terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
         terms.push(...extractSearchTerms(item.info.className));
         terms.push(...subtreeSearchTerms(item.info.subtree));
-        for (const ancestor of filteredAncestorsForSearch(item.info)) {
+        const ancestors = expandedRetry ? ((_a = item.info) == null ? void 0 : _a.ancestors) || [] : filteredAncestorsForSearch(item.info);
+        for (const ancestor of ancestors) {
           terms.push(...extractSearchTerms(denoiseTextByApi(ancestor.text)));
           terms.push(...extractSearchTerms(ancestor.className));
           terms.push(...subtreeSearchTerms(ancestor.subtree));
+        }
+        if (expandedRetry && item.assetInfo) {
+          terms.push(...extractSearchTerms(denoiseTextByApi(item.assetInfo.text)));
+          terms.push(...extractSearchTerms(item.assetInfo.className));
+          terms.push(...subtreeSearchTerms(item.assetInfo.subtree));
         }
       }
       return Array.from(new Set(terms)).slice(0, 28).join(" ");
@@ -8351,10 +8359,12 @@ ${source}` : "",
         ancestors: (info.ancestors || []).map((ancestor) => searchReadyInfo(ancestor, { includeAncestors: false }))
       } : {});
     }
-    function searchPayload() {
+    function searchPayload(options = {}) {
+      const expandedRetry = options.expandedRetry === true;
       const selections = selectionPayloads().map((item) => {
-        const filteredAncestors = filteredAncestorsForSearch(item.element);
-        const filteredAsset = filteredAssetForSearch(item.element, item.asset);
+        var _a;
+        const filteredAncestors = expandedRetry ? ((_a = item.element) == null ? void 0 : _a.ancestors) || [] : filteredAncestorsForSearch(item.element);
+        const filteredAsset = expandedRetry ? item.asset || null : filteredAssetForSearch(item.element, item.asset);
         return __spreadProps(__spreadValues({}, item), {
           element: __spreadProps(__spreadValues({}, searchReadyInfo(item.element)), {
             ancestors: filteredAncestors.map((ancestor) => searchReadyInfo(ancestor, { includeAncestors: false }))
@@ -8368,7 +8378,7 @@ ${source}` : "",
         method: item.method,
         requestKeys: item.requestKeys
       }));
-      const query = combinedSelectionText();
+      const query = combinedSelectionText({ expandedRetry });
       return {
         query,
         url: window.location.href,
@@ -8390,6 +8400,7 @@ ${source}` : "",
         apiRequests,
         includeApi: includeApiEvidence.value,
         mode: "ui-first",
+        expansionMode: expandedRetry ? "expanded-retry" : "base",
         apiPaths: apiRequests.map((item) => item.pathname || item.url),
         apiKeys: apiRequests.flatMap((item) => item.requestKeys || []),
         limit: 30
@@ -10833,7 +10844,9 @@ ${source}` : "",
         });
       });
       const needsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
-      const showCandidatePicker = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value);
+      const showCandidatePicker = computed(() => {
+        return candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value;
+      });
       const composerEditable = computed(() => selectedItems.value.length > 0);
       const composerPlaceholder = computed(
         () => selectedItems.value.length ? "输入修改要求，可用 @选区 或 @选区1 引用已选区" : ""
@@ -10857,22 +10870,49 @@ ${source}` : "",
           return item && item.exists !== false && (item.path || item.file);
         });
       }
-      function singleHitHasStrongLocalEvidence(hit) {
-        if (!hit) return false;
-        if (hit.stage === "model-agent") return true;
-        if (!hit.preciseEvidence) return false;
-        if (hit.uniqueSnippet || hit.uniqueMatchText) return true;
-        if (Number(hit.exactMatchCount || 0) === 1) return true;
-        if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
-        if (Number(hit.contextScore || 0) >= 36) return true;
-        if ((hit.contextReasons || []).some((reason) => /className|资源线索|样式|属性|结构/.test(String(reason || "")))) return true;
-        return false;
-      }
       function shouldAutoRunModelAssist(hits) {
         const list = Array.isArray(hits) ? hits : [];
-        if (!list.length) return false;
-        if (list.length > 1) return true;
-        return !singleHitHasStrongLocalEvidence(list[0]);
+        return list.length > 0;
+      }
+      function hasStrongSearchEvidence(hits) {
+        const list = Array.isArray(hits) ? hits : [];
+        return list.some((hit) => {
+          if (!hit) return false;
+          if (hit.preciseEvidence || hit.uniqueMatchText || hit.uniqueSnippet) return true;
+          if (Number(hit.exactMatchCount || 0) === 1 && Number(hit.contextScore || 0) >= 18) return true;
+          if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
+          if (Number(hit.contextScore || 0) >= 32 && (hit.contextReasons || []).length >= 2) return true;
+          return false;
+        });
+      }
+      function shouldRetryExpandedSearch(hits) {
+        const list = Array.isArray(hits) ? hits : [];
+        if (list.length < 2) return false;
+        if (hasStrongSearchEvidence(list)) return false;
+        if (list.length >= 6) return true;
+        const exactLikeHits = list.filter((hit) => (hit == null ? void 0 : hit.exactMatchText) || (hit == null ? void 0 : hit.uniqueMatchText)).length;
+        return exactLikeHits <= 1;
+      }
+      function isBetterSearchResult(nextHits, currentHits) {
+        var _a, _b;
+        const next = Array.isArray(nextHits) ? nextHits : [];
+        const current = Array.isArray(currentHits) ? currentHits : [];
+        if (!next.length) return false;
+        const nextStrong = hasStrongSearchEvidence(next);
+        const currentStrong = hasStrongSearchEvidence(current);
+        if (nextStrong !== currentStrong) return nextStrong;
+        if (next.length !== current.length) return next.length < current.length;
+        return Number(((_a = next[0]) == null ? void 0 : _a.score) || 0) > Number(((_b = current[0]) == null ? void 0 : _b.score) || 0);
+      }
+      function runSearchRequest(body, timeoutMs) {
+        return __async(this, null, function* () {
+          return yield sourceServerJson("/api/search", {
+            method: "POST",
+            body,
+            timeoutMs,
+            timeoutMessage: includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
+          });
+        });
       }
       const {
         selectionChatSummary,
@@ -11480,10 +11520,31 @@ ${source}` : "",
         if (!hit) return;
         expandedCandidatePath.value = expandedCandidatePath.value === hit.file ? "" : hit.file;
       }
-      function confirmCandidateFiles() {
-        if (!selectedCandidateHits.value.length) return;
-        filesConfirmed.value = true;
-        generatePrompt({ userInstruction: promptIntent.value.trim() });
+      function modelAssistUnavailableText() {
+        if (!selectedModel.value) return "模型定位未启用：请先在输入框模型菜单里选择或配置模型。";
+        if (!project.value || project.value.source !== "source-server") {
+          return "模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。";
+        }
+        return "模型定位不可用：请检查模型配置。";
+      }
+      function runModelAssistForCandidates(userInstruction) {
+        return __async(this, null, function* () {
+          if (!candidateHits.value.length) return false;
+          if (!useModelAssist.value || !canUseModelAssist.value) {
+            const text = modelAssistUnavailableText();
+            candidateError.value = text;
+            setToast(text);
+            return true;
+          }
+          const modelResult = yield runModelAssist();
+          if (modelResult == null ? void 0 : modelResult.stopped) return true;
+          if (hasUsableModelResult(modelResult)) {
+            filesConfirmed.value = true;
+            generatePrompt({ userInstruction });
+            return true;
+          }
+          return false;
+        });
       }
       function rememberWebRequestPayload(payload) {
         rememberRequest(normalizeRequestInfo(payload || {}, window.location.href));
@@ -11646,6 +11707,7 @@ ${source}` : "",
       }
       function searchCandidateFiles() {
         return __async(this, null, function* () {
+          var _a;
           candidateLoading.value = true;
           candidateError.value = "";
           resetModelAssist();
@@ -11654,14 +11716,15 @@ ${source}` : "",
             searchRunning.value = true;
             searchStartedAt.value = Date.now();
             searchFinishedAt.value = 0;
+            const timeoutMs = includeApiEvidence.value ? 3e4 : 12e3;
             const data = yield (() => __async(this, null, function* () {
               try {
-                return yield sourceServerJson("/api/search", {
-                  method: "POST",
-                  body: searchPayload(),
-                  timeoutMs: includeApiEvidence.value ? 3e4 : 12e3,
-                  timeoutMessage: includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
-                });
+                const firstPass = yield runSearchRequest(searchPayload(), timeoutMs);
+                const firstHits = Array.isArray(firstPass == null ? void 0 : firstPass.hits) ? firstPass.hits : [];
+                if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
+                const secondPass = yield runSearchRequest(searchPayload({ expandedRetry: true }), timeoutMs);
+                const secondHits = Array.isArray(secondPass == null ? void 0 : secondPass.hits) ? secondPass.hits : [];
+                return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
               } finally {
                 searchFinishedAt.value = Date.now();
                 searchRunning.value = false;
@@ -11678,13 +11741,9 @@ ${source}` : "",
               expandedCandidatePath.value = "";
               setToast(`找到 ${candidateHits.value.length} 个候选文件`);
             }
-            if (shouldAutoRunModelAssist(candidateHits.value) && useModelAssist.value && canUseModelAssist.value) {
-              const modelResult = yield runModelAssist();
-              if (modelResult == null ? void 0 : modelResult.stopped) return [];
-              if (hasUsableModelResult(modelResult)) {
-                filesConfirmed.value = true;
-                generatePrompt({ userInstruction: promptIntent.value.trim() });
-              }
+            if (shouldAutoRunModelAssist(candidateHits.value)) {
+              const modelHandled = yield runModelAssistForCandidates(promptIntent.value.trim());
+              if (modelHandled) return ((_a = modelAssistResult.value) == null ? void 0 : _a.stopped) ? [] : candidateHits.value;
             }
             return candidateHits.value;
           } catch (error) {
@@ -11706,18 +11765,12 @@ ${source}` : "",
           const instruction = promptIntent.value.trim();
           if (!instruction) return;
           if (showCandidatePicker.value) {
-            confirmCandidateFiles();
+            yield runModelAssistForCandidates(instruction);
             return;
           }
           if (!canConfirmSelection.value) return;
           confirmSelectionContext();
-          const hits = yield searchCandidateFiles();
-          if (filesConfirmed.value) return;
-          if (hits.length === 1) {
-            selectedCandidatePaths.value = [hits[0].file];
-            filesConfirmed.value = true;
-            generatePrompt({ userInstruction: instruction });
-          }
+          yield searchCandidateFiles();
         });
       }
       function copyText(text) {
