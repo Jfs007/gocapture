@@ -6,9 +6,8 @@ const {
   scoreFileText,
   scoreRefinementLayerText,
 } = require('./evidence');
-const { reverseComponentUsages } = require('./component-trace');
 const { traceApiReferences } = require('./api-trace');
-const { buildFileMap, importedFiles, traceImportChainHits } = require('./import-trace');
+const { buildFileMap, importedFiles } = require('./import-trace');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const { makeSnippet, uniq } = require('../utils');
 
@@ -48,47 +47,27 @@ function hasMeaningfulKeywordEvidence(scored) {
   if (!scored) return false;
   if (scored.structuredEvidence) return true;
   const contextReasons = scored.contextReasons || [];
-  const hasResourceContext = contextReasons.some(reason => /资源线索/.test(reason));
   const hasTextContext = contextReasons.some(reason => /文案|修改要求/.test(reason));
-  const hasUsefulAttributeOrStyle = contextReasons.some(reasonHasUsefulAttributeOrStyle);
-  const hasSpecificContext = hasTextContext || hasResourceContext || hasUsefulAttributeOrStyle;
+  const hasClassContext = contextReasons.some(reason => /className|class/.test(reason));
+  const hasSpecificContext = hasTextContext || hasClassContext;
   if (scored.classBasisEvidence) return true;
   if (scored.preciseEvidence) return true;
   if ((scored.exactMatchCount || 0) > 0) return true;
   if (scored.uniqueMatchText) return true;
-  if ((scored.contextScore || 0) >= 34 && hasResourceContext) return true;
-  if ((scored.contextScore || 0) >= 52 && hasUsefulAttributeOrStyle && (scored.contextStrongMatchCount || 0) >= 2) return true;
   return scored.contextScope === 'self'
     && (scored.contextScore || 0) >= 42
     && (scored.contextStrongMatchCount || 0) >= 2
     && hasSpecificContext;
 }
 
-function reasonHasUsefulAttributeOrStyle(reason) {
-  if (!/属性|样式/.test(String(reason || ''))) return false;
-  const [, values = ''] = String(reason || '').split('：');
-  return values
-    .split(/[、,\s]+/)
-    .map(item => item.trim())
-    .filter(Boolean)
-    .some(token => {
-      const lower = token.toLowerCase();
-      if (WEAK_CONTEXT_TOKENS.has(lower)) return false;
-      if (/^\d+(?:\.\d+)?(?:px|rpx|em|rem|%)?$/i.test(lower)) return false;
-      if (/^#[0-9a-f]{3,8}$/i.test(lower)) return false;
-      return token.length >= 4;
-    });
-}
-
 function shouldSearchEvidence(ev) {
   if (!ev || !ev.value) return false;
   const value = String(ev.value || '').trim();
   if (ev.kind === 'text' && value.length < 2) return false;
-  if (ev.kind === 'style' && (ev.weight || 0) < 25) return false;
+  if (ev.kind !== 'text' && ev.kind !== 'class' && ev.kind !== 'icon') return false;
   if (ev.docFreq > 40) return false;
   if (ev.tier === 'C') return false;
-  if (ev.strong) return true;
-  return (ev.kind === 'style' || ev.kind === 'selector') && (ev.weight || 0) >= 25 && (ev.docFreq || 0) <= 12;
+  return !!ev.strong;
 }
 
 function isLikelyFrameworkFile(filePath) {
@@ -99,6 +78,11 @@ function isLikelyFrameworkFile(filePath) {
 function isViewOrComponentFile(filePath) {
   return /(^|\/)(src\/)?(views?|pages?|components?|layouts?)\//i.test(filePath)
     || /\.(vue|jsx|tsx|svelte|astro|html)$/i.test(filePath);
+}
+
+function isUiSourceFile(filePath) {
+  return isViewOrComponentFile(filePath)
+    || /(^|\/)src\/(?:views?|pages?|components?|layouts?|layout)\//i.test(filePath);
 }
 
 function isRouteFile(filePath) {
@@ -112,24 +96,6 @@ function findEvidenceIndex(text, ev) {
   if (!lowerText || !value) return -1;
   const exact = findNeedleIndex(lowerText, value.toLowerCase());
   if (exact !== -1) return exact;
-
-  if (ev.kind === 'style' && value.includes(':')) {
-    const [key, ...rest] = value.split(':');
-    const styleValue = rest.join(':').trim();
-    const keyIndex = findNeedleIndex(lowerText, key.trim().toLowerCase());
-    if (keyIndex === -1) return -1;
-    const nearby = lowerText.slice(keyIndex, keyIndex + 160);
-    if (!styleValue || nearby.includes(styleValue.toLowerCase())) return keyIndex;
-  }
-
-  if (ev.kind === 'attr' && value.includes('=')) {
-    const [key, ...rest] = value.split('=');
-    const attrValue = rest.join('=').trim();
-    const keyIndex = findNeedleIndex(lowerText, key.trim().toLowerCase());
-    if (keyIndex === -1) return -1;
-    const nearby = lowerText.slice(keyIndex, keyIndex + 220);
-    if (!attrValue || nearby.includes(attrValue.toLowerCase())) return keyIndex;
-  }
 
   return -1;
 }
@@ -156,7 +122,7 @@ function scoreEvidenceHit(ev, filePath, snippet) {
   if (isViewOrComponentFile(filePath)) score += 10;
   if (isRouteFile(filePath)) score -= 10;
   const lower = String(snippet || '').toLowerCase();
-  const multiStrongSignals = ['class=', 'class:', 'title', 'label', 'data-', 'href', 'src', 'style', 'width', 'height']
+  const multiStrongSignals = ['class=', 'class:', 'title', 'label']
     .filter(token => lower.includes(token)).length;
   if (multiStrongSignals >= 2) score += 30;
   return score;
@@ -231,9 +197,8 @@ function rescoreByWindowCooccurrence(windows, evidences) {
       kinds.add(ev.kind);
       if (matchedValues.length < 8) matchedValues.push(`${ev.kind}:${ev.value}`);
     }
-    if (['class', 'text', 'attr'].every(kind => kinds.has(kind))) score += 60;
-    if (['class', 'style'].every(kind => kinds.has(kind))) score += 25;
-    if (['icon', 'attr'].some(kind => kinds.has(kind)) && kinds.has('class')) score += 30;
+    if (['class', 'text'].every(kind => kinds.has(kind))) score += 60;
+    if (kinds.has('icon') && kinds.has('text')) score += 30;
     if (score > bestScore) {
       bestScore = score;
       bestWindow = windowText;
@@ -380,7 +345,6 @@ function evidenceTier(ev, docFreq) {
   if (ev.kind === 'route') return 'A';
   if (ev.strong && docFreq <= 12) return 'A';
   if (ev.strong && docFreq <= 30) return 'B';
-  if ((ev.kind === 'style' || ev.kind === 'selector') && docFreq <= 8) return 'B';
   return 'C';
 }
 
@@ -873,10 +837,17 @@ function bindApiEvidenceToSelectionHits(project, selectionHits, apiHits, textCac
 
 function selectionClassBasisCandidates(evidence, options = {}) {
   const allowedScopes = options.allowedScopes ? new Set(options.allowedScopes) : null;
+  const isUsableClassToken = value => {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    return !/^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(text)
+      && !/(--active|--selected|--disabled|--focus|--hover|is-active|is-selected|active|selected|disabled)$/i.test(text);
+  };
   const structured = (evidence.structuredEvidences || [])
     .filter(item => {
       if (!item.strong || (item.kind !== 'class' && item.kind !== 'icon') || !item.value) return false;
       if (allowedScopes && !allowedScopes.has(item.scope || '')) return false;
+      if (item.kind === 'class' && !isUsableClassToken(item.value)) return false;
       return true;
     })
     .map(item => ({
@@ -897,6 +868,7 @@ function selectionClassBasisCandidates(evidence, options = {}) {
     for (const token of ordered) {
       const value = String(token || '').trim();
       if (value.length < 2) continue;
+      if (!isUsableClassToken(value)) continue;
       result.push({
         token: value,
         selectionIndex: signal.index,
@@ -1036,6 +1008,345 @@ function refineHitsByExpandedSelection(project, hits, evidence, textCache) {
   return current;
 }
 
+function evidenceForScopes(evidence, scopes) {
+  const allowedScopes = new Set(scopes || ['self']);
+  const tokens = [];
+  const phrases = [];
+  const addToken = (token, weight, label) => {
+    const value = String(token || '').trim();
+    if (value.length >= 2) tokens.push({ token: value, weight, label });
+  };
+  const addPhrase = (text, weight, label) => {
+    const value = String(text || '').replace(/\s+/g, ' ').trim();
+    if (value.length >= 2) phrases.push({ text: value, weight, label });
+  };
+
+  const selectionSignals = [];
+  for (const signal of evidence.selectionSignals || []) {
+    const scopedLayers = (signal.layers || []).filter(layer => allowedScopes.has(layer.scope || ''));
+    if (!scopedLayers.length) continue;
+    for (const layer of scopedLayers) {
+      for (const cls of layer.ownClassOrderTokens || layer.ownClassTokens || []) addToken(cls, 58, 'className');
+      for (const text of layer.ownTextPhrases || []) addPhrase(text, 104, '选区文案');
+      for (const token of layer.ownTextTokens || []) addToken(token, 28, '选区文案');
+    }
+    selectionSignals.push({
+      ...signal,
+      layers: scopedLayers,
+    });
+  }
+
+  const tokenMap = new Map();
+  for (const item of tokens) {
+    const key = item.token.toLowerCase();
+    const old = tokenMap.get(key);
+    if (!old || old.weight < item.weight) tokenMap.set(key, item);
+  }
+  const phraseMap = new Map();
+  for (const item of phrases) {
+    const key = item.text.toLowerCase();
+    const old = phraseMap.get(key);
+    if (!old || old.weight < item.weight) phraseMap.set(key, item);
+  }
+
+  return {
+    tokens: Array.from(tokenMap.values()).slice(0, 80),
+    phrases: Array.from(phraseMap.values()).slice(0, 40),
+    selectionSignals,
+    structuredEvidences: (evidence.structuredEvidences || [])
+      .filter(item => allowedScopes.has(item.scope || '') && (item.kind === 'text' || item.kind === 'class' || item.kind === 'icon')),
+  };
+}
+
+function selfOnlyEvidence(evidence) {
+  return evidenceForScopes(evidence, ['self']);
+}
+
+function hasInitialSelectionEvidence(scored) {
+  if (!scored) return false;
+  if (scored.preciseEvidence || scored.uniqueMatchText || hasExactTextEvidence(scored)) return true;
+  if (scored.contextScope !== 'self') return false;
+  if ((scored.contextStrongMatchCount || 0) <= 0 || (scored.contextScore || 0) < 18) return false;
+  const reasons = scored.contextReasons || [];
+  if (reasons.some(reason => /文案/.test(reason))) return true;
+  const classText = reasons
+    .filter(reason => /className|class/.test(reason))
+    .join('、');
+  if (!classText) return false;
+  const classes = classText
+    .split(/[：:、,\s]+/)
+    .map(item => item.trim())
+    .filter(item => /^[a-zA-Z0-9_-]{2,}$/.test(item))
+    .filter(item => !/^(class|classname|当前选区|同文件命中)$/i.test(item));
+  return classes.some(cls => !/^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(cls));
+}
+
+function searchInitialHitsWithEvidence(project, scopedEvidence, textCache, scopeFiles, stage, reason, options = {}) {
+  const fileFilter = typeof options.fileFilter === 'function' ? options.fileFilter : () => true;
+  const textHits = scanScoredSelectionHits(project, scopedEvidence, textCache, scopeFiles, {
+    stage,
+    reason,
+    filter: (scored, file) => fileFilter(file.path) && hasInitialSelectionEvidence(scored),
+    score: scored => scored.score + (scored.exactMatchCount ? 46 : 0),
+  });
+  const classHits = findOrderedClassBasisHits(project, scopedEvidence, textCache, scopeFiles, {
+    allowedScopes: options.allowedScopes || ['self'],
+  })
+    .filter(hit => fileFilter(hit.file))
+    .map(hit => ({
+      ...hit,
+      stage: hit.stage || stage,
+      stages: mergeList(hit.stages || hit.stage, stage),
+      reasons: uniq([
+        reason,
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    }));
+
+  return mergeHits([...textHits, ...classHits])
+    .filter(hasMeaningfulKeywordEvidence)
+    .sort((a, b) => b.score - a.score);
+}
+
+function searchInitialSelectionHits(project, evidence, textCache, scopeFiles, stage, reason, options = {}) {
+  const fileFilter = options.fileFilter || isUiSourceFile;
+  const selfHits = searchInitialHitsWithEvidence(project, selfOnlyEvidence(evidence), textCache, scopeFiles, stage, reason, {
+    allowedScopes: ['self'],
+    fileFilter,
+  });
+  if (selfHits.length || !options.allowAncestorFallback) return selfHits;
+
+  const ancestorEvidence = evidenceForScopes(evidence, ['ancestor', 'asset']);
+  return searchInitialHitsWithEvidence(project, ancestorEvidence, textCache, scopeFiles, stage, `${reason}；当前节点无命中，启用父级扩区初始命中`, {
+    allowedScopes: ['ancestor', 'asset'],
+    fileFilter,
+  }).map(hit => ({
+    ...hit,
+    score: Math.round(hit.score * 0.88),
+    reasons: uniq([
+      '当前节点源码证据不足，使用父级扩区 class/文案定位公共组件',
+      ...(hit.reasons || []),
+    ]).slice(0, 12),
+  }));
+}
+
+function buildImportGraph(project, textCache) {
+  const fileMap = buildFileMap(project);
+  const children = new Map();
+  const parents = new Map();
+  for (const filePath of fileMap.keys()) {
+    const imported = importedFiles(project, filePath, fileMap, textCache);
+    children.set(filePath, imported);
+    for (const child of imported) {
+      const list = parents.get(child.file) || [];
+      list.push({ file: filePath, specifier: child.specifier });
+      parents.set(child.file, list);
+    }
+  }
+  return { fileMap, children, parents };
+}
+
+function findImportPath(graph, startFile, targetFile, maxDepth = 10) {
+  if (!startFile || !targetFile || !graph?.children?.has(startFile)) return [];
+  if (startFile === targetFile) return [startFile];
+  const queue = [{ file: startFile, chain: [startFile], depth: 0 }];
+  const visited = new Set([startFile]);
+  while (queue.length) {
+    const current = queue.shift();
+    if (current.depth >= maxDepth) continue;
+    for (const child of graph.children.get(current.file) || []) {
+      if (visited.has(child.file)) continue;
+      const chain = [...current.chain, child.file];
+      if (child.file === targetFile) return chain;
+      visited.add(child.file);
+      queue.push({ file: child.file, chain, depth: current.depth + 1 });
+    }
+  }
+  return [];
+}
+
+function relationKind(filePath, hitFile, chain, parentFiles, siblingFiles, localFiles) {
+  if (filePath === hitFile) return 'initial';
+  if (chain.includes(filePath)) return 'chain';
+  if (parentFiles.has(filePath)) return 'parent';
+  if (siblingFiles.has(filePath)) return 'sibling';
+  if (localFiles.has(filePath)) return 'local-import';
+  return 'related';
+}
+
+function relatedFilesForInitialHit(project, hitFile, routeEntry, graph, scopeFiles) {
+  const allowed = scopeFiles || fileSetFromProject(project);
+  const chain = routeEntry ? findImportPath(graph, routeEntry, hitFile, 12) : [];
+  const parents = (graph.parents.get(hitFile) || [])
+    .map(item => item.file)
+    .filter(file => allowed.has(file));
+  const parentFiles = new Set(parents);
+  const siblingFiles = new Set();
+  for (const parent of parents) {
+    for (const child of graph.children.get(parent) || []) {
+      if (allowed.has(child.file)) siblingFiles.add(child.file);
+    }
+  }
+  const localFiles = new Set((graph.children.get(hitFile) || [])
+    .map(item => item.file)
+    .filter(file => allowed.has(file)));
+  const related = uniq([
+    hitFile,
+    ...chain,
+    ...parents,
+    ...siblingFiles,
+    ...localFiles,
+  ]).filter(file => allowed.has(file));
+  return {
+    chain: chain.length ? chain : [hitFile],
+    parentFiles,
+    siblingFiles,
+    localFiles,
+    related,
+  };
+}
+
+function relationBoost(kind) {
+  if (kind === 'initial') return 86;
+  if (kind === 'parent') return 62;
+  if (kind === 'chain') return 44;
+  if (kind === 'sibling') return 46;
+  if (kind === 'local-import') return 36;
+  return 24;
+}
+
+function relationLabel(kind) {
+  if (kind === 'initial') return '初始文件';
+  if (kind === 'chain') return '页面引用链';
+  if (kind === 'parent') return '父组件/引用方';
+  if (kind === 'sibling') return '兄弟依赖';
+  if (kind === 'local-import') return '子依赖';
+  return '相关文件';
+}
+
+function firstMatchedValueInText(text, values) {
+  const lowerText = String(text || '').toLowerCase();
+  for (const value of values || []) {
+    const raw = String(value || '').trim();
+    if (!raw) continue;
+    const index = findNeedleIndex(lowerText, raw.toLowerCase());
+    if (index !== -1) return { index, value: raw };
+  }
+  return null;
+}
+
+function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scopeFiles, graph) {
+  if (!hits.length) return [];
+  const initialHits = mergeHits(hits);
+  const initialFileSet = new Set(initialHits.map(hit => hit.file));
+  let bundles = initialHits.map(hit => {
+    const relation = relatedFilesForInitialHit(project, hit.file, routeEntry, graph, scopeFiles);
+    return {
+      hit,
+      relation,
+      promotedFile: hit.file,
+      promotedSnippet: '',
+      layerMatched: false,
+      layerScore: 0,
+      layerReasons: [],
+    };
+  });
+
+  for (const layer of refinementLayers(evidence).slice(0, 4)) {
+    if (bundles.length <= 1) break;
+    const matchedBundles = [];
+    for (const bundle of bundles) {
+      let best = null;
+      for (const filePath of bundle.relation.related) {
+        const file = (project.files || []).find(item => item.path === filePath);
+        if (!file || !isTextFile(file.path)) continue;
+        const text = readProjectText(project, file, textCache);
+        const layerScore = scoreRefinementLayerText(text, layer);
+        if (!layerScore.matched) continue;
+        const kind = relationKind(
+          filePath,
+          bundle.hit.file,
+          bundle.relation.chain,
+          bundle.relation.parentFiles,
+          bundle.relation.siblingFiles,
+          bundle.relation.localFiles
+        );
+        const score = relationBoost(kind) + Math.min(92, layerScore.score);
+        if (!best || score > best.score) {
+          const source = firstLayerSnippetSource(text, layer);
+          best = {
+            file: filePath,
+            kind,
+            score,
+            snippet: source
+              ? makeSnippet(text, source.index, source.value.length)
+              : bundle.hit.snippet,
+            reasons: layerScore.reasons,
+          };
+        }
+      }
+      if (!best) continue;
+      matchedBundles.push({
+        ...bundle,
+        layerMatched: true,
+        layerScore: bundle.layerScore + best.score,
+        promotedFile: best.kind === 'initial' || initialFileSet.has(best.file) ? bundle.promotedFile : best.file,
+        promotedSnippet: best.snippet || bundle.promotedSnippet,
+        layerReasons: uniq([
+          ...(bundle.layerReasons || []),
+          `扩区链路确认：${layer.label} 命中${relationLabel(best.kind)} ${best.file}`,
+          ...best.reasons,
+        ]).slice(0, 10),
+      });
+    }
+    if (matchedBundles.length > 0 && matchedBundles.length < bundles.length) {
+      bundles = matchedBundles;
+    } else if (matchedBundles.length) {
+      const byFile = new Map(matchedBundles.map(item => [item.hit.file, item]));
+      bundles = bundles.map(item => byFile.get(item.hit.file) || item);
+    }
+  }
+
+  return bundles.map(bundle => {
+    const promote = bundle.promotedFile && bundle.promotedFile !== bundle.hit.file;
+    return {
+      ...bundle.hit,
+      file: promote ? bundle.promotedFile : bundle.hit.file,
+      score: bundle.hit.score + bundle.layerScore + (bundle.relation.chain.length > 1 ? 28 : 0),
+      stage: bundle.hit.stage || 'local-bundle',
+      stages: mergeList(bundle.hit.stages || bundle.hit.stage, 'local-bundle'),
+      from: promote ? bundle.hit.file : '',
+      snippet: bundle.promotedSnippet || bundle.hit.snippet,
+      importChain: bundle.relation.chain.length > 1 ? bundle.relation.chain : bundle.hit.importChain,
+      reasons: uniq([
+        promote ? `初始命中：${bundle.hit.file}` : '',
+        bundle.relation.chain.length > 1 ? `页面引用链：${bundle.relation.chain.join(' -> ')}` : '',
+        ...bundle.layerReasons,
+        ...(bundle.hit.reasons || []),
+      ]).slice(0, 12),
+    };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function firstLayerSnippetSource(text, layer) {
+  return firstMatchedValueInText(text, [
+    ...(layer.ownTextPhrases || []),
+    ...(layer.ownTextTokens || []),
+    ...(layer.ownClassTokens || []),
+  ]);
+}
+
+function stableLocalHits(hits) {
+  const sorted = hits.slice().sort((a, b) => b.score - a.score);
+  const top1 = sorted[0];
+  const top2 = sorted[1];
+  if (!top1) return false;
+  if (sorted.length === 1) return true;
+  if (top1.score >= 220 && top1.score - top2.score >= 46) return true;
+  if (sorted.length <= 4 && top1.score >= 170) return true;
+  return false;
+}
+
 function legacyKeywordFallback(project, evidence, textCache) {
   return scanScoredSelectionHits(project, evidence, textCache, null, {
     stage: 'keyword-fallback',
@@ -1045,132 +1356,50 @@ function legacyKeywordFallback(project, evidence, textCache) {
 }
 
 function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
-  const routeScope = scopes[0] || { name: 'fullRepo', files: fileSetFromProject(project) };
-  const fullScope = scopes[scopes.length - 1] || routeScope;
-  let activeScope = routeScope;
+  const routeEntry = routeHits?.[0]?.file || '';
+  const graph = buildImportGraph(project, textCache);
+  const allScope = scopes[scopes.length - 1] || { name: 'fullRepo', files: fileSetFromProject(project) };
+  const routeClosureFiles = routeEntry
+    ? importClosure(project, [routeEntry], textCache, 8)
+    : new Set();
+  const scopePlan = [
+    routeEntry ? { name: 'L0 当前页面模块闭包', files: routeClosureFiles } : null,
+    scopes[0] ? { name: 'L1 页面闭包 + 共享入口', files: scopes[0].files } : null,
+    scopes[2] ? { name: 'L2 共享组件兜底', files: scopes[2].files } : null,
+    { name: 'L3 全仓类/文案兜底', files: allScope.files },
+  ].filter(scope => scope && scope.files && scope.files.size);
 
-  const exactHits = scanScoredSelectionHits(project, evidence, textCache, routeScope.files, {
-    stage: 'route-exact-text',
-    reason: `L0 路由闭包精确文案：${routeScope.name}`,
-    filter: scored => (scored.exactMatchCount || 0) > 0,
-    score: scored => 180
-      + Math.min(140, scored.score || 0)
-      + (scored.preciseEvidence ? 90 : 0)
-      + (scored.uniqueMatchCount ? 40 : 0),
-  });
-
-  if (exactTextIsUniqueEnough(exactHits)) {
-    return {
-      hits: exactHits,
-      activeScope,
-      layer: 'L1',
+  let last = { hits: [], activeScope: allScope, layer: 'L3' };
+  for (const scope of scopePlan) {
+    const initialHits = searchInitialSelectionHits(
+      project,
+      evidence,
+      textCache,
+      scope.files,
+      'local-initial',
+      `${scope.name}：仅用当前选区文案/class 初始命中`,
+      {
+        allowAncestorFallback: !scope.name.startsWith('L0'),
+        fileFilter: isUiSourceFile,
+      }
+    );
+    const bundledHits = bundleInitialHits(project, initialHits, evidence, textCache, routeEntry, scope.files, graph)
+      .map(hit => ({
+        ...hit,
+        reasons: uniq([
+          `检索层级：${scope.name}`,
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      }));
+    last = {
+      hits: bundledHits,
+      activeScope: scope,
+      layer: scope.name.replace(/：.*$/, ''),
     };
+    if (stableLocalHits(bundledHits)) return last;
+    if (scope.name.startsWith('L0') && exactTextIsUniqueEnough(bundledHits)) return last;
   }
-
-  const contextHits = scanScoredSelectionHits(project, evidence, textCache, routeScope.files, {
-    stage: 'route-light-context',
-    reason: `L2 路由闭包轻量上下文：${routeScope.name}`,
-    filter: scored => hasMeaningfulKeywordEvidence(scored),
-  });
-  const classBasisHits = findOrderedClassBasisHits(project, evidence, textCache, routeScope.files, {
-    allowedScopes: ['self'],
-  })
-    .map(hit => ({
-      ...hit,
-      stage: hit.stage || 'class-order',
-      stages: mergeList(hit.stages || hit.stage, 'route-light-context'),
-      reasons: uniq([
-        `L2 路由闭包 class/选区元素匹配：${routeScope.name}`,
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    }));
-  const currentFiles = currentSelectionSeedFiles([
-    ...exactHits,
-    ...contextHits,
-    ...classBasisHits,
-  ]);
-  const relationScopedContextHits = filterExpandedHitsByComponentRelation(project, contextHits, currentFiles, textCache);
-  const lightContextHits = refineHitsByExpandedSelection(project, mergeHits([
-    ...exactHits,
-    ...relationScopedContextHits,
-    ...classBasisHits,
-  ]), evidence, textCache);
-
-  if (scopeIsGoodEnough(lightContextHits)) {
-    return {
-      hits: lightContextHits,
-      activeScope,
-      layer: 'L2',
-    };
-  }
-
-  let evidenceHits = [];
-  const evidenceScopes = scopes.slice(0, Math.max(1, scopes.length - 1));
-  for (const scope of evidenceScopes) {
-    const scopedEvidences = evidencesWithRarity(project, scope.files, evidence, textCache);
-    const hits = recallByStructuredEvidence(project, routeHits, evidence, textCache, {
-      scopeFiles: scope.files,
-      scopedEvidences,
-    }).map(hit => ({
-      ...hit,
-      scopeName: scope.name,
-      reasons: uniq([
-        layerScopeName(scope, 'L3 Evidence 歧义消解'),
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    }));
-    evidenceHits = filterExpandedHitsByComponentRelation(project, mergeHits([
-      ...lightContextHits,
-      ...hits,
-    ]), currentFiles, textCache);
-    activeScope = scope;
-    if (scopeIsGoodEnough(evidenceHits)) {
-      return {
-        hits: evidenceHits,
-        activeScope,
-        layer: 'L3',
-      };
-    }
-  }
-
-  const fullScopedEvidences = evidencesWithRarity(project, fullScope.files, evidence, textCache);
-  const fullEvidenceHits = recallByStructuredEvidence(project, routeHits, evidence, textCache, {
-    scopeFiles: fullScope.files,
-    scopedEvidences: fullScopedEvidences,
-  }).map(hit => ({
-    ...hit,
-    scopeName: fullScope.name,
-    reasons: uniq([
-      layerScopeName(fullScope, 'L4 全仓 Evidence'),
-      ...(hit.reasons || []),
-    ]).slice(0, 12),
-  }));
-  const fullClassBasisHits = findOrderedClassBasisHits(project, evidence, textCache, fullScope.files, {
-    allowedScopes: ['self'],
-  })
-    .map(hit => ({
-      ...hit,
-      reasons: uniq([
-        layerScopeName(fullScope, 'L4 全仓 class/选区元素匹配'),
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    }));
-  const fallbackHits = filterExpandedHitsByComponentRelation(
-    project,
-    legacyKeywordFallback(project, evidence, textCache),
-    currentFiles,
-    textCache
-  );
-  return {
-    hits: filterExpandedHitsByComponentRelation(project, mergeHits([
-      ...evidenceHits,
-      ...fullEvidenceHits,
-      ...fullClassBasisHits,
-      ...fallbackHits,
-    ]), currentFiles, textCache),
-    activeScope: fullScope,
-    layer: 'L4',
-  };
+  return last;
 }
 
 function searchProjectWithMeta(project, body) {
@@ -1183,8 +1412,7 @@ function searchProjectWithMeta(project, body) {
 
   const scopes = buildSearchScopes(project, routeHits, textCache);
   const layered = layeredSelectionHits(project, routeHits, evidence, textCache, scopes);
-  const activeScope = layered.activeScope || scopes[scopes.length - 1];
-  const refinedKeywordHits = refineHitsByExpandedSelection(project, layered.hits, evidence, textCache)
+  const localHits = (layered.hits || [])
     .map(hit => ({
       ...hit,
       reasons: uniq([
@@ -1192,33 +1420,11 @@ function searchProjectWithMeta(project, body) {
         ...(hit.reasons || []),
       ]).slice(0, 12),
     }));
-  const sortedKeywordHits = refinedKeywordHits
+  const sortedKeywordHits = localHits
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
-  const reverseHits = sortedKeywordHits
-    .slice(0, 6)
-    .flatMap(hit => reverseComponentUsages(project, hit, textCache))
-    .filter(hit => hasMeaningfulKeywordEvidence(hit));
   const apiHits = traceApiReferences(project, body, evidence, textCache);
   const apiTrace = apiHits.apiTrace || null;
-  const apiBindingHits = bindApiEvidenceToSelectionHits(project, refinedKeywordHits, apiHits, textCache);
-  const importChainHits = shouldUseImportChainFallback(refinedKeywordHits, layered.layer)
-    ? traceImportChainHits(project, [
-      ...routeHits.slice(0, 1),
-      ...refinedKeywordHits,
-    ], [
-      ...routeHits,
-      ...sortedKeywordHits,
-      ...reverseHits,
-      ...apiBindingHits,
-    ], textCache).map(hit => ({
-      ...hit,
-      reasons: uniq([
-        '检索层级：L5 引用链兜底',
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    }))
-    : [];
 
   const routeDisplayHits = routeHits.slice(0, 1).map(hit => ({
     ...hit,
@@ -1230,10 +1436,7 @@ function searchProjectWithMeta(project, body) {
   }));
   const hits = mergeHits([
     ...routeDisplayHits,
-    ...importChainHits,
     ...sortedKeywordHits,
-    ...reverseHits,
-    ...apiBindingHits,
   ])
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);

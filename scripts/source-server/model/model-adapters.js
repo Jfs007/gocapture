@@ -7,6 +7,18 @@ const tls = require('tls');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { escapeRegExp, tokenize, uniq } = require('../utils');
 
+function optionalRequire(name) {
+  try {
+    return require(name);
+  } catch (error) {
+    return null;
+  }
+}
+
+const babelParser = optionalRequire('@babel/parser');
+const vueCompilerSfc = optionalRequire('@vue/compiler-sfc');
+const vueCompilerDom = optionalRequire('@vue/compiler-dom');
+
 const MAX_MODEL_FILES = 4;
 const MAX_FILE_CHARS = 18000;
 const MAX_TOTAL_FILE_CHARS = 64000;
@@ -209,13 +221,23 @@ function numericStyleValue(value) {
   return matched ? matched[1] : '';
 }
 
-function addNeedle(map, needle, weight, label) {
+function pruneEvidencePriority(label) {
+  const text = String(label || '');
+  if (/文案|文本|精确|唯一/.test(text)) return 5;
+  if (/class|样式|宽度|高度|objectFit|object-fit|background|borderRadius|border-radius|css/i.test(text)) return 4;
+  if (/属性|attr|data-|href|key|value|role|title|aria/i.test(text)) return 3;
+  if (/图片|资源|img|image|src|poster/i.test(text)) return 2;
+  if (/片段/.test(text)) return 1;
+  return 0;
+}
+
+function addNeedle(map, needle, weight, label, priority = pruneEvidencePriority(label)) {
   const value = String(needle || '').trim();
   if (!value || value.length < 2) return;
   const key = value.toLowerCase();
   const old = map.get(key);
-  if (!old || old.weight < weight) {
-    map.set(key, { needle: value, weight, label });
+  if (!old || old.priority < priority || (old.priority === priority && old.weight < weight)) {
+    map.set(key, { needle: value, weight, label, priority });
   }
 }
 
@@ -257,6 +279,41 @@ function resourceSeedValuesFromInfo(info) {
 
 function sanitizeModelInlineStyle(value) {
   return String(value || '').replace(/url\([^)]*\)/gi, 'url([runtime])');
+}
+
+function usefulAttrSeedsFromInfo(info, limit = 24) {
+  const attrs = info?.attrs || {};
+  const result = [];
+  for (const [key, rawValue] of Object.entries(attrs)) {
+    const attrKey = String(key || '').trim();
+    const value = String(rawValue || '').replace(/\s+/g, ' ').trim();
+    if (!attrKey || attrKey === 'class' || /^data-v-/i.test(attrKey)) continue;
+    if (attrKey.length >= 2 && attrKey.length <= 80) result.push({ value: attrKey, label: '选区属性名' });
+    if (value && value !== '[present]' && value.length <= 180) {
+      result.push({ value, label: '选区属性值' });
+      result.push({ value: `${attrKey}=${value}`, label: '选区属性 key=value' });
+    }
+  }
+  return uniq(result.map(item => JSON.stringify(item))).map(item => JSON.parse(item)).slice(0, limit);
+}
+
+function usefulStyleSeedsFromStyle(style = {}, inlineStyle = '', limit = 24) {
+  const result = [];
+  const add = value => {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text || text === '[present]' || text.length < 2 || text.length > 180) return;
+    if (/^(auto|none|normal|static|relative|absolute|flex|block|inline|table|hidden|visible|center|left|right|top|bottom|nowrap|fill)$/i.test(text)) return;
+    if (/^rgba?\(0,\s*0,\s*0,\s*0\)$/i.test(text)) return;
+    result.push(text);
+  };
+  add(sanitizeModelInlineStyle(inlineStyle));
+  for (const [key, rawValue] of Object.entries(style || {})) {
+    const value = String(rawValue || '').trim();
+    if (!value) continue;
+    add(value);
+    add(`${key}: ${sanitizeModelInlineStyle(value)}`);
+  }
+  return uniq(result).slice(0, limit);
 }
 
 function findSnippetIndex(text, snippet) {
@@ -421,8 +478,7 @@ function markupTagRangeAt(text, index) {
   const content = String(text || '');
   if (!content || index < 0) return null;
   const before = content.lastIndexOf('<', index);
-  const previousClose = content.lastIndexOf('>', index);
-  if (before === -1 || previousClose > before) return null;
+  if (before === -1) return null;
 
   const openTag = parseMarkupTagAt(content, before);
   if (!openTag || openTag.type !== 'tag') return null;
@@ -510,9 +566,164 @@ function parseMarkupAstNodes(text, offset = 0, rootType = 'html') {
   return nodes;
 }
 
+function babelPluginsForFile(filePath = '') {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  const plugins = [
+    'decorators-legacy',
+    'classProperties',
+    'classPrivateProperties',
+    'classPrivateMethods',
+    'objectRestSpread',
+    'optionalChaining',
+    'nullishCoalescingOperator',
+    'dynamicImport',
+    'importMeta',
+    'topLevelAwait',
+  ];
+  if (ext === '.ts' || ext === '.tsx' || ext === '.vue') plugins.push('typescript');
+  if (ext === '.jsx' || ext === '.tsx' || ext === '.vue') plugins.push('jsx');
+  return plugins;
+}
+
+function parseBabelAst(text, filePath = '') {
+  if (!babelParser) return null;
+  try {
+    return babelParser.parse(String(text || ''), {
+      sourceType: 'unambiguous',
+      errorRecovery: true,
+      allowReturnOutsideFunction: true,
+      allowAwaitOutsideFunction: true,
+      plugins: babelPluginsForFile(filePath),
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
+function isBabelNode(value) {
+  return value && typeof value.type === 'string'
+    && typeof value.start === 'number'
+    && typeof value.end === 'number';
+}
+
+function babelNodeName(node) {
+  if (!node) return '';
+  if (node.id?.name) return node.id.name;
+  if (node.key?.name) return node.key.name;
+  if (node.key?.value) return String(node.key.value);
+  return node.type || '';
+}
+
+function babelRangeType(node) {
+  const type = String(node?.type || '');
+  if (/^(VariableDeclaration|FunctionDeclaration|ClassDeclaration|ExportDefaultDeclaration|ExportNamedDeclaration)$/.test(type)) return 'babel-declaration';
+  if (/^(ObjectMethod|ClassMethod|ClassPrivateMethod)$/.test(type)) return 'babel-method';
+  if (/^(ObjectProperty|ClassProperty|ClassPrivateProperty)$/.test(type)) return 'babel-property';
+  if (/^(ObjectExpression|ArrayExpression)$/.test(type)) return 'babel-collection';
+  if (/^(CallExpression|NewExpression)$/.test(type)) return 'babel-call';
+  if (/^(JSXElement|JSXFragment)$/.test(type)) return 'babel-jsx';
+  if (/^(FunctionExpression|ArrowFunctionExpression)$/.test(type)) return 'babel-function';
+  return '';
+}
+
+function traverseBabelAst(root, visitor, parent = null) {
+  if (!root || typeof root !== 'object') return;
+  if (isBabelNode(root)) visitor(root, parent);
+  for (const [key, value] of Object.entries(root)) {
+    if (
+      key === 'loc' ||
+      key === 'start' ||
+      key === 'end' ||
+      key === 'leadingComments' ||
+      key === 'trailingComments' ||
+      key === 'innerComments' ||
+      key === 'extra'
+    ) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) traverseBabelAst(item, visitor, root);
+      continue;
+    }
+    if (value && typeof value === 'object') traverseBabelAst(value, visitor, root);
+  }
+}
+
+function parseBabelAstNodes(text, offset = 0, filePath = '') {
+  const ast = parseBabelAst(text, filePath);
+  if (!ast) return [];
+  const nodes = [];
+  traverseBabelAst(ast, (node, parent) => {
+    const rangeType = babelRangeType(node);
+    if (!rangeType) return;
+    let start = node.start;
+    let end = node.end;
+    if (
+      (node.type === 'ObjectExpression' || node.type === 'ArrayExpression' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') &&
+      parent?.type === 'VariableDeclarator'
+    ) {
+      const declaration = parent.__parentDeclaration;
+      if (declaration?.start != null && declaration?.end != null) {
+        start = declaration.start;
+        end = declaration.end;
+      }
+    }
+    nodes.push({
+      start: offset + start,
+      end: offset + end,
+      type: rangeType,
+      name: babelNodeName(node),
+      depth: 0,
+      rank: 0,
+      ast: 'babel',
+    });
+  });
+  return nodes;
+}
+
+function parseBabelDeclarationNodes(text, offset = 0, filePath = '') {
+  const ast = parseBabelAst(text, filePath);
+  if (!ast) return [];
+  const declarationByDeclarator = new WeakMap();
+  traverseBabelAst(ast, node => {
+    if (node.type !== 'VariableDeclaration') return;
+    for (const declarator of node.declarations || []) {
+      declarationByDeclarator.set(declarator, node);
+      declarator.__parentDeclaration = node;
+    }
+  });
+  const nodes = [];
+  traverseBabelAst(ast, (node, parent) => {
+    if (node.type === 'VariableDeclarator') {
+      const declaration = declarationByDeclarator.get(node) || parent;
+      if (declaration?.start != null && declaration?.end != null) {
+        nodes.push({
+          start: offset + declaration.start,
+          end: offset + declaration.end,
+          type: 'babel-declaration',
+          name: node.id?.name || '',
+          depth: 0,
+          rank: 0,
+          ast: 'babel',
+        });
+      }
+      return;
+    }
+    if (!/^(FunctionDeclaration|ClassDeclaration|ExportDefaultDeclaration|ExportNamedDeclaration)$/.test(node.type)) return;
+    nodes.push({
+      start: offset + node.start,
+      end: offset + node.end,
+      type: 'babel-declaration',
+      name: babelNodeName(node),
+      depth: 0,
+      rank: 0,
+      ast: 'babel',
+    });
+  });
+  return nodes;
+}
+
 function parseScriptAstNodes(text, offset = 0, includeJsx = false) {
   const content = String(text || '');
-  const nodes = [];
+  const nodes = parseBabelAstNodes(content, offset, includeJsx ? '.tsx' : '.ts');
   const ranges = [
     ...pairedRanges(content, '{', '}').map(range => ({ ...range, type: '{}', rank: 70 })),
     ...pairedRanges(content, '[', ']').map(range => ({ ...range, type: '[]', rank: 64 })),
@@ -568,6 +779,56 @@ function parseStyleAstNodes(text, offset = 0) {
 
 function parseVueSfcAstNodes(text) {
   const content = String(text || '');
+  if (vueCompilerSfc) {
+    try {
+      const parsed = vueCompilerSfc.parse(content, { pad: false });
+      const descriptor = parsed.descriptor || {};
+      const nodes = [];
+      for (const block of [descriptor.template, descriptor.script, descriptor.scriptSetup, ...(descriptor.styles || [])].filter(Boolean)) {
+        const start = block.loc?.start?.offset ?? content.indexOf(block.content);
+        const end = block.loc?.end?.offset ?? (start + String(block.content || '').length);
+        if (start < 0 || end <= start) continue;
+        pushAstNode(nodes, {
+          start,
+          end,
+          type: `vue-${block.type || 'block'}`,
+          name: block.type || 'block',
+          depth: 0,
+          rank: 45,
+        });
+        if (block.type === 'template') {
+          if (vueCompilerDom) {
+            try {
+              const ast = vueCompilerDom.parse(block.content || '');
+              traverseVueDomAst(ast, node => {
+                const loc = node.loc || {};
+                const nodeStart = loc.start?.offset;
+                const nodeEnd = loc.end?.offset;
+                if (typeof nodeStart === 'number' && typeof nodeEnd === 'number' && nodeEnd > nodeStart) {
+                  pushAstNode(nodes, {
+                    start: start + nodeStart,
+                    end: start + nodeEnd,
+                    type: 'vue-template-tag',
+                    name: node.tag || node.type || 'template',
+                    depth: 0,
+                    rank: 100,
+                  });
+                }
+              });
+            } catch (error) {
+              nodes.push(...parseMarkupAstNodes(block.content || '', start, 'vue-template'));
+            }
+          } else {
+            nodes.push(...parseMarkupAstNodes(block.content || '', start, 'vue-template'));
+          }
+        }
+        if (block.type === 'script') nodes.push(...parseScriptAstNodes(block.content || '', start, true));
+        if (block.type === 'style') nodes.push(...parseStyleAstNodes(block.content || '', start));
+      }
+      return mergeAstNodes(nodes);
+    } catch (error) {
+    }
+  }
   const nodes = [];
   const regex = /<(template|script|style)\b[^>]*>[\s\S]*?<\/\1>/gi;
   let match;
@@ -596,6 +857,12 @@ function parseVueSfcAstNodes(text) {
   return nodes;
 }
 
+function traverseVueDomAst(node, visitor) {
+  if (!node || typeof node !== 'object') return;
+  visitor(node);
+  for (const child of node.children || []) traverseVueDomAst(child, visitor);
+}
+
 function parseSourceAstNodes(filePath, text) {
   const ext = path.extname(String(filePath || '')).toLowerCase();
   const content = String(text || '');
@@ -617,9 +884,14 @@ function parseSourceAstNodes(filePath, text) {
 
 function astNodeRank(node) {
   const type = String(node?.type || '');
+  if (type === 'babel-declaration') return 128;
+  if (type === 'babel-jsx') return 116;
   if (type.includes('call')) return 110;
+  if (type === 'babel-method' || type === 'babel-function') return 108;
   if (type.includes('tag')) return 100;
+  if (type === 'babel-property') return 96;
   if (type.includes('style-rule')) return 92;
+  if (type === 'babel-collection') return 88;
   if (type.includes('{}')) return 82;
   if (type.includes('[]')) return 76;
   if (type.includes('()')) return 64;
@@ -695,6 +967,72 @@ function enclosingSyntaxRange(text, index) {
   return includeDeclarationPrefix(content, syntaxRange);
 }
 
+function declarationRanges(content) {
+  const source = String(content || '');
+  const ranges = [
+    ...pairedRanges(source, '{', '}'),
+    ...pairedRanges(source, '[', ']'),
+    ...pairedRanges(source, '(', ')'),
+  ];
+  const result = [];
+  const declarationPattern = /\b(?:export\s+)?(?:default\s+)?(?:(?:async\s+)?function\s+[A-Za-z_$][\w$]*|class\s+[A-Za-z_$][\w$]*|(?:const|let|var)\s+[A-Za-z_$][\w$]*)\b/g;
+  let match;
+  while ((match = declarationPattern.exec(source))) {
+    const headStart = match.index;
+    const headEnd = match.index + match[0].length;
+    const declarationText = match[0] || '';
+    const searchStart = /\b(?:function|class)\b/.test(declarationText)
+      ? headEnd
+      : (() => {
+        const eq = source.indexOf('=', headEnd);
+        const lineEnd = source.indexOf('\n', headEnd);
+        if (eq !== -1 && (lineEnd === -1 || eq < lineEnd)) return eq + 1;
+        return headEnd;
+      })();
+    const structural = ranges
+      .filter(range => range.start >= searchStart && range.start - searchStart < 2000)
+      .filter(range => {
+        if (/\b(?:function|class)\b/.test(declarationText)) return range.type === '{}';
+        return true;
+      })
+      .sort((a, b) => a.start - b.start)[0];
+    if (!structural) {
+      const lineEndIndex = source.indexOf('\n', headEnd);
+      result.push({
+        start: headStart,
+        end: lineEndIndex === -1 ? source.length : lineEndIndex,
+        type: 'declaration-line',
+      });
+      continue;
+    }
+    let end = structural.end;
+    while (end < source.length && /[\s;,\)]/.test(source[end] || '') && source[end] !== '\n') end++;
+    result.push({
+      start: headStart,
+      end,
+      type: 'declaration',
+    });
+  }
+  return result;
+}
+
+function enclosingDeclarationRange(content, index, maxChars = PRUNED_MODEL_FILE_CHARS) {
+  const source = String(content || '');
+  if (!source || index < 0) return null;
+  return declarationRanges(source)
+    .filter(range => range.start <= index && index < range.end)
+    .filter(range => range.end - range.start <= maxChars)
+    .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0] || null;
+}
+
+function enclosingAstDeclarationRange(astNodes, index, maxChars = PRUNED_MODEL_FILE_CHARS) {
+  return (astNodes || [])
+    .filter(node => node.type === 'babel-declaration')
+    .filter(node => node.start <= index && index < node.end)
+    .filter(node => node.end - node.start <= maxChars)
+    .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0] || null;
+}
+
 function includeDeclarationPrefix(content, range) {
   const source = String(content || '');
   if (!range || range.start <= 0) return range;
@@ -716,7 +1054,7 @@ function includeDeclarationPrefix(content, range) {
   return { ...range, start };
 }
 
-function mergeRanges(ranges) {
+function mergeRanges(ranges, limit = MAX_MODEL_FILES) {
   const sorted = ranges
     .filter(range => range && range.end > range.start)
     .sort((a, b) => a.start - b.start || a.end - b.end);
@@ -729,7 +1067,7 @@ function mergeRanges(ranges) {
     }
     last.end = Math.max(last.end, range.end);
   }
-  return merged.slice(0, MAX_MODEL_FILES);
+  return merged.slice(0, limit);
 }
 
 function candidateHitForFile(body, filePath) {
@@ -844,11 +1182,11 @@ function isSelectionMatchedHit(hit) {
 function buildExcerptNeedles(payload, hit) {
   const map = new Map();
 
-  addNeedle(map, hit?.preciseSnippet, 240, '精准片段');
-  addNeedle(map, hit?.uniqueSnippet, 220, '唯一片段');
-  addNeedle(map, hit?.snippet, 180, '候选片段');
-  addNeedle(map, hit?.exactMatchText, 180, '精确文案');
-  addNeedle(map, hit?.uniqueMatchText, 170, '唯一文案');
+  addNeedle(map, hit?.preciseSnippet, 520, '精准片段');
+  addNeedle(map, hit?.uniqueSnippet, 500, '唯一片段');
+  addNeedle(map, hit?.snippet, 260, '候选片段');
+  addNeedle(map, hit?.exactMatchText, 920, '精确文案');
+  addNeedle(map, hit?.uniqueMatchText, 900, '唯一文案');
 
   for (const selection of payload?.selections || []) {
     const info = selection?.element || {};
@@ -856,37 +1194,49 @@ function buildExcerptNeedles(payload, hit) {
     const attrs = info.attrs || {};
     const style = info.computedStyle || {};
 
-    addNeedle(map, info.text, 140, '选区文案');
-    addNeedle(map, info.className, 100, '选区 className');
+    addNeedle(map, info.text, 880, '选区文案');
+    addNeedle(map, info.className, 720, '选区 className');
     for (const token of tokenize(info.className).slice(0, 8)) {
-      addNeedle(map, token, 72, '选区 class token');
+      addNeedle(map, token, 620, '选区 class token');
+    }
+    for (const seed of usefulAttrSeedsFromInfo(info, 18)) {
+      addNeedle(map, seed.value, 520, seed.label);
+    }
+    for (const seed of usefulStyleSeedsFromStyle(style, info.inlineStyle, 18)) {
+      addNeedle(map, seed, 600, '选区 CSS/样式');
     }
     for (const seed of resourceSeedValuesFromInfo(info).slice(0, 12)) {
-      addNeedle(map, seed, weakSelectionSeed(seed) ? 24 : 96, '选区图片/资源线索');
+      addNeedle(map, seed, weakSelectionSeed(seed) ? 40 : 420, '选区图片/资源线索');
     }
     addSubtreeNeedles(map, info.subtree, '选区向下', {
-      classWeight: 76,
-      textWeight: 92,
-      attrWeight: 68,
-      styleWeight: 48,
-      resourceWeight: 82,
+      classWeight: 620,
+      textWeight: 760,
+      attrWeight: 500,
+      styleWeight: 560,
+      resourceWeight: 400,
     });
 
     for (const ancestor of (info.ancestors || []).slice(0, 4)) {
-      addNeedle(map, ancestor?.text, 84, '父级文案');
-      addNeedle(map, ancestor?.className, 60, '父级 className');
+      addNeedle(map, ancestor?.text, 700, '父级文案');
+      addNeedle(map, ancestor?.className, 560, '父级 className');
       for (const token of tokenize(ancestor?.className).slice(0, 6)) {
-        addNeedle(map, token, 48, '父级 class token');
+        addNeedle(map, token, 500, '父级 class token');
+      }
+      for (const seed of usefulAttrSeedsFromInfo(ancestor, 12)) {
+        addNeedle(map, seed.value, 420, `父级${seed.label.replace(/^选区/, '')}`);
+      }
+      for (const seed of usefulStyleSeedsFromStyle(ancestor?.computedStyle || {}, ancestor?.inlineStyle || '', 12)) {
+        addNeedle(map, seed, 460, '父级 CSS/样式');
       }
       for (const seed of resourceSeedValuesFromInfo(ancestor).slice(0, 8)) {
-        addNeedle(map, seed, weakSelectionSeed(seed) ? 18 : 64, '父级图片/资源线索');
+        addNeedle(map, seed, weakSelectionSeed(seed) ? 32 : 340, '父级图片/资源线索');
       }
       addSubtreeNeedles(map, ancestor?.subtree, '父级向下', {
-        classWeight: 50,
-        textWeight: 68,
-        attrWeight: 44,
-        styleWeight: 30,
-        resourceWeight: 54,
+        classWeight: 460,
+        textWeight: 620,
+        attrWeight: 380,
+        styleWeight: 420,
+        resourceWeight: 320,
       });
     }
 
@@ -900,51 +1250,51 @@ function buildExcerptNeedles(payload, hit) {
     ]).filter(Boolean);
 
     for (const value of widthValues) {
-      addNeedle(map, `width: ${value}`, 92, '宽度');
-      addNeedle(map, `width="${value}"`, 88, '宽度属性');
-      addNeedle(map, `width: '${value}px'`, 96, '宽度样式');
-      addNeedle(map, `width: "${value}px"`, 96, '宽度样式');
+      addNeedle(map, `width: ${value}`, 620, '宽度样式');
+      addNeedle(map, `width="${value}"`, 520, '宽度属性');
+      addNeedle(map, `width: '${value}px'`, 640, '宽度样式');
+      addNeedle(map, `width: "${value}px"`, 640, '宽度样式');
     }
     for (const value of heightValues) {
-      addNeedle(map, `height: ${value}`, 92, '高度');
-      addNeedle(map, `height="${value}"`, 88, '高度属性');
-      addNeedle(map, `height: '${value}px'`, 96, '高度样式');
-      addNeedle(map, `height: "${value}px"`, 96, '高度样式');
+      addNeedle(map, `height: ${value}`, 620, '高度样式');
+      addNeedle(map, `height="${value}"`, 520, '高度属性');
+      addNeedle(map, `height: '${value}px'`, 640, '高度样式');
+      addNeedle(map, `height: "${value}px"`, 640, '高度样式');
     }
 
     if (style.objectFit) {
-      addNeedle(map, `objectFit: '${style.objectFit}'`, 82, 'objectFit');
-      addNeedle(map, `objectFit: "${style.objectFit}"`, 82, 'objectFit');
-      addNeedle(map, `object-fit: ${style.objectFit}`, 72, 'object-fit');
+      addNeedle(map, `objectFit: '${style.objectFit}'`, 560, 'objectFit 样式');
+      addNeedle(map, `objectFit: "${style.objectFit}"`, 560, 'objectFit 样式');
+      addNeedle(map, `object-fit: ${style.objectFit}`, 540, 'object-fit 样式');
     }
     if (style.backgroundImage && style.backgroundImage !== 'none') {
-      addNeedle(map, 'backgroundImage', 72, 'backgroundImage');
-      addNeedle(map, 'background-image', 72, 'background-image');
-      addNeedle(map, 'background', 58, 'background');
-      addNeedle(map, 'image', 44, 'background image');
+      addNeedle(map, 'backgroundImage', 520, 'backgroundImage 样式');
+      addNeedle(map, 'background-image', 520, 'background-image 样式');
+      addNeedle(map, 'background', 420, 'background 样式');
+      addNeedle(map, 'image', 300, 'background image');
     }
     if (style.backgroundSize) {
-      addNeedle(map, `backgroundSize: '${style.backgroundSize}'`, 58, 'backgroundSize');
-      addNeedle(map, `background-size: ${style.backgroundSize}`, 52, 'background-size');
+      addNeedle(map, `backgroundSize: '${style.backgroundSize}'`, 500, 'backgroundSize 样式');
+      addNeedle(map, `background-size: ${style.backgroundSize}`, 480, 'background-size 样式');
     }
     if (style.borderRadius) {
-      addNeedle(map, `borderRadius: '${style.borderRadius}'`, 66, 'borderRadius');
-      addNeedle(map, `borderRadius: "${style.borderRadius}"`, 66, 'borderRadius');
-      addNeedle(map, `border-radius: ${style.borderRadius}`, 58, 'border-radius');
+      addNeedle(map, `borderRadius: '${style.borderRadius}'`, 500, 'borderRadius 样式');
+      addNeedle(map, `borderRadius: "${style.borderRadius}"`, 500, 'borderRadius 样式');
+      addNeedle(map, `border-radius: ${style.borderRadius}`, 480, 'border-radius 样式');
     }
 
     if (tag === 'img') {
-      addNeedle(map, 'NImage', 134, '图片组件');
-      addNeedle(map, 'h(NImage', 136, '图片 render 组件');
-      addNeedle(map, `h('img'`, 118, 'img render');
-      addNeedle(map, '<img', 108, 'img tag');
-      addNeedle(map, 'n-image', 96, 'img wrapper');
+      addNeedle(map, 'NImage', 420, '图片组件');
+      addNeedle(map, 'h(NImage', 430, '图片 render 组件');
+      addNeedle(map, `h('img'`, 400, 'img render');
+      addNeedle(map, '<img', 380, 'img tag');
+      addNeedle(map, 'n-image', 360, 'img wrapper');
     }
   }
 
   return Array.from(map.values())
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 28);
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0) || b.weight - a.weight || b.needle.length - a.needle.length)
+    .slice(0, 48);
 }
 
 function scoreNeedleMatches(text, needles) {
@@ -1200,7 +1550,7 @@ function completeLineAt(content, index) {
 function styleSeedValuesFromInfo(info) {
   const style = info?.computedStyle || {};
   return uniq([
-    sanitizeModelInlineStyle(info?.inlineStyle),
+    ...usefulStyleSeedsFromStyle(style, info?.inlineStyle, 18),
     style.objectFit,
     style.borderRadius,
     style.backgroundSize,
@@ -1214,26 +1564,44 @@ function styleSeedValuesFromInfo(info) {
     .slice(0, 24);
 }
 
-function selectionAnchorSeeds(payload) {
-  return uniq((payload?.selections || [])
-    .flatMap(selection => {
+function selectionAnchorSeedItems(payload) {
+  const items = [];
+  const add = (value, weight, label) => {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text || text.length < 2 || text.length > 180 || text === '[present]' || /^\d+(?:px)?$/i.test(text)) return;
+    items.push({ text, weight, label, priority: pruneEvidencePriority(label) });
+  };
+  for (const selection of payload?.selections || []) {
       const infos = [
         selection?.element,
         selection?.asset,
         ...(selection?.element?.ancestors || []),
       ].filter(Boolean);
-      return infos.flatMap(info => [
-        info?.text,
-        ...tokenize(info?.text).slice(0, 16),
-        info?.className,
-        ...tokenize(info?.className).slice(0, 10),
-        ...Object.values(info?.attrs || {}),
-        ...styleSeedValuesFromInfo(info),
-      ]);
-    })
-    .map(value => String(value || '').replace(/\s+/g, ' ').trim())
-    .filter(value => value.length >= 2 && value.length <= 180 && value !== '[present]' && !/^\d+(?:px)?$/i.test(value)))
-    .slice(0, 48);
+      for (const info of infos) {
+        add(info?.text, 760, '选区/父级文案');
+        for (const token of tokenize(info?.text).slice(0, 16)) add(token, 460, '选区/父级文本 token');
+        add(info?.className, 620, '选区/父级 CSS class');
+        for (const token of tokenize(info?.className).slice(0, 10)) add(token, 520, '选区/父级 CSS class token');
+        for (const seed of usefulStyleSeedsFromStyle(info?.computedStyle || {}, info?.inlineStyle || '', 18)) add(seed, 560, '选区/父级 CSS/样式');
+        for (const seed of usefulAttrSeedsFromInfo(info, 18)) add(seed.value, 430, seed.label.replace(/^选区/, '选区/父级'));
+        for (const seed of resourceSeedValuesFromInfo(info).slice(0, 12)) add(seed, weakSelectionSeed(seed) ? 36 : 360, '选区/父级资源');
+      }
+  }
+  const merged = new Map();
+  for (const item of items) {
+    const key = item.text.toLowerCase();
+    const old = merged.get(key);
+    if (!old || old.priority < item.priority || (old.priority === item.priority && old.weight < item.weight)) {
+      merged.set(key, item);
+    }
+  }
+  return Array.from(merged.values())
+    .sort((a, b) => b.priority - a.priority || b.weight - a.weight || b.text.length - a.text.length)
+    .slice(0, 80);
+}
+
+function selectionAnchorSeeds(payload) {
+  return selectionAnchorSeedItems(payload).map(item => item.text);
 }
 
 function completeRangeText(content, range) {
@@ -1257,20 +1625,141 @@ function weightedAnchorSeeds(hit, payload, needles) {
 
   add(hit?.preciseSnippet, 1000, '本地精准片段');
   add(hit?.uniqueSnippet, 940, '本地唯一片段');
-  add(hit?.snippet, 820, '候选片段');
-  add(hit?.exactMatchText, 760, '精确文案');
-  add(hit?.uniqueMatchText, 740, '唯一文案');
+  add(hit?.exactMatchText, 880, '精确文案');
+  add(hit?.uniqueMatchText, 860, '唯一文案');
+  add(hit?.snippet, 520, '候选片段');
 
-  for (const seed of selectionAnchorSeeds(payload)) {
-    add(seed, weakSelectionSeed(seed) ? 18 : 420, '选区结构化证据');
+  for (const seed of selectionAnchorSeedItems(payload)) {
+    add(seed.text, weakSelectionSeed(seed.text) ? 18 : seed.weight, seed.label);
   }
   for (const item of needles || []) {
     add(item.needle, item.weight || 0, item.label || '检索锚点');
   }
 
   return Array.from(map.values())
-    .sort((a, b) => b.weight - a.weight || b.text.length - a.text.length)
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0) || b.weight - a.weight || b.text.length - a.text.length)
     .slice(0, 80);
+}
+
+function semanticRangeKey(range) {
+  if (!range) return '';
+  return `${range.start}:${range.end}`;
+}
+
+function rangeAroundAnchor(rawText, astNodes, anchor) {
+  const astRange = astNodeRangeForAnchor(astNodes, anchor);
+  const syntaxRange = astRange || enclosingSyntaxRange(rawText, anchor.index);
+  const baseRange = syntaxRange || { start: anchor.index, end: anchor.index + anchor.length };
+  const declarationRange = enclosingAstDeclarationRange(astNodes, anchor.index) || enclosingDeclarationRange(rawText, anchor.index);
+  if (!declarationRange) return baseRange;
+  if (declarationRange.start <= baseRange.start && baseRange.end <= declarationRange.end) {
+    return declarationRange;
+  }
+  return baseRange;
+}
+
+function declaredSymbolsFromText(value, limit = 12) {
+  const source = String(value || '');
+  const ast = parseBabelAst(source, '.ts');
+  if (ast) {
+    const result = [];
+    const seen = new Set();
+    traverseBabelAst(ast, node => {
+      if (result.length >= limit) return;
+      let symbol = '';
+      if (node.type === 'VariableDeclarator') symbol = node.id?.name || '';
+      if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') symbol = node.id?.name || '';
+      symbol = cleanModelSymbol(symbol);
+      if (!symbol || seen.has(symbol)) return;
+      seen.add(symbol);
+      result.push(symbol);
+    });
+    if (result.length) return result;
+  }
+  const result = [];
+  const seen = new Set();
+  const patterns = [
+    /\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\b/g,
+    /\b(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\b/g,
+    /\b(?:export\s+)?class\s+([A-Za-z_$][\w$]*)\b/g,
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) && result.length < limit) {
+      const symbol = cleanModelSymbol(match[1]);
+      if (!symbol || seen.has(symbol)) continue;
+      seen.add(symbol);
+      result.push(symbol);
+    }
+  }
+  return result;
+}
+
+function babelIdentifierPositions(text, symbols, filePath = '.ts') {
+  const symbolSet = new Set((symbols || []).map(cleanModelSymbol).filter(Boolean));
+  if (!symbolSet.size) return [];
+  const ast = parseBabelAst(text, filePath);
+  if (!ast) return [];
+  const positions = [];
+  traverseBabelAst(ast, (node, parent) => {
+    if (node.type !== 'Identifier') return;
+    const name = cleanModelSymbol(node.name);
+    if (!name || !symbolSet.has(name)) return;
+    if (parent?.type === 'VariableDeclarator' && parent.id === node) return;
+    if ((parent?.type === 'FunctionDeclaration' || parent?.type === 'ClassDeclaration') && parent.id === node) return;
+    positions.push({
+      index: node.start,
+      length: Math.max(1, node.end - node.start),
+      symbol: name,
+    });
+  });
+  return positions;
+}
+
+function symbolUsageRanges(rawText, astNodes, symbols, existingRanges) {
+  const source = String(rawText || '');
+  const existing = existingRanges || [];
+  const ranges = [];
+  const seen = new Set();
+  const insideCompactExisting = index => existing.some(range => {
+    const size = range.end - range.start;
+    return size <= DIRECT_RELATED_CHARS * 2 && range.start <= index && index < range.end;
+  });
+  const usageItems = babelIdentifierPositions(source, symbols).length
+    ? babelIdentifierPositions(source, symbols)
+    : (symbols || []).map(cleanModelSymbol).filter(Boolean).slice(0, 12).flatMap(symbol => {
+      const items = [];
+      const pattern = new RegExp(`\\b${escapeRegExp(symbol)}\\b`, 'g');
+      let match;
+      while ((match = pattern.exec(source)) && items.length < 8) {
+        items.push({ index: match.index, length: symbol.length, symbol });
+      }
+      return items;
+    });
+  const countBySymbol = new Map();
+  for (const item of usageItems) {
+      const count = countBySymbol.get(item.symbol) || 0;
+      if (count >= 8) continue;
+      if (insideCompactExisting(item.index)) continue;
+      const range = rangeAroundAnchor(source, astNodes, {
+        index: item.index,
+        length: item.length,
+        needle: item.symbol,
+        weight: 780,
+        label: '定义符号的一层使用',
+      });
+      const key = semanticRangeKey(range);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      ranges.push({
+        ...range,
+        anchorWeight: 780,
+        anchorLabel: '定义符号的一层使用',
+        anchorNeedle: item.symbol,
+      });
+      countBySymbol.set(item.symbol, count + 1);
+  }
+  return ranges.slice(0, 16);
 }
 
 function pruneFileForModel(project, filePath, hit, payload, textCache) {
@@ -1312,16 +1801,65 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
   }
 
   const sortedAnchors = anchors
-    .sort((a, b) => b.weight - a.weight || b.length - a.length || a.index - b.index)
+    .sort((a, b) => b.weight - a.weight || b.length - a.length || a.index - b.index);
   const nodeAnchors = sortedAnchors
     .filter(anchor => anchor.weight >= 90 || !weakSelectionSeed(anchor.needle));
-  const anchorRanges = mergeRanges((nodeAnchors.length ? nodeAnchors : sortedAnchors.slice(0, 12))
-    .slice(0, 48)
-    .map(anchor => {
-      const astRange = astNodeRangeForAnchor(astNodes, anchor);
-      const syntaxRange = astRange || enclosingSyntaxRange(rawText, anchor.index);
-      return syntaxRange || { start: anchor.index, end: anchor.index + anchor.length };
-    }));
+  const preferredAnchors = nodeAnchors.length ? nodeAnchors : sortedAnchors.slice(0, 12);
+  const selectedRanges = [];
+  const selectedKeys = new Set();
+  const addAnchorRange = anchor => {
+    const range = rangeAroundAnchor(rawText, astNodes, anchor);
+    const key = semanticRangeKey(range);
+    if (!key || selectedKeys.has(key)) return;
+    const rangeSize = range.end - range.start;
+    const contained = selectedRanges.some(old => old.start >= range.start && old.end <= range.end);
+    if (contained) {
+      const smallestContained = selectedRanges
+        .filter(old => old.start >= range.start && old.end <= range.end)
+        .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+      const oldSize = smallestContained ? smallestContained.end - smallestContained.start : rangeSize;
+      if ((anchor.weight || 0) <= (smallestContained?.anchorWeight || 0) && rangeSize > oldSize * 3) return;
+    }
+    selectedKeys.add(key);
+    selectedRanges.push({
+      ...range,
+      anchorWeight: anchor.weight || 0,
+      anchorLabel: anchor.label || '',
+      anchorNeedle: anchor.needle || '',
+    });
+  };
+
+  for (const anchor of preferredAnchors.slice(0, 64)) addAnchorRange(anchor);
+
+  const exactTextSeeds = seedItems
+    .filter(seed => /文案|选区结构化证据/.test(seed.label || '') && !weakSelectionSeed(seed.text))
+    .sort((a, b) => b.weight - a.weight || b.text.length - a.text.length)
+    .slice(0, 12);
+  for (const seed of exactTextSeeds) {
+    for (const item of findAllNeedleIndexes(rawText, seed.text, 24)) {
+      addAnchorRange({
+        index: item.index,
+        length: item.length,
+        needle: seed.text,
+        weight: seed.weight,
+        label: seed.label,
+      });
+    }
+  }
+
+  const declaredSymbols = uniq(selectedRanges
+    .flatMap(range => declaredSymbolsFromText(completeRangeText(rawText, range), 8)))
+    .slice(0, 16);
+  for (const range of symbolUsageRanges(rawText, astNodes, declaredSymbols, selectedRanges)) {
+    const key = semanticRangeKey(range);
+    if (!key || selectedKeys.has(key)) continue;
+    selectedKeys.add(key);
+    selectedRanges.push(range);
+  }
+
+  const anchorRanges = mergeRanges(selectedRanges
+    .sort((a, b) => (b.anchorWeight || 0) - (a.anchorWeight || 0) || (a.end - a.start) - (b.end - b.start) || a.start - b.start)
+    .slice(0, 72), 24);
   let anchorText = '';
   let skippedCompleteBlocks = 0;
   if (anchorRanges.length) {

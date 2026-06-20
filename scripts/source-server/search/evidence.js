@@ -1,6 +1,5 @@
 const {
   makeSnippet,
-  normalizeUrlPath,
   tokenize,
   uniq,
 } = require('../utils');
@@ -345,6 +344,7 @@ function styleEvidencePairs(styleValue = {}, inlineStyle = '') {
 }
 
 function addStructuredEvidence(result, evidence) {
+  if (evidence.kind !== 'text' && evidence.kind !== 'class' && evidence.kind !== 'icon') return;
   const value = String(evidence.value || '').replace(/\s+/g, ' ').trim();
   if (!value) return;
   if (value.length > 160) return;
@@ -369,7 +369,6 @@ function addNodeStructuredEvidences(result, info, options = {}) {
   const scope = options.scope || 'self';
   const selectionIndex = options.selectionIndex || 0;
   const factor = options.factor || 1;
-  const includeAttributeStyleEvidence = options.includeAttributeStyleEvidence !== false;
   const tag = String(info.tag || '').toLowerCase();
   const noTextNode = ['img', 'svg', 'button', 'i'].includes(tag) && !normalizePhrase(info.text, 2);
 
@@ -399,69 +398,6 @@ function addNodeStructuredEvidences(result, info, options = {}) {
     });
   }
 
-  const attrs = info.attrs || {};
-  if (includeAttributeStyleEvidence) {
-    for (const [key, value] of dataAttrEntries(attrs)) {
-      addStructuredEvidence(result, {
-        kind: 'attr',
-        value: String(value || '').trim() && value !== '[present]' ? `${key}=${value}` : key,
-        weight: Math.round(88 * factor),
-        strong: true,
-        label: `${options.label || '选区'} data-*`,
-        scope,
-        selectionIndex,
-      });
-    }
-    if (isBusinessHref(attrs.href)) {
-      addStructuredEvidence(result, {
-        kind: 'attr',
-        value: attrs.href,
-        weight: Math.round(84 * factor),
-        strong: true,
-        label: `${options.label || '选区'}业务 href`,
-        scope,
-        selectionIndex,
-      });
-    }
-    for (const key of Object.keys(attrs)) {
-      if (MEDIA_ATTR_KEYS.has(key.toLowerCase()) || key === 'magnus-media') {
-        addStructuredEvidence(result, {
-          kind: 'attr',
-          value: key === 'magnus-media' ? 'image' : key,
-          weight: Math.round((noTextNode ? 72 : 54) * factor),
-          strong: noTextNode,
-          label: `${options.label || '选区'}图片/资源属性`,
-          scope,
-          selectionIndex,
-        });
-      }
-    }
-
-    for (const value of styleEvidencePairs(info.computedStyle || {}, info.inlineStyle || '')) {
-      addStructuredEvidence(result, {
-        kind: 'style',
-        value,
-        weight: Math.round((noTextNode ? 42 : 30) * factor),
-        strong: false,
-        label: `${options.label || '选区'}关键样式`,
-        scope,
-        selectionIndex,
-      });
-    }
-
-    for (const value of selectorTailValues(info.selector, noTextNode ? 4 : 2)) {
-      addStructuredEvidence(result, {
-        kind: 'selector',
-        value,
-        weight: Math.round((noTextNode ? 46 : 24) * factor),
-        strong: noTextNode && !isNoiseClass(value),
-        label: `${options.label || '选区'} selector`,
-        scope,
-        selectionIndex,
-      });
-    }
-  }
-
   const subtree = subtreeInfo(info);
   for (const cls of (Array.isArray(subtree.classNames) ? subtree.classNames : []).slice(0, 24)) {
     if (!cls) continue;
@@ -488,61 +424,10 @@ function addNodeStructuredEvidences(result, info, options = {}) {
       selectionIndex,
     });
   }
-  if (includeAttributeStyleEvidence) {
-    for (const attr of (Array.isArray(subtree.attrs) ? subtree.attrs : []).slice(0, 18)) {
-      const key = String(attr?.key || '');
-      const value = String(attr?.value || '');
-      if (/^data-/i.test(key) && !/^data-v-/i.test(key)) {
-        addStructuredEvidence(result, {
-          kind: 'attr',
-          value: value && value !== '[present]' ? `${key}=${value}` : key,
-          weight: Math.round(58 * factor),
-          strong: true,
-          label: `${options.label || '选区'}向下 data-*`,
-          scope,
-          selectionIndex,
-        });
-      } else if (MEDIA_ATTR_KEYS.has(key.toLowerCase()) || key === 'magnus-media') {
-        addStructuredEvidence(result, {
-          kind: 'attr',
-          value: key === 'magnus-media' ? 'image' : key,
-          weight: Math.round(42 * factor),
-          strong: noTextNode,
-          label: `${options.label || '选区'}向下资源属性`,
-          scope,
-          selectionIndex,
-        });
-      }
-    }
-    for (const item of (Array.isArray(subtree.styles) ? subtree.styles : []).slice(0, 12)) {
-      for (const value of styleEvidencePairs(item?.style || {}, item?.inlineStyle || '')) {
-        addStructuredEvidence(result, {
-          kind: 'style',
-          value,
-          weight: Math.round(24 * factor),
-          strong: false,
-          label: `${options.label || '选区'}向下样式`,
-          scope,
-          selectionIndex,
-        });
-      }
-    }
-  }
 }
 
 function extractStructuredEvidences(body, selections, selectionInstructions) {
   const result = { map: new Map() };
-  const pagePath = normalizeUrlPath(body.url || body.pageUrl || body.pagePath || '');
-  if (pagePath && pagePath !== '/') {
-    addStructuredEvidence(result, {
-      kind: 'route',
-      value: pagePath,
-      weight: 120,
-      strong: true,
-      label: '业务路由',
-      scope: 'page',
-    });
-  }
 
   for (const selection of selections) {
     const index = Number(selection.index || 0);
@@ -559,7 +444,6 @@ function extractStructuredEvidences(body, selections, selectionInstructions) {
         selectionIndex: index,
         factor: 0.62,
         label: '父级扩区',
-        includeAttributeStyleEvidence: false,
       });
     }
     if (selection.asset) {
@@ -568,17 +452,6 @@ function extractStructuredEvidences(body, selections, selectionInstructions) {
         selectionIndex: index,
         factor: 0.72,
         label: '扩大选区',
-      });
-    }
-    for (const text of textEvidenceValues(instruction, 6)) {
-      addStructuredEvidence(result, {
-        kind: 'text',
-        value: text,
-        weight: 62,
-        strong: true,
-        label: '用户修改要求',
-        scope: 'instruction',
-        selectionIndex: index,
       });
     }
   }
@@ -751,13 +624,13 @@ function subtreeResourceTokens(info, limit = 16) {
 
 function infoSubtreeSignal(info, limits = {}) {
   return {
-    classTokens: subtreeClassTokens(info, limits.classLimit || 32),
-    classOrderTokens: subtreeClassTokens(info, limits.classOrderLimit || limits.classLimit || 32),
-    textPhrases: subtreeTextPhrases(info, limits.phraseLimit || 12),
-    textTokens: subtreeTextTokens(info, limits.textLimit || 32),
-    attrTokens: subtreeAttrTokens(info, limits.attrLimit || 28),
-    styleTokens: subtreeStyleTokens(info, limits.styleLimit || 28),
-    resourceTokens: subtreeResourceTokens(info, limits.resourceLimit || 16),
+    classTokens: subtreeClassTokens(info, limits.classLimit ?? 32),
+    classOrderTokens: subtreeClassTokens(info, limits.classOrderLimit ?? limits.classLimit ?? 32),
+    textPhrases: subtreeTextPhrases(info, limits.phraseLimit ?? 12),
+    textTokens: subtreeTextTokens(info, limits.textLimit ?? 32),
+    attrTokens: subtreeAttrTokens(info, limits.attrLimit ?? 28),
+    styleTokens: subtreeStyleTokens(info, limits.styleLimit ?? 28),
+    resourceTokens: subtreeResourceTokens(info, limits.resourceLimit ?? 16),
   };
 }
 
@@ -766,27 +639,24 @@ function infoSignal(info, limits = {}) {
   const classOrderLimit = limits.classOrderLimit || classLimit;
   const phraseLimit = limits.phraseLimit || 10;
   const textLimit = limits.textLimit || 28;
-  const attrLimit = limits.attrLimit || 24;
-  const styleLimit = limits.styleLimit || 24;
-  const resourceLimit = limits.resourceLimit || 16;
   const classTokens = infoClassTokens(info, classLimit);
   const subtreeSignal = infoSubtreeSignal(info, {
     classLimit,
     classOrderLimit,
     phraseLimit,
     textLimit,
-    attrLimit,
-    styleLimit,
-    resourceLimit,
+    attrLimit: 0,
+    styleLimit: 0,
+    resourceLimit: 0,
   });
   return {
     classTokens: uniq([...classTokens, ...subtreeSignal.classTokens]).slice(0, classLimit),
     classOrderTokens: uniq([...classTokens, ...subtreeSignal.classOrderTokens]).slice(0, classOrderLimit),
     textPhrases: uniq([...infoTextPhrases(info, phraseLimit), ...subtreeSignal.textPhrases]).slice(0, phraseLimit),
     textTokens: uniq([...infoTextTokens(info, textLimit), ...subtreeSignal.textTokens]).slice(0, textLimit),
-    attrTokens: uniq([...infoAttrTokens(info, attrLimit), ...subtreeSignal.attrTokens]).slice(0, attrLimit),
-    styleTokens: uniq([...infoStyleTokens(info, styleLimit), ...subtreeSignal.styleTokens]).slice(0, styleLimit),
-    resourceTokens: uniq([...infoResourceTokens(info, resourceLimit), ...subtreeSignal.resourceTokens]).slice(0, resourceLimit),
+    attrTokens: [],
+    styleTokens: [],
+    resourceTokens: [],
   };
 }
 
@@ -868,7 +738,7 @@ function buildSelectionLayers(selection) {
     });
   }
 
-  if (asset && (asset.selector || asset.className || asset.text)) {
+  if (asset && (asset.className || asset.text)) {
     const assetSignal = infoSignal(asset);
     appendInfoSignal(aggregate, assetSignal);
     layers.push({
@@ -917,86 +787,59 @@ function buildSearchEvidence(body) {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
     if (text.length >= 2) phrases.push({ text, weight, label });
   };
-  const addResourceTokens = (info, weight, label) => {
-    for (const token of infoResourceTokens(info, 12)) {
-      weightedTokens.push({ token, weight, label });
-    }
-  };
   const addSubtreeEvidence = (info, weights, labelPrefix) => {
     const signal = infoSubtreeSignal(info, {
       classLimit: 28,
       classOrderLimit: 28,
       phraseLimit: 12,
       textLimit: 28,
-      attrLimit: 24,
-      styleLimit: 20,
-      resourceLimit: 16,
+      attrLimit: 0,
+      styleLimit: 0,
+      resourceLimit: 0,
     });
     for (const token of signal.classTokens) weightedTokens.push({ token, weight: weights.classWeight, label: `${labelPrefix} class` });
     for (const text of signal.textPhrases) addPhrase(text, weights.textWeight, `${labelPrefix}文案`);
     for (const token of signal.textTokens) weightedTokens.push({ token, weight: weights.textTokenWeight, label: `${labelPrefix}文案` });
-    for (const token of signal.attrTokens) weightedTokens.push({ token, weight: weights.attrWeight, label: `${labelPrefix}特殊属性` });
-    for (const token of signal.styleTokens) weightedTokens.push({ token, weight: weights.styleWeight, label: `${labelPrefix}样式` });
-    for (const token of signal.resourceTokens) weightedTokens.push({ token, weight: weights.resourceWeight, label: `${labelPrefix}资源` });
   };
 
-  addToken(body.query, 18, 'query');
-  addToken(normalizeUrlPath(body.url), 36, '页面路径');
   addToken(body.className, 38, 'className');
   addPhrase(body.text, 80, '选区文案');
   addToken(body.text, 24, '选区文案');
-  addPhrase(body.userPrompt, 72, '用户指令');
-  addToken(body.userPrompt, 30, '用户指令');
   addPhrase(body.manualEvidence, 70, '用户补充证据');
   addToken(body.manualEvidence, 30, '用户补充证据');
 
   for (const selection of selections) {
-    const instruction = selectionInstructions.get(Number(selection.index || 0)) || '';
-    addToken(instruction, 34, '修改要求');
-    addPhrase(instruction, 66, '修改要求');
     addToken(selection.element?.className, 46, 'className');
     addPhrase(selection.element?.text, 90, '选区文案');
     addToken(selection.element?.text, 28, '选区文案');
-    addResourceTokens(selection.element, 54, '选区资源');
     addSubtreeEvidence(selection.element, {
       classWeight: 42,
       textWeight: 64,
       textTokenWeight: 24,
-      attrWeight: 42,
-      styleWeight: 22,
-      resourceWeight: 54,
     }, '选区向下');
     addToken(selection.asset?.className, 26, '扩大选区 className');
     addPhrase(selection.asset?.text, 34, '扩大选区文案');
     addToken(selection.asset?.text, 12, '扩大选区文案');
-    addResourceTokens(selection.asset, 38, '扩大选区资源');
     for (const ancestor of selection.element?.ancestors || []) {
       addToken(ancestor.className, 24, '父级 className');
       addPhrase(ancestor.text, 42, '父级文案');
       addToken(ancestor.text, 14, '父级文案');
-      addResourceTokens(ancestor, 30, '父级资源');
       addSubtreeEvidence(ancestor, {
         classWeight: 24,
         textWeight: 38,
         textTokenWeight: 14,
-        attrWeight: 26,
-        styleWeight: 12,
-        resourceWeight: 30,
       }, '父级向下');
     }
 
     const signal = {
       index: Number(selection.index || selectionSignals.length + 1),
       tag: String(selection.element?.tag || '').toLowerCase(),
-      instructionText: normalizePhrase(instruction, 3),
-      instructionTokens: tokenize(instruction).slice(0, 8),
+      instructionText: '',
+      instructionTokens: [],
       layers: buildSelectionLayers(selection),
     };
     if (
-      signal.layers.some(layer => layer.textPhrases.length || layer.textTokens.length || layer.classTokens.length || layer.attrTokens.length || layer.styleTokens.length) ||
-      signal.layers.some(layer => layer.resourceTokens.length) ||
-      signal.instructionText ||
-      signal.instructionTokens.length
+      signal.layers.some(layer => layer.textPhrases.length || layer.textTokens.length || layer.classTokens.length)
     ) {
       selectionSignals.push(signal);
     }
@@ -1172,14 +1015,7 @@ function scoreSelectionContext(text, evidence, searchableText = text) {
       const textMatches = matchedPhraseList(lowerText, layer.textPhrases, 3, 3);
       const textTokenMatches = matchedTokenList(lowerText, layer.textTokens, 3, 4)
         .filter(token => !textMatches.some(phrase => phrase.includes(token)));
-      const includeAttributeStyleMatches = layer.depth <= 0;
-      const attrMatches = includeAttributeStyleMatches ? matchedTokenList(lowerText, layer.attrTokens, 3, 4) : [];
-      const styleMatches = includeAttributeStyleMatches ? matchedTokenList(lowerText, layer.styleTokens, 3, 4) : [];
-      const resourceMatches = matchedTokenList(lowerText, layer.resourceTokens, 3, 4);
-      const instructionTokenMatches = matchedTokenList(lowerText, signal.instructionTokens, 3, 2);
-      const hasInstructionPhrase = signal.instructionText && findNeedleIndex(lowerText, signal.instructionText.toLowerCase()) !== -1;
-      const tagMatch = signal.tag ? tagPatternIndex(searchableText, signal.tag) : null;
-      const anchorMatchCount = classMatches.length + textMatches.length + textTokenMatches.length + attrMatches.length + resourceMatches.length + (tagMatch ? 1 : 0);
+      const anchorMatchCount = classMatches.length + textMatches.length + textTokenMatches.length;
       const strongMatchCount = anchorMatchCount;
 
       if (classMatches.length) {
@@ -1193,38 +1029,6 @@ function scoreSelectionContext(text, evidence, searchableText = text) {
       if (textTokenMatches.length) {
         score += textTokenMatches.length * 16;
         reasons.push(`${layer.label}文本片段同文件命中：${textTokenMatches.join('、')}`);
-      }
-      if (attrMatches.length) {
-        score += attrMatches.length * 18;
-        reasons.push(`${layer.label}属性同文件命中：${attrMatches.join('、')}`);
-      }
-      if (resourceMatches.length) {
-        score += resourceMatches.length * 34;
-        reasons.push(`${layer.label}图片/资源线索同文件命中：${resourceMatches.join('、')}`);
-      }
-      if (styleMatches.length) {
-        if (anchorMatchCount > 0) {
-          score += styleMatches.length * 10;
-          reasons.push(`${layer.label}样式同文件命中：${styleMatches.join('、')}`);
-        } else {
-          score += Math.min(6, styleMatches.length * 2);
-        }
-      }
-      if (instructionTokenMatches.length) {
-        score += instructionTokenMatches.length * 12;
-        reasons.push(`修改要求关键词同文件命中：${instructionTokenMatches.join('、')}`);
-      }
-      if (hasInstructionPhrase) {
-        score += 22;
-        reasons.push(`修改要求短语同文件命中：${signal.instructionText.slice(0, 80)}`);
-      }
-      if (tagMatch) {
-        score += 8;
-        reasons.push(`标签结构命中：${tagMatch.pattern}`);
-      }
-      if (tagMatch && styleMatches.length) {
-        score += 10;
-        reasons.push('标签结构与尺寸/样式同时命中');
       }
       if (layer.depth > 0 && anchorMatchCount > 0) {
         score += 12 + Math.min(24, layer.depth * 6);
@@ -1240,17 +1044,10 @@ function scoreSelectionContext(text, evidence, searchableText = text) {
           ...textMatches,
           ...textTokenMatches,
           ...classMatches,
-          ...attrMatches,
-          ...resourceMatches,
-          ...styleMatches,
-          ...instructionTokenMatches,
         ]);
-        const tagIndex = tagMatch ? tagMatch.index : -1;
         const snippet = snippetSource
           ? makeSnippet(text, snippetSource.index, snippetSource.value.length)
-          : tagIndex !== -1
-            ? makeSnippet(text, tagIndex, signal.tag.length + 1)
-            : '';
+          : '';
         best = {
           selectionIndex: signal.index,
           contextScore: score,
@@ -1283,26 +1080,17 @@ function scoreRefinementLayerText(text, layer) {
   const textMatches = matchedPhraseList(lowerText, layer.ownTextPhrases || [], 3, 3);
   const textTokenMatches = matchedTokenList(lowerText, layer.ownTextTokens || [], 3, 5)
     .filter(token => !textMatches.some(phrase => phrase.includes(token)));
-  const attrMatches = [];
-  const styleMatches = [];
-  const resourceMatches = matchedTokenList(lowerText, layer.ownResourceTokens || [], 3, 4);
-  const strongMatchCount = classMatches.length + textMatches.length + textTokenMatches.length + attrMatches.length + resourceMatches.length;
+  const strongMatchCount = classMatches.length + textMatches.length + textTokenMatches.length;
   const score = (classMatches.length * 24)
     + (textMatches.length * 42)
-    + (textTokenMatches.length * 18)
-    + (attrMatches.length * 22)
-    + (resourceMatches.length * 34)
-    + (styleMatches.length * 5);
+    + (textTokenMatches.length * 18);
   const reasons = [];
   if (classMatches.length) reasons.push(`${layer.label} className 命中：${classMatches.join('、')}`);
   if (textMatches.length) reasons.push(`${layer.label}文案命中：${textMatches.join('、')}`);
   if (textTokenMatches.length) reasons.push(`${layer.label}文案 token 命中：${textTokenMatches.join('、')}`);
-  if (attrMatches.length) reasons.push(`${layer.label}属性命中：${attrMatches.join('、')}`);
-  if (resourceMatches.length) reasons.push(`${layer.label}图片/资源线索命中：${resourceMatches.join('、')}`);
-  if (styleMatches.length) reasons.push(`${layer.label}样式命中：${styleMatches.join('、')}`);
 
   return {
-    matched: strongMatchCount >= 2 || resourceMatches.length >= 1 || (textMatches.length >= 1 && score >= 42),
+    matched: strongMatchCount >= 2 || (textMatches.length >= 1 && score >= 42),
     score,
     strongMatchCount,
     reasons: reasons.slice(0, 6),
