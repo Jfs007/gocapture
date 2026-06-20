@@ -6925,6 +6925,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const texts = [];
     const attrs = [];
     const styles2 = [];
+    const nodes = [];
     let inspected = 0;
     const addUnique = (list, value, limit) => {
       const text = compactText(value, 240);
@@ -6937,25 +6938,38 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       const tag = String(node.tagName || "").toLowerCase();
       if (["script", "style", "noscript", "template"].includes(tag)) continue;
       inspected++;
-      addUnique(classNames, getFirstClassName(node), options.classLimit || 48);
-      if (node === element) addUnique(texts, getElementText(node), options.textLimit || 48);
-      addUnique(texts, getDirectText(node), options.textLimit || 48);
+      const className = getClassName(node);
+      const firstClassName = getFirstClassName(node);
+      const directText = getDirectText(node);
       const attrInfo = getElementAttrs(node);
+      const styleInfo = getSubtreeStyleEvidence(node);
+      addUnique(classNames, firstClassName, options.classLimit || 48);
+      if (node === element) addUnique(texts, getElementText(node), options.textLimit || 48);
+      addUnique(texts, directText, options.textLimit || 48);
       for (const [key, value] of Object.entries(attrInfo)) {
         if (!value || attrs.length >= (options.attrLimit || 48)) continue;
         attrs.push({
           tag,
-          className: getFirstClassName(node),
+          className: firstClassName,
           key,
           value: compactText(value, 240)
         });
       }
-      const styleInfo = getSubtreeStyleEvidence(node);
       if (styleInfo && styles2.length < (options.styleLimit || 36)) {
         styles2.push({
           tag,
-          className: getFirstClassName(node),
+          className: firstClassName,
           style: styleInfo
+        });
+      }
+      if (nodes.length < (options.nodeSummaryLimit || 48)) {
+        nodes.push({
+          tag,
+          className,
+          firstClassName,
+          text: directText,
+          attrs: attrInfo,
+          style: styleInfo || null
         });
       }
       for (const child of Array.from(node.children || [])) {
@@ -6968,6 +6982,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       texts,
       attrs,
       styles: styles2,
+      nodes,
       nodeCount: inspected
     };
   }

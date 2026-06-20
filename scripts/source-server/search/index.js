@@ -387,6 +387,141 @@ function hasStrongCooccurrence(hit) {
   return strongKinds.size >= 2 || (hit.reasons || []).some(reason => /同窗口共现/.test(reason) && /class:|text:|attr:|icon:/.test(reason));
 }
 
+function pascalCaseToken(value) {
+  const parts = String(value || '')
+    .split(/[^a-zA-Z0-9]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (!parts.length) return '';
+  return parts.map(part => `${part[0].toUpperCase()}${part.slice(1)}`).join('');
+}
+
+function valueSearchVariants(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  const variants = [raw];
+  const pascal = pascalCaseToken(raw);
+  if (pascal && pascal !== raw) variants.push(pascal);
+  const compact = raw.replace(/[^a-zA-Z0-9_$]/g, '');
+  if (compact && compact !== raw && compact !== pascal) variants.push(compact);
+  return uniq(variants).filter(item => item.length >= 2);
+}
+
+function findDomGroupValueIndex(searchableText, rawText, value, options = {}) {
+  const raw = String(value || '').trim();
+  if (!raw) return -1;
+  if (options.classToken) {
+    const classIndex = findClassTokenIndex(searchableText, raw);
+    if (classIndex !== -1) return classIndex;
+  }
+  const lowerText = String(searchableText || '').toLowerCase();
+  for (const variant of valueSearchVariants(raw)) {
+    const lower = variant.toLowerCase();
+    const exact = findNeedleIndex(lowerText, lower);
+    if (exact !== -1) return exact;
+    if (/^[a-zA-Z_$][\w$]*$/.test(variant) && variant.length >= 4) {
+      const regex = new RegExp(`\\b${variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[A-Za-z0-9_$]*\\b`, 'i');
+      const match = regex.exec(String(rawText || ''));
+      if (match) return match.index;
+    }
+  }
+  return -1;
+}
+
+function scoreDomGroupCoverageForText(text, evidence) {
+  const groups = Array.isArray(evidence?.selectionGroups) ? evidence.selectionGroups : [];
+  if (!groups.length) return null;
+  const rawText = String(text || '');
+  const searchableText = maskCommentsPreserveLength(rawText);
+  const matchedGroups = [];
+  let score = 0;
+  let bestSnippet = '';
+
+  for (const group of groups) {
+    const matched = [];
+    const values = [
+      ...(group.classTokens || []).map(value => ({ value, kind: 'class', weight: 42 })),
+      ...(group.textPhrases || []).map(value => ({ value, kind: 'text', weight: 58 })),
+      ...(group.attrTokens || []).map(value => ({ value, kind: 'attr', weight: 48 })),
+      ...(group.resourceTokens || []).map(value => ({ value, kind: 'resource', weight: 34 })),
+      ...(group.styleTokens || []).map(value => ({ value, kind: 'style', weight: 18 })),
+    ];
+    let groupScore = 0;
+    let firstIndex = -1;
+    for (const item of values) {
+      const index = findDomGroupValueIndex(searchableText, rawText, item.value, {
+        classToken: item.kind === 'class',
+      });
+      if (index === -1) continue;
+      matched.push(`${item.kind}:${item.value}`);
+      groupScore += item.weight;
+      if (firstIndex === -1 || index < firstIndex) firstIndex = index;
+    }
+    if (!matched.length) continue;
+    const capped = Math.min(120, groupScore);
+    score += capped;
+    matchedGroups.push({
+      id: group.id,
+      label: group.label,
+      score: capped,
+      matched: uniq(matched).slice(0, 8),
+    });
+    if (!bestSnippet && firstIndex !== -1) {
+      bestSnippet = makeSnippet(rawText, firstIndex, 80);
+    }
+  }
+
+  if (!matchedGroups.length) return null;
+  const coverageBonus = matchedGroups.length * 68 + (matchedGroups.length >= 2 ? 128 : 0);
+  return {
+    score: score + coverageBonus,
+    matchedGroups,
+    snippet: bestSnippet,
+  };
+}
+
+function domGroupCoverageHits(project, evidence, textCache, scopeFiles, options = {}) {
+  if (!Array.isArray(evidence?.selectionGroups) || !evidence.selectionGroups.length) return [];
+  const hits = [];
+  for (const file of project.files || []) {
+    if (scopeFiles && !scopeFiles.has(file.path)) continue;
+    if (!isTextFile(file.path)) continue;
+    if (typeof options.fileFilter === 'function' && !options.fileFilter(file.path)) continue;
+    const text = readProjectText(project, file, textCache);
+    const coverage = scoreDomGroupCoverageForText(text, evidence);
+    if (!coverage || coverage.matchedGroups.length < 2) continue;
+    const reason = coverage.matchedGroups
+      .slice(0, 5)
+      .map(group => `${group.label} => ${group.matched.join('、')}`);
+    hits.push({
+      file: file.path,
+      score: 120 + Math.min(360, coverage.score) + coverage.matchedGroups.length * 92,
+      stage: 'dom-group',
+      stages: ['dom-group'],
+      apiEvidence: false,
+      apiEvidenceReasons: [],
+      apiEvidenceFrom: [],
+      from: '',
+      reasons: uniq([
+        `DOM 子树分组覆盖：命中 ${coverage.matchedGroups.length} 个局部组`,
+        ...reason,
+      ]).slice(0, 12),
+      snippet: coverage.snippet,
+      contextScore: Math.min(240, coverage.score),
+      contextReasons: reason.slice(0, 8),
+      contextSelectionIndex: coverage.matchedGroups[0]?.selectionIndex || 0,
+      contextScope: 'subtree-groups',
+      contextLayerDepth: 0,
+      contextStrongMatchCount: coverage.matchedGroups.length,
+      preciseEvidence: coverage.matchedGroups.length >= 3,
+      preciseSnippet: coverage.snippet,
+      domGroupCoverage: coverage.matchedGroups.length,
+      domGroupMatches: coverage.matchedGroups,
+    });
+  }
+  return hits.sort((a, b) => b.score - a.score);
+}
+
 function scopeIsGoodEnough(hits) {
   const sorted = hits.slice().sort((a, b) => b.score - a.score);
   const top1 = sorted[0];
@@ -658,6 +793,11 @@ function mergeHits(hits) {
       classBasisToken: hit.classBasisToken || old?.classBasisToken || '',
       classBasisTrace: mergeList(old?.classBasisTrace || [], hit.classBasisTrace || []),
       classBasisSelectionIndex: hit.classBasisSelectionIndex || old?.classBasisSelectionIndex || 0,
+      domGroupCoverage: Math.max(old?.domGroupCoverage || 0, hit.domGroupCoverage || 0),
+      domGroupMatches: [
+        ...(old?.domGroupMatches || []),
+        ...(hit.domGroupMatches || []),
+      ].slice(0, 12),
     };
 
     if (!old || old.score < hit.score) {
@@ -1267,14 +1407,43 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
   const initialFileSet = new Set(initialHits.map(hit => hit.file));
   let bundles = initialHits.map(hit => {
     const relation = relatedFilesForInitialHit(project, hit.file, routeEntry, graph, scopeFiles);
+    let bestGroupCoverage = null;
+    for (const filePath of relation.related) {
+      const file = (project.files || []).find(item => item.path === filePath);
+      if (!file || !isTextFile(file.path)) continue;
+      const text = readProjectText(project, file, textCache);
+      const coverage = scoreDomGroupCoverageForText(text, evidence);
+      if (!coverage) continue;
+      const kind = relationKind(
+        filePath,
+        hit.file,
+        relation.chain,
+        relation.parentFiles,
+        relation.siblingFiles,
+        relation.localFiles
+      );
+      const score = coverage.score + relationBoost(kind);
+      if (!bestGroupCoverage || score > bestGroupCoverage.score) {
+        bestGroupCoverage = {
+          file: filePath,
+          kind,
+          score,
+          coverage,
+        };
+      }
+    }
     return {
       hit,
       relation,
-      promotedFile: hit.file,
-      promotedSnippet: '',
-      layerMatched: false,
-      layerScore: 0,
-      layerReasons: [],
+      promotedFile: bestGroupCoverage && bestGroupCoverage.file !== hit.file ? bestGroupCoverage.file : hit.file,
+      promotedSnippet: bestGroupCoverage?.coverage?.snippet || '',
+      layerMatched: !!bestGroupCoverage,
+      layerScore: bestGroupCoverage ? Math.min(420, bestGroupCoverage.score) : 0,
+      layerReasons: bestGroupCoverage ? [
+        `DOM 分组链路确认：${bestGroupCoverage.coverage.matchedGroups.length} 个局部组命中${relationLabel(bestGroupCoverage.kind)} ${bestGroupCoverage.file}`,
+        ...bestGroupCoverage.coverage.matchedGroups.slice(0, 4).map(group => `${group.label} => ${group.matched.join('、')}`),
+      ] : [],
+      domGroupMatches: bestGroupCoverage?.coverage?.matchedGroups || [],
     };
   });
 
@@ -1345,6 +1514,8 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
       from: promote ? bundle.hit.file : '',
       snippet: bundle.promotedSnippet || bundle.hit.snippet,
       importChain: bundle.relation.chain.length > 1 ? bundle.relation.chain : bundle.hit.importChain,
+      domGroupCoverage: Math.max(bundle.hit.domGroupCoverage || 0, bundle.domGroupMatches?.length || 0),
+      domGroupMatches: bundle.domGroupMatches?.length ? bundle.domGroupMatches : bundle.hit.domGroupMatches,
       reasons: uniq([
         promote ? `初始命中：${bundle.hit.file}` : '',
         bundle.relation.chain.length > 1 ? `页面引用链：${bundle.relation.chain.join(' -> ')}` : '',
@@ -1467,9 +1638,22 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
           ...(hit.reasons || []),
         ]).slice(0, 12),
       }));
-    if (stableLocalHits(bundledHits) || exactTextIsUniqueEnough(bundledHits)) {
+    const groupHits = domGroupCoverageHits(project, evidence, textCache, scope.files, {
+      fileFilter: isUiSourceFile,
+    }).map(hit => ({
+      ...hit,
+      reasons: uniq([
+        `检索层级：${scope.name}`,
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    }));
+    const localStructuredHits = mergeHits([
+      ...bundledHits,
+      ...groupHits,
+    ]).sort((a, b) => b.score - a.score);
+    if (stableLocalHits(localStructuredHits) || exactTextIsUniqueEnough(localStructuredHits)) {
       return {
-        hits: bundledHits,
+        hits: localStructuredHits,
         activeScope: scope,
         layer: scope.name.replace(/：.*$/, ''),
       };
@@ -1484,7 +1668,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
       ]).slice(0, 12),
     }));
     const mergedScopeHits = mergeHits([
-      ...bundledHits,
+      ...localStructuredHits,
       ...recalledHits,
     ]).sort((a, b) => b.score - a.score);
     last = {

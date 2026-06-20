@@ -198,6 +198,7 @@ export function getSubtreeEvidence(element, options = {}) {
   const texts = [];
   const attrs = [];
   const styles = [];
+  const nodes = [];
   let inspected = 0;
 
   const addUnique = (list, value, limit) => {
@@ -213,28 +214,43 @@ export function getSubtreeEvidence(element, options = {}) {
     if (['script', 'style', 'noscript', 'template'].includes(tag)) continue;
     inspected++;
 
-    addUnique(classNames, getFirstClassName(node), options.classLimit || 48);
+    const className = getClassName(node);
+    const firstClassName = getFirstClassName(node);
+    const directText = getDirectText(node);
+    const attrInfo = getElementAttrs(node);
+    const styleInfo = getSubtreeStyleEvidence(node);
+
+    addUnique(classNames, firstClassName, options.classLimit || 48);
 
     if (node === element) addUnique(texts, getElementText(node), options.textLimit || 48);
-    addUnique(texts, getDirectText(node), options.textLimit || 48);
+    addUnique(texts, directText, options.textLimit || 48);
 
-    const attrInfo = getElementAttrs(node);
     for (const [key, value] of Object.entries(attrInfo)) {
       if (!value || attrs.length >= (options.attrLimit || 48)) continue;
       attrs.push({
         tag,
-        className: getFirstClassName(node),
+        className: firstClassName,
         key,
         value: compactText(value, 240)
       });
     }
 
-    const styleInfo = getSubtreeStyleEvidence(node);
     if (styleInfo && styles.length < (options.styleLimit || 36)) {
       styles.push({
         tag,
-        className: getFirstClassName(node),
+        className: firstClassName,
         style: styleInfo
+      });
+    }
+
+    if (nodes.length < (options.nodeSummaryLimit || 48)) {
+      nodes.push({
+        tag,
+        className,
+        firstClassName,
+        text: directText,
+        attrs: attrInfo,
+        style: styleInfo || null
       });
     }
 
@@ -249,6 +265,7 @@ export function getSubtreeEvidence(element, options = {}) {
     texts,
     attrs,
     styles,
+    nodes,
     nodeCount: inspected
   };
 }

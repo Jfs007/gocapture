@@ -1028,6 +1028,118 @@ function buildSelectionLayers(selection) {
   return layers;
 }
 
+const GROUP_WEAK_TOKENS = new Set([
+  'role',
+  'menu',
+  'menuitem',
+  'button',
+  'true',
+  'false',
+  'display',
+  'none',
+  'hidden',
+  'absolute',
+  'relative',
+]);
+
+function groupAttrTokens(attrs = {}, tag = '') {
+  const tokens = [];
+  for (const [key, value] of Object.entries(attrs || {})) {
+    const lowerKey = String(key || '').toLowerCase();
+    const rawValue = String(value || '').trim();
+    if (!rawValue) continue;
+    if (lowerKey === 'role' || lowerKey.startsWith('aria-expanded') || lowerKey.startsWith('aria-haspopup')) continue;
+    if (/^data-v-/.test(lowerKey)) continue;
+    if (lowerKey === 'class' || lowerKey === 'style') continue;
+    if (lowerKey === 'magnus-media' && rawValue === 'image') {
+      tokens.push('img', 'image');
+      continue;
+    }
+    if (MEDIA_ATTR_KEYS.has(lowerKey)) {
+      tokens.push('img', 'image', lowerKey);
+      continue;
+    }
+    if (lowerKey === 'alt' || lowerKey === 'title' || lowerKey === 'aria-label' || lowerKey === 'data-icon') {
+      tokens.push(...tokenize(rawValue));
+      continue;
+    }
+    if (lowerKey === 'href') {
+      tokens.push(...attrEntryTokens(lowerKey, rawValue));
+      continue;
+    }
+    if (lowerKey.startsWith('data-')) {
+      tokens.push(...tokenize(rawValue));
+    }
+  }
+  if (String(tag || '').toLowerCase() === 'img') tokens.push('img', 'image');
+  return uniq(tokens)
+    .filter(token => token.length >= 2 && !GROUP_WEAK_TOKENS.has(token.toLowerCase()))
+    .slice(0, 12);
+}
+
+function nodeSelectionGroup(node, selectionIndex, index) {
+  const tag = String(node?.tag || '').toLowerCase();
+  const classTokens = orderedClassTokens(node?.className, 10)
+    .filter(token => !isNoiseClass(token) || isIconClass(token))
+    .slice(0, 8);
+  const textPhrases = textEvidenceValues(node?.text, 4).slice(0, 4);
+  const textTokens = uniq(textPhrases.flatMap(text => tokenize(text))).slice(0, 8);
+  const attrTokens = groupAttrTokens(node?.attrs || {}, tag);
+  const styleTokens = styleTokensFromValue(node?.style || {}, node?.style?.inlineStyle || '', 8)
+    .filter(token => !GROUP_WEAK_TOKENS.has(token.toLowerCase()))
+    .slice(0, 8);
+  const resourceTokens = tag === 'img' || attrTokens.some(token => token === 'image' || token === 'img')
+    ? ['img', 'image']
+    : [];
+  const values = uniq([
+    ...classTokens,
+    ...textPhrases,
+    ...textTokens,
+    ...attrTokens,
+    ...styleTokens,
+    ...resourceTokens,
+  ]).filter(value => value.length >= 2 && value.length <= 80);
+  if (!values.length) return null;
+  const strongValues = uniq([
+    ...classTokens,
+    ...textPhrases,
+    ...attrTokens,
+    ...resourceTokens,
+  ]).filter(value => value.length >= 2 && value.length <= 80);
+  if (!strongValues.length) return null;
+  return {
+    id: `s${selectionIndex || 0}-node-${index}`,
+    selectionIndex,
+    label: [
+      tag || 'node',
+      node?.firstClassName ? `.${node.firstClassName}` : '',
+      textPhrases[0] ? ` "${textPhrases[0].slice(0, 24)}"` : '',
+    ].join(''),
+    tag,
+    classTokens,
+    textPhrases,
+    textTokens,
+    attrTokens,
+    styleTokens,
+    resourceTokens,
+    values,
+    strongValues,
+  };
+}
+
+function buildSelectionGroups(selection) {
+  const selectionIndex = Number(selection?.index || 0);
+  const info = selection?.element || {};
+  const subtree = info?.searchSubtree || info?.subtree || {};
+  const nodes = Array.isArray(subtree.nodes) ? subtree.nodes : [];
+  const groups = [];
+  for (const [index, node] of nodes.entries()) {
+    const group = nodeSelectionGroup(node, selectionIndex, index);
+    if (group) groups.push(group);
+  }
+  return groups.slice(0, 24);
+}
+
 function buildSearchEvidence(body) {
   const selections = Array.isArray(body.selections) ? body.selections : [];
   const selectionInstructions = new Map(
@@ -1041,6 +1153,7 @@ function buildSearchEvidence(body) {
   const weightedTokens = [];
   const structuredEvidences = extractStructuredEvidences(body, selections, selectionInstructions);
   const selectionKinds = selections.map(selection => detectSelectionKind(selection));
+  const selectionGroups = selections.flatMap(selection => buildSelectionGroups(selection));
   const addToken = (value, weight, label) => {
     for (const token of tokenize(value)) {
       weightedTokens.push({ token, weight, label });
@@ -1121,6 +1234,7 @@ function buildSearchEvidence(body) {
     tokens: Array.from(merged.values()).slice(0, 180),
     phrases: phrases.slice(0, 80),
     selectionSignals: selectionSignals.slice(0, 24),
+    selectionGroups: selectionGroups.slice(0, 48),
     structuredEvidences,
     selectionKinds: selectionKinds
       .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
