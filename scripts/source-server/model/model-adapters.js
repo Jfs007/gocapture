@@ -2479,6 +2479,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 你需要判断源码块在语义、区域、文案集合、class/style/src/background 资源、引用链、接口线索和用户需求上，是否最可能对应当前选区，而不是机械比较 tag/class 层级。',
     '- 选区证据和 UI 结构是主要定位依据；用户修改要求只用于辅助判断哪个源码块更值得作为改动方向建议，不得覆盖选区结构证据。',
     '- 用户修改要求只用于辅助区分候选源码块和生成粗加工的 direction 建议；不要按某种框架、组件库或固定实现范式去推断源码。',
+    '- 需要给出一段简短的 "推测方向"：基于当前候选源码、选区结构和用户修改要求，说明后续修改 agent 可以优先检查什么；它只是建议，不是最终结论。',
     '- 如果无法确认具体修改点，返回最稳的 UI 结构、组件区域或源码方向即可；不要为了贴合需求强行推断内部实现。',
     '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
     '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
@@ -2493,7 +2494,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 当文件标记为 pruned-chain 时，源码已按 Vue/React/HTML/JS/CSS 结构节点剪枝：选区和扩大选区命中的节点必须完整保留，未保留的内容只会按整节点删除；不要要求看到被剪掉的二层调用链。',
     '- exact 结果的 "code片段" 必须直接摘自真实源码内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接；不要包含候选内容里的辅助注释，例如 // selection/code anchor、// anchor、// imports directly related to visible symbols。',
     '- direction 结果允许只返回当前文件中最能说明源码方向的连续源码片段；它可以是 UI 结构、组件区域或其它与选区明显相关的源码块。direction 只是后续修改 agent 的优先检查建议，不是最终结论。',
-    '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码方向或源码、需求。',
+    '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码方向或源码、推测方向、需求。',
     '- 本轮允许返回多个真正涉及改动的文件；完全无法判断候选源码方向时才返回 []。',
     '',
     '返回格式必须严格为：',
@@ -2502,7 +2503,8 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '    "path": "相对项目根路径",',
     '    "code片段": "当前批次文件内容中完整闭合的源码片段，必须连续且原样存在，不允许 ...",',
     '    "定位层级": "exact 或 direction；exact 表示明确修改点，direction 表示源码方向",',
-    '    "提示词": "页面: ...\\n文件: ...\\n源码:\\n...\\n需求: ...",',
+    '    "推测方向": "基于候选源码和用户需求的简短建议；如果没有额外判断可以为空字符串",',
+    '    "提示词": "页面: ...\\n文件: ...\\n源码方向或源码:\\n...\\n推测方向: ...\\n需求: ...",',
     '    "confidence": 0-100,',
     '    "selectionEvidence": { "score": 0-100, "reasons": ["为什么该源码块在语义、区域或引用链上最可能对应当前选区，而不是只命中文案"] }',
     '  }',
@@ -2579,6 +2581,7 @@ function modelOutputItems(parsed) {
     return parsed.targetFiles.map(item => ({
       path: item.path || item.file,
       'code片段': item['code片段'] || item['位置'] || item.codeSnippet || item.location || item.snippet || '',
+      '推测方向': item['推测方向'] || item.directionGuess || item.guess || item.suggestion || '',
       '提示词': item['提示词'] || item.prompt || item.reason || parsed.summary || '',
       confidence: item.confidence,
       selectionEvidence: item.selectionEvidence || item.match || item.evidence,
@@ -2695,6 +2698,7 @@ function reconcileModelItems(items, body) {
       confidence: Math.max(old.confidence || 0, enriched.confidence || 0),
       prompt: old.prompt || enriched.prompt,
       reason: old.reason || enriched.reason,
+      directionGuess: old.directionGuess || enriched.directionGuess,
       codeSnippet: old.codeSnippet || enriched.codeSnippet,
       snippetVerified: !!(old.snippetVerified || enriched.snippetVerified),
       localScore: Math.max(old.localScore || 0, enriched.localScore || 0),
@@ -2793,6 +2797,7 @@ function validateModelItems(project, parsed, body, textCache) {
   return modelOutputItems(parsed).map(item => {
     const file = String(item.path || item.file || '').replace(/\\/g, '/').replace(/^\/+/, '');
     const rawCodeSnippet = String(item['code片段'] || item['位置'] || item.codeSnippet || item.location || item.snippet || item.code || '').trim();
+    const directionGuess = String(item['推测方向'] || item.directionGuess || item.guess || item.suggestion || '').trim();
     const prompt = String(item['提示词'] || item.prompt || item.instruction || item.reason || '').trim();
     const locateLevel = /direction|方向|coarse/i.test(String(item['定位层级'] || item.locateLevel || item.level || item.type || ''))
       ? 'direction'
@@ -2810,6 +2815,7 @@ function validateModelItems(project, parsed, body, textCache) {
       confidence,
       selectionEvidenceScore,
       selectionEvidenceReasons,
+      directionGuess,
       codeSnippet: snippetResult.codeSnippet,
       prompt,
       reason: prompt || snippetResult.codeSnippet || rawCodeSnippet,
@@ -3174,6 +3180,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         codeSnippet: item.codeSnippet,
         prompt: item.prompt,
         locateLevel: item.locateLevel || 'exact',
+        directionGuess: item.directionGuess || '',
         selectionEvidenceScore: item.selectionEvidenceScore,
         selectionEvidenceReasons: item.selectionEvidenceReasons || [],
         localScore: item.localScore,

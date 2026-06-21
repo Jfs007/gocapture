@@ -140,6 +140,7 @@ export function useChatMessages({
           return [
             `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ''}${item.exists === false ? ' · 文件不存在' : ''}`,
             item.codeSnippet ? `code片段: ${item.codeSnippet}` : '',
+            item.directionGuess ? `推测方向: ${item.directionGuess}` : '',
             item.prompt ? `提示词: ${item.prompt}` : (item.reason || '-')
           ].filter(Boolean);
         });

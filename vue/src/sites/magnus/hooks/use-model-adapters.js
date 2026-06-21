@@ -280,12 +280,14 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
         stage: 'model-agent',
         reasons: [
           `模型定位：${target.prompt || target.reason || result.parsed?.summary || result.rawText || '-'}`,
+          target.directionGuess ? `推测方向：${target.directionGuess}` : '',
           target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : '',
           ...(old?.reasons || [])
         ].filter(Boolean).slice(0, 10),
         modelPrompt: target.prompt || target.reason || '',
         modelCodeSnippet: target.codeSnippet || '',
         modelLocateLevel: target.locateLevel || 'exact',
+        modelDirectionGuess: target.directionGuess || '',
         modelConfidence: target.confidence,
         modelAdapter: result.adapter?.name || ''
       };

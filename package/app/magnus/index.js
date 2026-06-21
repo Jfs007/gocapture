@@ -7398,6 +7398,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           return [
             `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ""}${item.exists === false ? " · 文件不存在" : ""}`,
             item.codeSnippet ? `code片段: ${item.codeSnippet}` : "",
+            item.directionGuess ? `推测方向: ${item.directionGuess}` : "",
             item.prompt ? `提示词: ${item.prompt}` : item.reason || "-"
           ].filter(Boolean);
         });
@@ -7730,12 +7731,14 @@ ${result.rawText}` : ""
           stage: "model-agent",
           reasons: [
             `模型定位：${target.prompt || target.reason || ((_a = result.parsed) == null ? void 0 : _a.summary) || result.rawText || "-"}`,
+            target.directionGuess ? `推测方向：${target.directionGuess}` : "",
             target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : "",
             ...(old == null ? void 0 : old.reasons) || []
           ].filter(Boolean).slice(0, 10),
           modelPrompt: target.prompt || target.reason || "",
           modelCodeSnippet: target.codeSnippet || "",
           modelLocateLevel: target.locateLevel || "exact",
+          modelDirectionGuess: target.directionGuess || "",
           modelConfidence: target.confidence,
           modelAdapter: ((_b = result.adapter) == null ? void 0 : _b.name) || ""
         });
@@ -8096,6 +8099,7 @@ ${result.rawText}` : ""
         hit.modelAdapter ? `模型: ${hit.modelAdapter}` : "",
         hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : "",
         hit.modelCodeSnippet ? `模型代码片段: ${hit.modelCodeSnippet}` : "",
+        hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : "",
         hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : "",
         uniqueLine,
         ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
@@ -8277,6 +8281,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function normalizeInstructionText(value) {
       return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).join("\n").trim();
     }
+    function sanitizeModelInstructionText(value) {
+      let text = normalizeInstructionText(value);
+      if (!text) return "";
+      text = text.replace(/需要引入[^。\n；]*(?:http|axios|request|fetch)[^。\n；]*/ig, "沿用项目现有 API 调用方式完成接口请求");
+      text = text.replace(/[（(]如[^）)]*(?:http|axios|request|fetch|@\/)[^）)]*[）)]/ig, "");
+      text = text.split("\n").map((line) => line.replace(/[ \t]{2,}/g, " ").trimEnd()).join("\n").trim();
+      return text;
+    }
     function selectedPromptHits() {
       return selectedCandidateHits.value.length ? selectedCandidateHits.value : candidateHits.value.slice(0, 1);
     }
@@ -8292,17 +8304,24 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function finalPromptTaskLines(command) {
       const hits = selectedPromptHits();
       return hits.map((hit, index) => {
-        const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || "");
-        const source = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || hit.modelCodeSnippet || "");
+        const modelLocation = normalizeSnippetText(hit.modelCodeSnippet || "");
+        const uiSource = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || "");
+        const location = modelLocation || uiSource;
+        const source = uiSource || modelLocation;
         const requirement = command || "按当前页面上下文完成修改";
         const directionLevel = hit.modelLocateLevel === "direction";
+        const directionGuess = sanitizeModelInstructionText(hit.modelDirectionGuess || "");
+        const shouldShowUiSource = directionLevel && uiSource && uiSource !== location;
         return [
           hits.length > 1 ? `任务 ${index + 1}:` : "",
           `文件: ${hit.file}`,
+          shouldShowUiSource ? `UI源码:
+${uiSource}` : "",
           location ? `${directionLevel ? "源码方向" : "位置"}:
 ${location}` : "",
           source && !directionLevel ? `源码:
 ${source}` : "",
+          directionGuess ? `推测方向: ${directionGuess}` : "",
           `需求: ${requirement}`
         ].filter(Boolean).join("\n");
       }).join("\n\n");

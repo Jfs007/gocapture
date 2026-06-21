@@ -60,6 +60,7 @@ export function candidateStageExplanation(hit) {
       hit.modelAdapter ? `模型: ${hit.modelAdapter}` : '',
       hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : '',
       hit.modelCodeSnippet ? `模型代码片段: ${hit.modelCodeSnippet}` : '',
+      hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : '',
       hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : '',
       uniqueLine,
       ...reasons.slice(0, 6).map(reason => `依据: ${reason}`)
