@@ -7298,7 +7298,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         id: "project-ready",
         role: "system",
         title: "项目已连接",
-        text: `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || "未识别技术栈"}`
+        text: [
+          `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || "未识别技术栈"}`,
+          project.value.path ? `源码目录：${project.value.path}` : ""
+        ].filter(Boolean).join("\n")
       });
       if (!selectedItems.value.length) {
         messages.push({
@@ -8474,9 +8477,11 @@ ${source}` : "",
       };
     }
     function searchLogLines() {
+      var _a, _b;
       const routeLines = routeResolverLogLines();
       const lines = [
         `1. 收集页面证据: pagePath=${pageUrlPath.value}；选区数=${selectedItems.value.length}；className=${selectedItems.value.map((item) => item.info.className).filter(Boolean).join(" ") || "-"}`,
+        `   源码项目: ${((_a = project.value) == null ? void 0 : _a.path) || ((_b = project.value) == null ? void 0 : _b.name) || "-"}`,
         ...routeLines,
         `3. 组合检索词: ${combinedSelectionText() || "-"}`,
         `4. 用户指令: ${normalizeInstructionText(promptIntent.value) || "-"}`,

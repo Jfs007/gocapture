@@ -567,6 +567,7 @@ export function useSearchPrompt({
     const routeLines = routeResolverLogLines();
     const lines = [
       `1. 收集页面证据: pagePath=${pageUrlPath.value}；选区数=${selectedItems.value.length}；className=${selectedItems.value.map(item => item.info.className).filter(Boolean).join(' ') || '-'}`,
+      `   源码项目: ${project.value?.path || project.value?.name || '-'}`,
       ...routeLines,
       `3. 组合检索词: ${combinedSelectionText() || '-'}`,
       `4. 用户指令: ${normalizeInstructionText(promptIntent.value) || '-'}`,

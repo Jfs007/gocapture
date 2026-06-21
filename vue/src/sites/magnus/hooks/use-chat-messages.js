@@ -56,7 +56,10 @@ export function useChatMessages({
       id: 'project-ready',
       role: 'system',
       title: '项目已连接',
-      text: `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || '未识别技术栈'}`
+      text: [
+        `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || '未识别技术栈'}`,
+        project.value.path ? `源码目录：${project.value.path}` : ''
+      ].filter(Boolean).join('\n')
     });
 
     if (!selectedItems.value.length) {
