@@ -1223,6 +1223,72 @@ function i18nRelatedCandidateHits(body) {
   return hits;
 }
 
+function definitionRelatedCandidateHits(body) {
+  const hits = [];
+  const trace = body?.definitionTrace;
+  for (const definition of trace?.definitions || []) {
+    const file = normalizeModelFilePath(definition?.file);
+    if (!file) continue;
+    hits.push({
+      file,
+      score: 240,
+      stage: 'definition-context',
+      stages: ['definition-context'],
+      from: '',
+      definitionEvidence: true,
+      definitionFile: file,
+      definitionSymbol: definition.symbol || '',
+      definitionKeyPath: definition.keyPath || '',
+      definitionText: definition.phrase || '',
+      preciseEvidence: true,
+      exactMatchText: definition.phrase || '',
+      uniqueMatchText: definition.phrase || '',
+      snippet: definition.snippet || '',
+      preciseSnippet: definition.snippet || '',
+      uniqueSnippet: definition.snippet || '',
+      contextScore: 70,
+      contextReasons: [`字面量定义上下文：${definition.symbol || definition.keyPath || ''}`],
+      reasons: [
+        `字面量定义文件：${file}`,
+        definition.symbol ? `定义符号：${definition.symbol}` : '',
+        definition.keyPath ? `定义 key：${definition.keyPath}` : '',
+        `定义文案：${definition.phrase || ''}`,
+      ].filter(Boolean),
+    });
+  }
+  for (const hit of [...(body?.selectedCandidateHits || []), ...(body?.candidateHits || [])]) {
+    const file = normalizeModelFilePath(hit?.definitionFile);
+    if (!file) continue;
+    hits.push({
+      file,
+      score: 240,
+      stage: 'definition-context',
+      stages: ['definition-context'],
+      from: normalizeModelFilePath(hit.file),
+      definitionEvidence: true,
+      definitionFile: file,
+      definitionSymbol: hit.definitionSymbol || '',
+      definitionKeyPath: hit.definitionKeyPath || '',
+      definitionText: hit.definitionText || hit.exactMatchText || '',
+      preciseEvidence: true,
+      exactMatchText: hit.definitionText || hit.exactMatchText || '',
+      uniqueMatchText: hit.definitionText || hit.uniqueMatchText || '',
+      snippet: hit.exactSnippet || hit.uniqueSnippet || hit.snippet || '',
+      preciseSnippet: hit.exactSnippet || hit.uniqueSnippet || hit.snippet || '',
+      uniqueSnippet: hit.uniqueSnippet || hit.exactSnippet || hit.snippet || '',
+      contextScore: 70,
+      contextReasons: [`字面量定义上下文：${hit.definitionSymbol || hit.definitionKeyPath || ''}`],
+      reasons: [
+        `字面量定义文件：${file}`,
+        hit.definitionSymbol ? `定义符号：${hit.definitionSymbol}` : '',
+        hit.definitionKeyPath ? `定义 key：${hit.definitionKeyPath}` : '',
+        hit.definitionText ? `定义文案：${hit.definitionText}` : '',
+      ].filter(Boolean),
+    });
+  }
+  return hits;
+}
+
 function modelCandidateHits(body, logs) {
   const routeEntries = body?.routeResolver?.matched ? routeEntryFiles(body) : [];
   const selectedSet = new Set((body.selectedCandidateHits || []).map(hit => normalizeModelFilePath(hit?.file)).filter(Boolean));
@@ -1277,6 +1343,7 @@ function modelCandidateHits(body, logs) {
     push(hit, 'candidate');
   }
   for (const hit of i18nRelatedCandidateHits(body)) push(hit, 'i18n-context');
+  for (const hit of definitionRelatedCandidateHits(body)) push(hit, 'definition-context');
 
   if (routeEntries.length && Array.isArray(logs)) {
     appendLog(logs, `页面源码范围：${routeEntries.join('，')}；模型只读取页面入口、页面 import 链路或强选区证据候选`);
@@ -2308,6 +2375,27 @@ function i18nTraceSummary(trace) {
   };
 }
 
+function definitionTraceSummary(trace) {
+  if (!trace || !trace.active) return null;
+  return {
+    active: true,
+    definitions: (trace.definitions || []).slice(0, 8).map(item => ({
+      file: item.file,
+      symbol: item.symbol || '',
+      keyPath: item.keyPath || '',
+      phrase: item.phrase || '',
+    })),
+    usages: (trace.usages || []).slice(0, 8).map(item => ({
+      file: item.file,
+      symbol: item.definitionSymbol || '',
+      keyPath: item.definitionKeyPath || '',
+      phrase: item.definitionText || '',
+      definitionFile: item.definitionFile || item.from || '',
+      score: item.score || 0,
+    })),
+  };
+}
+
 function candidateFactsSummary(candidateHits) {
   return (candidateHits || []).slice(0, 30).map(hit => ({
     file: hit.file,
@@ -2325,6 +2413,10 @@ function candidateFactsSummary(candidateHits) {
     i18nKey: hit.i18nKey || '',
     i18nText: hit.i18nText || '',
     i18nDefinitionFile: hit.i18nDefinitionFile || '',
+    definitionSymbol: hit.definitionSymbol || '',
+    definitionKeyPath: hit.definitionKeyPath || '',
+    definitionText: hit.definitionText || '',
+    definitionFile: hit.definitionFile || '',
     classEvidence: (hit.contextReasons || []).slice(0, 2),
     contextScope: hit.contextScope || '',
     contextLayerDepth: hit.contextLayerDepth || 0,
@@ -2366,6 +2458,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
   const routeSummary = routeResolverSummary(body.routeResolver);
   const apiTraceFacts = apiTraceSummary(body.apiTrace);
   const i18nTraceFacts = i18nTraceSummary(body.i18nTrace);
+  const definitionTraceFacts = definitionTraceSummary(body.definitionTrace);
   const candidateFacts = candidateFactsSummary(mergedCandidateFacts(body));
   const batchIndex = Math.max(1, Number(options.batchIndex || 1));
   const batchTotal = Math.max(batchIndex, Number(options.batchTotal || 1));
@@ -2423,6 +2516,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     payload.selectionInstructions?.length ? `按选区拆分后的修改要求:\n${safeJson(payload.selectionInstructions)}` : '',
     routeSummary ? `路由入口线索:\n${safeJson(routeSummary)}` : '',
     i18nTraceFacts ? `国际化线索:\n${safeJson(i18nTraceFacts)}` : '',
+    definitionTraceFacts ? `字面量定义链线索:\n${safeJson(definitionTraceFacts)}` : '',
     candidateFacts.length ? `候选文件摘要:\n${safeJson(candidateFacts)}` : '',
     apiRequests.length ? `接口线索:\n${safeJson(apiRequests.slice(0, 4))}` : '',
     apiTraceFacts.length ? `接口引用链:\n${safeJson(apiTraceFacts)}` : '',

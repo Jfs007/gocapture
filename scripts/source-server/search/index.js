@@ -9,6 +9,7 @@ const {
 } = require('./evidence');
 const { traceApiReferences } = require('./api-trace');
 const { traceI18nReferences } = require('./i18n-trace');
+const { traceDefinitionReferences } = require('./definition-trace');
 const { buildFileMap, importedFiles } = require('./import-trace');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const { makeSnippet, uniq } = require('../utils');
@@ -817,6 +818,15 @@ function mergeHits(hits) {
       classBasisToken: hit.classBasisToken || old?.classBasisToken || '',
       classBasisTrace: mergeList(old?.classBasisTrace || [], hit.classBasisTrace || []),
       classBasisSelectionIndex: hit.classBasisSelectionIndex || old?.classBasisSelectionIndex || 0,
+      i18nEvidence: !!(old?.i18nEvidence || hit.i18nEvidence),
+      i18nKey: hit.i18nKey || old?.i18nKey || '',
+      i18nText: hit.i18nText || old?.i18nText || '',
+      i18nDefinitionFile: hit.i18nDefinitionFile || old?.i18nDefinitionFile || '',
+      definitionEvidence: !!(old?.definitionEvidence || hit.definitionEvidence),
+      definitionFile: hit.definitionFile || old?.definitionFile || '',
+      definitionSymbol: hit.definitionSymbol || old?.definitionSymbol || '',
+      definitionKeyPath: hit.definitionKeyPath || old?.definitionKeyPath || '',
+      definitionText: hit.definitionText || old?.definitionText || '',
       domGroupCoverage: Math.max(old?.domGroupCoverage || 0, hit.domGroupCoverage || 0),
       domGroupMatches: [
         ...(old?.domGroupMatches || []),
@@ -1729,6 +1739,8 @@ function searchProjectWithMeta(project, body) {
     .slice(0, limit);
   const i18nTrace = traceI18nReferences(project, body, evidence, textCache, routeHits);
   const i18nHits = i18nTrace.hits || [];
+  const definitionTrace = traceDefinitionReferences(project, body, evidence, textCache);
+  const definitionHits = definitionTrace.hits || [];
   const apiHits = traceApiReferences(project, body, evidence, textCache);
   const apiTrace = apiHits.apiTrace || null;
 
@@ -1744,6 +1756,7 @@ function searchProjectWithMeta(project, body) {
     ...routeDisplayHits,
     ...sortedKeywordHits,
     ...i18nHits,
+    ...definitionHits,
   ])
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
@@ -1753,6 +1766,7 @@ function searchProjectWithMeta(project, body) {
     routeResolver: routeResult.trace,
     apiTrace,
     i18nTrace,
+    definitionTrace,
   };
 }
 

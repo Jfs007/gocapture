@@ -96,6 +96,7 @@ const candidateHits = ref([]);
 const routeResolverTrace = ref(null);
 const apiTrace = ref(null);
 const i18nTrace = ref(null);
+const definitionTrace = ref(null);
 const candidateLoading = ref(false);
 const searchRunning = ref(false);
 const candidateError = ref('');
@@ -302,6 +303,7 @@ const {
   routeResolverTrace,
   apiTrace,
   i18nTrace,
+  definitionTrace,
   evidenceMessages,
   customEvidence,
   promptIntent,
@@ -377,6 +379,7 @@ const {
   routeResolverTrace,
   apiTrace,
   i18nTrace,
+  definitionTrace,
   setToast
 });
 
@@ -1174,6 +1177,7 @@ async function searchCandidateFiles() {
     routeResolverTrace.value = data.routeResolver || null;
     apiTrace.value = data.apiTrace || null;
     i18nTrace.value = data.i18nTrace || null;
+    definitionTrace.value = data.definitionTrace || null;
     if (!candidateHits.value.length) {
       selectedCandidatePaths.value = [];
       candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
@@ -1297,6 +1301,7 @@ watch(effectivePanelWidth, () => {
 watch([project, currentPageHref], () => {
   routeResolverTrace.value = null;
   i18nTrace.value = null;
+  definitionTrace.value = null;
   scheduleRouteResolve();
 });
 

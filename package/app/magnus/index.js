@@ -7585,7 +7585,7 @@ ${result.rawText}` : ""
       timeoutMs: Number(item.timeoutMs || 12e4)
     };
   }
-  function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, setToast }) {
+  function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, definitionTrace, setToast }) {
     const modelConfigs = /* @__PURE__ */ ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
     const selectedModelId = /* @__PURE__ */ ref(loadText(MODEL_SELECTED_KEY, ""));
     const useModelAssist = /* @__PURE__ */ ref(!!selectedModelId.value);
@@ -7743,6 +7743,7 @@ ${result.rawText}` : ""
               routeResolver: routeResolverTrace.value,
               apiTrace: (apiTrace == null ? void 0 : apiTrace.value) || null,
               i18nTrace: (i18nTrace == null ? void 0 : i18nTrace.value) || null,
+              definitionTrace: (definitionTrace == null ? void 0 : definitionTrace.value) || null,
               candidateHits: candidateHits.value.slice(0, 4),
               selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
             },
@@ -8106,6 +8107,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     routeResolverTrace,
     apiTrace,
     i18nTrace,
+    definitionTrace,
     evidenceMessages,
     customEvidence,
     promptIntent,
@@ -8487,6 +8489,7 @@ ${source}` : "",
         lines.push(...apiTraceLogLines());
       }
       lines.push(...i18nTraceLogLines());
+      lines.push(...definitionTraceLogLines());
       for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
         lines.push(...candidateLogLines(hit, index));
       }
@@ -8507,6 +8510,18 @@ ${source}` : "",
       }
       for (const item of (trace.usages || []).slice(0, 4)) {
         lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || "-"}；来源=${item.i18nDefinitionFile || item.from || "-"}`);
+      }
+      return lines;
+    }
+    function definitionTraceLogLines() {
+      const trace = definitionTrace == null ? void 0 : definitionTrace.value;
+      if (!trace || !trace.active) return [];
+      const lines = ["10. 字面量定义链: 已启用"];
+      for (const item of (trace.definitions || []).slice(0, 4)) {
+        lines.push(`   定义文案: ${item.file}；symbol=${item.symbol || "-"}；key=${item.keyPath || "-"}；text=${item.phrase}`);
+      }
+      for (const item of (trace.usages || []).slice(0, 4)) {
+        lines.push(`   定义使用: ${item.file}；symbol=${item.definitionSymbol || "-"}；key=${item.definitionKeyPath || "-"}；来源=${item.definitionFile || item.from || "-"}`);
       }
       return lines;
     }
@@ -10828,6 +10843,7 @@ ${source}` : "",
       const routeResolverTrace = /* @__PURE__ */ ref(null);
       const apiTrace = /* @__PURE__ */ ref(null);
       const i18nTrace = /* @__PURE__ */ ref(null);
+      const definitionTrace = /* @__PURE__ */ ref(null);
       const candidateLoading = /* @__PURE__ */ ref(false);
       const searchRunning = /* @__PURE__ */ ref(false);
       const candidateError = /* @__PURE__ */ ref("");
@@ -11014,6 +11030,7 @@ ${source}` : "",
         routeResolverTrace,
         apiTrace,
         i18nTrace,
+        definitionTrace,
         evidenceMessages,
         customEvidence,
         promptIntent,
@@ -11090,6 +11107,7 @@ ${source}` : "",
         routeResolverTrace,
         apiTrace,
         i18nTrace,
+        definitionTrace,
         setToast
       });
       const { chatMessages } = useChatMessages({
@@ -11827,6 +11845,7 @@ ${source}` : "",
             routeResolverTrace.value = data.routeResolver || null;
             apiTrace.value = data.apiTrace || null;
             i18nTrace.value = data.i18nTrace || null;
+            definitionTrace.value = data.definitionTrace || null;
             if (!candidateHits.value.length) {
               selectedCandidatePaths.value = [];
               candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
@@ -11944,6 +11963,7 @@ ${source}` : "",
       watch([project, currentPageHref], () => {
         routeResolverTrace.value = null;
         i18nTrace.value = null;
+        definitionTrace.value = null;
         scheduleRouteResolve();
       });
       onMounted(() => {

@@ -9,6 +9,7 @@ export function useSearchPrompt({
   routeResolverTrace,
   apiTrace,
   i18nTrace,
+  definitionTrace,
   evidenceMessages,
   customEvidence,
   promptIntent,
@@ -581,6 +582,7 @@ export function useSearchPrompt({
       lines.push(...apiTraceLogLines());
     }
     lines.push(...i18nTraceLogLines());
+    lines.push(...definitionTraceLogLines());
     for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
       lines.push(...candidateLogLines(hit, index));
     }
@@ -601,6 +603,19 @@ export function useSearchPrompt({
     }
     for (const item of (trace.usages || []).slice(0, 4)) {
       lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || '-'}；来源=${item.i18nDefinitionFile || item.from || '-'}`);
+    }
+    return lines;
+  }
+
+  function definitionTraceLogLines() {
+    const trace = definitionTrace?.value;
+    if (!trace || !trace.active) return [];
+    const lines = ['10. 字面量定义链: 已启用'];
+    for (const item of (trace.definitions || []).slice(0, 4)) {
+      lines.push(`   定义文案: ${item.file}；symbol=${item.symbol || '-'}；key=${item.keyPath || '-'}；text=${item.phrase}`);
+    }
+    for (const item of (trace.usages || []).slice(0, 4)) {
+      lines.push(`   定义使用: ${item.file}；symbol=${item.definitionSymbol || '-'}；key=${item.definitionKeyPath || '-'}；来源=${item.definitionFile || item.from || '-'}`);
     }
     return lines;
   }

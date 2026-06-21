@@ -149,7 +149,7 @@ function normalizeModel(raw) {
   };
 }
 
-export function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, setToast }) {
+export function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, definitionTrace, setToast }) {
   const modelConfigs = ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
   const selectedModelId = ref(loadText(MODEL_SELECTED_KEY, ''));
   const useModelAssist = ref(!!selectedModelId.value);
@@ -320,6 +320,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
           routeResolver: routeResolverTrace.value,
           apiTrace: apiTrace?.value || null,
           i18nTrace: i18nTrace?.value || null,
+          definitionTrace: definitionTrace?.value || null,
           candidateHits: candidateHits.value.slice(0, 4),
           selectedCandidateHits: candidateHits.value.filter(hit => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4),
         },
