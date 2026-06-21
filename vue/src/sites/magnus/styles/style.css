@@ -1649,8 +1649,8 @@
 
 .mda-asset-remove {
   position: absolute;
-  top: -14px;
-  right: -12px;
+  top: -10px;
+  right: -10px;
   z-index: 45;
   width: 26px;
   height: 26px;
@@ -1670,7 +1670,8 @@
 
 .mda-asset-card:hover .mda-asset-remove,
 .mda-asset-card:focus-within .mda-asset-remove,
-.mda-asset-chip:hover+.mda-asset-remove {
+.mda-asset-chip:hover .mda-asset-remove,
+.mda-asset-chip:focus .mda-asset-remove {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);

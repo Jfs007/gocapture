@@ -124,18 +124,21 @@
             :key="asset.token"
             class="mda-asset-card"
           >
-            <button
+            <div
               class="mda-asset-chip"
-              type="button"
+              role="button"
+              tabindex="0"
               :title="assetTooltip(asset)"
               @mouseenter="openAssetPopover(asset, $event)"
               @mouseleave="scheduleAssetPopoverHide(asset.uid)"
               @click="handleAssetInsert(asset)"
+              @keydown.enter.prevent="handleAssetInsert(asset)"
+              @keydown.space.prevent="handleAssetInsert(asset)"
             >
               <span v-if="asset.thumbnailUrl" class="mda-asset-thumb" :style="assetThumbStyle(asset)" />
               <span v-else class="mda-asset-thumb is-empty">{{ asset.index }}</span>
-            </button>
-            <button class="mda-asset-remove" type="button" title="移除这个选区" @click="api.removeSelection(asset.uid)">×</button>
+              <button class="mda-asset-remove" type="button" title="移除这个选区" @click.stop="api.removeSelection(asset.uid)">×</button>
+            </div>
           </article>
         </div>
       </div>
