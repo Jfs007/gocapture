@@ -285,6 +285,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
         ].filter(Boolean).slice(0, 10),
         modelPrompt: target.prompt || target.reason || '',
         modelCodeSnippet: target.codeSnippet || '',
+        modelLocateLevel: target.locateLevel || 'exact',
         modelConfidence: target.confidence,
         modelAdapter: result.adapter?.name || ''
       };

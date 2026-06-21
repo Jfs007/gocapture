@@ -2477,6 +2477,9 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 第一步先理解当前选区和扩大选区上下文：tag、selector、className、属性、src/href/background 图片资源、inline style、computed style、宽高、文案、父级线索、区域文本集合、用户需求。',
     '- 不要要求源码结构和页面 DOM 结构严格一致。源码可能来自组件封装、配置对象、render 函数、hook、常量映射、props 组合、样式文件或间接引用。',
     '- 你需要判断源码块在语义、区域、文案集合、class/style/src/background 资源、引用链、接口线索和用户需求上，是否最可能对应当前选区，而不是机械比较 tag/class 层级。',
+    '- 选区证据和 UI 结构是主要定位依据；用户修改要求只用于辅助判断哪个源码块更值得作为改动方向建议，不得覆盖选区结构证据。',
+    '- 用户修改要求只用于辅助区分候选源码块和生成粗加工的 direction 建议；不要按某种框架、组件库或固定实现范式去推断源码。',
+    '- 如果无法确认具体修改点，返回最稳的 UI 结构、组件区域或源码方向即可；不要为了贴合需求强行推断内部实现。',
     '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
     '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
     '- 如果候选里同时存在渲染文件和只承载局部文案/枚举/配置的定义文件，优先返回真正组装当前选区所在界面区域的渲染文件；只有需求明确针对定义源本身时，才返回定义文件。',
@@ -2485,18 +2488,20 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 对没有明确指向配置源的普通界面改动请求，默认理解为修改渲染或组装该区域的源码；只有当需求明确指向状态映射、选项源、枚举或配置定义时，才考虑常量/配置文件。',
     '- 当候选摘要包含 importChain 时，链路文件会一起出现在候选源码中；你需要把链路作为一个整体理解，而不是孤立判断单个文案定义文件。',
     '- 接口线索只会提供请求地址、method 和请求参数字段，不包含响应结果。',
-    `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码文件；当前批次没有足够证据时返回 []。`,
+    `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码文件；当前批次如果能找到明确修改点，返回 exact；如果只能确认源码大致方向但具体逻辑可能在后续修改阶段继续沿引用链追踪，返回 direction；完全无法判断才返回 []。`,
     '- 候选源码由本地系统按 AST/结构节点切分，原则上不会从标签、语句、对象、函数、参数、样式块中间截断。你返回的 "code片段" 也必须是完整闭合源码。',
     '- 当文件标记为 pruned-chain 时，源码已按 Vue/React/HTML/JS/CSS 结构节点剪枝：选区和扩大选区命中的节点必须完整保留，未保留的内容只会按整节点删除；不要要求看到被剪掉的二层调用链。',
-    '- "code片段" 必须直接摘自真实源码内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接；不要包含候选内容里的辅助注释，例如 // selection/code anchor、// anchor、// imports directly related to visible symbols。',
-    '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码、需求。',
-    '- 本轮允许返回多个真正涉及改动的文件；不确定、只是疑似、只有孤立文本命中的文件返回 []。',
+    '- exact 结果的 "code片段" 必须直接摘自真实源码内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接；不要包含候选内容里的辅助注释，例如 // selection/code anchor、// anchor、// imports directly related to visible symbols。',
+    '- direction 结果允许只返回当前文件中最能说明源码方向的连续源码片段；它可以是 UI 结构、组件区域或其它与选区明显相关的源码块。direction 只是后续修改 agent 的优先检查建议，不是最终结论。',
+    '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码方向或源码、需求。',
+    '- 本轮允许返回多个真正涉及改动的文件；完全无法判断候选源码方向时才返回 []。',
     '',
     '返回格式必须严格为：',
     '[',
     '  {',
     '    "path": "相对项目根路径",',
     '    "code片段": "当前批次文件内容中完整闭合的源码片段，必须连续且原样存在，不允许 ...",',
+    '    "定位层级": "exact 或 direction；exact 表示明确修改点，direction 表示源码方向",',
     '    "提示词": "页面: ...\\n文件: ...\\n源码:\\n...\\n需求: ...",',
     '    "confidence": 0-100,',
     '    "selectionEvidence": { "score": 0-100, "reasons": ["为什么该源码块在语义、区域或引用链上最可能对应当前选区，而不是只命中文案"] }',
@@ -2653,7 +2658,10 @@ function hasRouteOrApiSupport(item) {
 }
 
 function modelItemAccepted(item) {
-  if (!item?.exists || !item.snippetVerified || !item.codeSnippet) return false;
+  if (!item?.exists) return false;
+  const directionLevel = item.locateLevel === 'direction';
+  if (!directionLevel && (!item.snippetVerified || !item.codeSnippet)) return false;
+  if (directionLevel && !(item.localPreciseEvidence || (item.localContextScore || 0) >= 42 || (item.localScore || 0) >= 180)) return false;
   if (item.localPreciseEvidence) return true;
   if ((item.localContextScore || 0) >= 42) return true;
   if ((item.selectionEvidenceScore || 0) >= 70) return true;
@@ -2786,6 +2794,9 @@ function validateModelItems(project, parsed, body, textCache) {
     const file = String(item.path || item.file || '').replace(/\\/g, '/').replace(/^\/+/, '');
     const rawCodeSnippet = String(item['code片段'] || item['位置'] || item.codeSnippet || item.location || item.snippet || item.code || '').trim();
     const prompt = String(item['提示词'] || item.prompt || item.instruction || item.reason || '').trim();
+    const locateLevel = /direction|方向|coarse/i.test(String(item['定位层级'] || item.locateLevel || item.level || item.type || ''))
+      ? 'direction'
+      : 'exact';
     const selectionEvidence = item.selectionEvidence || item.match || item.evidence || {};
     const selectionEvidenceScore = Math.max(0, Math.min(Number(
       selectionEvidence.score ?? item.selectionEvidenceScore ?? item.matchScore ?? item.score ?? 0
@@ -2805,6 +2816,7 @@ function validateModelItems(project, parsed, body, textCache) {
       exists: !!projectFile(project, file),
       snippetVerified: snippetResult.snippetVerified,
       snippetSource: snippetResult.snippetSource,
+      locateLevel,
     };
   }).filter(item => item.file);
 }
@@ -3132,13 +3144,13 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     for (const item of allModelItems.filter(item => !modelItemAccepted(item)).slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果丢弃：${item.file}；原因：${!item.snippetVerified ? '代码片段未验证' : '缺少选区语义证据'}；confidence ${item.confidence || 0}；selectionEvidence ${item.selectionEvidenceScore || 0}；本地上下文分 ${item.localContextScore || 0}`
+        `模型结果丢弃：${item.file}；原因：${!item.exists ? '文件不存在' : item.locateLevel !== 'direction' && !item.snippetVerified ? '代码片段未验证' : '缺少本地候选证据'}；confidence ${item.confidence || 0}；selectionEvidence ${item.selectionEvidenceScore || 0}；本地上下文分 ${item.localContextScore || 0}`
       );
     }
     for (const item of modelItems.slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果接收：${item.file}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}；AI语义匹配分 ${item.selectionEvidenceScore || 0}；代码片段${item.snippetVerified ? '已按连续源码原样命中' : '未验证'}`
+        `模型结果接收：${item.file}；定位层级 ${item.locateLevel || 'exact'}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}；AI语义匹配分 ${item.selectionEvidenceScore || 0}；代码片段${item.snippetVerified ? '已按连续源码原样命中' : '未验证'}`
       );
     }
     const multiFileMatches = modelItems.filter(item => item.localPreciseEvidence || item.localScore >= 120);
@@ -3161,6 +3173,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         reason: item.reason,
         codeSnippet: item.codeSnippet,
         prompt: item.prompt,
+        locateLevel: item.locateLevel || 'exact',
         selectionEvidenceScore: item.selectionEvidenceScore,
         selectionEvidenceReasons: item.selectionEvidenceReasons || [],
         localScore: item.localScore,

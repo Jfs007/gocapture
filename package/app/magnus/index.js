@@ -7735,6 +7735,7 @@ ${result.rawText}` : ""
           ].filter(Boolean).slice(0, 10),
           modelPrompt: target.prompt || target.reason || "",
           modelCodeSnippet: target.codeSnippet || "",
+          modelLocateLevel: target.locateLevel || "exact",
           modelConfidence: target.confidence,
           modelAdapter: ((_b = result.adapter) == null ? void 0 : _b.name) || ""
         });
@@ -8294,16 +8295,26 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || "");
         const source = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || hit.modelCodeSnippet || "");
         const requirement = command || "按当前页面上下文完成修改";
+        const directionLevel = hit.modelLocateLevel === "direction";
         return [
           hits.length > 1 ? `任务 ${index + 1}:` : "",
           `文件: ${hit.file}`,
-          location ? `位置:
+          location ? `${directionLevel ? "源码方向" : "位置"}:
 ${location}` : "",
-          source ? `源码:
+          source && !directionLevel ? `源码:
 ${source}` : "",
           `需求: ${requirement}`
         ].filter(Boolean).join("\n");
       }).join("\n\n");
+    }
+    function agentSafetyGuardLines() {
+      return [
+        "执行准则:",
+        "- 上面的文件/源码方向来自页面选区定位，只作为优先检查线索，不是最终结论。",
+        "- 修改前必须重新阅读相关源码，验证页面选区、文案/class/结构、组件引用链或事件链是否能对应到该文件。",
+        "- 如果验证发现该方向不匹配、证据不足，或真正逻辑在父组件/子组件/组合式函数/常量/API 调用处，必须沿引用链重新定位后再修改。",
+        "- 不要为了贴合上述方向而臆测不存在的变量、函数、接口、导入路径或状态管理方式；优先复用项目现有实现。"
+      ].join("\n");
     }
     function referencedPromptAssets(text) {
       const assets = promptAssetItems();
@@ -8607,7 +8618,8 @@ ${source}` : "",
         `当前 page: ${window.location.href}`,
         `页面路径: ${pageUrlPath.value}`,
         tasks || `需求: ${command}`,
-        selectionReference ? `选区文本参考: ${selectionReference}` : ""
+        selectionReference ? `选区文本参考: ${selectionReference}` : "",
+        agentSafetyGuardLines()
       ].filter(Boolean).join("\n\n");
       setToast("提示词已生成");
     }
