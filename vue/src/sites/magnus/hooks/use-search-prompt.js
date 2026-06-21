@@ -314,9 +314,14 @@ export function useSearchPrompt({
     const hits = selectedPromptHits();
     return hits.map((hit, index) => {
       const modelLocation = normalizeSnippetText(hit.modelCodeSnippet || '');
-      const uiSource = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || '');
-      const location = modelLocation || uiSource;
-      const source = uiSource || modelLocation;
+      const hasReliableUiSource = !!(hit.preciseSnippet || hit.uniqueSnippet)
+        && !!(hit.preciseEvidence || hit.exactMatchText || hit.uniqueMatchText || (hit.contextScore || 0) > 0 || (hit.contextReasons || []).length);
+      const uiSource = hasReliableUiSource
+        ? normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || '')
+        : '';
+      const fallbackSource = normalizeSnippetText(hit.snippet || '');
+      const location = modelLocation || uiSource || fallbackSource;
+      const source = modelLocation || uiSource || fallbackSource;
       const requirement = command || '按当前页面上下文完成修改';
       const directionLevel = hit.modelLocateLevel === 'direction';
       const directionGuess = sanitizeModelInstructionText(hit.modelDirectionGuess || '');
