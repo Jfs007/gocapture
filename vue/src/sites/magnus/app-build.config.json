@@ -6,7 +6,8 @@
     "https://winsup.itaored.com",
     "https://www.itaored.com",
     "https://dc.tongmingmedia.com",
-    "http://localhost:3006"
+    "http://localhost:3006",
+    "http://localhost:5173"
   ],
   "supportIframe": false
 }

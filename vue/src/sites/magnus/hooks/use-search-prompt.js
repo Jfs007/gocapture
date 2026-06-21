@@ -8,6 +8,7 @@ export function useSearchPrompt({
   candidateHits,
   routeResolverTrace,
   apiTrace,
+  i18nTrace,
   evidenceMessages,
   customEvidence,
   promptIntent,
@@ -311,12 +312,9 @@ export function useSearchPrompt({
   function finalPromptTaskLines(command) {
     const hits = selectedPromptHits();
     return hits.map((hit, index) => {
-      if (hit.stage === 'model-agent' && hit.modelPrompt) {
-        return sanitizeModelInstructionText(hit.modelPrompt);
-      }
       const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || '');
       const source = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || hit.modelCodeSnippet || '');
-      const requirement = sanitizeModelInstructionText(hit.modelPrompt) || command || '按当前页面上下文完成修改';
+      const requirement = command || '按当前页面上下文完成修改';
       return [
         hits.length > 1 ? `任务 ${index + 1}:` : '',
         `文件: ${hit.file}`,
@@ -582,8 +580,27 @@ export function useSearchPrompt({
       lines.push(`7. 接口线索: ${endpoints.length ? endpoints.join('；') : '未捕获到接口端点'}`);
       lines.push(...apiTraceLogLines());
     }
+    lines.push(...i18nTraceLogLines());
     for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
       lines.push(...candidateLogLines(hit, index));
+    }
+    return lines;
+  }
+
+  function i18nTraceLogLines() {
+    const trace = i18nTrace?.value;
+    if (!trace || !trace.active) return [];
+    const lines = [];
+    const hints = [
+      ...(trace.environment?.packageHints || []),
+      ...(trace.environment?.codeHints || []).slice(0, 3)
+    ].filter(Boolean);
+    lines.push(`9. 国际化识别: 已启用；线索=${hints.length ? hints.join('，') : '语言文件/目录命中'}`);
+    for (const item of (trace.definitions || []).slice(0, 4)) {
+      lines.push(`   国际化文案: ${item.file}；key=${item.keyPath}；text=${item.phrase}`);
+    }
+    for (const item of (trace.usages || []).slice(0, 4)) {
+      lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || '-'}；来源=${item.i18nDefinitionFile || item.from || '-'}`);
     }
     return lines;
   }

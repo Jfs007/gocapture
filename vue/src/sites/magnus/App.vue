@@ -95,6 +95,7 @@ const selectedItems = ref([]);
 const candidateHits = ref([]);
 const routeResolverTrace = ref(null);
 const apiTrace = ref(null);
+const i18nTrace = ref(null);
 const candidateLoading = ref(false);
 const searchRunning = ref(false);
 const candidateError = ref('');
@@ -108,6 +109,7 @@ const selectedCandidatePaths = ref([]);
 const expandedCandidatePath = ref('');
 const selectionConfirmed = ref(false);
 const filesConfirmed = ref(false);
+const modelAssistAttempted = ref(false);
 const promptText = ref('');
 const promptIntent = ref('');
 const layoutTick = ref(0);
@@ -205,9 +207,10 @@ const hasReliableCandidateEvidence = computed(() => {
     return hit.stage === 'model-agent' || hit.preciseEvidence;
   });
 });
-const needsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
 const showCandidatePicker = computed(() => {
-  return candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value;
+  return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
 });
 const composerEditable = computed(() => selectedItems.value.length > 0);
 const composerPlaceholder = computed(() => selectedItems.value.length
@@ -298,6 +301,7 @@ const {
   candidateHits,
   routeResolverTrace,
   apiTrace,
+  i18nTrace,
   evidenceMessages,
   customEvidence,
   promptIntent,
@@ -372,6 +376,7 @@ const {
   searchPayload,
   routeResolverTrace,
   apiTrace,
+  i18nTrace,
   setToast
 });
 
@@ -590,6 +595,7 @@ function resetPromptComposer() {
 function invalidateSelectionConfirm() {
   selectionConfirmed.value = false;
   filesConfirmed.value = false;
+  modelAssistAttempted.value = false;
   candidateHits.value = [];
   candidateError.value = '';
   selectedCandidatePaths.value = [];
@@ -611,6 +617,7 @@ function clearCandidateState() {
   selectedCandidatePaths.value = [];
   expandedCandidatePath.value = '';
   filesConfirmed.value = false;
+  modelAssistAttempted.value = false;
   resetModelAssist();
   invalidatePrompt();
 }
@@ -942,6 +949,7 @@ function modelAssistUnavailableText() {
 
 async function runModelAssistForCandidates(userInstruction) {
   if (!candidateHits.value.length) return false;
+  modelAssistAttempted.value = true;
   if (!useModelAssist.value || !canUseModelAssist.value) {
     const text = modelAssistUnavailableText();
     candidateError.value = text;
@@ -1141,6 +1149,7 @@ function clearSelections() {
 async function searchCandidateFiles() {
   candidateLoading.value = true;
   candidateError.value = '';
+  modelAssistAttempted.value = false;
   resetModelAssist();
   filesConfirmed.value = false;
   try {
@@ -1164,6 +1173,7 @@ async function searchCandidateFiles() {
     candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
     routeResolverTrace.value = data.routeResolver || null;
     apiTrace.value = data.apiTrace || null;
+    i18nTrace.value = data.i18nTrace || null;
     if (!candidateHits.value.length) {
       selectedCandidatePaths.value = [];
       candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
@@ -1286,6 +1296,7 @@ watch(effectivePanelWidth, () => {
 
 watch([project, currentPageHref], () => {
   routeResolverTrace.value = null;
+  i18nTrace.value = null;
   scheduleRouteResolve();
 });
 

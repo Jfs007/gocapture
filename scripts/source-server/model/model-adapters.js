@@ -1163,12 +1163,64 @@ function stableLocalModelCandidate(body) {
   const top = sorted[0];
   const second = sorted[1];
   if (!top) return null;
+  if (top.i18nEvidence || top.i18nDefinitionFile || hitStages(top).some(stage => /^i18n-/.test(stage))) return null;
+  const hasPreciseLocalEvidence = top.preciseEvidence
+    || top.exactMatchText
+    || top.uniqueMatchText
+    || Number(top.contextStrongMatchCount || 0) >= 2;
+  if (!hasPreciseLocalEvidence) return null;
   const topScore = Number(top.score || 0);
   const secondScore = Number(second?.score || 0);
   if (topScore >= 220 && (!second || topScore - secondScore >= 60)) {
     return top;
   }
   return null;
+}
+
+function i18nRelatedCandidateHits(body) {
+  const trace = body?.i18nTrace;
+  if (!trace?.active) return [];
+  const hits = [];
+  for (const definition of trace.definitions || []) {
+    const file = normalizeModelFilePath(definition?.file);
+    if (!file) continue;
+    hits.push({
+      file,
+      score: 260,
+      stage: 'i18n-definition-context',
+      stages: ['i18n-definition-context'],
+      from: '',
+      i18nEvidence: true,
+      i18nKey: definition.keyPath || '',
+      i18nText: definition.phrase || '',
+      i18nDefinitionFile: file,
+      preciseEvidence: true,
+      exactMatchText: definition.phrase || '',
+      uniqueMatchText: definition.phrase || '',
+      snippet: definition.snippet || '',
+      preciseSnippet: definition.snippet || '',
+      uniqueSnippet: definition.snippet || '',
+      contextScore: 80,
+      contextReasons: [`国际化定义上下文：${definition.keyPath || ''} = ${definition.phrase || ''}`],
+      reasons: [
+        `国际化定义文件：${file}`,
+        `国际化 key：${definition.keyPath || ''} = ${definition.phrase || ''}`,
+      ],
+    });
+  }
+  for (const usage of trace.usages || []) {
+    const file = normalizeModelFilePath(usage?.file);
+    if (!file) continue;
+    hits.push({
+      ...usage,
+      file,
+      stage: usage.stage || 'i18n-usage-context',
+      stages: mergeList(usage.stages || usage.stage, 'i18n-usage-context'),
+      score: Math.max(usage.score || 0, 300),
+      preciseEvidence: true,
+    });
+  }
+  return hits;
 }
 
 function modelCandidateHits(body, logs) {
@@ -1224,6 +1276,7 @@ function modelCandidateHits(body, logs) {
     if (routeEntries.length && !isSelectionMatchedHit(hit) && !isPageScopedHit(hit, routeEntries)) continue;
     push(hit, 'candidate');
   }
+  for (const hit of i18nRelatedCandidateHits(body)) push(hit, 'i18n-context');
 
   if (routeEntries.length && Array.isArray(logs)) {
     appendLog(logs, `页面源码范围：${routeEntries.join('，')}；模型只读取页面入口、页面 import 链路或强选区证据候选`);
@@ -2231,6 +2284,30 @@ function routeResolverSummary(trace) {
   };
 }
 
+function i18nTraceSummary(trace) {
+  if (!trace || !trace.active) return null;
+  return {
+    active: true,
+    environment: {
+      packageHints: trace.environment?.packageHints || [],
+      codeHints: (trace.environment?.codeHints || []).slice(0, 6),
+      i18nFiles: (trace.environment?.i18nFiles || []).slice(0, 8),
+    },
+    definitions: (trace.definitions || []).slice(0, 8).map(item => ({
+      file: item.file,
+      keyPath: item.keyPath,
+      phrase: item.phrase,
+    })),
+    usages: (trace.usages || []).slice(0, 8).map(item => ({
+      file: item.file,
+      keyPath: item.i18nKey || item.keyPath || '',
+      phrase: item.i18nText || '',
+      definitionFile: item.i18nDefinitionFile || item.from || '',
+      score: item.score || 0,
+    })),
+  };
+}
+
 function candidateFactsSummary(candidateHits) {
   return (candidateHits || []).slice(0, 30).map(hit => ({
     file: hit.file,
@@ -2245,6 +2322,9 @@ function candidateFactsSummary(candidateHits) {
     preciseEvidence: !!hit.preciseEvidence,
     exactMatchText: hit.exactMatchText || '',
     uniqueMatchText: hit.uniqueMatchText || '',
+    i18nKey: hit.i18nKey || '',
+    i18nText: hit.i18nText || '',
+    i18nDefinitionFile: hit.i18nDefinitionFile || '',
     classEvidence: (hit.contextReasons || []).slice(0, 2),
     contextScope: hit.contextScope || '',
     contextLayerDepth: hit.contextLayerDepth || 0,
@@ -2285,6 +2365,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
   const apiRequests = Array.isArray(payload.apiRequests) ? payload.apiRequests : [];
   const routeSummary = routeResolverSummary(body.routeResolver);
   const apiTraceFacts = apiTraceSummary(body.apiTrace);
+  const i18nTraceFacts = i18nTraceSummary(body.i18nTrace);
   const candidateFacts = candidateFactsSummary(mergedCandidateFacts(body));
   const batchIndex = Math.max(1, Number(options.batchIndex || 1));
   const batchTotal = Math.max(batchIndex, Number(options.batchTotal || 1));
@@ -2314,7 +2395,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码文件；当前批次没有足够证据时返回 []。`,
     '- 候选源码由本地系统按 AST/结构节点切分，原则上不会从标签、语句、对象、函数、参数、样式块中间截断。你返回的 "code片段" 也必须是完整闭合源码。',
     '- 当文件标记为 pruned-chain 时，源码已按 Vue/React/HTML/JS/CSS 结构节点剪枝：选区和扩大选区命中的节点必须完整保留，未保留的内容只会按整节点删除；不要要求看到被剪掉的二层调用链。',
-    '- "code片段" 必须直接摘自当前批次文件内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接。',
+    '- "code片段" 必须直接摘自真实源码内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接；不要包含候选内容里的辅助注释，例如 // selection/code anchor、// anchor、// imports directly related to visible symbols。',
     '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码、需求。',
     '- 本轮允许返回多个真正涉及改动的文件；不确定、只是疑似、只有孤立文本命中的文件返回 []。',
     '',
@@ -2341,6 +2422,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '',
     payload.selectionInstructions?.length ? `按选区拆分后的修改要求:\n${safeJson(payload.selectionInstructions)}` : '',
     routeSummary ? `路由入口线索:\n${safeJson(routeSummary)}` : '',
+    i18nTraceFacts ? `国际化线索:\n${safeJson(i18nTraceFacts)}` : '',
     candidateFacts.length ? `候选文件摘要:\n${safeJson(candidateFacts)}` : '',
     apiRequests.length ? `接口线索:\n${safeJson(apiRequests.slice(0, 4))}` : '',
     apiTraceFacts.length ? `接口引用链:\n${safeJson(apiTraceFacts)}` : '',
@@ -2538,6 +2620,44 @@ function exactSnippetIndex(text, snippet) {
   return content.replace(/\r\n/g, '\n').indexOf(raw.replace(/\r\n/g, '\n'));
 }
 
+function stripPrunedHelperComments(snippet) {
+  return String(snippet || '')
+    .split('\n')
+    .filter(line => {
+      const text = line.trim();
+      return !/^\/\/\s*(imports directly related to visible symbols|selection\/code anchor|anchor\s+\d+:)/i.test(text);
+    })
+    .join('\n')
+    .trim();
+}
+
+function stripLeadingImports(snippet) {
+  const lines = String(snippet || '').split('\n');
+  let index = 0;
+  while (index < lines.length) {
+    const text = lines[index].trim();
+    if (!text) {
+      index++;
+      continue;
+    }
+    if (/^import\b/.test(text)) {
+      index++;
+      continue;
+    }
+    break;
+  }
+  return lines.slice(index).join('\n').trim();
+}
+
+function modelSnippetCandidates(snippet) {
+  const raw = String(snippet || '').trim();
+  const withoutHelpers = stripPrunedHelperComments(raw);
+  const withoutImports = stripLeadingImports(withoutHelpers);
+  return mergeList(raw, withoutHelpers, withoutImports)
+    .map(item => String(item || '').trim())
+    .filter(item => item.length >= 24);
+}
+
 function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
   const file = projectFile(project, filePath);
   if (!file) {
@@ -2549,13 +2669,15 @@ function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
   }
 
   const text = readProjectText(project, file, textCache || new Map());
-  const directIndex = exactSnippetIndex(text, codeSnippet);
-  if (directIndex !== -1) {
-    return {
-      codeSnippet: String(codeSnippet || '').trim(),
-      snippetVerified: true,
-      snippetSource: 'model',
-    };
+  for (const candidate of modelSnippetCandidates(codeSnippet)) {
+    const directIndex = exactSnippetIndex(text, candidate);
+    if (directIndex !== -1) {
+      return {
+        codeSnippet: candidate,
+        snippetVerified: true,
+        snippetSource: candidate === String(codeSnippet || '').trim() ? 'model' : 'normalized-model',
+      };
+    }
   }
 
   return {

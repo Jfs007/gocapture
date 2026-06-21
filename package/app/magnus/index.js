@@ -7585,7 +7585,7 @@ ${result.rawText}` : ""
       timeoutMs: Number(item.timeoutMs || 12e4)
     };
   }
-  function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, setToast }) {
+  function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, setToast }) {
     const modelConfigs = /* @__PURE__ */ ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
     const selectedModelId = /* @__PURE__ */ ref(loadText(MODEL_SELECTED_KEY, ""));
     const useModelAssist = /* @__PURE__ */ ref(!!selectedModelId.value);
@@ -7742,6 +7742,7 @@ ${result.rawText}` : ""
               pagePath: ((_a = routeResolverTrace.value) == null ? void 0 : _a.pagePath) || "",
               routeResolver: routeResolverTrace.value,
               apiTrace: (apiTrace == null ? void 0 : apiTrace.value) || null,
+              i18nTrace: (i18nTrace == null ? void 0 : i18nTrace.value) || null,
               candidateHits: candidateHits.value.slice(0, 4),
               selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
             },
@@ -8104,6 +8105,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     candidateHits,
     routeResolverTrace,
     apiTrace,
+    i18nTrace,
     evidenceMessages,
     customEvidence,
     promptIntent,
@@ -8245,14 +8247,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function normalizeInstructionText(value) {
       return String(value || "").split("\n").map((line) => line.trim()).filter(Boolean).join("\n").trim();
     }
-    function sanitizeModelInstructionText(value) {
-      let text = normalizeInstructionText(value);
-      if (!text) return "";
-      text = text.replace(/需要引入[^。\n；]*(?:http|axios|request|fetch)[^。\n；]*/ig, "沿用项目现有 API 调用方式完成接口请求");
-      text = text.replace(/[（(]如[^）)]*(?:http|axios|request|fetch|@\/)[^）)]*[）)]/ig, "");
-      text = text.split("\n").map((line) => line.replace(/[ \t]{2,}/g, " ").trimEnd()).join("\n").trim();
-      return text;
-    }
     function selectedPromptHits() {
       return selectedCandidateHits.value.length ? selectedCandidateHits.value : candidateHits.value.slice(0, 1);
     }
@@ -8268,12 +8262,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function finalPromptTaskLines(command) {
       const hits = selectedPromptHits();
       return hits.map((hit, index) => {
-        if (hit.stage === "model-agent" && hit.modelPrompt) {
-          return sanitizeModelInstructionText(hit.modelPrompt);
-        }
         const location = normalizeSnippetText(hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || "");
         const source = normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || hit.modelCodeSnippet || "");
-        const requirement = sanitizeModelInstructionText(hit.modelPrompt) || command || "按当前页面上下文完成修改";
+        const requirement = command || "按当前页面上下文完成修改";
         return [
           hits.length > 1 ? `任务 ${index + 1}:` : "",
           `文件: ${hit.file}`,
@@ -8495,8 +8486,27 @@ ${source}` : "",
         lines.push(`7. 接口线索: ${endpoints.length ? endpoints.join("；") : "未捕获到接口端点"}`);
         lines.push(...apiTraceLogLines());
       }
+      lines.push(...i18nTraceLogLines());
       for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
         lines.push(...candidateLogLines(hit, index));
+      }
+      return lines;
+    }
+    function i18nTraceLogLines() {
+      var _a, _b;
+      const trace = i18nTrace == null ? void 0 : i18nTrace.value;
+      if (!trace || !trace.active) return [];
+      const lines = [];
+      const hints = [
+        ...((_a = trace.environment) == null ? void 0 : _a.packageHints) || [],
+        ...(((_b = trace.environment) == null ? void 0 : _b.codeHints) || []).slice(0, 3)
+      ].filter(Boolean);
+      lines.push(`9. 国际化识别: 已启用；线索=${hints.length ? hints.join("，") : "语言文件/目录命中"}`);
+      for (const item of (trace.definitions || []).slice(0, 4)) {
+        lines.push(`   国际化文案: ${item.file}；key=${item.keyPath}；text=${item.phrase}`);
+      }
+      for (const item of (trace.usages || []).slice(0, 4)) {
+        lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || "-"}；来源=${item.i18nDefinitionFile || item.from || "-"}`);
       }
       return lines;
     }
@@ -10817,6 +10827,7 @@ ${source}` : "",
       const candidateHits = /* @__PURE__ */ ref([]);
       const routeResolverTrace = /* @__PURE__ */ ref(null);
       const apiTrace = /* @__PURE__ */ ref(null);
+      const i18nTrace = /* @__PURE__ */ ref(null);
       const candidateLoading = /* @__PURE__ */ ref(false);
       const searchRunning = /* @__PURE__ */ ref(false);
       const candidateError = /* @__PURE__ */ ref("");
@@ -10830,6 +10841,7 @@ ${source}` : "",
       const expandedCandidatePath = /* @__PURE__ */ ref("");
       const selectionConfirmed = /* @__PURE__ */ ref(false);
       const filesConfirmed = /* @__PURE__ */ ref(false);
+      const modelAssistAttempted = /* @__PURE__ */ ref(false);
       const promptText = /* @__PURE__ */ ref("");
       const promptIntent = /* @__PURE__ */ ref("");
       const layoutTick = /* @__PURE__ */ ref(0);
@@ -10917,9 +10929,10 @@ ${source}` : "",
           return hit.stage === "model-agent" || hit.preciseEvidence;
         });
       });
-      const needsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+      const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+      const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
       const showCandidatePicker = computed(() => {
-        return candidateHits.value.length > 1 && !filesConfirmed.value && !needsMoreEvidence.value;
+        return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
       });
       const composerEditable = computed(() => selectedItems.value.length > 0);
       const composerPlaceholder = computed(
@@ -11000,6 +11013,7 @@ ${source}` : "",
         candidateHits,
         routeResolverTrace,
         apiTrace,
+        i18nTrace,
         evidenceMessages,
         customEvidence,
         promptIntent,
@@ -11075,6 +11089,7 @@ ${source}` : "",
         searchPayload,
         routeResolverTrace,
         apiTrace,
+        i18nTrace,
         setToast
       });
       const { chatMessages } = useChatMessages({
@@ -11276,6 +11291,7 @@ ${source}` : "",
       function invalidateSelectionConfirm() {
         selectionConfirmed.value = false;
         filesConfirmed.value = false;
+        modelAssistAttempted.value = false;
         candidateHits.value = [];
         candidateError.value = "";
         selectedCandidatePaths.value = [];
@@ -11295,6 +11311,7 @@ ${source}` : "",
         selectedCandidatePaths.value = [];
         expandedCandidatePath.value = "";
         filesConfirmed.value = false;
+        modelAssistAttempted.value = false;
         resetModelAssist();
         invalidatePrompt();
       }
@@ -11604,6 +11621,7 @@ ${source}` : "",
       function runModelAssistForCandidates(userInstruction) {
         return __async(this, null, function* () {
           if (!candidateHits.value.length) return false;
+          modelAssistAttempted.value = true;
           if (!useModelAssist.value || !canUseModelAssist.value) {
             const text = modelAssistUnavailableText();
             candidateError.value = text;
@@ -11784,6 +11802,7 @@ ${source}` : "",
           var _a;
           candidateLoading.value = true;
           candidateError.value = "";
+          modelAssistAttempted.value = false;
           resetModelAssist();
           filesConfirmed.value = false;
           try {
@@ -11807,6 +11826,7 @@ ${source}` : "",
             candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
             routeResolverTrace.value = data.routeResolver || null;
             apiTrace.value = data.apiTrace || null;
+            i18nTrace.value = data.i18nTrace || null;
             if (!candidateHits.value.length) {
               selectedCandidatePaths.value = [];
               candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
@@ -11923,6 +11943,7 @@ ${source}` : "",
       });
       watch([project, currentPageHref], () => {
         routeResolverTrace.value = null;
+        i18nTrace.value = null;
         scheduleRouteResolve();
       });
       onMounted(() => {

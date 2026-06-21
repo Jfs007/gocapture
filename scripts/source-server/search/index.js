@@ -8,6 +8,7 @@ const {
   scoreRefinementLayerText,
 } = require('./evidence');
 const { traceApiReferences } = require('./api-trace');
+const { traceI18nReferences } = require('./i18n-trace');
 const { buildFileMap, importedFiles } = require('./import-trace');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const { makeSnippet, uniq } = require('../utils');
@@ -1726,6 +1727,8 @@ function searchProjectWithMeta(project, body) {
   const sortedKeywordHits = localHits
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+  const i18nTrace = traceI18nReferences(project, body, evidence, textCache, routeHits);
+  const i18nHits = i18nTrace.hits || [];
   const apiHits = traceApiReferences(project, body, evidence, textCache);
   const apiTrace = apiHits.apiTrace || null;
 
@@ -1740,6 +1743,7 @@ function searchProjectWithMeta(project, body) {
   const hits = mergeHits([
     ...routeDisplayHits,
     ...sortedKeywordHits,
+    ...i18nHits,
   ])
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
@@ -1748,6 +1752,7 @@ function searchProjectWithMeta(project, body) {
     hits,
     routeResolver: routeResult.trace,
     apiTrace,
+    i18nTrace,
   };
 }
 
