@@ -65,6 +65,24 @@ export function useSearchPrompt({
     ]));
   }
 
+  function hasUsefulExpandedFallback(selfInfo, expandedInfo) {
+    const selfText = String(denoiseTextByApi(selfInfo?.text || '') || '').replace(/\s+/g, ' ').trim();
+    const expandedText = String(denoiseTextByApi(expandedInfo?.text || '') || '').replace(/\s+/g, ' ').trim();
+    const selfTerms = new Set(searchContextTerms(selfInfo));
+    const expandedTerms = searchContextTerms(expandedInfo);
+    const addedTerms = expandedTerms.filter(term => !selfTerms.has(term));
+    if (addedTerms.length >= 2) return true;
+    if (contextTextTerms(expandedInfo).some(term => !selfTerms.has(term))
+      && [
+        ...contextClassTerms(expandedInfo),
+        ...contextAttrTerms(expandedInfo),
+        ...contextStyleTerms(expandedInfo)
+      ].some(term => !selfTerms.has(term))) return true;
+    if (selfText && expandedText && expandedText.length > selfText.length && expandedText.length <= 260) return true;
+    if (!selfText && expandedText && expandedText.length <= 220) return true;
+    return false;
+  }
+
   function searchContextSpecificityScore(info) {
     const phrase = String(denoiseTextByApi(info?.text || '') || '').trim();
     const phraseScore = phrase.length >= 2 && phrase.length <= 32
@@ -99,6 +117,7 @@ export function useSearchPrompt({
 
   function shouldKeepExpandedSearchContext(selfInfo, expandedInfo) {
     if (!selfInfo || !expandedInfo) return false;
+    if (hasUsefulExpandedFallback(selfInfo, expandedInfo)) return true;
     const selfSpecificity = searchContextSpecificityScore(selfInfo);
     if (selfSpecificity < 18) return true;
 
@@ -479,19 +498,6 @@ export function useSearchPrompt({
       terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
       terms.push(...extractSearchTerms(item.info.className));
       terms.push(...subtreeSearchTerms(item.info.subtree));
-      const ancestors = expandedRetry
-        ? (item.info?.ancestors || [])
-        : filteredAncestorsForSearch(item.info);
-      for (const ancestor of ancestors) {
-        terms.push(...extractSearchTerms(denoiseTextByApi(ancestor.text)));
-        terms.push(...extractSearchTerms(ancestor.className));
-        terms.push(...subtreeSearchTerms(ancestor.subtree));
-      }
-      if (expandedRetry && item.assetInfo) {
-        terms.push(...extractSearchTerms(denoiseTextByApi(item.assetInfo.text)));
-        terms.push(...extractSearchTerms(item.assetInfo.className));
-        terms.push(...subtreeSearchTerms(item.assetInfo.subtree));
-      }
     }
     return Array.from(new Set(terms)).slice(0, 28).join(' ');
   }

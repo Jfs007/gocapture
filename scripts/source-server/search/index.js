@@ -1660,7 +1660,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
       'local-initial',
       `${scope.name}：仅用当前选区文案/class 初始命中`,
       {
-        allowAncestorFallback: true,
+        allowAncestorFallback: false,
         fileFilter: isUiSourceFile,
       }
     );

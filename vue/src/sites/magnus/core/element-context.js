@@ -451,6 +451,21 @@ export function shouldPromoteContext(baseEvidence, nextEvidence) {
   return result.score >= 10;
 }
 
+function hasUsefulAncestorFallback(baseEvidence, nextEvidence) {
+  const baseText = String(baseEvidence?.text || '').replace(/\s+/g, ' ').trim();
+  const nextText = String(nextEvidence?.text || '').replace(/\s+/g, ' ').trim();
+  const textGrowth = evidenceGrowth(baseEvidence?.textTerms, nextEvidence?.textTerms);
+  const classGrowth = evidenceGrowth(baseEvidence?.classTerms, nextEvidence?.classTerms);
+  const attrGrowth = evidenceGrowth(baseEvidence?.attrTerms, nextEvidence?.attrTerms);
+  const styleGrowth = evidenceGrowth(baseEvidence?.styleTerms, nextEvidence?.styleTerms);
+  const addedEvidence = textGrowth.added + classGrowth.added + attrGrowth.added + styleGrowth.added;
+  if (addedEvidence >= 2) return true;
+  if (textGrowth.added >= 1 && (classGrowth.added + attrGrowth.added + styleGrowth.added) >= 1) return true;
+  if (baseText && nextText && nextText.length > baseText.length && nextText.length <= 260) return true;
+  if (!baseText && nextText && nextText.length <= 220) return true;
+  return false;
+}
+
 export function getAncestorInfo(element, options = {}) {
   const result = [];
   let node = element.parentElement;
@@ -477,7 +492,7 @@ export function getAncestorInfo(element, options = {}) {
         styleLimit: 16
       }
     });
-    if (!shouldPromoteContext(currentEvidence, nextEvidence)) {
+    if (!shouldPromoteContext(currentEvidence, nextEvidence) && !hasUsefulAncestorFallback(currentEvidence, nextEvidence)) {
       node = node.parentElement;
       continue;
     }

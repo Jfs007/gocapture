@@ -1086,19 +1086,21 @@ function includeDeclarationPrefix(content, range) {
 }
 
 function mergeRanges(ranges, limit = MAX_MODEL_FILES) {
-  const sorted = ranges
+  const ordered = ranges
     .filter(range => range && range.end > range.start)
-    .sort((a, b) => a.start - b.start || a.end - b.end);
+    .slice(0, limit * 3);
   const merged = [];
-  for (const range of sorted) {
-    const last = merged[merged.length - 1];
-    if (!last || range.start > last.end) {
+  for (const range of ordered) {
+    const overlapped = merged.find(item => !(range.end < item.start || range.start > item.end));
+    if (!overlapped) {
       merged.push({ ...range });
+      if (merged.length >= limit) break;
       continue;
     }
-    last.end = Math.max(last.end, range.end);
+    overlapped.start = Math.min(overlapped.start, range.start);
+    overlapped.end = Math.max(overlapped.end, range.end);
   }
-  return merged.slice(0, limit);
+  return merged;
 }
 
 function candidateHitForFile(body, filePath) {
@@ -1811,6 +1813,65 @@ function completeRangeText(content, range) {
   return source.slice(Math.max(0, range.start), Math.min(source.length, range.end)).trim();
 }
 
+function evidenceFamily(label) {
+  const text = String(label || '');
+  if (/文案|文本|精确|唯一/.test(text)) return 'text';
+  if (/class/i.test(text)) return 'class';
+  if (/样式|宽度|高度|objectFit|object-fit|background|borderRadius|border-radius|css/i.test(text)) return 'style';
+  if (/属性|attr|href|key|value|role|title|aria/i.test(text)) return 'attr';
+  if (/图片|资源|img|image|src|poster/i.test(text)) return 'resource';
+  if (/片段/.test(text)) return 'snippet';
+  return 'other';
+}
+
+function rangeContainsSeed(rangeText, seedText) {
+  const content = String(rangeText || '');
+  const needle = String(seedText || '').trim();
+  if (!content || !needle) return false;
+  const lowerContent = content.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
+  if (lowerContent.includes(lowerNeedle)) return true;
+  if (!/\s/.test(needle)) return false;
+  return lowerContent.replace(/\s+/g, ' ').includes(lowerNeedle.replace(/\s+/g, ' '));
+}
+
+function isCommentOnlyRangeText(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return text.startsWith('//') || text.startsWith('/*') || text.startsWith('<!--');
+}
+
+function rangeSeedEvidenceScore(rangeText, seedItems) {
+  const content = String(rangeText || '');
+  if (!content || !Array.isArray(seedItems) || !seedItems.length) {
+    return { score: 0, matchedCount: 0, familyCount: 0 };
+  }
+  let score = 0;
+  let matchedCount = 0;
+  const families = new Set();
+  const seen = new Set();
+  for (const seed of seedItems) {
+    const text = String(seed?.text || '').trim();
+    if (!text || text.length < 2 || seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    const priority = seed.priority ?? pruneEvidencePriority(seed.label);
+    const weak = weakSelectionSeed(text) || /^\d+(?:\.\d+)?(?:px|em|rem|%)?$/i.test(text);
+    if (weak && priority < 4) continue;
+    if (!rangeContainsSeed(content, text)) continue;
+    matchedCount += 1;
+    families.add(evidenceFamily(seed.label));
+    score += Math.min(seed.weight || 0, 360) + priority * 24;
+  }
+  if (matchedCount >= 2) score += Math.min(1200, matchedCount * 140);
+  if (families.size >= 2) score += Math.min(720, families.size * 160);
+  if (isCommentOnlyRangeText(content)) score = Math.floor(score * 0.15);
+  return {
+    score,
+    matchedCount,
+    familyCount: families.size,
+  };
+}
+
 function weightedAnchorSeeds(hit, payload, needles) {
   const map = new Map();
   const add = (seed, weight, label) => {
@@ -2059,8 +2120,22 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
     selectedRanges.push(range);
   }
 
-  const anchorRanges = mergeRanges(selectedRanges
-    .sort((a, b) => (b.anchorWeight || 0) - (a.anchorWeight || 0) || (a.end - a.start) - (b.end - b.start) || a.start - b.start)
+  const scoredRanges = selectedRanges.map(range => {
+    const evidence = rangeSeedEvidenceScore(completeRangeText(rawText, range), seedItems);
+    return {
+      ...range,
+      cooccurrenceScore: evidence.score,
+      matchedAnchorCount: evidence.matchedCount,
+      evidenceFamilyCount: evidence.familyCount,
+    };
+  });
+  const anchorRanges = mergeRanges(scoredRanges
+    .sort((a, b) => (b.cooccurrenceScore || 0) - (a.cooccurrenceScore || 0)
+      || (b.evidenceFamilyCount || 0) - (a.evidenceFamilyCount || 0)
+      || (b.matchedAnchorCount || 0) - (a.matchedAnchorCount || 0)
+      || (b.anchorWeight || 0) - (a.anchorWeight || 0)
+      || (a.end - a.start) - (b.end - b.start)
+      || a.start - b.start)
     .slice(0, 72), 24);
   let anchorText = '';
   let skippedCompleteBlocks = 0;
@@ -2500,6 +2575,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 需要给出一段简短的 "推测方向"：基于当前候选源码、选区结构和用户修改要求，说明后续修改 agent 可以优先检查什么；它只是建议，不是最终结论。',
     '- 如果无法确认具体修改点，返回最稳的 UI 结构、组件区域或源码方向即可；不要为了贴合需求强行推断内部实现。',
     '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
+    '- 如果选区文本像运行时数据（例如价格、数量、日期、ID、状态值、后端返回字段），不要把该文本当作源码字面量；必须结合父级/同区域文本、属性、class、样式、候选源码里的数据字段或渲染块判断。',
     '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
     '- 如果候选里同时存在渲染文件和只承载局部文案/枚举/配置的定义文件，优先返回真正组装当前选区所在界面区域的渲染文件；只有需求明确针对定义源本身时，才返回定义文件。',
     '- 页面路由、接口线索、本地候选分数只是辅助，不得覆盖当前选区语义证据。',

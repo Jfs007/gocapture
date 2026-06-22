@@ -7177,6 +7177,20 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     if (result.novelCount >= 2 && result.score >= 8) return true;
     return result.score >= 10;
   }
+  function hasUsefulAncestorFallback(baseEvidence, nextEvidence) {
+    const baseText = String((baseEvidence == null ? void 0 : baseEvidence.text) || "").replace(/\s+/g, " ").trim();
+    const nextText = String((nextEvidence == null ? void 0 : nextEvidence.text) || "").replace(/\s+/g, " ").trim();
+    const textGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.textTerms, nextEvidence == null ? void 0 : nextEvidence.textTerms);
+    const classGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.classTerms, nextEvidence == null ? void 0 : nextEvidence.classTerms);
+    const attrGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.attrTerms, nextEvidence == null ? void 0 : nextEvidence.attrTerms);
+    const styleGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.styleTerms, nextEvidence == null ? void 0 : nextEvidence.styleTerms);
+    const addedEvidence = textGrowth.added + classGrowth.added + attrGrowth.added + styleGrowth.added;
+    if (addedEvidence >= 2) return true;
+    if (textGrowth.added >= 1 && classGrowth.added + attrGrowth.added + styleGrowth.added >= 1) return true;
+    if (baseText && nextText && nextText.length > baseText.length && nextText.length <= 260) return true;
+    if (!baseText && nextText && nextText.length <= 220) return true;
+    return false;
+  }
   function getAncestorInfo(element, options = {}) {
     var _a;
     const result = [];
@@ -7204,7 +7218,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           styleLimit: 16
         }
       });
-      if (!shouldPromoteContext(currentEvidence, nextEvidence)) {
+      if (!shouldPromoteContext(currentEvidence, nextEvidence) && !hasUsefulAncestorFallback(currentEvidence, nextEvidence)) {
         node = node.parentElement;
         continue;
       }
@@ -8194,6 +8208,22 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         ...contextStyleTerms(info)
       ]));
     }
+    function hasUsefulExpandedFallback(selfInfo, expandedInfo) {
+      const selfText = String(denoiseTextByApi((selfInfo == null ? void 0 : selfInfo.text) || "") || "").replace(/\s+/g, " ").trim();
+      const expandedText = String(denoiseTextByApi((expandedInfo == null ? void 0 : expandedInfo.text) || "") || "").replace(/\s+/g, " ").trim();
+      const selfTerms = new Set(searchContextTerms(selfInfo));
+      const expandedTerms = searchContextTerms(expandedInfo);
+      const addedTerms = expandedTerms.filter((term) => !selfTerms.has(term));
+      if (addedTerms.length >= 2) return true;
+      if (contextTextTerms(expandedInfo).some((term) => !selfTerms.has(term)) && [
+        ...contextClassTerms(expandedInfo),
+        ...contextAttrTerms(expandedInfo),
+        ...contextStyleTerms(expandedInfo)
+      ].some((term) => !selfTerms.has(term))) return true;
+      if (selfText && expandedText && expandedText.length > selfText.length && expandedText.length <= 260) return true;
+      if (!selfText && expandedText && expandedText.length <= 220) return true;
+      return false;
+    }
     function searchContextSpecificityScore(info) {
       const phrase = String(denoiseTextByApi((info == null ? void 0 : info.text) || "") || "").trim();
       const phraseScore = phrase.length >= 2 && phrase.length <= 32 ? 14 : phrase.length > 32 ? 8 : 0;
@@ -8214,6 +8244,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     }
     function shouldKeepExpandedSearchContext(selfInfo, expandedInfo) {
       if (!selfInfo || !expandedInfo) return false;
+      if (hasUsefulExpandedFallback(selfInfo, expandedInfo)) return true;
       const selfSpecificity = searchContextSpecificityScore(selfInfo);
       if (selfSpecificity < 18) return true;
       const selfTerms = new Set(searchContextTerms(selfInfo));
@@ -8426,8 +8457,7 @@ ${source}` : "",
       }).join("\n");
     }
     function combinedSelectionText(options = {}) {
-      var _a;
-      const expandedRetry = options.expandedRetry === true;
+      options.expandedRetry === true;
       if (searchKeywords.value.trim()) return searchKeywords.value.trim();
       const terms = [];
       const promptInstructions = selectionPromptInstructions(promptIntent.value);
@@ -8446,17 +8476,6 @@ ${source}` : "",
         terms.push(...extractSearchTerms(denoiseTextByApi(item.info.text)));
         terms.push(...extractSearchTerms(item.info.className));
         terms.push(...subtreeSearchTerms(item.info.subtree));
-        const ancestors = expandedRetry ? ((_a = item.info) == null ? void 0 : _a.ancestors) || [] : filteredAncestorsForSearch(item.info);
-        for (const ancestor of ancestors) {
-          terms.push(...extractSearchTerms(denoiseTextByApi(ancestor.text)));
-          terms.push(...extractSearchTerms(ancestor.className));
-          terms.push(...subtreeSearchTerms(ancestor.subtree));
-        }
-        if (expandedRetry && item.assetInfo) {
-          terms.push(...extractSearchTerms(denoiseTextByApi(item.assetInfo.text)));
-          terms.push(...extractSearchTerms(item.assetInfo.className));
-          terms.push(...subtreeSearchTerms(item.assetInfo.subtree));
-        }
       }
       return Array.from(new Set(terms)).slice(0, 28).join(" ");
     }
