@@ -2238,6 +2238,35 @@ function compactSubtreeSummary(subtree) {
   };
 }
 
+function structureSummaryFromInfo(info) {
+  const nodes = [];
+  const pushNode = node => {
+    if (!node || typeof node !== 'object') return;
+    const tag = String(node.tag || '').toLowerCase();
+    const className = String(node.className || '');
+    const attrs = node.attrs || {};
+    nodes.push({ tag, className, attrs });
+  };
+  pushNode(info);
+  for (const node of (info?.subtree?.nodes || []).slice(0, 64)) pushNode(node);
+
+  const hasTag = tags => nodes.some(node => tags.has(node.tag));
+  const hasAttr = key => nodes.some(node => {
+    const attrs = node.attrs || {};
+    return Object.prototype.hasOwnProperty.call(attrs, key) && String(attrs[key] || '').trim();
+  });
+  const hasClassLike = pattern => nodes.some(node => pattern.test(node.className || ''));
+  const descendants = nodes.slice(1);
+  return {
+    hasLink: hasTag(new Set(['a'])) || hasAttr('href'),
+    hasButton: hasTag(new Set(['button'])) || nodes.some(node => String(node.attrs?.role || '').toLowerCase() === 'button'),
+    hasInput: hasTag(new Set(['input', 'textarea', 'select'])),
+    hasMedia: hasTag(new Set(['img', 'video', 'canvas', 'svg'])) || nodes.some(node => String(node.attrs?.['magnus-media'] || '') === 'image'),
+    hasIcon: hasTag(new Set(['svg', 'i'])) || hasClassLike(/\b(?:icon|anticon|n-icon|el-icon|ivu-icon)\b/i),
+    descendantTags: uniq(descendants.map(node => node.tag).filter(Boolean)).slice(0, 12),
+  };
+}
+
 function infoSearchText(info) {
   return String(info?.searchText || info?.text || '');
 }
@@ -2264,6 +2293,7 @@ function selectionSummary(searchPayload) {
       attrs: info.attrs || {},
       text: compact(info.text, 400),
       searchText: compact(infoSearchText(info), 240),
+      structure: structureSummaryFromInfo(info),
       subtree: compactSubtreeSummary(info.subtree),
       inlineStyle: compact(info.inlineStyle, 220),
       style: {
@@ -2282,6 +2312,7 @@ function selectionSummary(searchPayload) {
         className: asset.className || '',
         text: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(asset.text, 120) : '',
         searchText: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(infoSearchText(asset), 120) : '',
+        structure: asset ? structureSummaryFromInfo(asset) : null,
         width: assetStyleSignals.width || '',
         height: assetStyleSignals.height || '',
         backgroundImage: compact(assetStyleSignals.backgroundImage || '', 220),
@@ -2294,6 +2325,7 @@ function selectionSummary(searchPayload) {
         attrs: ancestor.attrs || {},
         text: compact(ancestor.text, 220),
         searchText: compact(infoSearchText(ancestor), 160),
+        structure: structureSummaryFromInfo(ancestor),
         inlineStyle: compact(ancestor.inlineStyle, 160),
         subtree: compactSubtreeSummary(ancestor.subtree),
         style: ancestor.computedStyle ? {
@@ -2511,6 +2543,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '- 如果无法确认具体修改点，返回最稳的 UI 结构、组件区域或源码方向即可；不要为了贴合需求强行推断内部实现。',
     '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
     '- 如果选区文本像运行时数据（例如价格、数量、日期、ID、状态值、后端返回字段），不要把该文本当作源码字面量；必须结合父级/同区域文本、属性、class、样式、候选源码里的数据字段或渲染块判断。',
+    '- 对运行时文本选区，选区结构只作为辅助参考；优先结合用户修改需求判断源码方向。若无法可靠区分多个相近源码块，不要强行二选一，可以返回多个可能方向交给后续修改 agent 继续确认。',
     '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
     '- 如果候选里同时存在渲染文件和只承载局部文案/枚举/配置的定义文件，优先返回真正组装当前选区所在界面区域的渲染文件；只有需求明确针对定义源本身时，才返回定义文件。',
     '- 页面路由、接口线索、本地候选分数只是辅助，不得覆盖当前选区语义证据。',
