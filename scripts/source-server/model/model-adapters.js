@@ -1086,21 +1086,19 @@ function includeDeclarationPrefix(content, range) {
 }
 
 function mergeRanges(ranges, limit = MAX_MODEL_FILES) {
-  const ordered = ranges
+  const sorted = ranges
     .filter(range => range && range.end > range.start)
-    .slice(0, limit * 3);
+    .sort((a, b) => a.start - b.start || a.end - b.end);
   const merged = [];
-  for (const range of ordered) {
-    const overlapped = merged.find(item => !(range.end < item.start || range.start > item.end));
-    if (!overlapped) {
+  for (const range of sorted) {
+    const last = merged[merged.length - 1];
+    if (!last || range.start > last.end) {
       merged.push({ ...range });
-      if (merged.length >= limit) break;
       continue;
     }
-    overlapped.start = Math.min(overlapped.start, range.start);
-    overlapped.end = Math.max(overlapped.end, range.end);
+    last.end = Math.max(last.end, range.end);
   }
-  return merged;
+  return merged.slice(0, limit);
 }
 
 function candidateHitForFile(body, filePath) {
@@ -1813,63 +1811,10 @@ function completeRangeText(content, range) {
   return source.slice(Math.max(0, range.start), Math.min(source.length, range.end)).trim();
 }
 
-function evidenceFamily(label) {
-  const text = String(label || '');
-  if (/文案|文本|精确|唯一/.test(text)) return 'text';
-  if (/class/i.test(text)) return 'class';
-  if (/样式|宽度|高度|objectFit|object-fit|background|borderRadius|border-radius|css/i.test(text)) return 'style';
-  if (/属性|attr|href|key|value|role|title|aria/i.test(text)) return 'attr';
-  if (/图片|资源|img|image|src|poster/i.test(text)) return 'resource';
-  if (/片段/.test(text)) return 'snippet';
-  return 'other';
-}
-
-function rangeContainsSeed(rangeText, seedText) {
-  const content = String(rangeText || '');
-  const needle = String(seedText || '').trim();
-  if (!content || !needle) return false;
-  const lowerContent = content.toLowerCase();
-  const lowerNeedle = needle.toLowerCase();
-  if (lowerContent.includes(lowerNeedle)) return true;
-  if (!/\s/.test(needle)) return false;
-  return lowerContent.replace(/\s+/g, ' ').includes(lowerNeedle.replace(/\s+/g, ' '));
-}
-
 function isCommentOnlyRangeText(value) {
   const text = String(value || '').trim();
   if (!text) return false;
   return text.startsWith('//') || text.startsWith('/*') || text.startsWith('<!--');
-}
-
-function rangeSeedEvidenceScore(rangeText, seedItems) {
-  const content = String(rangeText || '');
-  if (!content || !Array.isArray(seedItems) || !seedItems.length) {
-    return { score: 0, matchedCount: 0, familyCount: 0 };
-  }
-  let score = 0;
-  let matchedCount = 0;
-  const families = new Set();
-  const seen = new Set();
-  for (const seed of seedItems) {
-    const text = String(seed?.text || '').trim();
-    if (!text || text.length < 2 || seen.has(text.toLowerCase())) continue;
-    seen.add(text.toLowerCase());
-    const priority = seed.priority ?? pruneEvidencePriority(seed.label);
-    const weak = weakSelectionSeed(text) || /^\d+(?:\.\d+)?(?:px|em|rem|%)?$/i.test(text);
-    if (weak && priority < 4) continue;
-    if (!rangeContainsSeed(content, text)) continue;
-    matchedCount += 1;
-    families.add(evidenceFamily(seed.label));
-    score += Math.min(seed.weight || 0, 360) + priority * 24;
-  }
-  if (matchedCount >= 2) score += Math.min(1200, matchedCount * 140);
-  if (families.size >= 2) score += Math.min(720, families.size * 160);
-  if (isCommentOnlyRangeText(content)) score = Math.floor(score * 0.15);
-  return {
-    score,
-    matchedCount,
-    familyCount: families.size,
-  };
 }
 
 function weightedAnchorSeeds(hit, payload, needles) {
@@ -2084,9 +2029,13 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
       if ((anchor.weight || 0) <= (smallestContained?.anchorWeight || 0) && rangeSize > oldSize * 3) return;
     }
     selectedKeys.add(key);
+    const rangeText = completeRangeText(rawText, range);
+    const anchorWeight = isCommentOnlyRangeText(rangeText)
+      ? Math.floor((anchor.weight || 0) * 0.15)
+      : (anchor.weight || 0);
     selectedRanges.push({
       ...range,
-      anchorWeight: anchor.weight || 0,
+      anchorWeight,
       anchorLabel: anchor.label || '',
       anchorNeedle: anchor.needle || '',
     });
@@ -2120,22 +2069,8 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
     selectedRanges.push(range);
   }
 
-  const scoredRanges = selectedRanges.map(range => {
-    const evidence = rangeSeedEvidenceScore(completeRangeText(rawText, range), seedItems);
-    return {
-      ...range,
-      cooccurrenceScore: evidence.score,
-      matchedAnchorCount: evidence.matchedCount,
-      evidenceFamilyCount: evidence.familyCount,
-    };
-  });
-  const anchorRanges = mergeRanges(scoredRanges
-    .sort((a, b) => (b.cooccurrenceScore || 0) - (a.cooccurrenceScore || 0)
-      || (b.evidenceFamilyCount || 0) - (a.evidenceFamilyCount || 0)
-      || (b.matchedAnchorCount || 0) - (a.matchedAnchorCount || 0)
-      || (b.anchorWeight || 0) - (a.anchorWeight || 0)
-      || (a.end - a.start) - (b.end - b.start)
-      || a.start - b.start)
+  const anchorRanges = mergeRanges(selectedRanges
+    .sort((a, b) => (b.anchorWeight || 0) - (a.anchorWeight || 0) || (a.end - a.start) - (b.end - b.start) || a.start - b.start)
     .slice(0, 72), 24);
   let anchorText = '';
   let skippedCompleteBlocks = 0;
