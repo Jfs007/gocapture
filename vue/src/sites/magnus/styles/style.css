@@ -430,6 +430,13 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+.mda-model-hint {
+  margin: -2px 0 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .mda-option-title {
   color: #111827;
   font-size: 12px;

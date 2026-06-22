@@ -100,6 +100,7 @@
           <input v-model.number="modelForm.timeoutMs" class="mda-model-input" type="number" min="5000" step="1000">
         </label>
       </div>
+      <p class="mda-model-hint">{{ modelTypeHint }}</p>
       <div class="mda-model-actions">
         <button v-if="selectedModel" class="mda-mini-btn" type="button" :disabled="candidateLoading || modelAssistLoading" @click="api.removeSelectedModel">删除模型</button>
         <button class="mda-btn mda-btn-primary" type="button" @click="api.saveModelForm">保存模型</button>
@@ -404,6 +405,12 @@ const composerEditable = useForm('composerEditable');
 const composerPlaceholder = useForm('composerPlaceholder');
 const composerCanSend = useForm('composerCanSend');
 const toastText = useForm('toastText');
+
+const modelTypeHint = computed(() => {
+  return modelForm.value.type === 'exec'
+    ? 'Cli 启动较慢，适合后续改代码；定位阶段会启用轻量 JSON 约束。'
+    : 'API 模型更适合快速源码定位。';
+});
 
 const routeHit = computed(() => {
   const trace = routeResolverTrace.value;

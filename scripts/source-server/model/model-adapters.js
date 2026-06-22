@@ -2827,6 +2827,24 @@ function validateModelItems(project, parsed, body, textCache) {
   }).filter(item => item.file);
 }
 
+function buildCliLocatePrompt(prompt) {
+  return [
+    '你当前只承担 Magnus 的“源码粗定位”子任务。',
+    '',
+    '严格约束：',
+    '- 不要执行命令。',
+    '- 不要修改文件。',
+    '- 不要读取本提示词以外的文件。',
+    '- 不要联网。',
+    '- 不要做项目重构、测试、计划或解释。',
+    '- 只基于下面提供的候选源码、选区信息和用户需求判断。',
+    '- 只输出符合下方要求的 JSON 数组；无法判断就输出 []。',
+    '',
+    '下面是定位任务输入：',
+    prompt,
+  ].join('\n');
+}
+
 function runExecAdapter(adapter, prompt, cwd, logs, signal) {
   const parts = splitCommandLine(adapter.command);
   if (!parts.length) throw new Error('Cli 模型缺少 command，例如：codex exec');
@@ -2841,6 +2859,8 @@ function runExecAdapter(adapter, prompt, cwd, logs, signal) {
   appendLog(logs, `Cli 模型启动：${command}${args.length ? ` ${args.join(' ')}` : ''}`);
   appendLog(logs, `执行目录：${cwd}`);
   appendLog(logs, adapter.proxyUrl ? `代理：已写入环境变量 ${safeUrlLabel(adapter.proxyUrl)}` : '代理：未启用');
+  appendLog(logs, 'Cli 轻量定位约束：已启用；仅允许基于提示词内容输出 JSON，不执行命令/改文件/额外读文件');
+  const execPrompt = buildCliLocatePrompt(prompt);
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -2890,7 +2910,7 @@ function runExecAdapter(adapter, prompt, cwd, logs, signal) {
       }
       resolve(stdout || stderr);
     });
-    child.stdin.end(prompt);
+    child.stdin.end(execPrompt);
   });
 }
 
