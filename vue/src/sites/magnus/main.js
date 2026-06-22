@@ -5,6 +5,8 @@ import styles from './styles/style.css?inline';
 (function bootstrapDevAssistant() {
     const APP_KEY = '__MAGNUS_DEV_ASSISTANT__';
     const LEGACY_APP_KEY = '__MAGNUS_ELEMENT_INSPECTOR__';
+    const sidePanelConfig = window.__MAGNUS_SIDE_PANEL__ || null;
+    const isSidePanel = !!sidePanelConfig;
     const HOST_ID = 'magnus-dev-assistant-root';
     const oldApp = window[APP_KEY];
     const legacyApp = window[LEGACY_APP_KEY];
@@ -19,13 +21,20 @@ import styles from './styles/style.css?inline';
 
     const host = document.createElement('div');
     host.id = HOST_ID;
-    host.style.cssText = [
-        'position:fixed',
-        'inset:0',
-        'z-index:2147483647',
-        'pointer-events:none',
-        'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif'
-    ].join(';');
+    host.style.cssText = isSidePanel
+        ? [
+            'position:fixed',
+            'inset:0',
+            'z-index:1',
+            'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif'
+        ].join(';')
+        : [
+            'position:fixed',
+            'inset:0',
+            'z-index:2147483647',
+            'pointer-events:none',
+            'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif'
+        ].join(';');
 
     const shadowRoot = host.attachShadow({ mode: 'open' });
     const styleEl = document.createElement('style');
@@ -58,6 +67,9 @@ import styles from './styles/style.css?inline';
             }
         }
     };
+
+    api.sidePanel = isSidePanel;
+    api.sidePanelConfig = sidePanelConfig;
 
     const app = createApp(App, { api });
     api.app = app;

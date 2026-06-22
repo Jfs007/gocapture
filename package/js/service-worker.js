@@ -5,6 +5,25 @@ const localConfig = {
 let _VERSION_ = '';
 // 全局缓存对象
 let ExeCodeMap = {};
+
+function setupSidePanel() {
+  if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) {
+    console.warn('Magnus sidePanel API is not available in this Chrome runtime.');
+    return;
+  }
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(error => {
+    console.warn('Magnus sidePanel setup failed:', error);
+  });
+}
+
+setupSidePanel();
+
+chrome.action.onClicked.addListener(tab => {
+  if (!chrome.sidePanel || !chrome.sidePanel.open || !tab?.id) return;
+  chrome.sidePanel.open({ tabId: tab.id }).catch(error => {
+    console.warn('Magnus sidePanel open failed:', error);
+  });
+});
 /**
  * 获取远程数据
  */
@@ -167,9 +186,10 @@ function fillIframeIdToData(message, sender, execData) {
   // iframe id 优先使用 message.myIframeId，否则用 sender.frameId
   let frameId = message.myIframeId || (sender && sender.frameId);
   let frameIds = frameId ? [frameId] : undefined;
-
+ 
   // tab id
-  let tabId = message.tabId || (sender.tab && sender.tab.id);
+  let tabId = message?.tabId || (sender?.tab && sender?.tab?.id);
+  if(!tabId) return execData; // 如果没有 tabId，直接返回 execData
   // 填充 target
   execData.target = { tabId };
   if (frameIds) execData.target.frameIds = frameIds;
@@ -238,7 +258,8 @@ function fillIframeTarget(message, sender, execData) {
   let frameIds = frameId ? [frameId] : undefined;
 
   // tab id
-  let tabId = message.tabId || (sender.tab && sender.tab.id);
+  let tabId = message?.tabId || (sender?.tab && sender?.tab?.id);
+  if(!tabId) return execData; // 如果没有 tabId，直接返回 execData
   // 填充 target
   execData.target = { tabId };
   if (frameIds) execData.target.frameIds = frameIds;
@@ -1065,7 +1086,7 @@ const { wait, once, on, off, emit, getRegisteredEvents } = centerBus;
 
 const ActiveTab = {
   Lister: (message, sender, sendResponse) => {
-    const tabId = message.tabId || sender?.tab?.id
+    const tabId = message?.tabId || sender?.tab?.id
     if (!tabId) {
       sendResponse({ error: 'No tabId provided' })
       return
@@ -1141,7 +1162,8 @@ const BaseChromeApiCmd = {
 }
 
 function onMessageLister(message, sender, sendResponse) {
-  console.log(message, 'message');
+  const tabId = message?.tabId || sender?.tab?.id;
+  if(!tabId) return;
   if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
   if ("openPopup" === message.cmd) {
     chrome.action.openPopup();

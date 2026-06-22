@@ -1,22 +1,23 @@
 <template>
-  <div class="mda-root">
+  <div class="mda-root" :class="{ 'is-side-panel': isSidePanel }">
     <div
+      v-if="!isSidePanel"
       class="mda-overlay"
       :class="{ 'is-selected': overlay.selected }"
       :style="overlayStyle"
     />
-    <div class="mda-badge" :style="badgeStyle">{{ overlay.badgeText }}</div>
-    <div class="mda-hotkey-tip">空格键确认选区</div>
+    <div v-if="!isSidePanel" class="mda-badge" :style="badgeStyle">{{ overlay.badgeText }}</div>
+    <div v-if="!isSidePanel" class="mda-hotkey-tip">空格键确认选区</div>
 
     <section
       ref="panelRef"
       class="mda-panel"
-      :class="{ 'is-collapsed': collapsed, 'is-resizing': resizing }"
-      :style="panelStyle"
+      :class="{ 'is-collapsed': !isSidePanel && collapsed, 'is-resizing': resizing, 'is-side-panel': isSidePanel }"
+      :style="isSidePanel ? null : panelStyle"
       aria-label="Magnus"
     >
       <div
-        v-if="!collapsed"
+        v-if="!isSidePanel && !collapsed"
         class="mda-resizer"
         title="拖动调整助手宽度"
         @pointerdown.stop.prevent="startPanelResize"
@@ -29,10 +30,13 @@
           <div class="mda-subtitle">{{ pageHost }}</div>
         </div>
         <div class="mda-actions">
-          <button class="mda-icon" type="button" title="收起/展开" @click.stop="collapsed = !collapsed">
+          <button v-if="isSidePanel" class="mda-icon" type="button" title="开始页面选区" @click.stop="startRemotePicker">
+            ⌖
+          </button>
+          <button v-if="!isSidePanel" class="mda-icon" type="button" title="收起/展开" @click.stop="collapsed = !collapsed">
             {{ collapsed ? '<' : '>' }}
           </button>
-          <button class="mda-icon" type="button" title="关闭" @click.stop="destroy">x</button>
+          <button v-if="!isSidePanel" class="mda-icon" type="button" title="关闭" @click.stop="destroy">x</button>
         </div>
       </header>
 
@@ -86,6 +90,7 @@ const props = defineProps({
 });
 
 const active = ref(true);
+const isSidePanel = computed(() => !!props.api.sidePanel);
 const panelRef = ref(null);
 const composerPanelRef = ref(null);
 const hoveredElement = shallowRef(null);
@@ -122,6 +127,8 @@ let webRequestApiRetryTimer = 0;
 let webRequestApiRetryCount = 0;
 let webRequestApiInstalled = false;
 let cleanupLocationWatcher = null;
+let sidePanelSocket = null;
+let sidePanelSessionId = '';
 const PROJECT_STORAGE_PREFIX = 'magnus:source-project:';
 const WEB_REQUEST_HANDLER_KEY = '__MAGNUS_WEB_REQUEST_HANDLER__';
 const WEB_REQUEST_LISTENER_KEY = '__MAGNUS_WEB_REQUEST_LISTENER_INSTALLED__';
@@ -505,6 +512,7 @@ function selectionPayloads() {
 }
 
 function dispatchSelected() {
+  if (isSidePanel.value) return;
   try {
     window.dispatchEvent(new CustomEvent('magnus:element-selected', { detail: selectionPayloads() }));
   } catch (error) {
@@ -634,11 +642,113 @@ function resetProjectContext() {
 }
 
 function readCurrentHref() {
+  if (props.api.sidePanelConfig?.snapshot?.page?.url) {
+    return props.api.sidePanelConfig.snapshot.page.url;
+  }
   try {
     return window.location.href || '';
   } catch (error) {
     return '';
   }
+}
+
+function selectionFromRemote(raw, index) {
+  const info = raw?.element || raw?.info || raw || {};
+  const uid = raw?.uid || info.uid || `remote-selection-${Date.now()}-${index}`;
+  return {
+    uid,
+    element: null,
+    info,
+    assetElement: null,
+    assetInfo: raw?.asset || info,
+    thumbnailUrl: raw?.thumbnailUrl || raw?.thumbnail || ''
+  };
+}
+
+function applyRemoteSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (snapshot.page?.url) currentPageHref.value = snapshot.page.url;
+  const list = Array.isArray(snapshot.selections)
+    ? snapshot.selections
+    : (snapshot.selection ? [snapshot.selection] : []);
+  selectedItems.value = list.map(selectionFromRemote);
+}
+
+function applyRemoteSessionEvent(message) {
+  const event = message?.event || {};
+  const payload = event.payload || {};
+  if (event.type === 'selection.changed') {
+    const list = Array.isArray(payload.selections)
+      ? payload.selections
+      : (payload.selection ? [payload.selection] : []);
+    selectedItems.value = list.map(selectionFromRemote);
+    invalidateSelectionConfirm();
+    setToast(`已添加选区 ${selectedItems.value.length}`);
+    return;
+  }
+  if (event.type === 'page.route_changed') {
+    currentPageHref.value = payload.url || currentPageHref.value;
+    clearSelections();
+    scheduleRouteResolve();
+    return;
+  }
+  if (event.type === 'runtime.connected' && payload.page?.url) {
+    currentPageHref.value = payload.page.url;
+  }
+}
+
+function connectSidePanelBridge() {
+  const config = props.api.sidePanelConfig || {};
+  if (!isSidePanel.value || !config.panelTicket || !config.bridgeUrl) return;
+  try {
+    const socket = new WebSocket(config.bridgeUrl);
+    sidePanelSocket = socket;
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({
+        type: 'sideiframe.connect',
+        panelTicket: config.panelTicket
+      }));
+    });
+    socket.addEventListener('message', event => {
+      let message = null;
+      try {
+        message = JSON.parse(event.data);
+      } catch (error) {
+        return;
+      }
+      if (message.type === 'sideiframe.bound_session') {
+        sidePanelSessionId = message.pageSessionId || '';
+        applyRemoteSnapshot(message.snapshot);
+      } else if (message.type === 'session.event') {
+        applyRemoteSessionEvent(message);
+      }
+    });
+    socket.addEventListener('close', () => {
+      if (sidePanelSocket === socket) sidePanelSocket = null;
+    });
+  } catch (error) {
+    setToast(error.message || '连接 Side Panel Bridge 失败');
+  }
+}
+
+function sendSidePanelCommand(type, payload) {
+  if (!sidePanelSocket || sidePanelSocket.readyState !== WebSocket.OPEN || !sidePanelSessionId) {
+    setToast('页面 Runtime 未连接');
+    return;
+  }
+  sidePanelSocket.send(JSON.stringify({
+    type: 'session.command',
+    requestId: `cmd-${Date.now()}`,
+    pageSessionId: sidePanelSessionId,
+    command: {
+      type,
+      payload: payload || {}
+    }
+  }));
+}
+
+function startRemotePicker() {
+  sendSidePanelCommand('picker.start');
 }
 
 function hashRoutePath(hash) {
@@ -1030,6 +1140,7 @@ function elementFromPoint(event) {
 }
 
 function setActive(value) {
+  if (isSidePanel.value) return;
   active.value = !!value;
   document.documentElement.style.cursor = active.value ? 'crosshair' : '';
   if (!active.value) {
@@ -1109,8 +1220,10 @@ function restoreSelectionPreview() {
 
 function onScrollOrResize() {
   layoutTick.value++;
-  syncPanelWidth();
-  applyPageInset();
+  if (!isSidePanel.value) {
+    syncPanelWidth();
+    applyPageInset();
+  }
   if (active.value && hoveredElement.value) {
     updateOverlay(hoveredElement.value, false);
     return;
@@ -1248,6 +1361,11 @@ function copyTextWithToast(text) {
 }
 
 function destroy() {
+  if (isSidePanel.value) {
+    sidePanelSocket?.close();
+    sidePanelSocket = null;
+    return;
+  }
   props.api.destroy();
 }
 
@@ -1263,6 +1381,8 @@ function registerApi() {
 }
 
 function cleanup() {
+  sidePanelSocket?.close();
+  sidePanelSocket = null;
   setActive(false);
   if (routeResolveTimer) {
     window.clearTimeout(routeResolveTimer);
@@ -1280,20 +1400,23 @@ function cleanup() {
     cleanupLocationWatcher = null;
   }
   cleanupToast();
-  props.api.shadowRoot.removeEventListener('focusin', stopAssistantEvent);
-  props.api.shadowRoot.removeEventListener('keydown', stopAssistantEvent);
-  props.api.shadowRoot.removeEventListener('mousedown', stopAssistantEvent);
-  props.api.shadowRoot.removeEventListener('pointerdown', stopAssistantEvent);
-  props.api.shadowRoot.removeEventListener('click', stopAssistantEvent);
-  window.removeEventListener('message', onPageMessage, true);
-  window.removeEventListener('mousemove', onMouseMove, true);
-  window.removeEventListener('keydown', onKeyDown, true);
-  window.removeEventListener('scroll', onScrollOrResize, true);
-  window.removeEventListener('resize', onScrollOrResize, true);
+  if (!isSidePanel.value && props.api.shadowRoot) {
+    props.api.shadowRoot.removeEventListener('focusin', stopAssistantEvent);
+    props.api.shadowRoot.removeEventListener('keydown', stopAssistantEvent);
+    props.api.shadowRoot.removeEventListener('mousedown', stopAssistantEvent);
+    props.api.shadowRoot.removeEventListener('pointerdown', stopAssistantEvent);
+    props.api.shadowRoot.removeEventListener('click', stopAssistantEvent);
+    window.removeEventListener('message', onPageMessage, true);
+    window.removeEventListener('mousemove', onMouseMove, true);
+    window.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('scroll', onScrollOrResize, true);
+    window.removeEventListener('resize', onScrollOrResize, true);
+  }
   cleanupPanelLayout();
 }
 
 watch(effectivePanelWidth, () => {
+  if (isSidePanel.value) return;
   applyPageInset();
   onScrollOrResize();
 });
@@ -1307,23 +1430,29 @@ watch([project, currentPageHref], () => {
 
 onMounted(() => {
   registerApi();
-  setActive(true);
-  syncPanelWidth();
-  applyPageInset();
+  if (!isSidePanel.value) {
+    setActive(true);
+    syncPanelWidth();
+    applyPageInset();
+  }
   cleanupLocationWatcher = installLocationWatcher();
   restoreSavedProject();
   scheduleRouteResolve();
-  props.api.shadowRoot.addEventListener('focusin', stopAssistantEvent);
-  props.api.shadowRoot.addEventListener('keydown', stopAssistantEvent);
-  props.api.shadowRoot.addEventListener('mousedown', stopAssistantEvent);
-  props.api.shadowRoot.addEventListener('pointerdown', stopAssistantEvent);
-  props.api.shadowRoot.addEventListener('click', stopAssistantEvent);
-  window.addEventListener('message', onPageMessage, true);
-  installWebRequestApiListenerWithRetry();
-  window.addEventListener('mousemove', onMouseMove, true);
-  window.addEventListener('keydown', onKeyDown, true);
-  window.addEventListener('scroll', onScrollOrResize, true);
-  window.addEventListener('resize', onScrollOrResize, true);
+  if (isSidePanel.value) {
+    connectSidePanelBridge();
+  } else {
+    props.api.shadowRoot.addEventListener('focusin', stopAssistantEvent);
+    props.api.shadowRoot.addEventListener('keydown', stopAssistantEvent);
+    props.api.shadowRoot.addEventListener('mousedown', stopAssistantEvent);
+    props.api.shadowRoot.addEventListener('pointerdown', stopAssistantEvent);
+    props.api.shadowRoot.addEventListener('click', stopAssistantEvent);
+    window.addEventListener('message', onPageMessage, true);
+    installWebRequestApiListenerWithRetry();
+    window.addEventListener('mousemove', onMouseMove, true);
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize, true);
+  }
 });
 
 onBeforeUnmount(cleanup);

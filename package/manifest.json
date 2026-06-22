@@ -20,7 +20,17 @@
     "128": "icons/icon.png"
   },
   "action": {
-    "default_title": "Chrome Extension Scaffold (Dev)"
+    "default_title": "Chrome Extension Scaffold (Dev)",
+    "default_icon": {
+      "16": "icons/icon.png",
+      "19": "icons/icon.png",
+      "38": "icons/icon.png",
+      "48": "icons/icon.png",
+      "128": "icons/icon.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "background": {
     "service_worker": "js/service-worker.js",
@@ -47,8 +57,12 @@
     "browsingData",
     "tabs",
     "webRequest",
-    "clipboardWrite"
+    "clipboardWrite",
+    "sidePanel"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src http://127.0.0.1:17321 http://localhost:17321;"
+  },
   "optional_host_permissions": [
     "<all_urls>"
   ],

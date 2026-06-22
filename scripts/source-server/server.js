@@ -7,11 +7,13 @@ const {
   PORT,
   VERSION,
 } = require('./core/config');
+const { createBridge } = require('./bridge');
 const { selectDirectory } = require('./resource/dialog');
 const { scanProject } = require('./core/project');
 const { searchProjectWithMeta } = require('./search');
 const { resolvePageRouteTrace } = require('./route-resolvers/registry');
 const { runModelLocate } = require('./model/model-adapters');
+const { handleUiRequest } = require('./ui/serve-ui');
 
 const ACCESS_CONTROL_ALLOW_HEADERS = 'content-type,x-magnus-internal';
 
@@ -109,6 +111,7 @@ function openFileInEditor(fullPath) {
 
 function createSourceServer() {
   let currentProject = null;
+  const bridge = createBridge();
 
   async function handle(req, res) {
     if (req.method === 'OPTIONS') {
@@ -118,6 +121,10 @@ function createSourceServer() {
 
     const url = new URL(req.url, `http://${HOST}:${PORT}`);
     try {
+      if (req.method === 'GET' && handleUiRequest(req, res, url, { host: HOST, port: PORT })) {
+        return;
+      }
+
       if (req.method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, {
           success: true,
@@ -125,6 +132,13 @@ function createSourceServer() {
           version: VERSION,
           currentProject: currentProjectSummary(currentProject),
         });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/panel/bind') {
+        const body = await readBody(req);
+        const result = bridge.bindPanel(body);
+        sendJson(res, 200, { success: true, ...result });
         return;
       }
 
@@ -218,7 +232,13 @@ function createSourceServer() {
     }
   }
 
-  return http.createServer(handle);
+  const server = http.createServer(handle);
+  server.on('upgrade', (req, socket) => {
+    if (!bridge.handleUpgrade(req, socket)) {
+      socket.destroy();
+    }
+  });
+  return server;
 }
 
 function startSourceServer() {

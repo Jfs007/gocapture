@@ -60,12 +60,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   **/
   // @__NO_SIDE_EFFECTS__
   function makeMap(str) {
-    const map = /* @__PURE__ */ Object.create(null);
-    for (const key of str.split(",")) map[key] = 1;
-    return (val) => val in map;
+    const map2 = /* @__PURE__ */ Object.create(null);
+    for (const key of str.split(",")) map2[key] = 1;
+    return (val) => val in map2;
   }
-  const EMPTY_OBJ = {};
-  const EMPTY_ARR = [];
+  const EMPTY_OBJ = Object.freeze({});
+  const EMPTY_ARR = Object.freeze([]);
   const NOOP = () => {
   };
   const NO = () => false;
@@ -102,6 +102,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const isReservedProp = /* @__PURE__ */ makeMap(
     // the leading comma is intentional so empty string "" is also included
     ",key,ref,ref_for,ref_key,onVnodeBeforeMount,onVnodeMounted,onVnodeBeforeUpdate,onVnodeUpdated,onVnodeBeforeUnmount,onVnodeUnmounted"
+  );
+  const isBuiltInDirective = /* @__PURE__ */ makeMap(
+    "bind,cloak,else-if,else,for,html,if,model,on,once,pre,show,slot,text,memo"
   );
   const cacheStringFunction = (fn) => {
     const cache = /* @__PURE__ */ Object.create(null);
@@ -201,6 +204,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return res.trim();
   }
+  const HTML_TAGS = "html,body,base,head,link,meta,style,title,address,article,aside,footer,header,hgroup,h1,h2,h3,h4,h5,h6,nav,section,div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,ruby,s,samp,small,span,strong,sub,sup,time,u,var,wbr,area,audio,map,track,video,embed,object,param,source,canvas,script,noscript,del,ins,caption,col,colgroup,table,thead,tbody,td,th,tr,button,datalist,fieldset,form,input,label,legend,meter,optgroup,option,output,progress,select,textarea,details,dialog,menu,summary,template,blockquote,iframe,tfoot";
+  const SVG_TAGS = "svg,animate,animateMotion,animateTransform,circle,clipPath,color-profile,defs,desc,discard,ellipse,feBlend,feColorMatrix,feComponentTransfer,feComposite,feConvolveMatrix,feDiffuseLighting,feDisplacementMap,feDistantLight,feDropShadow,feFlood,feFuncA,feFuncB,feFuncG,feFuncR,feGaussianBlur,feImage,feMerge,feMergeNode,feMorphology,feOffset,fePointLight,feSpecularLighting,feSpotLight,feTile,feTurbulence,filter,foreignObject,g,hatch,hatchpath,image,line,linearGradient,marker,mask,mesh,meshgradient,meshpatch,meshrow,metadata,mpath,path,pattern,polygon,polyline,radialGradient,rect,set,solidcolor,stop,switch,symbol,text,textPath,title,tspan,unknown,use,view";
+  const MATH_TAGS = "annotation,annotation-xml,maction,maligngroup,malignmark,math,menclose,merror,mfenced,mfrac,mfraction,mglyph,mi,mlabeledtr,mlongdiv,mmultiscripts,mn,mo,mover,mpadded,mphantom,mprescripts,mroot,mrow,ms,mscarries,mscarry,msgroup,msline,mspace,msqrt,msrow,mstack,mstyle,msub,msubsup,msup,mtable,mtd,mtext,mtr,munder,munderover,none,semantics";
+  const isHTMLTag = /* @__PURE__ */ makeMap(HTML_TAGS);
+  const isSVGTag = /* @__PURE__ */ makeMap(SVG_TAGS);
+  const isMathMLTag = /* @__PURE__ */ makeMap(MATH_TAGS);
   const specialBooleanAttrs = `itemscope,allowfullscreen,formnovalidate,ismap,nomodule,novalidate,readonly`;
   const isSpecialBooleanAttr = /* @__PURE__ */ makeMap(specialBooleanAttrs);
   function includeBooleanAttr(value) {
@@ -298,6 +307,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **/
+  function warn$2(msg, ...args) {
+    console.warn(`[Vue warn] ${msg}`, ...args);
+  }
   let activeEffectScope;
   class EffectScope {
     // TODO isolatedDeclarations "__v_skip"
@@ -367,6 +379,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         } finally {
           activeEffectScope = currentEffectScope;
         }
+      } else if (this._warnOnRun) {
+        warn$2(`cannot run an inactive effect scope.`);
       }
     }
     /**
@@ -488,6 +502,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       try {
         return this.fn();
       } finally {
+        if (activeSub !== this) {
+          warn$2(
+            "Active effect was not restored correctly - this is likely a Vue internal bug."
+          );
+        }
         cleanupDeps(this);
         activeSub = prevEffect;
         shouldTrack = prevShouldTrack;
@@ -661,6 +680,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       nextSub.prevSub = prevSub;
       link.nextSub = void 0;
     }
+    if (dep.subsHead === link) {
+      dep.subsHead = nextSub;
+    }
     if (dep.subs === link) {
       dep.subs = prevSub;
       if (!prevSub && dep.computed) {
@@ -728,6 +750,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       this.key = void 0;
       this.sc = 0;
       this.__v_skip = true;
+      {
+        this.subsHead = void 0;
+      }
     }
     track(debugInfo) {
       if (!activeSub || !shouldTrack || activeSub === this.computed) {
@@ -761,6 +786,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           }
         }
       }
+      if (activeSub.onTrack) {
+        activeSub.onTrack(
+          extend(
+            {
+              effect: activeSub
+            },
+            debugInfo
+          )
+        );
+      }
       return link;
     }
     trigger(debugInfo) {
@@ -771,7 +806,20 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     notify(debugInfo) {
       startBatch();
       try {
-        if (false) ;
+        if (true) {
+          for (let head = this.subsHead; head; head = head.nextSub) {
+            if (head.sub.onTrigger && !(head.sub.flags & 8)) {
+              head.sub.onTrigger(
+                extend(
+                  {
+                    effect: head.sub
+                  },
+                  debugInfo
+                )
+              );
+            }
+          }
+        }
         for (let link = this.subs; link; link = link.prevSub) {
           if (link.sub.notify()) {
             ;
@@ -798,18 +846,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         link.prevSub = currentTail;
         if (currentTail) currentTail.nextSub = link;
       }
+      if (link.dep.subsHead === void 0) {
+        link.dep.subsHead = link;
+      }
       link.dep.subs = link;
     }
   }
   const targetMap = /* @__PURE__ */ new WeakMap();
   const ITERATE_KEY = /* @__PURE__ */ Symbol(
-    ""
+    "Object iterate"
   );
   const MAP_KEY_ITERATE_KEY = /* @__PURE__ */ Symbol(
-    ""
+    "Map keys iterate"
   );
   const ARRAY_ITERATE_KEY = /* @__PURE__ */ Symbol(
-    ""
+    "Array iterate"
   );
   function track(target, type, key) {
     if (shouldTrack && activeSub) {
@@ -824,7 +875,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         dep.key = key;
       }
       {
-        dep.track();
+        dep.track({
+          target,
+          type,
+          key
+        });
       }
     }
   }
@@ -837,7 +892,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const run = (dep) => {
       if (dep) {
         {
-          dep.trigger();
+          dep.trigger({
+            target,
+            type,
+            key,
+            newValue,
+            oldValue,
+            oldTarget
+          });
         }
       }
     };
@@ -1184,6 +1246,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         }
         if (!isArrayWithIntegerKey && /* @__PURE__ */ isRef(oldValue) && !/* @__PURE__ */ isRef(value)) {
           if (isOldValueReadonly) {
+            {
+              warn$2(
+                `Set operation on key "${String(key)}" failed: target is readonly.`,
+                target[key]
+              );
+            }
             return true;
           } else {
             oldValue.value = value;
@@ -1202,17 +1270,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         if (!hadKey) {
           trigger(target, "add", key, value);
         } else if (hasChanged(value, oldValue)) {
-          trigger(target, "set", key, value);
+          trigger(target, "set", key, value, oldValue);
         }
       }
       return result;
     }
     deleteProperty(target, key) {
       const hadKey = hasOwn(target, key);
-      target[key];
+      const oldValue = target[key];
       const result = Reflect.deleteProperty(target, key);
       if (result && hadKey) {
-        trigger(target, "delete", key, void 0);
+        trigger(target, "delete", key, void 0, oldValue);
       }
       return result;
     }
@@ -1237,9 +1305,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       super(true, isShallow2);
     }
     set(target, key) {
+      {
+        warn$2(
+          `Set operation on key "${String(key)}" failed: target is readonly.`,
+          target
+        );
+      }
       return true;
     }
     deleteProperty(target, key) {
+      {
+        warn$2(
+          `Delete operation on key "${String(key)}" failed: target is readonly.`,
+          target
+        );
+      }
       return true;
     }
   }
@@ -1281,6 +1361,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function createReadonlyMethod(type) {
     return function(...args) {
+      {
+        const key = args[0] ? `on key "${args[0]}" ` : ``;
+        warn$2(
+          `${capitalize(type)} operation ${key}failed: target is readonly.`,
+          /* @__PURE__ */ toRaw(this)
+        );
+      }
       return type === "delete" ? false : type === "clear" ? void 0 : this;
     };
   }
@@ -1364,13 +1451,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           if (!hadKey) {
             key = /* @__PURE__ */ toRaw(key);
             hadKey = has.call(target, key);
+          } else {
+            checkIdentityKeys(target, has, key);
           }
           const oldValue = get.call(target, key);
           target.set(key, value);
           if (!hadKey) {
             trigger(target, "add", key, value);
           } else if (hasChanged(value, oldValue)) {
-            trigger(target, "set", key, value);
+            trigger(target, "set", key, value, oldValue);
           }
           return this;
         },
@@ -1381,24 +1470,28 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           if (!hadKey) {
             key = /* @__PURE__ */ toRaw(key);
             hadKey = has.call(target, key);
+          } else {
+            checkIdentityKeys(target, has, key);
           }
-          get ? get.call(target, key) : void 0;
+          const oldValue = get ? get.call(target, key) : void 0;
           const result = target.delete(key);
           if (hadKey) {
-            trigger(target, "delete", key, void 0);
+            trigger(target, "delete", key, void 0, oldValue);
           }
           return result;
         },
         clear() {
           const target = /* @__PURE__ */ toRaw(this);
           const hadItems = target.size !== 0;
+          const oldTarget = isMap(target) ? new Map(target) : new Set(target);
           const result = target.clear();
           if (hadItems) {
             trigger(
               target,
               "clear",
               void 0,
-              void 0
+              void 0,
+              oldTarget
             );
           }
           return result;
@@ -1445,6 +1538,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const shallowReadonlyCollectionHandlers = {
     get: /* @__PURE__ */ createInstrumentationGetter(true, true)
   };
+  function checkIdentityKeys(target, has, key) {
+    const rawKey = /* @__PURE__ */ toRaw(key);
+    if (rawKey !== key && has.call(target, rawKey)) {
+      const type = toRawType(target);
+      warn$2(
+        `Reactive ${type} contains both the raw and reactive versions of the same object${type === `Map` ? ` as keys` : ``}, which can lead to inconsistencies. Avoid differentiating between the raw and reactive versions of an object and only use the reactive version if possible.`
+      );
+    }
+  }
   const reactiveMap = /* @__PURE__ */ new WeakMap();
   const shallowReactiveMap = /* @__PURE__ */ new WeakMap();
   const readonlyMap = /* @__PURE__ */ new WeakMap();
@@ -1508,6 +1610,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function createReactiveObject(target, isReadonly2, baseHandlers, collectionHandlers, proxyMap) {
     if (!isObject(target)) {
+      {
+        warn$2(
+          `value cannot be made ${isReadonly2 ? "readonly" : "reactive"}: ${String(
+            target
+          )}`
+        );
+      }
       return target;
     }
     if (target["__v_raw"] && !(isReadonly2 && target["__v_isReactive"])) {
@@ -1592,7 +1701,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     get value() {
       {
-        this.dep.track();
+        this.dep.track({
+          target: this,
+          type: "get",
+          key: "value"
+        });
       }
       return this._value;
     }
@@ -1604,7 +1717,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         this._rawValue = newValue;
         this._value = useDirectValue ? newValue : toReactive(newValue);
         {
-          this.dep.trigger();
+          this.dep.trigger({
+            target: this,
+            type: "set",
+            key: "value",
+            newValue,
+            oldValue
+          });
         }
       }
     }
@@ -1655,7 +1774,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     get value() {
-      const link = this.dep.track();
+      const link = this.dep.track({
+        target: this,
+        type: "get",
+        key: "value"
+      });
       refreshComputed(this);
       if (link) {
         link.version = this.dep.version;
@@ -1665,6 +1788,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     set value(newValue) {
       if (this.setter) {
         this.setter(newValue);
+      } else {
+        warn$2("Write operation failed: computed value is readonly");
       }
     }
   }
@@ -1689,10 +1814,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       let cleanups = cleanupMap.get(owner);
       if (!cleanups) cleanupMap.set(owner, cleanups = []);
       cleanups.push(cleanupFn);
+    } else if (!failSilently) {
+      warn$2(
+        `onWatcherCleanup() was called when there was no active watcher to associate with.`
+      );
     }
   }
   function watch$1(source, cb, options = EMPTY_OBJ) {
     const { immediate, deep, once, scheduler, augmentJob, call } = options;
+    const warnInvalidSource = (s) => {
+      (options.onWarn || warn$2)(
+        `Invalid watch source: `,
+        s,
+        `A watch source can only be a getter/effect function, a ref, a reactive object, or an array of these types.`
+      );
+    };
     const reactiveGetter = (source2) => {
       if (deep) return source2;
       if (/* @__PURE__ */ isShallow(source2) || deep === false || deep === 0)
@@ -1721,7 +1857,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           return reactiveGetter(s);
         } else if (isFunction(s)) {
           return call ? call(s, 2) : s();
-        } else ;
+        } else {
+          warnInvalidSource(s);
+        }
       });
     } else if (isFunction(source)) {
       if (cb) {
@@ -1747,6 +1885,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     } else {
       getter = NOOP;
+      warnInvalidSource(source);
     }
     if (cb && deep) {
       const baseGetter = getter;
@@ -1817,6 +1956,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         cleanupMap.delete(effect2);
       }
     };
+    {
+      effect2.onTrack = options.onTrack;
+      effect2.onTrigger = options.onTrigger;
+    }
     if (cb) {
       if (immediate) {
         job(true);
@@ -1871,6 +2014,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   * @license MIT
   **/
   const stack = [];
+  function pushWarningContext(vnode) {
+    stack.push(vnode);
+  }
+  function popWarningContext() {
+    stack.pop();
+  }
   let isWarning = false;
   function warn$1(msg, ...args) {
     if (isWarning) return;
@@ -1976,6 +2125,39 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return raw ? value : [`${key}=`, value];
     }
   }
+  const ErrorTypeStrings$1 = {
+    ["sp"]: "serverPrefetch hook",
+    ["bc"]: "beforeCreate hook",
+    ["c"]: "created hook",
+    ["bm"]: "beforeMount hook",
+    ["m"]: "mounted hook",
+    ["bu"]: "beforeUpdate hook",
+    ["u"]: "updated",
+    ["bum"]: "beforeUnmount hook",
+    ["um"]: "unmounted hook",
+    ["a"]: "activated hook",
+    ["da"]: "deactivated hook",
+    ["ec"]: "errorCaptured hook",
+    ["rtc"]: "renderTracked hook",
+    ["rtg"]: "renderTriggered hook",
+    [0]: "setup function",
+    [1]: "render function",
+    [2]: "watcher getter",
+    [3]: "watcher callback",
+    [4]: "watcher cleanup function",
+    [5]: "native event handler",
+    [6]: "component event handler",
+    [7]: "vnode hook",
+    [8]: "directive hook",
+    [9]: "transition hook",
+    [10]: "app errorHandler",
+    [11]: "app warnHandler",
+    [12]: "ref function",
+    [13]: "async component loader",
+    [14]: "scheduler flush",
+    [15]: "component update",
+    [16]: "app unmount cleanup function"
+  };
   function callWithErrorHandling(fn, instance, type, args) {
     try {
       return args ? fn(...args) : fn();
@@ -1999,6 +2181,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         values.push(callWithAsyncErrorHandling(fn[i], instance, type, args));
       }
       return values;
+    } else {
+      warn$1(
+        `Invalid value type passed to callWithAsyncErrorHandling(): ${typeof fn}`
+      );
     }
   }
   function handleError(err, instance, type, throwInDev = true) {
@@ -2007,7 +2193,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     if (instance) {
       let cur = instance.parent;
       const exposedInstance = instance.proxy;
-      const errorInfo = `https://vuejs.org/error-reference/#runtime-${type}`;
+      const errorInfo = ErrorTypeStrings$1[type];
       while (cur) {
         const errorCapturedHooks = cur.ec;
         if (errorCapturedHooks) {
@@ -2033,10 +2219,20 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     logError(err, type, contextVNode, throwInDev, throwUnhandledErrorInProduction);
   }
   function logError(err, type, contextVNode, throwInDev = true, throwInProd = false) {
-    if (throwInProd) {
-      throw err;
-    } else {
-      console.error(err);
+    {
+      const info = ErrorTypeStrings$1[type];
+      if (contextVNode) {
+        pushWarningContext(contextVNode);
+      }
+      warn$1(`Unhandled error${info ? ` during execution of ${info}` : ``}`);
+      if (contextVNode) {
+        popWarningContext();
+      }
+      if (throwInDev) {
+        throw err;
+      } else {
+        console.error(err);
+      }
     }
   }
   const queue = [];
@@ -2046,6 +2242,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   let postFlushIndex = 0;
   const resolvedPromise = /* @__PURE__ */ Promise.resolve();
   let currentFlushPromise = null;
+  const RECURSION_LIMIT = 100;
   function nextTick(fn) {
     const p2 = currentFlushPromise || resolvedPromise;
     return fn ? p2.then(this ? fn.bind(this) : fn) : p2;
@@ -2098,10 +2295,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     queueFlush();
   }
   function flushPreFlushCbs(instance, seen, i = flushIndex + 1) {
+    {
+      seen = seen || /* @__PURE__ */ new Map();
+    }
     for (; i < queue.length; i++) {
       const cb = queue[i];
       if (cb && cb.flags & 2) {
         if (instance && cb.id !== instance.uid) {
+          continue;
+        }
+        if (checkRecursiveUpdates(seen, cb)) {
           continue;
         }
         queue.splice(i, 1);
@@ -2127,8 +2330,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return;
       }
       activePostFlushCbs = deduped;
+      {
+        seen = seen || /* @__PURE__ */ new Map();
+      }
       for (postFlushIndex = 0; postFlushIndex < activePostFlushCbs.length; postFlushIndex++) {
         const cb = activePostFlushCbs[postFlushIndex];
+        if (checkRecursiveUpdates(seen, cb)) {
+          continue;
+        }
         if (cb.flags & 4) {
           cb.flags &= -2;
         }
@@ -2141,11 +2350,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const getId = (job) => job.id == null ? job.flags & 2 ? -1 : Infinity : job.id;
   function flushJobs(seen) {
+    {
+      seen = seen || /* @__PURE__ */ new Map();
+    }
+    const check = (job) => checkRecursiveUpdates(seen, job);
     try {
       for (flushIndex = 0; flushIndex < queue.length; flushIndex++) {
         const job = queue[flushIndex];
         if (job && !(job.flags & 8)) {
-          if (false) ;
+          if (check(job)) {
+            continue;
+          }
           if (job.flags & 4) {
             job.flags &= ~1;
           }
@@ -2168,12 +2383,263 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
       flushIndex = -1;
       queue.length = 0;
-      flushPostFlushCbs();
+      flushPostFlushCbs(seen);
       currentFlushPromise = null;
       if (queue.length || pendingPostFlushCbs.length) {
-        flushJobs();
+        flushJobs(seen);
       }
     }
+  }
+  function checkRecursiveUpdates(seen, fn) {
+    const count = seen.get(fn) || 0;
+    if (count > RECURSION_LIMIT) {
+      const instance = fn.i;
+      const componentName = instance && getComponentName(instance.type);
+      handleError(
+        `Maximum recursive updates exceeded${componentName ? ` in component <${componentName}>` : ``}. This means you have a reactive effect that is mutating its own dependencies and thus recursively triggering itself. Possible sources include component template, render function, updated hook or watcher source function.`,
+        null,
+        10
+      );
+      return true;
+    }
+    seen.set(fn, count + 1);
+    return false;
+  }
+  let isHmrUpdating = false;
+  const setHmrUpdating = (v) => {
+    try {
+      return isHmrUpdating;
+    } finally {
+      isHmrUpdating = v;
+    }
+  };
+  const hmrDirtyComponents = /* @__PURE__ */ new Map();
+  {
+    getGlobalThis().__VUE_HMR_RUNTIME__ = {
+      createRecord: tryWrap(createRecord),
+      rerender: tryWrap(rerender),
+      reload: tryWrap(reload)
+    };
+  }
+  const map = /* @__PURE__ */ new Map();
+  function registerHMR(instance) {
+    const id = instance.type.__hmrId;
+    let record = map.get(id);
+    if (!record) {
+      createRecord(id, instance.type);
+      record = map.get(id);
+    }
+    record.instances.add(instance);
+  }
+  function unregisterHMR(instance) {
+    map.get(instance.type.__hmrId).instances.delete(instance);
+  }
+  function createRecord(id, initialDef) {
+    if (map.has(id)) {
+      return false;
+    }
+    map.set(id, {
+      initialDef: normalizeClassComponent(initialDef),
+      instances: /* @__PURE__ */ new Set()
+    });
+    return true;
+  }
+  function normalizeClassComponent(component) {
+    return isClassComponent(component) ? component.__vccOpts : component;
+  }
+  function rerender(id, newRender) {
+    const record = map.get(id);
+    if (!record) {
+      return;
+    }
+    record.initialDef.render = newRender;
+    [...record.instances].forEach((instance) => {
+      if (newRender) {
+        instance.render = newRender;
+        normalizeClassComponent(instance.type).render = newRender;
+      }
+      instance.renderCache = [];
+      isHmrUpdating = true;
+      if (!(instance.job.flags & 8)) {
+        instance.update();
+      }
+      isHmrUpdating = false;
+    });
+  }
+  function reload(id, newComp) {
+    const record = map.get(id);
+    if (!record) return;
+    newComp = normalizeClassComponent(newComp);
+    updateComponentDef(record.initialDef, newComp);
+    const instances = [...record.instances];
+    for (let i = 0; i < instances.length; i++) {
+      const instance = instances[i];
+      const oldComp = normalizeClassComponent(instance.type);
+      let dirtyInstances = hmrDirtyComponents.get(oldComp);
+      if (!dirtyInstances) {
+        if (oldComp !== record.initialDef) {
+          updateComponentDef(oldComp, newComp);
+        }
+        hmrDirtyComponents.set(oldComp, dirtyInstances = /* @__PURE__ */ new Set());
+      }
+      dirtyInstances.add(instance);
+      instance.appContext.propsCache.delete(instance.type);
+      instance.appContext.emitsCache.delete(instance.type);
+      instance.appContext.optionsCache.delete(instance.type);
+      if (instance.ceReload) {
+        dirtyInstances.add(instance);
+        instance.ceReload(newComp.styles);
+        dirtyInstances.delete(instance);
+      } else if (instance.parent) {
+        queueJob(() => {
+          if (!(instance.job.flags & 8)) {
+            isHmrUpdating = true;
+            instance.parent.update();
+            isHmrUpdating = false;
+            dirtyInstances.delete(instance);
+          }
+        });
+      } else if (instance.appContext.reload) {
+        instance.appContext.reload();
+      } else if (typeof window !== "undefined") {
+        window.location.reload();
+      } else {
+        console.warn(
+          "[HMR] Root or manually mounted instance modified. Full reload required."
+        );
+      }
+      if (instance.root.ce && instance !== instance.root) {
+        instance.root.ce._removeChildStyle(oldComp);
+      }
+    }
+    queuePostFlushCb(() => {
+      hmrDirtyComponents.clear();
+    });
+  }
+  function updateComponentDef(oldComp, newComp) {
+    extend(oldComp, newComp);
+    for (const key in oldComp) {
+      if (key !== "__file" && !(key in newComp)) {
+        delete oldComp[key];
+      }
+    }
+  }
+  function tryWrap(fn) {
+    return (id, arg) => {
+      try {
+        return fn(id, arg);
+      } catch (e) {
+        console.error(e);
+        console.warn(
+          `[HMR] Something went wrong during Vue component hot-reload. Full reload required.`
+        );
+      }
+    };
+  }
+  let devtools$1;
+  let buffer = [];
+  let devtoolsNotInstalled = false;
+  function emit$1(event, ...args) {
+    if (devtools$1) {
+      devtools$1.emit(event, ...args);
+    } else if (!devtoolsNotInstalled) {
+      buffer.push({ event, args });
+    }
+  }
+  function setDevtoolsHook$1(hook, target) {
+    var _a, _b;
+    devtools$1 = hook;
+    if (devtools$1) {
+      devtools$1.enabled = true;
+      buffer.forEach(({ event, args }) => devtools$1.emit(event, ...args));
+      buffer = [];
+    } else if (
+      // handle late devtools injection - only do this if we are in an actual
+      // browser environment to avoid the timer handle stalling test runner exit
+      // (#4815)
+      typeof window !== "undefined" && // some envs mock window but not fully
+      window.HTMLElement && // also exclude jsdom
+      // eslint-disable-next-line no-restricted-syntax
+      !((_b = (_a = window.navigator) == null ? void 0 : _a.userAgent) == null ? void 0 : _b.includes("jsdom"))
+    ) {
+      const replay = target.__VUE_DEVTOOLS_HOOK_REPLAY__ = target.__VUE_DEVTOOLS_HOOK_REPLAY__ || [];
+      replay.push((newHook) => {
+        setDevtoolsHook$1(newHook, target);
+      });
+      setTimeout(() => {
+        if (!devtools$1) {
+          target.__VUE_DEVTOOLS_HOOK_REPLAY__ = null;
+          devtoolsNotInstalled = true;
+          buffer = [];
+        }
+      }, 3e3);
+    } else {
+      devtoolsNotInstalled = true;
+      buffer = [];
+    }
+  }
+  function devtoolsInitApp(app, version2) {
+    emit$1("app:init", app, version2, {
+      Fragment,
+      Text,
+      Comment,
+      Static
+    });
+  }
+  function devtoolsUnmountApp(app) {
+    emit$1("app:unmount", app);
+  }
+  const devtoolsComponentAdded = /* @__PURE__ */ createDevtoolsComponentHook(
+    "component:added"
+    /* COMPONENT_ADDED */
+  );
+  const devtoolsComponentUpdated = /* @__PURE__ */ createDevtoolsComponentHook(
+    "component:updated"
+    /* COMPONENT_UPDATED */
+  );
+  const _devtoolsComponentRemoved = /* @__PURE__ */ createDevtoolsComponentHook(
+    "component:removed"
+    /* COMPONENT_REMOVED */
+  );
+  const devtoolsComponentRemoved = (component) => {
+    if (devtools$1 && typeof devtools$1.cleanupBuffer === "function" && // remove the component if it wasn't buffered
+    !devtools$1.cleanupBuffer(component)) {
+      _devtoolsComponentRemoved(component);
+    }
+  };
+  // @__NO_SIDE_EFFECTS__
+  function createDevtoolsComponentHook(hook) {
+    return (component) => {
+      emit$1(
+        hook,
+        component.appContext.app,
+        component.uid,
+        component.parent ? component.parent.uid : void 0,
+        component
+      );
+    };
+  }
+  const devtoolsPerfStart = /* @__PURE__ */ createDevtoolsPerformanceHook(
+    "perf:start"
+    /* PERFORMANCE_START */
+  );
+  const devtoolsPerfEnd = /* @__PURE__ */ createDevtoolsPerformanceHook(
+    "perf:end"
+    /* PERFORMANCE_END */
+  );
+  function createDevtoolsPerformanceHook(hook) {
+    return (component, type, time) => {
+      emit$1(hook, component.appContext.app, component.uid, component, type, time);
+    };
+  }
+  function devtoolsComponentEmit(component, event, params) {
+    emit$1(
+      "component:emit",
+      component.appContext.app,
+      component,
+      event,
+      params
+    );
   }
   let currentRenderingInstance = null;
   let currentScopeId = null;
@@ -2202,6 +2668,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           setBlockTracking(1);
         }
       }
+      {
+        devtoolsComponentUpdated(ctx);
+      }
       return res;
     };
     renderFnWithContext._n = true;
@@ -2209,8 +2678,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     renderFnWithContext._d = true;
     return renderFnWithContext;
   }
+  function validateDirectiveName(name) {
+    if (isBuiltInDirective(name)) {
+      warn$1("Do not use built-in directive ids as custom directive id: " + name);
+    }
+  }
   function withDirectives(vnode, directives) {
     if (currentRenderingInstance === null) {
+      warn$1(`withDirectives can only be used inside render functions.`);
       return vnode;
     }
     const instance = getComponentPublicInstance(currentRenderingInstance);
@@ -2261,6 +2736,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
   }
   function provide(key, value) {
+    {
+      if (!currentInstance || currentInstance.isMounted) {
+        warn$1(`provide() can only be used inside setup().`);
+      }
+    }
     if (currentInstance) {
       let provides = currentInstance.provides;
       const parentProvides = currentInstance.parent && currentInstance.parent.provides;
@@ -2278,22 +2758,54 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return provides[key];
       } else if (arguments.length > 1) {
         return treatDefaultAsFactory && isFunction(defaultValue) ? defaultValue.call(instance && instance.proxy) : defaultValue;
-      } else ;
+      } else {
+        warn$1(`injection "${String(key)}" not found.`);
+      }
+    } else {
+      warn$1(`inject() can only be used inside setup() or functional components.`);
     }
   }
   const ssrContextKey = /* @__PURE__ */ Symbol.for("v-scx");
   const useSSRContext = () => {
     {
       const ctx = inject(ssrContextKey);
+      if (!ctx) {
+        warn$1(
+          `Server rendering context not provided. Make sure to only call useSSRContext() conditionally in the server build.`
+        );
+      }
       return ctx;
     }
   };
   function watch(source, cb, options) {
+    if (!isFunction(cb)) {
+      warn$1(
+        `\`watch(fn, options?)\` signature has been moved to a separate API. Use \`watchEffect(fn, options?)\` instead. \`watch\` now only supports \`watch(source, cb, options?) signature.`
+      );
+    }
     return doWatch(source, cb, options);
   }
   function doWatch(source, cb, options = EMPTY_OBJ) {
     const { immediate, deep, flush, once } = options;
+    if (!cb) {
+      if (immediate !== void 0) {
+        warn$1(
+          `watch() "immediate" option is only respected when using the watch(source, callback, options?) signature.`
+        );
+      }
+      if (deep !== void 0) {
+        warn$1(
+          `watch() "deep" option is only respected when using the watch(source, callback, options?) signature.`
+        );
+      }
+      if (once !== void 0) {
+        warn$1(
+          `watch() "once" option is only respected when using the watch(source, callback, options?) signature.`
+        );
+      }
+    }
     const baseWatchOptions = extend({}, options);
+    baseWatchOptions.onWarn = warn$1;
     const runsImmediately = cb && immediate || !cb && flush !== "post";
     let ssrCleanup;
     if (isInSSRComponentSetup) {
@@ -2390,6 +2902,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function markAsyncBoundary(instance) {
     instance.ids = [instance.ids[0] + instance.ids[2]++ + "-", 0, 0];
   }
+  const knownTemplateRefs = /* @__PURE__ */ new WeakSet();
   function isTemplateRefKey(refs, key) {
     let desc;
     return !!((desc = Object.getOwnPropertyDescriptor(refs, key)) && !desc.configurable);
@@ -2417,17 +2930,36 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const refValue = vnode.shapeFlag & 4 ? getComponentPublicInstance(vnode.component) : vnode.el;
     const value = isUnmount ? null : refValue;
     const { i: owner, r: ref3 } = rawRef;
+    if (!owner) {
+      warn$1(
+        `Missing ref owner context. ref cannot be used on hoisted vnodes. A vnode with ref must be created inside the render function.`
+      );
+      return;
+    }
     const oldRef = oldRawRef && oldRawRef.r;
     const refs = owner.refs === EMPTY_OBJ ? owner.refs = {} : owner.refs;
     const setupState = owner.setupState;
     const rawSetupState = /* @__PURE__ */ toRaw(setupState);
     const canSetSetupRef = setupState === EMPTY_OBJ ? NO : (key) => {
+      {
+        if (hasOwn(rawSetupState, key) && !/* @__PURE__ */ isRef(rawSetupState[key])) {
+          warn$1(
+            `Template ref "${key}" used on a non-ref value. It will not work in the production build.`
+          );
+        }
+        if (knownTemplateRefs.has(rawSetupState[key])) {
+          return false;
+        }
+      }
       if (isTemplateRefKey(refs, key)) {
         return false;
       }
       return hasOwn(rawSetupState, key);
     };
     const canSetRef = (ref22, key) => {
+      if (knownTemplateRefs.has(ref22)) {
+        return false;
+      }
       if (key && isTemplateRefKey(refs, key)) {
         return false;
       }
@@ -2456,7 +2988,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       if (_isString || _isRef) {
         const doSet = () => {
           if (rawRef.f) {
-            const existing = _isString ? canSetSetupRef(ref3) ? setupState[ref3] : refs[ref3] : canSetRef() || !rawRef.k ? ref3.value : refs[rawRef.k];
+            const existing = _isString ? canSetSetupRef(ref3) ? setupState[ref3] : refs[ref3] : canSetRef(ref3) || !rawRef.k ? ref3.value : refs[rawRef.k];
             if (isUnmount) {
               isArray(existing) && remove(existing, refValue);
             } else {
@@ -2487,7 +3019,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               ref3.value = value;
             }
             if (rawRef.k) refs[rawRef.k] = value;
-          } else ;
+          } else {
+            warn$1("Invalid template ref type:", ref3, `(${typeof ref3})`);
+          }
         };
         if (value) {
           const job = () => {
@@ -2501,6 +3035,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           invalidatePendingSetRef(rawRef);
           doSet();
         }
+      } else {
+        warn$1("Invalid template ref type:", ref3, `(${typeof ref3})`);
       }
     }
   }
@@ -2572,6 +3108,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         hooks.push(wrappedHook);
       }
       return wrappedHook;
+    } else {
+      const apiName = toHandlerKey(ErrorTypeStrings$1[type].replace(/ hook$/, ""));
+      warn$1(
+        `${apiName} is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.`
+      );
     }
   }
   const createHook = (lifecycle) => (hook, target = currentInstance) => {
@@ -2621,7 +3162,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         );
       }
     } else if (typeof source === "number") {
-      {
+      if (!Number.isInteger(source) || source < 0) {
+        warn$1(
+          `The v-for range expects a positive integer value but got ${source}.`
+        );
+        ret = [];
+      } else {
         ret = new Array(source);
         for (let i = 0; i < source; i++) {
           ret[i] = renderItem(i + 1, i, void 0, cached);
@@ -2657,6 +3203,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       );
     }
     let slot = slots[name];
+    if (slot && slot.length > 1) {
+      warn$1(
+        `SSR-optimized slot function detected in a non-SSR-optimized render function. You need to mark this component with $dynamic-slots in the parent template.`
+      );
+      slot = () => [];
+    }
     if (slot && slot._c) {
       slot._d = false;
     }
@@ -2703,10 +3255,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       $: (i) => i,
       $el: (i) => i.vnode.el,
       $data: (i) => i.data,
-      $props: (i) => i.props,
-      $attrs: (i) => i.attrs,
-      $slots: (i) => i.slots,
-      $refs: (i) => i.refs,
+      $props: (i) => /* @__PURE__ */ shallowReadonly(i.props),
+      $attrs: (i) => /* @__PURE__ */ shallowReadonly(i.attrs),
+      $slots: (i) => /* @__PURE__ */ shallowReadonly(i.slots),
+      $refs: (i) => /* @__PURE__ */ shallowReadonly(i.refs),
       $parent: (i) => getPublicInstance(i.parent),
       $root: (i) => getPublicInstance(i.root),
       $host: (i) => i.ce,
@@ -2719,6 +3271,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       $watch: (i) => instanceWatch.bind(i)
     })
   );
+  const isReservedPrefix = (key) => key === "_" || key === "$";
   const hasSetupBinding = (state, key) => state !== EMPTY_OBJ && !state.__isScriptSetup && hasOwn(state, key);
   const PublicInstanceProxyHandlers = {
     get({ _: instance }, key) {
@@ -2726,6 +3279,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return true;
       }
       const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
+      if (key === "__isVue") {
+        return true;
+      }
       if (key[0] !== "$") {
         const n = accessCache[key];
         if (n !== void 0) {
@@ -2760,6 +3316,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       if (publicGetter) {
         if (key === "$attrs") {
           track(instance.attrs, "get", "");
+          markAttrsAccessed();
+        } else if (key === "$slots") {
+          track(instance, "get", key);
         }
         return publicGetter(instance);
       } else if (
@@ -2777,23 +3336,50 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         {
           return globalProperties[key];
         }
-      } else ;
+      } else if (currentRenderingInstance && (!isString(key) || // #1091 avoid internal isRef/isVNode checks on component instance leading
+      // to infinite warning loop
+      key.indexOf("__v") !== 0)) {
+        if (data !== EMPTY_OBJ && isReservedPrefix(key[0]) && hasOwn(data, key)) {
+          warn$1(
+            `Property ${JSON.stringify(
+              key
+            )} must be accessed via $data because it starts with a reserved character ("$" or "_") and is not proxied on the render context.`
+          );
+        } else if (instance === currentRenderingInstance) {
+          warn$1(
+            `Property ${JSON.stringify(key)} was accessed during render but is not defined on instance.`
+          );
+        }
+      }
     },
     set({ _: instance }, key, value) {
       const { data, setupState, ctx } = instance;
       if (hasSetupBinding(setupState, key)) {
         setupState[key] = value;
         return true;
+      } else if (setupState.__isScriptSetup && hasOwn(setupState, key)) {
+        warn$1(`Cannot mutate <script setup> binding "${key}" from Options API.`);
+        return false;
       } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
         data[key] = value;
         return true;
       } else if (hasOwn(instance.props, key)) {
+        warn$1(`Attempting to mutate prop "${key}". Props are readonly.`);
         return false;
       }
       if (key[0] === "$" && key.slice(1) in instance) {
+        warn$1(
+          `Attempting to mutate public property "${key}". Properties starting with $ are reserved and readonly.`
+        );
         return false;
       } else {
-        {
+        if (key in instance.appContext.config.globalProperties) {
+          Object.defineProperty(ctx, key, {
+            enumerable: true,
+            configurable: true,
+            value
+          });
+        } else {
           ctx[key] = value;
         }
       }
@@ -2814,11 +3400,85 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return Reflect.defineProperty(target, key, descriptor);
     }
   };
+  {
+    PublicInstanceProxyHandlers.ownKeys = (target) => {
+      warn$1(
+        `Avoid app logic that relies on enumerating keys on a component instance. The keys will be empty in production mode to avoid performance overhead.`
+      );
+      return Reflect.ownKeys(target);
+    };
+  }
+  function createDevRenderContext(instance) {
+    const target = {};
+    Object.defineProperty(target, `_`, {
+      configurable: true,
+      enumerable: false,
+      get: () => instance
+    });
+    Object.keys(publicPropertiesMap).forEach((key) => {
+      Object.defineProperty(target, key, {
+        configurable: true,
+        enumerable: false,
+        get: () => publicPropertiesMap[key](instance),
+        // intercepted by the proxy so no need for implementation,
+        // but needed to prevent set errors
+        set: NOOP
+      });
+    });
+    return target;
+  }
+  function exposePropsOnRenderContext(instance) {
+    const {
+      ctx,
+      propsOptions: [propsOptions]
+    } = instance;
+    if (propsOptions) {
+      Object.keys(propsOptions).forEach((key) => {
+        Object.defineProperty(ctx, key, {
+          enumerable: true,
+          configurable: true,
+          get: () => instance.props[key],
+          set: NOOP
+        });
+      });
+    }
+  }
+  function exposeSetupStateOnRenderContext(instance) {
+    const { ctx, setupState } = instance;
+    Object.keys(/* @__PURE__ */ toRaw(setupState)).forEach((key) => {
+      if (!setupState.__isScriptSetup) {
+        if (isReservedPrefix(key[0])) {
+          warn$1(
+            `setup() return property ${JSON.stringify(
+              key
+            )} should not start with "$" or "_" which are reserved prefixes for Vue internals.`
+          );
+          return;
+        }
+        Object.defineProperty(ctx, key, {
+          enumerable: true,
+          configurable: true,
+          get: () => setupState[key],
+          set: NOOP
+        });
+      }
+    });
+  }
   function normalizePropsOrEmits(props) {
     return isArray(props) ? props.reduce(
       (normalized, p2) => (normalized[p2] = null, normalized),
       {}
     ) : props;
+  }
+  function createDuplicateChecker() {
+    const cache = /* @__PURE__ */ Object.create(null);
+    return (type, key) => {
+      if (cache[key]) {
+        warn$1(`${type} property "${key}" is already defined in ${cache[key]}.`);
+      } else {
+        cache[key] = type;
+      }
+    };
   }
   let shouldCacheAccess = true;
   function applyOptions(instance) {
@@ -2862,7 +3522,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       directives,
       filters
     } = options;
-    const checkDuplicateProperties = null;
+    const checkDuplicateProperties = createDuplicateChecker();
+    {
+      const [propsOptions] = instance.propsOptions;
+      if (propsOptions) {
+        for (const key in propsOptions) {
+          checkDuplicateProperties("Props", key);
+        }
+      }
+    }
     if (injectOptions) {
       resolveInjections(injectOptions, ctx, checkDuplicateProperties);
     }
@@ -2871,16 +3539,52 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const methodHandler = methods[key];
         if (isFunction(methodHandler)) {
           {
-            ctx[key] = methodHandler.bind(publicThis);
+            Object.defineProperty(ctx, key, {
+              value: methodHandler.bind(publicThis),
+              configurable: true,
+              enumerable: true,
+              writable: true
+            });
           }
+          {
+            checkDuplicateProperties("Methods", key);
+          }
+        } else {
+          warn$1(
+            `Method "${key}" has type "${typeof methodHandler}" in the component definition. Did you reference the function correctly?`
+          );
         }
       }
     }
     if (dataOptions) {
+      if (!isFunction(dataOptions)) {
+        warn$1(
+          `The data option must be a function. Plain object usage is no longer supported.`
+        );
+      }
       const data = dataOptions.call(publicThis, publicThis);
-      if (!isObject(data)) ;
-      else {
+      if (isPromise(data)) {
+        warn$1(
+          `data() returned a Promise - note data() cannot be async; If you intend to perform data fetching before component renders, use async setup() + <Suspense>.`
+        );
+      }
+      if (!isObject(data)) {
+        warn$1(`data() should return an object.`);
+      } else {
         instance.data = /* @__PURE__ */ reactive(data);
+        {
+          for (const key in data) {
+            checkDuplicateProperties("Data", key);
+            if (!isReservedPrefix(key[0])) {
+              Object.defineProperty(ctx, key, {
+                configurable: true,
+                enumerable: true,
+                get: () => data[key],
+                set: NOOP
+              });
+            }
+          }
+        }
       }
     }
     shouldCacheAccess = true;
@@ -2888,7 +3592,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       for (const key in computedOptions) {
         const opt = computedOptions[key];
         const get = isFunction(opt) ? opt.bind(publicThis, publicThis) : isFunction(opt.get) ? opt.get.bind(publicThis, publicThis) : NOOP;
-        const set = !isFunction(opt) && isFunction(opt.set) ? opt.set.bind(publicThis) : NOOP;
+        if (get === NOOP) {
+          warn$1(`Computed property "${key}" has no getter.`);
+        }
+        const set = !isFunction(opt) && isFunction(opt.set) ? opt.set.bind(publicThis) : () => {
+          warn$1(
+            `Write operation failed: computed property "${key}" is readonly.`
+          );
+        };
         const c = computed({
           get,
           set
@@ -2899,6 +3610,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           get: () => c.value,
           set: (v) => c.value = v
         });
+        {
+          checkDuplicateProperties("Computed", key);
+        }
       }
     }
     if (watchOptions) {
@@ -2990,6 +3704,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       } else {
         ctx[key] = injected;
       }
+      {
+        checkDuplicateProperties("Inject", key);
+      }
     }
   }
   function callHook(hook, instance, type) {
@@ -3007,6 +3724,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         {
           watch(getter, handler);
         }
+      } else {
+        warn$1(`Invalid watch handler specified by key "${raw}"`, handler);
       }
     } else if (isFunction(raw)) {
       {
@@ -3019,9 +3738,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const handler = isFunction(raw.handler) ? raw.handler.bind(publicThis) : ctx[raw.handler];
         if (isFunction(handler)) {
           watch(getter, handler, raw);
+        } else {
+          warn$1(`Invalid watch handler specified by key "${raw.handler}"`, handler);
         }
       }
-    } else ;
+    } else {
+      warn$1(`Invalid watch option: "${key}"`, raw);
+    }
   }
   function resolveMergedOptions(instance) {
     const base = instance.type;
@@ -3064,8 +3787,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       );
     }
     for (const key in from) {
-      if (asMixin && key === "expose") ;
-      else {
+      if (asMixin && key === "expose") {
+        warn$1(
+          `"expose" option is ignored when declared in mixins or extends. It should only be declared in the base component itself.`
+        );
+      } else {
         const strat = internalOptionMergeStrats[key] || strats && strats[key];
         to[key] = strat ? strat(to[key], from[key]) : from[key];
       }
@@ -3187,6 +3913,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         rootComponent = extend({}, rootComponent);
       }
       if (rootProps != null && !isObject(rootProps)) {
+        warn$1(`root props passed to app.mount() must be an object.`);
         rootProps = null;
       }
       const context = createAppContext();
@@ -3205,42 +3932,74 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           return context.config;
         },
         set config(v) {
+          {
+            warn$1(
+              `app.config cannot be replaced. Modify individual options instead.`
+            );
+          }
         },
         use(plugin, ...options) {
-          if (installedPlugins.has(plugin)) ;
-          else if (plugin && isFunction(plugin.install)) {
+          if (installedPlugins.has(plugin)) {
+            warn$1(`Plugin has already been applied to target app.`);
+          } else if (plugin && isFunction(plugin.install)) {
             installedPlugins.add(plugin);
             plugin.install(app, ...options);
           } else if (isFunction(plugin)) {
             installedPlugins.add(plugin);
             plugin(app, ...options);
-          } else ;
+          } else {
+            warn$1(
+              `A plugin must either be a function or an object with an "install" function.`
+            );
+          }
           return app;
         },
         mixin(mixin) {
           {
             if (!context.mixins.includes(mixin)) {
               context.mixins.push(mixin);
+            } else {
+              warn$1(
+                "Mixin has already been applied to target app" + (mixin.name ? `: ${mixin.name}` : "")
+              );
             }
           }
           return app;
         },
         component(name, component) {
+          {
+            validateComponentName(name, context.config);
+          }
           if (!component) {
             return context.components[name];
+          }
+          if (context.components[name]) {
+            warn$1(`Component "${name}" has already been registered in target app.`);
           }
           context.components[name] = component;
           return app;
         },
         directive(name, directive) {
+          {
+            validateDirectiveName(name);
+          }
           if (!directive) {
             return context.directives[name];
+          }
+          if (context.directives[name]) {
+            warn$1(`Directive "${name}" has already been registered in target app.`);
           }
           context.directives[name] = directive;
           return app;
         },
         mount(rootContainer, isHydrate, namespace) {
           if (!isMounted) {
+            if (rootContainer.__vue_app__) {
+              warn$1(
+                `There is already an app instance mounted on the host container.
+ If you want to mount another app on the same host container, you need to unmount the previous app by calling \`app.unmount()\` first.`
+              );
+            }
             const vnode = app._ceVNode || createVNode(rootComponent, rootProps);
             vnode.appContext = context;
             if (namespace === true) {
@@ -3249,15 +4008,36 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               namespace = void 0;
             }
             {
+              context.reload = () => {
+                const cloned = cloneVNode(vnode);
+                cloned.el = null;
+                render(cloned, rootContainer, namespace);
+              };
+            }
+            {
               render(vnode, rootContainer, namespace);
             }
             isMounted = true;
             app._container = rootContainer;
             rootContainer.__vue_app__ = app;
+            {
+              app._instance = vnode.component;
+              devtoolsInitApp(app, version);
+            }
             return getComponentPublicInstance(vnode.component);
+          } else {
+            warn$1(
+              `App has already been mounted.
+If you want to remount the same app, move your app creation logic into a factory function and create fresh app instances for each mount - e.g. \`const createMyApp = () => createApp(App)\``
+            );
           }
         },
         onUnmount(cleanupFn) {
+          if (typeof cleanupFn !== "function") {
+            warn$1(
+              `Expected function as first argument to app.onUnmount(), but got ${typeof cleanupFn}`
+            );
+          }
           pluginCleanupFns.push(cleanupFn);
         },
         unmount() {
@@ -3268,10 +4048,27 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               16
             );
             render(null, app._container);
+            {
+              app._instance = null;
+              devtoolsUnmountApp(app);
+            }
             delete app._container.__vue_app__;
+          } else {
+            warn$1(`Cannot unmount an app that is not mounted.`);
           }
         },
         provide(key, value) {
+          if (key in context.provides) {
+            if (hasOwn(context.provides, key)) {
+              warn$1(
+                `App already provides property with key "${String(key)}". It will be overwritten with the new value.`
+              );
+            } else {
+              warn$1(
+                `App already provides property with key "${String(key)}" inherited from its parent element. It will be overwritten with the new value.`
+              );
+            }
+          }
           context.provides[key] = value;
           return app;
         },
@@ -3295,6 +4092,31 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function emit(instance, event, ...rawArgs) {
     if (instance.isUnmounted) return;
     const props = instance.vnode.props || EMPTY_OBJ;
+    {
+      const {
+        emitsOptions,
+        propsOptions: [propsOptions]
+      } = instance;
+      if (emitsOptions) {
+        if (!(event in emitsOptions) && true) {
+          if (!propsOptions || !(toHandlerKey(camelize(event)) in propsOptions)) {
+            warn$1(
+              `Component emitted event "${event}" but it is neither declared in the emits option nor as an "${toHandlerKey(camelize(event))}" prop.`
+            );
+          }
+        } else {
+          const validator = emitsOptions[event];
+          if (isFunction(validator)) {
+            const isValid = validator(...rawArgs);
+            if (!isValid) {
+              warn$1(
+                `Invalid event arguments: event validation failed for event "${event}".`
+              );
+            }
+          }
+        }
+      }
+    }
     let args = rawArgs;
     const isModelListener2 = event.startsWith("update:");
     const modifiers = isModelListener2 && getModelModifiers(props, event.slice(7));
@@ -3304,6 +4126,22 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
       if (modifiers.number) {
         args = rawArgs.map(looseToNumber);
+      }
+    }
+    {
+      devtoolsComponentEmit(instance, event, args);
+    }
+    {
+      const lowerCaseEvent = event.toLowerCase();
+      if (lowerCaseEvent !== event && props[toHandlerKey(lowerCaseEvent)]) {
+        warn$1(
+          `Event "${lowerCaseEvent}" is emitted in component ${formatComponentName(
+            instance,
+            instance.type
+          )} but the handler is registered for "${event}". Note that HTML attributes are case-insensitive and you cannot use v-on to listen to camelCase events when using in-DOM templates. You should probably use "${hyphenate(
+            event
+          )}" instead of "${event}".`
+        );
       }
     }
     let handlerName;
@@ -3387,7 +4225,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     key = key.slice(2).replace(/Once$/, "");
     return hasOwn(options, key[0].toLowerCase() + key.slice(1)) || hasOwn(options, hyphenate(key)) || hasOwn(options, key);
   }
+  let accessedAttrs = false;
   function markAttrsAccessed() {
+    accessedAttrs = true;
   }
   function renderComponentRoot(instance) {
     const {
@@ -3410,10 +4250,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const prev = setCurrentRenderingInstance(instance);
     let result;
     let fallthroughAttrs;
+    {
+      accessedAttrs = false;
+    }
     try {
       if (vnode.shapeFlag & 4) {
         const proxyToUse = withProxy || proxy;
-        const thisProxy = false ? new Proxy(proxyToUse, {
+        const thisProxy = setupState.__isScriptSetup ? new Proxy(proxyToUse, {
           get(target, key, receiver) {
             warn$1(
               `Property '${String(
@@ -3428,7 +4271,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             thisProxy,
             proxyToUse,
             renderCache,
-            false ? /* @__PURE__ */ shallowReadonly(props) : props,
+            true ? /* @__PURE__ */ shallowReadonly(props) : props,
             setupState,
             data,
             ctx
@@ -3437,11 +4280,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         fallthroughAttrs = attrs;
       } else {
         const render2 = Component;
-        if (false) ;
+        if (attrs === props) {
+          markAttrsAccessed();
+        }
         result = normalizeVNode(
           render2.length > 1 ? render2(
-            false ? /* @__PURE__ */ shallowReadonly(props) : props,
-            false ? {
+            true ? /* @__PURE__ */ shallowReadonly(props) : props,
+            true ? {
               get attrs() {
                 markAttrsAccessed();
                 return /* @__PURE__ */ shallowReadonly(attrs);
@@ -3450,7 +4295,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               emit: emit2
             } : { attrs, slots, emit: emit2 }
           ) : render2(
-            false ? /* @__PURE__ */ shallowReadonly(props) : props,
+            true ? /* @__PURE__ */ shallowReadonly(props) : props,
             null
           )
         );
@@ -3462,6 +4307,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       result = createVNode(Comment);
     }
     let root = result;
+    let setRoot = void 0;
+    if (result.patchFlag > 0 && result.patchFlag & 2048) {
+      [root, setRoot] = getChildRoot(result);
+    }
     if (fallthroughAttrs && inheritAttrs !== false) {
       const keys = Object.keys(fallthroughAttrs);
       const { shapeFlag } = root;
@@ -3474,21 +4323,101 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             );
           }
           root = cloneVNode(root, fallthroughAttrs, false, true);
+        } else if (!accessedAttrs && root.type !== Comment) {
+          const allAttrs = Object.keys(attrs);
+          const eventAttrs = [];
+          const extraAttrs = [];
+          for (let i = 0, l = allAttrs.length; i < l; i++) {
+            const key = allAttrs[i];
+            if (isOn(key)) {
+              if (!isModelListener(key)) {
+                eventAttrs.push(key[2].toLowerCase() + key.slice(3));
+              }
+            } else {
+              extraAttrs.push(key);
+            }
+          }
+          if (extraAttrs.length) {
+            warn$1(
+              `Extraneous non-props attributes (${extraAttrs.join(", ")}) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.`
+            );
+          }
+          if (eventAttrs.length) {
+            warn$1(
+              `Extraneous non-emits event listeners (${eventAttrs.join(", ")}) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option.`
+            );
+          }
         }
       }
     }
     if (vnode.dirs) {
+      if (!isElementRoot(root)) {
+        warn$1(
+          `Runtime directive used on component with non-element root node. The directives will not function as intended.`
+        );
+      }
       root = cloneVNode(root, null, false, true);
       root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs;
     }
     if (vnode.transition) {
+      if (!isElementRoot(root)) {
+        warn$1(
+          `Component inside <Transition> renders non-element root node that cannot be animated.`
+        );
+      }
       setTransitionHooks(root, vnode.transition);
     }
-    {
+    if (setRoot) {
+      setRoot(root);
+    } else {
       result = root;
     }
     setCurrentRenderingInstance(prev);
     return result;
+  }
+  const getChildRoot = (vnode) => {
+    const rawChildren = vnode.children;
+    const dynamicChildren = vnode.dynamicChildren;
+    const childRoot = filterSingleRoot(rawChildren, false);
+    if (!childRoot) {
+      return [vnode, void 0];
+    } else if (childRoot.patchFlag > 0 && childRoot.patchFlag & 2048) {
+      return getChildRoot(childRoot);
+    }
+    const index = rawChildren.indexOf(childRoot);
+    const dynamicIndex = dynamicChildren ? dynamicChildren.indexOf(childRoot) : -1;
+    const setRoot = (updatedRoot) => {
+      rawChildren[index] = updatedRoot;
+      if (dynamicChildren) {
+        if (dynamicIndex > -1) {
+          dynamicChildren[dynamicIndex] = updatedRoot;
+        } else if (updatedRoot.patchFlag > 0) {
+          vnode.dynamicChildren = [...dynamicChildren, updatedRoot];
+        }
+      }
+    };
+    return [normalizeVNode(childRoot), setRoot];
+  };
+  function filterSingleRoot(children, recurse = true) {
+    let singleRoot;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (isVNode(child)) {
+        if (child.type !== Comment || child.children === "v-if") {
+          if (singleRoot) {
+            return;
+          } else {
+            singleRoot = child;
+            if (recurse && singleRoot.patchFlag > 0 && singleRoot.patchFlag & 2048) {
+              return filterSingleRoot(singleRoot.children);
+            }
+          }
+        }
+      } else {
+        return;
+      }
+    }
+    return singleRoot;
   }
   const getFunctionalFallthrough = (attrs) => {
     let res;
@@ -3508,10 +4437,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return res;
   };
+  const isElementRoot = (vnode) => {
+    return vnode.shapeFlag & (6 | 1) || vnode.type === Comment;
+  };
   function shouldUpdateComponent(prevVNode, nextVNode, optimized) {
     const { props: prevProps, children: prevChildren, component } = prevVNode;
     const { props: nextProps, children: nextChildren, patchFlag } = nextVNode;
     const emits = component.emitsOptions;
+    if ((prevChildren || nextChildren) && isHmrUpdating) {
+      return true;
+    }
     if (nextVNode.dirs || nextVNode.transition) {
       return true;
     }
@@ -3604,6 +4539,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         props[key] = void 0;
       }
     }
+    {
+      validateProps(rawProps || {}, props, instance);
+    }
     if (isStateful) {
       instance.props = isSSR ? props : /* @__PURE__ */ shallowReactive(props);
     } else {
@@ -3614,6 +4552,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     instance.attrs = attrs;
+  }
+  function isInHmrContext(instance) {
+    while (instance) {
+      if (instance.type.__hmrId) return true;
+      instance = instance.parent;
+    }
   }
   function updateProps(instance, rawProps, rawPrevProps, optimized) {
     const {
@@ -3628,7 +4572,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       // always force full diff in dev
       // - #1942 if hmr is enabled with sfc component
       // - vite#872 non-sfc component used by sfc component
-      (optimized || patchFlag > 0) && !(patchFlag & 16)
+      !isInHmrContext(instance) && (optimized || patchFlag > 0) && !(patchFlag & 16)
     ) {
       if (patchFlag & 8) {
         const propsToUpdate = instance.vnode.dynamicProps;
@@ -3702,6 +4646,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     if (hasAttrsChanged) {
       trigger(instance.attrs, "set", "");
+    }
+    {
+      validateProps(rawProps || {}, props, instance);
     }
   }
   function setFullProps(instance, rawProps, props, attrs) {
@@ -3823,12 +4770,18 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     if (isArray(raw)) {
       for (let i = 0; i < raw.length; i++) {
+        if (!isString(raw[i])) {
+          warn$1(`props must be strings when using array syntax.`, raw[i]);
+        }
         const normalizedKey = camelize(raw[i]);
         if (validatePropName(normalizedKey)) {
           normalized[normalizedKey] = EMPTY_OBJ;
         }
       }
     } else if (raw) {
+      if (!isObject(raw)) {
+        warn$1(`invalid props options`, raw);
+      }
       for (const key in raw) {
         const normalizedKey = camelize(key);
         if (validatePropName(normalizedKey)) {
@@ -3874,8 +4827,130 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function validatePropName(key) {
     if (key[0] !== "$" && !isReservedProp(key)) {
       return true;
+    } else {
+      warn$1(`Invalid prop name: "${key}" is a reserved property.`);
     }
     return false;
+  }
+  function getType(ctor) {
+    if (ctor === null) {
+      return "null";
+    }
+    if (typeof ctor === "function") {
+      return ctor.name || "";
+    } else if (typeof ctor === "object") {
+      const name = ctor.constructor && ctor.constructor.name;
+      return name || "";
+    }
+    return "";
+  }
+  function validateProps(rawProps, props, instance) {
+    const resolvedValues = /* @__PURE__ */ toRaw(props);
+    const options = instance.propsOptions[0];
+    const camelizePropsKey = Object.keys(rawProps).map((key) => camelize(key));
+    for (const key in options) {
+      let opt = options[key];
+      if (opt == null) continue;
+      validateProp(
+        key,
+        resolvedValues[key],
+        opt,
+        /* @__PURE__ */ shallowReadonly(resolvedValues),
+        !camelizePropsKey.includes(key)
+      );
+    }
+  }
+  function validateProp(name, value, prop, props, isAbsent) {
+    const { type, required, validator, skipCheck } = prop;
+    if (required && isAbsent) {
+      warn$1('Missing required prop: "' + name + '"');
+      return;
+    }
+    if (value == null && !required) {
+      return;
+    }
+    if (type != null && type !== true && !skipCheck) {
+      let isValid = false;
+      const types = isArray(type) ? type : [type];
+      const expectedTypes = [];
+      for (let i = 0; i < types.length && !isValid; i++) {
+        const { valid, expectedType } = assertType(value, types[i]);
+        expectedTypes.push(expectedType || "");
+        isValid = valid;
+      }
+      if (!isValid) {
+        warn$1(getInvalidTypeMessage(name, value, expectedTypes));
+        return;
+      }
+    }
+    if (validator && !validator(value, props)) {
+      warn$1('Invalid prop: custom validator check failed for prop "' + name + '".');
+    }
+  }
+  const isSimpleType = /* @__PURE__ */ makeMap(
+    "String,Number,Boolean,Function,Symbol,BigInt"
+  );
+  function assertType(value, type) {
+    let valid;
+    const expectedType = getType(type);
+    if (expectedType === "null") {
+      valid = value === null;
+    } else if (isSimpleType(expectedType)) {
+      const t = typeof value;
+      valid = t === expectedType.toLowerCase();
+      if (!valid && t === "object") {
+        valid = value instanceof type;
+      }
+    } else if (expectedType === "Object") {
+      valid = isObject(value);
+    } else if (expectedType === "Array") {
+      valid = isArray(value);
+    } else {
+      valid = value instanceof type;
+    }
+    return {
+      valid,
+      expectedType
+    };
+  }
+  function getInvalidTypeMessage(name, value, expectedTypes) {
+    if (expectedTypes.length === 0) {
+      return `Prop type [] for prop "${name}" won't match anything. Did you mean to use type Array instead?`;
+    }
+    let message = `Invalid prop: type check failed for prop "${name}". Expected ${expectedTypes.map(capitalize).join(" | ")}`;
+    const expectedType = expectedTypes[0];
+    const receivedType = toRawType(value);
+    const expectedValue = styleValue(value, expectedType);
+    const receivedValue = styleValue(value, receivedType);
+    if (expectedTypes.length === 1 && isExplicable(expectedType) && isCoercible(expectedType, receivedType)) {
+      message += ` with value ${expectedValue}`;
+    }
+    message += `, got ${receivedType} `;
+    if (isExplicable(receivedType)) {
+      message += `with value ${receivedValue}.`;
+    }
+    return message;
+  }
+  function styleValue(value, type) {
+    if (isSymbol(value)) {
+      return value.toString();
+    } else if (type === "String") {
+      return `"${value}"`;
+    } else if (type === "Number") {
+      return `${Number(value)}`;
+    } else {
+      return `${value}`;
+    }
+  }
+  function isExplicable(type) {
+    const explicitTypes = ["string", "number", "boolean"];
+    return explicitTypes.some((elem) => type.toLowerCase() === elem);
+  }
+  function isCoercible(...args) {
+    return args.every((elem) => {
+      const value = elem.toLowerCase();
+      return value !== "boolean" && value !== "symbol";
+    });
   }
   const isInternalKey = (key) => key === "_" || key === "_ctx" || key === "$stable";
   const normalizeSlotValue = (value) => isArray(value) ? value.map(normalizeVNode) : [normalizeVNode(value)];
@@ -3884,7 +4959,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return rawSlot;
     }
     const normalized = withCtx((...args) => {
-      if (false) ;
+      if (currentInstance && !(ctx === null && currentRenderingInstance) && !(ctx && ctx.root !== currentInstance.root)) {
+        warn$1(
+          `Slot "${key}" invoked outside of the render function: this will not track dependencies used in the slot. Invoke the slot function inside the render function instead.`
+        );
+      }
       return normalizeSlotValue(rawSlot(...args));
     }, ctx);
     normalized._c = false;
@@ -3898,12 +4977,22 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       if (isFunction(value)) {
         slots[key] = normalizeSlot(key, value, ctx);
       } else if (value != null) {
+        {
+          warn$1(
+            `Non-function value encountered for slot "${key}". Prefer function slots for better performance.`
+          );
+        }
         const normalized = normalizeSlotValue(value);
         slots[key] = () => normalized;
       }
     }
   };
   const normalizeVNodeSlots = (instance, children) => {
+    if (!isKeepAlive(instance.vnode) && true) {
+      warn$1(
+        `Non-function value encountered for default slot. Prefer function slots for better performance.`
+      );
+    }
     const normalized = normalizeSlotValue(children);
     instance.slots.default = () => normalized;
   };
@@ -3937,7 +5026,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     if (vnode.shapeFlag & 32) {
       const type = children._;
       if (type) {
-        if (optimized && type === 1) {
+        if (isHmrUpdating) {
+          assignSlots(slots, children, optimized);
+          trigger(instance, "set", "$slots");
+        } else if (optimized && type === 1) {
           needDeletionCheck = false;
         } else {
           assignSlots(slots, children, optimized);
@@ -3959,13 +5051,67 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
   };
+  let supported;
+  let perf;
+  function startMeasure(instance, type) {
+    if (instance.appContext.config.performance && isSupported()) {
+      perf.mark(`vue-${type}-${instance.uid}`);
+    }
+    {
+      devtoolsPerfStart(instance, type, isSupported() ? perf.now() : Date.now());
+    }
+  }
+  function endMeasure(instance, type) {
+    if (instance.appContext.config.performance && isSupported()) {
+      const startTag = `vue-${type}-${instance.uid}`;
+      const endTag = startTag + `:end`;
+      const measureName = `<${formatComponentName(instance, instance.type)}> ${type}`;
+      perf.mark(endTag);
+      perf.measure(measureName, startTag, endTag);
+      perf.clearMeasures(measureName);
+      perf.clearMarks(startTag);
+      perf.clearMarks(endTag);
+    }
+    {
+      devtoolsPerfEnd(instance, type, isSupported() ? perf.now() : Date.now());
+    }
+  }
+  function isSupported() {
+    if (supported !== void 0) {
+      return supported;
+    }
+    if (typeof window !== "undefined" && window.performance) {
+      supported = true;
+      perf = window.performance;
+    } else {
+      supported = false;
+    }
+    return supported;
+  }
+  function initFeatureFlags() {
+    const needWarn = [];
+    if (needWarn.length) {
+      const multi = needWarn.length > 1;
+      console.warn(
+        `Feature flag${multi ? `s` : ``} ${needWarn.join(", ")} ${multi ? `are` : `is`} not explicitly defined. You are running the esm-bundler build of Vue, which expects these compile-time feature flags to be globally injected via the bundler config in order to get better tree-shaking in the production bundle.
+
+For more details, see https://link.vuejs.org/feature-flags.`
+      );
+    }
+  }
   const queuePostRenderEffect = queueEffectWithSuspense;
   function createRenderer(options) {
     return baseCreateRenderer(options);
   }
   function baseCreateRenderer(options, createHydrationFns) {
+    {
+      initFeatureFlags();
+    }
     const target = getGlobalThis();
     target.__VUE__ = true;
+    {
+      setDevtoolsHook$1(target.__VUE_DEVTOOLS_GLOBAL_HOOK__, target);
+    }
     const {
       insert: hostInsert,
       remove: hostRemove,
@@ -3980,7 +5126,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       setScopeId: hostSetScopeId = NOOP,
       insertStaticContent: hostInsertStaticContent
     } = options;
-    const patch = (n1, n2, container, anchor = null, parentComponent = null, parentSuspense = null, namespace = void 0, slotScopeIds = null, optimized = !!n2.dynamicChildren) => {
+    const patch = (n1, n2, container, anchor = null, parentComponent = null, parentSuspense = null, namespace = void 0, slotScopeIds = null, optimized = isHmrUpdating ? false : !!n2.dynamicChildren) => {
       if (n1 === n2) {
         return;
       }
@@ -4004,6 +5150,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         case Static:
           if (n1 == null) {
             mountStaticNode(n2, container, anchor, namespace);
+          } else {
+            patchStaticNode(n1, n2, container, namespace);
           }
           break;
         case Fragment:
@@ -4070,7 +5218,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               optimized,
               internals
             );
-          } else ;
+          } else {
+            warn$1("Invalid VNode type:", type, `(${typeof type})`);
+          }
       }
       if (ref3 != null && parentComponent) {
         setRef(ref3, n1 && n1.ref, parentSuspense, n2 || n1, !n2);
@@ -4112,6 +5262,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         n2.el,
         n2.anchor
       );
+    };
+    const patchStaticNode = (n1, n2, container, namespace) => {
+      if (n2.children !== n1.children) {
+        const anchor = hostNextSibling(n1.anchor);
+        removeStaticNode(n1);
+        [n2.el, n2.anchor] = hostInsertStaticContent(
+          n2.children,
+          container,
+          anchor,
+          namespace
+        );
+      } else {
+        n2.el = n1.el;
+        n2.anchor = n1.anchor;
+      }
     };
     const moveStaticNode = ({ el, anchor }, container, nextSibling) => {
       let next;
@@ -4211,6 +5376,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           invokeVNodeHook(vnodeHook, parentComponent, vnode);
         }
       }
+      {
+        def(el, "__vnode", vnode, true);
+        def(el, "__vueParentComponent", parentComponent, true);
+      }
       if (dirs) {
         invokeDirectiveHook(vnode, null, parentComponent, "beforeMount");
       }
@@ -4220,12 +5389,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
       hostInsert(el, container, anchor);
       if ((vnodeHook = props && props.onVnodeMounted) || needCallTransitionHooks || dirs) {
+        const isHmr = isHmrUpdating;
         queuePostRenderEffect(() => {
+          let prev;
+          prev = setHmrUpdating(isHmr);
           try {
             vnodeHook && invokeVNodeHook(vnodeHook, parentComponent, vnode);
             needCallTransitionHooks && transition.enter(el);
             dirs && invokeDirectiveHook(vnode, null, parentComponent, "mounted");
           } finally {
+            setHmrUpdating(prev);
           }
         }, parentSuspense);
       }
@@ -4241,6 +5414,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
       if (parentComponent) {
         let subTree = parentComponent.subTree;
+        if (subTree.patchFlag > 0 && subTree.patchFlag & 2048) {
+          subTree = filterSingleRoot(subTree.children) || subTree;
+        }
         if (vnode === subTree || isSuspense(subTree.type) && (subTree.ssContent === vnode || subTree.ssFallback === vnode)) {
           const parentVNode = parentComponent.vnode;
           setScopeId(
@@ -4271,6 +5447,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     };
     const patchElement = (n1, n2, parentComponent, parentSuspense, namespace, slotScopeIds, optimized) => {
       const el = n2.el = n1.el;
+      {
+        el.__vnode = n2;
+      }
       let { patchFlag, dynamicChildren, dirs } = n2;
       patchFlag |= n1.patchFlag & 16;
       const oldProps = n1.props || EMPTY_OBJ;
@@ -4284,6 +5463,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         invokeDirectiveHook(n2, n1, parentComponent, "beforeUpdate");
       }
       parentComponent && toggleRecurse(parentComponent, true);
+      if (isHmrUpdating) {
+        patchFlag = 0;
+        optimized = false;
+        dynamicChildren = null;
+      }
       if (oldProps.innerHTML && newProps.innerHTML == null || oldProps.textContent && newProps.textContent == null) {
         hostSetElementText(el, "");
       }
@@ -4297,6 +5481,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           resolveChildrenNamespace(n2, namespace),
           slotScopeIds
         );
+        {
+          traverseStaticChildren(n1, n2);
+        }
       } else if (!optimized) {
         patchChildren(
           n1,
@@ -4413,6 +5600,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       const fragmentStartAnchor = n2.el = n1 ? n1.el : hostCreateText("");
       const fragmentEndAnchor = n2.anchor = n1 ? n1.anchor : hostCreateText("");
       let { patchFlag, dynamicChildren, slotScopeIds: fragmentSlotScopeIds } = n2;
+      if (
+        // #5523 dev root fragment may inherit directives
+        isHmrUpdating || patchFlag & 2048
+      ) {
+        patchFlag = 0;
+        optimized = false;
+        dynamicChildren = null;
+      }
       if (fragmentSlotScopeIds) {
         slotScopeIds = slotScopeIds ? slotScopeIds.concat(fragmentSlotScopeIds) : fragmentSlotScopeIds;
       }
@@ -4446,19 +5641,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             namespace,
             slotScopeIds
           );
-          if (
-            // #2080 if the stable fragment has a key, it's a <template v-for> that may
-            //  get moved around. Make sure all root level vnodes inherit el.
-            // #2134 or if it's a component root, it may also get moved around
-            // as the component is being moved.
-            n2.key != null || parentComponent && n2 === parentComponent.subTree
-          ) {
-            traverseStaticChildren(
-              n1,
-              n2,
-              true
-              /* shallow */
-            );
+          {
+            traverseStaticChildren(n1, n2);
           }
         } else {
           patchChildren(
@@ -4507,12 +5691,26 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         parentComponent,
         parentSuspense
       );
+      if (instance.type.__hmrId) {
+        registerHMR(instance);
+      }
+      {
+        pushWarningContext(initialVNode);
+        startMeasure(instance, `mount`);
+      }
       if (isKeepAlive(initialVNode)) {
         instance.ctx.renderer = internals;
       }
       {
+        {
+          startMeasure(instance, `init`);
+        }
         setupComponent(instance, false, optimized);
+        {
+          endMeasure(instance, `init`);
+        }
       }
+      if (isHmrUpdating) initialVNode.el = null;
       if (instance.asyncDep) {
         parentSuspense && parentSuspense.registerDep(instance, setupRenderEffect, optimized);
         if (!initialVNode.el) {
@@ -4531,12 +5729,22 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           optimized
         );
       }
+      {
+        popWarningContext();
+        endMeasure(instance, `mount`);
+      }
     };
     const updateComponent = (n1, n2, optimized) => {
       const instance = n2.component = n1.component;
       if (shouldUpdateComponent(n1, n2, optimized)) {
         if (instance.asyncDep && !instance.asyncResolved) {
+          {
+            pushWarningContext(n2);
+          }
           updateComponentPreRender(instance, n2, optimized);
+          {
+            popWarningContext();
+          }
           return;
         } else {
           instance.next = n2;
@@ -4569,7 +5777,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                 instance.parent ? instance.parent.type : void 0
               );
             }
+            {
+              startMeasure(instance, `render`);
+            }
             const subTree = instance.subTree = renderComponentRoot(instance);
+            {
+              endMeasure(instance, `render`);
+            }
+            {
+              startMeasure(instance, `patch`);
+            }
             patch(
               null,
               subTree,
@@ -4579,6 +5796,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               parentSuspense,
               namespace
             );
+            {
+              endMeasure(instance, `patch`);
+            }
             initialVNode.el = subTree.el;
           }
           if (m) {
@@ -4595,6 +5815,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             instance.a && queuePostRenderEffect(instance.a, parentSuspense);
           }
           instance.isMounted = true;
+          {
+            devtoolsComponentAdded(instance);
+          }
           initialVNode = container = anchor = null;
         } else {
           let { next, bu, u, parent, vnode } = instance;
@@ -4615,6 +5838,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           }
           let originNext = next;
           let vnodeHook;
+          {
+            pushWarningContext(next || instance.vnode);
+          }
           toggleRecurse(instance, false);
           if (next) {
             next.el = vnode.el;
@@ -4629,9 +5855,18 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             invokeVNodeHook(vnodeHook, parent, next, vnode);
           }
           toggleRecurse(instance, true);
+          {
+            startMeasure(instance, `render`);
+          }
           const nextTree = renderComponentRoot(instance);
+          {
+            endMeasure(instance, `render`);
+          }
           const prevTree = instance.subTree;
           instance.subTree = nextTree;
+          {
+            startMeasure(instance, `patch`);
+          }
           patch(
             prevTree,
             nextTree,
@@ -4643,6 +5878,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             parentSuspense,
             namespace
           );
+          {
+            endMeasure(instance, `patch`);
+          }
           next.el = nextTree.el;
           if (originNext === null) {
             updateHOCHostEl(instance, nextTree.el);
@@ -4656,6 +5894,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               parentSuspense
             );
           }
+          {
+            devtoolsComponentUpdated(instance);
+          }
+          {
+            popWarningContext();
+          }
         }
       };
       instance.scope.on();
@@ -4667,6 +5911,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       job.id = instance.uid;
       effect2.scheduler = () => queueJob(job);
       toggleRecurse(instance, true);
+      {
+        effect2.onTrack = instance.rtc ? (e) => invokeArrayFns(instance.rtc, e) : void 0;
+        effect2.onTrigger = instance.rtg ? (e) => invokeArrayFns(instance.rtg, e) : void 0;
+      }
       update();
     };
     const updateComponentPreRender = (instance, nextVNode, optimized) => {
@@ -4878,6 +6126,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         for (i = s2; i <= e2; i++) {
           const nextChild = c2[i] = optimized ? cloneIfMounted(c2[i]) : normalizeVNode(c2[i]);
           if (nextChild.key != null) {
+            if (keyToNewIndexMap.has(nextChild.key)) {
+              warn$1(
+                `Duplicate keys found during update:`,
+                JSON.stringify(nextChild.key),
+                `Make sure keys are unique.`
+              );
+            }
             keyToNewIndexMap.set(nextChild.key, i);
           }
         }
@@ -5119,7 +6374,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const remove2 = (vnode) => {
       const { type, el, anchor, transition } = vnode;
       if (type === Fragment) {
-        {
+        if (vnode.patchFlag > 0 && vnode.patchFlag & 2048 && transition && !transition.persisted) {
+          vnode.children.forEach((child) => {
+            if (child.type === Comment) {
+              hostRemove(child.el);
+            } else {
+              remove2(child);
+            }
+          });
+        } else {
           removeFragment(el, anchor);
         }
         return;
@@ -5156,6 +6419,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       hostRemove(end);
     };
     const unmountComponent = (instance, parentSuspense, doRemove) => {
+      if (instance.type.__hmrId) {
+        unregisterHMR(instance);
+      }
       const { bum, scope, job, subTree, um, m, a } = instance;
       invalidateMount(m);
       invalidateMount(a);
@@ -5173,6 +6439,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       queuePostRenderEffect(() => {
         instance.isUnmounted = true;
       }, parentSuspense);
+      {
+        devtoolsComponentRemoved(instance);
+      }
     };
     const unmountChildren = (children, parentComponent, parentSuspense, doRemove = false, optimized = false, start = 0) => {
       for (let i = start; i < children.length; i++) {
@@ -5274,6 +6543,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         }
         if (c2.type === Comment && !c2.el) {
           c2.el = c1.el;
+        }
+        {
+          c2.el && (c2.el.__vnode = c2);
         }
       }
     }
@@ -5413,8 +6685,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return value ? value.__v_isVNode === true : false;
   }
   function isSameVNodeType(n1, n2) {
+    if (n2.shapeFlag & 6 && n1.component) {
+      const dirtyInstances = hmrDirtyComponents.get(n2.type);
+      if (dirtyInstances && dirtyInstances.has(n1.component)) {
+        n1.shapeFlag &= -257;
+        n2.shapeFlag &= -513;
+        return false;
+      }
+    }
     return n1.type === n2.type && n1.key === n2.key;
   }
+  const createVNodeWithArgsTransform = (...args) => {
+    return _createVNode(
+      ...args
+    );
+  };
   const normalizeKey = ({ key }) => key != null ? key : null;
   const normalizeRef = ({
     ref: ref3,
@@ -5464,6 +6749,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     } else if (children) {
       vnode.shapeFlag |= isString(children) ? 8 : 16;
     }
+    if (vnode.key !== vnode.key) {
+      warn$1(`VNode created with invalid key (NaN). VNode type:`, vnode.type);
+    }
     if (isBlockTreeEnabled > 0 && // avoid a block node from tracking itself
     !isBlockNode && // has current parent block
     currentBlock && // presence of a patch flag indicates this node needs patching on updates.
@@ -5477,9 +6765,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return vnode;
   }
-  const createVNode = _createVNode;
+  const createVNode = createVNodeWithArgsTransform;
   function _createVNode(type, props = null, children = null, patchFlag = 0, dynamicProps = null, isBlockNode = false) {
     if (!type || type === NULL_DYNAMIC_COMPONENT) {
+      if (!type) {
+        warn$1(`Invalid vnode type when creating vnode: ${type}.`);
+      }
       type = Comment;
     }
     if (isVNode(type)) {
@@ -5519,6 +6810,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     const shapeFlag = isString(type) ? 1 : isSuspense(type) ? 128 : isTeleport(type) ? 64 : isObject(type) ? 4 : isFunction(type) ? 2 : 0;
+    if (shapeFlag & 4 && /* @__PURE__ */ isProxy(type)) {
+      type = /* @__PURE__ */ toRaw(type);
+      warn$1(
+        `Vue received a Component that was made a reactive object. This can lead to unnecessary performance overhead and should be avoided by marking the component with \`markRaw\` or using \`shallowRef\` instead of \`ref\`.`,
+        `
+Component that was made reactive: `,
+        type
+      );
+    }
     return createBaseVNode(
       type,
       props,
@@ -5551,7 +6851,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       ) : ref3,
       scopeId: vnode.scopeId,
       slotScopeIds: vnode.slotScopeIds,
-      children,
+      children: patchFlag === -1 && isArray(children) ? children.map(deepCloneVNode) : children,
       target: vnode.target,
       targetStart: vnode.targetStart,
       targetAnchor: vnode.targetAnchor,
@@ -5586,6 +6886,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         cloned,
         transition.clone(cloned)
       );
+    }
+    return cloned;
+  }
+  function deepCloneVNode(vnode) {
+    const cloned = cloneVNode(vnode);
+    if (isArray(vnode.children)) {
+      cloned.children = vnode.children.map(deepCloneVNode);
     }
     return cloned;
   }
@@ -5775,7 +7082,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       sp: null
     };
     {
-      instance.ctx = { _: instance };
+      instance.ctx = createDevRenderContext(instance);
     }
     instance.root = parent ? parent.root : instance;
     instance.emit = emit.bind(null, instance);
@@ -5821,6 +7128,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     currentInstance && currentInstance.scope.off();
     internalSetCurrentInstance(null);
   };
+  const isBuiltInTag = /* @__PURE__ */ makeMap("slot,component");
+  function validateComponentName(name, { isNativeTag }) {
+    if (isBuiltInTag(name) || isNativeTag(name)) {
+      warn$1(
+        "Do not use built-in or reserved HTML elements as component id: " + name
+      );
+    }
+  }
   function isStatefulComponent(instance) {
     return instance.vnode.shapeFlag & 4;
   }
@@ -5837,8 +7152,33 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function setupStatefulComponent(instance, isSSR) {
     const Component = instance.type;
+    {
+      if (Component.name) {
+        validateComponentName(Component.name, instance.appContext.config);
+      }
+      if (Component.components) {
+        const names = Object.keys(Component.components);
+        for (let i = 0; i < names.length; i++) {
+          validateComponentName(names[i], instance.appContext.config);
+        }
+      }
+      if (Component.directives) {
+        const names = Object.keys(Component.directives);
+        for (let i = 0; i < names.length; i++) {
+          validateDirectiveName(names[i]);
+        }
+      }
+      if (Component.compilerOptions && isRuntimeOnly()) {
+        warn$1(
+          `"compilerOptions" is only supported when using a build of Vue that includes the runtime compiler. Since you are using a runtime-only build, the options should be passed via your build tool config instead.`
+        );
+      }
+    }
     instance.accessCache = /* @__PURE__ */ Object.create(null);
     instance.proxy = new Proxy(instance.ctx, PublicInstanceProxyHandlers);
+    {
+      exposePropsOnRenderContext(instance);
+    }
     const { setup } = Component;
     if (setup) {
       pauseTracking();
@@ -5849,7 +7189,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         instance,
         0,
         [
-          instance.props,
+          /* @__PURE__ */ shallowReadonly(instance.props),
           setupContext
         ]
       );
@@ -5863,18 +7203,24 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         setupResult.then(unsetCurrentInstance, unsetCurrentInstance);
         if (isSSR) {
           return setupResult.then((resolvedResult) => {
-            handleSetupResult(instance, resolvedResult);
+            handleSetupResult(instance, resolvedResult, isSSR);
           }).catch((e) => {
             handleError(e, instance, 0);
           });
         } else {
           instance.asyncDep = setupResult;
+          if (!instance.suspense) {
+            const name = formatComponentName(instance, Component);
+            warn$1(
+              `Component <${name}>: setup function returned a promise, but no <Suspense> boundary was found in the parent component tree. A component with async setup() must be nested in a <Suspense> in order to be rendered.`
+            );
+          }
         }
       } else {
-        handleSetupResult(instance, setupResult);
+        handleSetupResult(instance, setupResult, isSSR);
       }
     } else {
-      finishComponentSetup(instance);
+      finishComponentSetup(instance, isSSR);
     }
   }
   function handleSetupResult(instance, setupResult, isSSR) {
@@ -5885,10 +7231,26 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         instance.render = setupResult;
       }
     } else if (isObject(setupResult)) {
+      if (isVNode(setupResult)) {
+        warn$1(
+          `setup() should not return VNodes directly - return a render function instead.`
+        );
+      }
+      {
+        instance.devtoolsRawSetupState = setupResult;
+      }
       instance.setupState = proxyRefs(setupResult);
-    } else ;
-    finishComponentSetup(instance);
+      {
+        exposeSetupStateOnRenderContext(instance);
+      }
+    } else if (setupResult !== void 0) {
+      warn$1(
+        `setup() should return an object. Received: ${setupResult === null ? "null" : typeof setupResult}`
+      );
+    }
+    finishComponentSetup(instance, isSSR);
   }
+  const isRuntimeOnly = () => true;
   function finishComponentSetup(instance, isSSR, skipOptions) {
     const Component = instance.type;
     if (!instance.render) {
@@ -5904,24 +7266,78 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         reset();
       }
     }
+    if (!Component.render && instance.render === NOOP && !isSSR) {
+      if (Component.template) {
+        warn$1(
+          `Component provided template option but runtime compilation is not supported in this build of Vue. Configure your bundler to alias "vue" to "vue/dist/vue.esm-bundler.js".`
+        );
+      } else {
+        warn$1(`Component is missing template or render function: `, Component);
+      }
+    }
   }
   const attrsProxyHandlers = {
     get(target, key) {
+      markAttrsAccessed();
       track(target, "get", "");
       return target[key];
+    },
+    set() {
+      warn$1(`setupContext.attrs is readonly.`);
+      return false;
+    },
+    deleteProperty() {
+      warn$1(`setupContext.attrs is readonly.`);
+      return false;
     }
   };
+  function getSlotsProxy(instance) {
+    return new Proxy(instance.slots, {
+      get(target, key) {
+        track(instance, "get", "$slots");
+        return target[key];
+      }
+    });
+  }
   function createSetupContext(instance) {
     const expose = (exposed) => {
+      {
+        if (instance.exposed) {
+          warn$1(`expose() should be called only once per setup().`);
+        }
+        if (exposed != null) {
+          let exposedType = typeof exposed;
+          if (exposedType === "object") {
+            if (isArray(exposed)) {
+              exposedType = "array";
+            } else if (/* @__PURE__ */ isRef(exposed)) {
+              exposedType = "ref";
+            }
+          }
+          if (exposedType !== "object") {
+            warn$1(
+              `expose() should be passed a plain object, received ${exposedType}.`
+            );
+          }
+        }
+      }
       instance.exposed = exposed || {};
     };
     {
-      return {
-        attrs: new Proxy(instance.attrs, attrsProxyHandlers),
-        slots: instance.slots,
-        emit: instance.emit,
+      let attrsProxy;
+      let slotsProxy;
+      return Object.freeze({
+        get attrs() {
+          return attrsProxy || (attrsProxy = new Proxy(instance.attrs, attrsProxyHandlers));
+        },
+        get slots() {
+          return slotsProxy || (slotsProxy = getSlotsProxy(instance));
+        },
+        get emit() {
+          return (event, ...args) => instance.emit(event, ...args);
+        },
         expose
-      };
+      });
     }
   }
   function getComponentPublicInstance(instance) {
@@ -5974,9 +7390,195 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const computed = (getterOrOptions, debugOptions) => {
     const c = /* @__PURE__ */ computed$1(getterOrOptions, debugOptions, isInSSRComponentSetup);
+    {
+      const i = getCurrentInstance();
+      if (i && i.appContext.config.warnRecursiveComputed) {
+        c._warnRecursive = true;
+      }
+    }
     return c;
   };
+  function initCustomFormatter() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const vueStyle = { style: "color:#3ba776" };
+    const numberStyle = { style: "color:#1677ff" };
+    const stringStyle = { style: "color:#f5222d" };
+    const keywordStyle = { style: "color:#eb2f96" };
+    const formatter = {
+      __vue_custom_formatter: true,
+      header(obj) {
+        if (!isObject(obj)) {
+          return null;
+        }
+        if (obj.__isVue) {
+          return ["div", vueStyle, `VueInstance`];
+        } else if (/* @__PURE__ */ isRef(obj)) {
+          pauseTracking();
+          const value = obj.value;
+          resetTracking();
+          return [
+            "div",
+            {},
+            ["span", vueStyle, genRefFlag(obj)],
+            "<",
+            formatValue(value),
+            `>`
+          ];
+        } else if (/* @__PURE__ */ isReactive(obj)) {
+          return [
+            "div",
+            {},
+            ["span", vueStyle, /* @__PURE__ */ isShallow(obj) ? "ShallowReactive" : "Reactive"],
+            "<",
+            formatValue(obj),
+            `>${/* @__PURE__ */ isReadonly(obj) ? ` (readonly)` : ``}`
+          ];
+        } else if (/* @__PURE__ */ isReadonly(obj)) {
+          return [
+            "div",
+            {},
+            ["span", vueStyle, /* @__PURE__ */ isShallow(obj) ? "ShallowReadonly" : "Readonly"],
+            "<",
+            formatValue(obj),
+            ">"
+          ];
+        }
+        return null;
+      },
+      hasBody(obj) {
+        return obj && obj.__isVue;
+      },
+      body(obj) {
+        if (obj && obj.__isVue) {
+          return [
+            "div",
+            {},
+            ...formatInstance(obj.$)
+          ];
+        }
+      }
+    };
+    function formatInstance(instance) {
+      const blocks = [];
+      if (instance.type.props && instance.props) {
+        blocks.push(createInstanceBlock("props", /* @__PURE__ */ toRaw(instance.props)));
+      }
+      if (instance.setupState !== EMPTY_OBJ) {
+        blocks.push(createInstanceBlock("setup", instance.setupState));
+      }
+      if (instance.data !== EMPTY_OBJ) {
+        blocks.push(createInstanceBlock("data", /* @__PURE__ */ toRaw(instance.data)));
+      }
+      const computed2 = extractKeys(instance, "computed");
+      if (computed2) {
+        blocks.push(createInstanceBlock("computed", computed2));
+      }
+      const injected = extractKeys(instance, "inject");
+      if (injected) {
+        blocks.push(createInstanceBlock("injected", injected));
+      }
+      blocks.push([
+        "div",
+        {},
+        [
+          "span",
+          {
+            style: keywordStyle.style + ";opacity:0.66"
+          },
+          "$ (internal): "
+        ],
+        ["object", { object: instance }]
+      ]);
+      return blocks;
+    }
+    function createInstanceBlock(type, target) {
+      target = extend({}, target);
+      if (!Object.keys(target).length) {
+        return ["span", {}];
+      }
+      return [
+        "div",
+        { style: "line-height:1.25em;margin-bottom:0.6em" },
+        [
+          "div",
+          {
+            style: "color:#476582"
+          },
+          type
+        ],
+        [
+          "div",
+          {
+            style: "padding-left:1.25em"
+          },
+          ...Object.keys(target).map((key) => {
+            return [
+              "div",
+              {},
+              ["span", keywordStyle, key + ": "],
+              formatValue(target[key], false)
+            ];
+          })
+        ]
+      ];
+    }
+    function formatValue(v, asRaw = true) {
+      if (typeof v === "number") {
+        return ["span", numberStyle, v];
+      } else if (typeof v === "string") {
+        return ["span", stringStyle, JSON.stringify(v)];
+      } else if (typeof v === "boolean") {
+        return ["span", keywordStyle, v];
+      } else if (isObject(v)) {
+        return ["object", { object: asRaw ? /* @__PURE__ */ toRaw(v) : v }];
+      } else {
+        return ["span", stringStyle, String(v)];
+      }
+    }
+    function extractKeys(instance, type) {
+      const Comp = instance.type;
+      if (isFunction(Comp)) {
+        return;
+      }
+      const extracted = {};
+      for (const key in instance.ctx) {
+        if (isKeyOfType(Comp, key, type)) {
+          extracted[key] = instance.ctx[key];
+        }
+      }
+      return extracted;
+    }
+    function isKeyOfType(Comp, key, type) {
+      const opts = Comp[type];
+      if (isArray(opts) && opts.includes(key) || isObject(opts) && key in opts) {
+        return true;
+      }
+      if (Comp.extends && isKeyOfType(Comp.extends, key, type)) {
+        return true;
+      }
+      if (Comp.mixins && Comp.mixins.some((m) => isKeyOfType(m, key, type))) {
+        return true;
+      }
+    }
+    function genRefFlag(v) {
+      if (/* @__PURE__ */ isShallow(v)) {
+        return `ShallowRef`;
+      }
+      if (v.effect) {
+        return `ComputedRef`;
+      }
+      return `Ref`;
+    }
+    if (window.devtoolsFormatters) {
+      window.devtoolsFormatters.push(formatter);
+    } else {
+      window.devtoolsFormatters = [formatter];
+    }
+  }
   const version = "3.5.35";
+  const warn = warn$1;
   /**
   * @vue/runtime-dom v3.5.35
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
@@ -5990,6 +7592,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         createHTML: (val) => val
       });
     } catch (e) {
+      warn(`Error creating trusted types policy: ${e}`);
     }
   }
   const unsafeToTrustedHTML = policy ? (val) => policy.createHTML(val) : (val) => val;
@@ -6077,7 +7680,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const vShowOriginalDisplay = /* @__PURE__ */ Symbol("_vod");
   const vShowHidden = /* @__PURE__ */ Symbol("_vsh");
-  const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("");
+  const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("CSS_VAR_TEXT");
   const displayRE = /(?:^|;)\s*display\s*:/;
   function patchStyle(el, prev, next) {
     const style = el.style;
@@ -6139,12 +7742,20 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
   }
+  const semicolonRE = /[^\\];\s*$/;
   const importantRE = /\s*!important$/;
   function setStyle(style, name, val) {
     if (isArray(val)) {
       val.forEach((v) => setStyle(style, name, v));
     } else {
       if (val == null) val = "";
+      {
+        if (semicolonRE.test(val)) {
+          warn(
+            `Unexpected semicolon at the end of '${name}' style value: '${val}'`
+          );
+        }
+      }
       if (name.startsWith("--")) {
         style.setProperty(name, val);
       } else {
@@ -6244,6 +7855,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     try {
       el[key] = value;
     } catch (e) {
+      if (!needRemove) {
+        warn(
+          `Failed setting prop "${key}" on <${tag.toLowerCase()}>: value ${value} is invalid.`,
+          e
+        );
+      }
     }
     needRemove && el.removeAttribute(attrName || key);
   }
@@ -6258,12 +7875,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const invokers = el[veiKey] || (el[veiKey] = {});
     const existingInvoker = invokers[rawName];
     if (nextValue && existingInvoker) {
-      existingInvoker.value = nextValue;
+      existingInvoker.value = sanitizeEventValue(nextValue, rawName);
     } else {
       const [name, options] = parseName(rawName);
       if (nextValue) {
         const invoker = invokers[rawName] = createInvoker(
-          nextValue,
+          sanitizeEventValue(nextValue, rawName),
           instance
         );
         addEventListener(el, name, invoker, options);
@@ -6332,6 +7949,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     invoker.value = initialValue;
     invoker.attached = getNow();
     return invoker;
+  }
+  function sanitizeEventValue(value, propName) {
+    if (isFunction(value) || isArray(value)) {
+      return value;
+    }
+    warn(
+      `Wrong type passed as event handler to ${propName} - did you forget @ or : in front of your prop?
+Expected function or array of functions, received type ${typeof value}.`
+    );
+    return NOOP;
   }
   const isNativeOn = (key) => key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && // lowercase letter
   key.charCodeAt(2) > 96 && key.charCodeAt(2) < 123;
@@ -6513,6 +8140,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const isMultiple = el.multiple;
     const isArrayValue = isArray(value);
     if (isMultiple && !isArrayValue && !isSet(value)) {
+      warn(
+        `<select multiple v-model> expects an Array or Set value for its binding, but got ${Object.prototype.toString.call(value).slice(8, -1)}.`
+      );
       return;
     }
     for (let i = 0, l = el.options.length; i < l; i++) {
@@ -6598,6 +8228,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const createApp = (...args) => {
     const app = ensureRenderer().createApp(...args);
+    {
+      injectNativeTagCheck(app);
+      injectCompilerOptionsCheck(app);
+    }
     const { mount } = app;
     app.mount = (containerOrSelector) => {
       const container = normalizeContainer(containerOrSelector);
@@ -6626,12 +8260,70 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return "mathml";
     }
   }
+  function injectNativeTagCheck(app) {
+    Object.defineProperty(app.config, "isNativeTag", {
+      value: (tag) => isHTMLTag(tag) || isSVGTag(tag) || isMathMLTag(tag),
+      writable: false
+    });
+  }
+  function injectCompilerOptionsCheck(app) {
+    {
+      const isCustomElement = app.config.isCustomElement;
+      Object.defineProperty(app.config, "isCustomElement", {
+        get() {
+          return isCustomElement;
+        },
+        set() {
+          warn(
+            `The \`isCustomElement\` config option is deprecated. Use \`compilerOptions.isCustomElement\` instead.`
+          );
+        }
+      });
+      const compilerOptions = app.config.compilerOptions;
+      const msg = `The \`compilerOptions\` config option is only respected when using a build of Vue.js that includes the runtime compiler (aka "full build"). Since you are using the runtime-only build, \`compilerOptions\` must be passed to \`@vue/compiler-dom\` in the build setup instead.
+- For vue-loader: pass it via vue-loader's \`compilerOptions\` loader option.
+- For vue-cli: see https://cli.vuejs.org/guide/webpack.html#modifying-options-of-a-loader
+- For vite: pass it via @vitejs/plugin-vue options. See https://github.com/vitejs/vite-plugin-vue/tree/main/packages/plugin-vue#example-for-passing-options-to-vuecompiler-sfc`;
+      Object.defineProperty(app.config, "compilerOptions", {
+        get() {
+          warn(msg);
+          return compilerOptions;
+        },
+        set() {
+          warn(msg);
+        }
+      });
+    }
+  }
   function normalizeContainer(container) {
     if (isString(container)) {
       const res = document.querySelector(container);
+      if (!res) {
+        warn(
+          `Failed to mount app: mount target selector "${container}" returned null.`
+        );
+      }
       return res;
     }
+    if (window.ShadowRoot && container instanceof window.ShadowRoot && container.mode === "closed") {
+      warn(
+        `mounting on a ShadowRoot with \`{mode: "closed"}\` may lead to unpredictable bugs`
+      );
+    }
     return container;
+  }
+  /**
+  * vue v3.5.35
+  * (c) 2018-present Yuxi (Evan) You and Vue contributors
+  * @license MIT
+  **/
+  function initDev() {
+    {
+      initCustomFormatter();
+    }
+  }
+  {
+    initDev();
   }
   const SOURCE_SERVER_URL = "http://127.0.0.1:17321";
   const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
@@ -6696,14 +8388,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         if (!response.body) return null;
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
+        let buffer2 = "";
         let result = null;
         while (true) {
           const { done, value } = yield reader.read();
           if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+          buffer2 += decoder.decode(value, { stream: true });
+          const lines = buffer2.split("\n");
+          buffer2 = lines.pop() || "";
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
@@ -6717,7 +8409,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             }
           }
         }
-        const finalLine = buffer.trim();
+        const finalLine = buffer2.trim();
         if (finalLine) {
           const event = JSON.parse(finalLine);
           if (typeof options.onEvent === "function") options.onEvent(event);
@@ -10914,7 +12606,10 @@ ${source}` : "",
     }
   };
   const magnusLogo = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBYRXhpZgAATU0AKgAAAAgAAgESAAMAAAABAAEAAIdpAAQAAAABAAAAJgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAACn6ADAAQAAAABAAABXQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgBXQKfAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAKv/aAAwDAQACEQMRAD8A/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAON+IHxB8GfCzwjqHjr4gatDouh6XH5k9zMTgDoFVVBZ3Y8Kigsx4AJr8Kfjn/wWA8barqN3on7Pvh+20TS8PDHqmsxGe/kLgBZobYOsEBUnKiUz7uNyKcpXhH/AAUZ/aS1r41fF/WfBFjqiv4E8D3UlnZwRjbFNdxqI7q5l+bMriUPHG3CrGPkG53Z/wA0d5+0PdyqnmPzg/dIx8pOM556j+8Oe2AD7muv+Cj/AO2zb3skqfEyQ4b7h0vSDHzghP8Ajyz39j/OvtH9n/8A4K6eLbfVrfR/2hNJtNS0WeYQf2vpcTW11boA26a4gLPFP8wGRF5RVQzBWOEr8QIUEsknmsWBOEUnPO7JJ642j+L2xV4rKkUcgUIztynAIZcruKjqSQSTjtjpxQB/b94K8beEviN4X0/xr4G1WDW9D1SPzba7tn3xuucEeqsrAq6sAysCrAMCB1NfzS/8EtP2hb34W/FxPhXrt+7eF/iFMIEjkc+VbawCy28kanhftGPJfHLsYyfuV/S1QAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAH//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuY8b6tPoPgzX9ctt3nadp91cptXe26GJnGFHU5HA7109Z+raZa61pV7o98C1tfwyQSgEglJVKMARyODQB/DYtzd3Omj+0NzuT8zEY2s2MjAAHXp6dO1UIZJGA/d7FY/IoJAwDgkHqcYycdTXf/ED4f6z8K/Fes/DvxRCbfUfDl7cWNwgycvA+0SKxAJWVQro20ZVlbvXDRxR7/IuSVVBlv9rH3Se/HGO39QBsiJHK8bNvi4DSJxkZDDtz24/HBqZImdppZAVj/jI4AweMe5Hr65qurpHJH5QJuAzKgxnYRwzYHPAOR16egq7H5scqJG+HZwEx8vKjg55PA46f1oA0/D3ibWfBPiTSvFmjqyXnh2/g1KNW+49xZSLcI5I/hLIOB7j0x/ccjB1DryGAI/Gv43v2ZfhDc/Gf42+DPASWy3FpqWsRNexvL5bNaQN514RtZXytukmCp7D15/sjoAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD8tv+Cgf7DJ+OdlJ8WfhbYJL48s4447qyGxF1WFdsasWd0RZ4EHysTl0UJyQgr+bzWNB1zR9fm0DxFp82j6jZSeXc2tzE8U0LKcMkiuA6kYOcgYPHQV/cZXkvxN+A3wa+MsAh+KHg7TfETpG8Uc9zApuYVcYPk3C4miPoyOpB5BBoA/i5tIkgjnkbqARuI5JJwcEcjcOpz9etbugeG9Y17W7bSvDWnTarq12witrO0jee5ndzgiOKMM5xk7gBx0PFf1AT/wDBL/8AY0nmaZvCN6oclig1rUtmSc9DccfhX1h8Lvgj8Jfgrpj6T8LPCtj4dhmCiaS3izcT7M7TPcPummIzwZHYjpQB8Zf8E/P2Mrn9nLw1ceOviDFH/wAJ94igWKWFGDrp1pkP9nDgkNI7ANKwO0YVV4BZv0goooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//1P38ooooAKKKKACiiigAooooAKKKKACiiigAorzTxp8Z/g/8OJhbfEHx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AooooAKKKKAP/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuE8Y/C74Z/ERI4/iB4R0jxMsOdg1Swt70JuGDt89HxkcHFd3RQB84P+x5+yjIct8HvCY6/d0WzXr9Iq6PQv2av2dfDE8N14d+F/hfTri2cSRSwaNZRyo46MriLcGGOuc17ZRQA1VVFCIAqjgAcAU6iigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k=";
-  const _hoisted_1 = { class: "mda-root" };
+  const _hoisted_1 = {
+    key: 2,
+    class: "mda-hotkey-tip"
+  };
   const _hoisted_2 = { class: "mda-head" };
   const _hoisted_3 = { class: "mda-head-main" };
   const _hoisted_4 = { class: "mda-title" };
@@ -10936,6 +12631,7 @@ ${source}` : "",
     setup(__props) {
       const props = __props;
       const active = /* @__PURE__ */ ref(true);
+      const isSidePanel = computed(() => !!props.api.sidePanel);
       const panelRef = /* @__PURE__ */ ref(null);
       const composerPanelRef = /* @__PURE__ */ ref(null);
       const hoveredElement = /* @__PURE__ */ shallowRef(null);
@@ -10972,6 +12668,8 @@ ${source}` : "",
       let webRequestApiRetryCount = 0;
       let webRequestApiInstalled = false;
       let cleanupLocationWatcher = null;
+      let sidePanelSocket = null;
+      let sidePanelSessionId = "";
       const {
         collapsed,
         resizing,
@@ -11033,6 +12731,7 @@ ${source}` : "",
         resetProjectContext,
         setToast
       });
+      computed(() => selectedItems.value[selectedItems.value.length - 1] || null);
       const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
       const selectedCandidateHits = computed(() => {
         const selected = new Set(selectedCandidatePaths.value);
@@ -11333,6 +13032,7 @@ ${source}` : "",
         }));
       }
       function dispatchSelected() {
+        if (isSidePanel.value) return;
         try {
           window.dispatchEvent(new CustomEvent("magnus:element-selected", { detail: selectionPayloads() }));
         } catch (error) {
@@ -11444,11 +13144,106 @@ ${source}` : "",
         resetPromptComposer();
       }
       function readCurrentHref() {
+        var _a, _b, _c;
+        if ((_c = (_b = (_a = props.api.sidePanelConfig) == null ? void 0 : _a.snapshot) == null ? void 0 : _b.page) == null ? void 0 : _c.url) {
+          return props.api.sidePanelConfig.snapshot.page.url;
+        }
         try {
           return window.location.href || "";
         } catch (error) {
           return "";
         }
+      }
+      function selectionFromRemote(raw, index) {
+        const info = (raw == null ? void 0 : raw.element) || (raw == null ? void 0 : raw.info) || raw || {};
+        const uid2 = (raw == null ? void 0 : raw.uid) || info.uid || `remote-selection-${Date.now()}-${index}`;
+        return {
+          uid: uid2,
+          element: null,
+          info,
+          assetElement: null,
+          assetInfo: (raw == null ? void 0 : raw.asset) || info,
+          thumbnailUrl: (raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail) || ""
+        };
+      }
+      function applyRemoteSnapshot(snapshot) {
+        var _a;
+        if (!snapshot) return;
+        if ((_a = snapshot.page) == null ? void 0 : _a.url) currentPageHref.value = snapshot.page.url;
+        const list = Array.isArray(snapshot.selections) ? snapshot.selections : snapshot.selection ? [snapshot.selection] : [];
+        selectedItems.value = list.map(selectionFromRemote);
+      }
+      function applyRemoteSessionEvent(message) {
+        var _a;
+        const event = (message == null ? void 0 : message.event) || {};
+        const payload = event.payload || {};
+        if (event.type === "selection.changed") {
+          const list = Array.isArray(payload.selections) ? payload.selections : payload.selection ? [payload.selection] : [];
+          selectedItems.value = list.map(selectionFromRemote);
+          invalidateSelectionConfirm();
+          setToast(`已添加选区 ${selectedItems.value.length}`);
+          return;
+        }
+        if (event.type === "page.route_changed") {
+          currentPageHref.value = payload.url || currentPageHref.value;
+          clearSelections();
+          scheduleRouteResolve();
+          return;
+        }
+        if (event.type === "runtime.connected" && ((_a = payload.page) == null ? void 0 : _a.url)) {
+          currentPageHref.value = payload.page.url;
+        }
+      }
+      function connectSidePanelBridge() {
+        const config = props.api.sidePanelConfig || {};
+        if (!isSidePanel.value || !config.panelTicket || !config.bridgeUrl) return;
+        try {
+          const socket = new WebSocket(config.bridgeUrl);
+          sidePanelSocket = socket;
+          socket.addEventListener("open", () => {
+            socket.send(JSON.stringify({
+              type: "sideiframe.connect",
+              panelTicket: config.panelTicket
+            }));
+          });
+          socket.addEventListener("message", (event) => {
+            let message = null;
+            try {
+              message = JSON.parse(event.data);
+            } catch (error) {
+              return;
+            }
+            if (message.type === "sideiframe.bound_session") {
+              sidePanelSessionId = message.pageSessionId || "";
+              applyRemoteSnapshot(message.snapshot);
+            } else if (message.type === "session.event") {
+              applyRemoteSessionEvent(message);
+            }
+          });
+          socket.addEventListener("close", () => {
+            if (sidePanelSocket === socket) sidePanelSocket = null;
+          });
+        } catch (error) {
+          setToast(error.message || "连接 Side Panel Bridge 失败");
+        }
+      }
+      function sendSidePanelCommand(type, payload) {
+        if (!sidePanelSocket || sidePanelSocket.readyState !== WebSocket.OPEN || !sidePanelSessionId) {
+          setToast("页面 Runtime 未连接");
+          return;
+        }
+        sidePanelSocket.send(JSON.stringify({
+          type: "session.command",
+          requestId: `cmd-${Date.now()}`,
+          pageSessionId: sidePanelSessionId,
+          command: {
+            type,
+            payload: {}
+          }
+        }));
+      }
+      function startRemotePicker() {
+        sendSidePanelCommand("picker.start");
       }
       function hashRoutePath(hash) {
         const value = String(hash || "").replace(/^#/, "");
@@ -11810,6 +13605,7 @@ ${source}` : "",
         return element;
       }
       function setActive(value) {
+        if (isSidePanel.value) return;
         active.value = !!value;
         document.documentElement.style.cursor = active.value ? "crosshair" : "";
         if (!active.value) {
@@ -11881,8 +13677,10 @@ ${source}` : "",
       }
       function onScrollOrResize() {
         layoutTick.value++;
-        syncPanelWidth();
-        applyPageInset();
+        if (!isSidePanel.value) {
+          syncPanelWidth();
+          applyPageInset();
+        }
         if (active.value && hoveredElement.value) {
           updateOverlay(hoveredElement.value, false);
           return;
@@ -12017,6 +13815,11 @@ ${source}` : "",
         });
       }
       function destroy() {
+        if (isSidePanel.value) {
+          sidePanelSocket == null ? void 0 : sidePanelSocket.close();
+          sidePanelSocket = null;
+          return;
+        }
         props.api.destroy();
       }
       function registerApi() {
@@ -12030,6 +13833,8 @@ ${source}` : "",
         });
       }
       function cleanup() {
+        sidePanelSocket == null ? void 0 : sidePanelSocket.close();
+        sidePanelSocket = null;
         setActive(false);
         if (routeResolveTimer) {
           window.clearTimeout(routeResolveTimer);
@@ -12047,19 +13852,22 @@ ${source}` : "",
           cleanupLocationWatcher = null;
         }
         cleanupToast();
-        props.api.shadowRoot.removeEventListener("focusin", stopAssistantEvent);
-        props.api.shadowRoot.removeEventListener("keydown", stopAssistantEvent);
-        props.api.shadowRoot.removeEventListener("mousedown", stopAssistantEvent);
-        props.api.shadowRoot.removeEventListener("pointerdown", stopAssistantEvent);
-        props.api.shadowRoot.removeEventListener("click", stopAssistantEvent);
-        window.removeEventListener("message", onPageMessage, true);
-        window.removeEventListener("mousemove", onMouseMove, true);
-        window.removeEventListener("keydown", onKeyDown, true);
-        window.removeEventListener("scroll", onScrollOrResize, true);
-        window.removeEventListener("resize", onScrollOrResize, true);
+        if (!isSidePanel.value && props.api.shadowRoot) {
+          props.api.shadowRoot.removeEventListener("focusin", stopAssistantEvent);
+          props.api.shadowRoot.removeEventListener("keydown", stopAssistantEvent);
+          props.api.shadowRoot.removeEventListener("mousedown", stopAssistantEvent);
+          props.api.shadowRoot.removeEventListener("pointerdown", stopAssistantEvent);
+          props.api.shadowRoot.removeEventListener("click", stopAssistantEvent);
+          window.removeEventListener("message", onPageMessage, true);
+          window.removeEventListener("mousemove", onMouseMove, true);
+          window.removeEventListener("keydown", onKeyDown, true);
+          window.removeEventListener("scroll", onScrollOrResize, true);
+          window.removeEventListener("resize", onScrollOrResize, true);
+        }
         cleanupPanelLayout();
       }
       watch(effectivePanelWidth, () => {
+        if (isSidePanel.value) return;
         applyPageInset();
         onScrollOrResize();
       });
@@ -12071,154 +13879,175 @@ ${source}` : "",
       });
       onMounted(() => {
         registerApi();
-        setActive(true);
-        syncPanelWidth();
-        applyPageInset();
+        if (!isSidePanel.value) {
+          setActive(true);
+          syncPanelWidth();
+          applyPageInset();
+        }
         cleanupLocationWatcher = installLocationWatcher();
         restoreSavedProject();
         scheduleRouteResolve();
-        props.api.shadowRoot.addEventListener("focusin", stopAssistantEvent);
-        props.api.shadowRoot.addEventListener("keydown", stopAssistantEvent);
-        props.api.shadowRoot.addEventListener("mousedown", stopAssistantEvent);
-        props.api.shadowRoot.addEventListener("pointerdown", stopAssistantEvent);
-        props.api.shadowRoot.addEventListener("click", stopAssistantEvent);
-        window.addEventListener("message", onPageMessage, true);
-        installWebRequestApiListenerWithRetry();
-        window.addEventListener("mousemove", onMouseMove, true);
-        window.addEventListener("keydown", onKeyDown, true);
-        window.addEventListener("scroll", onScrollOrResize, true);
-        window.addEventListener("resize", onScrollOrResize, true);
+        if (isSidePanel.value) {
+          connectSidePanelBridge();
+        } else {
+          props.api.shadowRoot.addEventListener("focusin", stopAssistantEvent);
+          props.api.shadowRoot.addEventListener("keydown", stopAssistantEvent);
+          props.api.shadowRoot.addEventListener("mousedown", stopAssistantEvent);
+          props.api.shadowRoot.addEventListener("pointerdown", stopAssistantEvent);
+          props.api.shadowRoot.addEventListener("click", stopAssistantEvent);
+          window.addEventListener("message", onPageMessage, true);
+          installWebRequestApiListenerWithRetry();
+          window.addEventListener("mousemove", onMouseMove, true);
+          window.addEventListener("keydown", onKeyDown, true);
+          window.addEventListener("scroll", onScrollOrResize, true);
+          window.addEventListener("resize", onScrollOrResize, true);
+        }
       });
       onBeforeUnmount(cleanup);
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("div", _hoisted_1, [
-          createBaseVNode(
-            "div",
-            {
-              class: normalizeClass(["mda-overlay", { "is-selected": overlay.selected }]),
-              style: normalizeStyle(overlayStyle.value)
-            },
-            null,
-            6
-            /* CLASS, STYLE */
-          ),
-          createBaseVNode(
-            "div",
-            {
-              class: "mda-badge",
-              style: normalizeStyle(badgeStyle.value)
-            },
-            toDisplayString(overlay.badgeText),
-            5
-            /* TEXT, STYLE */
-          ),
-          _cache[3] || (_cache[3] = createBaseVNode(
-            "div",
-            { class: "mda-hotkey-tip" },
-            "空格键确认选区",
-            -1
-            /* CACHED */
-          )),
-          createBaseVNode(
-            "section",
-            {
-              ref_key: "panelRef",
-              ref: panelRef,
-              class: normalizeClass(["mda-panel", { "is-collapsed": unref(collapsed), "is-resizing": unref(resizing) }]),
-              style: normalizeStyle(unref(panelStyle)),
-              "aria-label": "Magnus"
-            },
-            [
-              !unref(collapsed) ? (openBlock(), createElementBlock(
-                "div",
-                {
-                  key: 0,
-                  class: "mda-resizer",
-                  title: "拖动调整助手宽度",
-                  onPointerdown: _cache[0] || (_cache[0] = withModifiers((...args) => unref(startPanelResize) && unref(startPanelResize)(...args), ["stop", "prevent"]))
-                },
-                null,
-                32
-                /* NEED_HYDRATION */
-              )) : createCommentVNode("v-if", true),
-              createBaseVNode("header", _hoisted_2, [
-                createBaseVNode("div", _hoisted_3, [
-                  createBaseVNode("div", _hoisted_4, [
-                    createBaseVNode("img", {
-                      class: "mda-title-logo",
-                      src: unref(magnusLogo),
-                      alt: "Magnus"
-                    }, null, 8, _hoisted_5)
+        return openBlock(), createElementBlock(
+          "div",
+          {
+            class: normalizeClass(["mda-root", { "is-side-panel": isSidePanel.value }])
+          },
+          [
+            !isSidePanel.value ? (openBlock(), createElementBlock(
+              "div",
+              {
+                key: 0,
+                class: normalizeClass(["mda-overlay", { "is-selected": overlay.selected }]),
+                style: normalizeStyle(overlayStyle.value)
+              },
+              null,
+              6
+              /* CLASS, STYLE */
+            )) : createCommentVNode("v-if", true),
+            !isSidePanel.value ? (openBlock(), createElementBlock(
+              "div",
+              {
+                key: 1,
+                class: "mda-badge",
+                style: normalizeStyle(badgeStyle.value)
+              },
+              toDisplayString(overlay.badgeText),
+              5
+              /* TEXT, STYLE */
+            )) : createCommentVNode("v-if", true),
+            !isSidePanel.value ? (openBlock(), createElementBlock("div", _hoisted_1, "空格键确认选区")) : createCommentVNode("v-if", true),
+            createBaseVNode(
+              "section",
+              {
+                ref_key: "panelRef",
+                ref: panelRef,
+                class: normalizeClass(["mda-panel", { "is-collapsed": !isSidePanel.value && unref(collapsed), "is-resizing": unref(resizing), "is-side-panel": isSidePanel.value }]),
+                style: normalizeStyle(isSidePanel.value ? null : unref(panelStyle)),
+                "aria-label": "Magnus"
+              },
+              [
+                !isSidePanel.value && !unref(collapsed) ? (openBlock(), createElementBlock(
+                  "div",
+                  {
+                    key: 0,
+                    class: "mda-resizer",
+                    title: "拖动调整助手宽度",
+                    onPointerdown: _cache[0] || (_cache[0] = withModifiers((...args) => unref(startPanelResize) && unref(startPanelResize)(...args), ["stop", "prevent"]))
+                  },
+                  null,
+                  32
+                  /* NEED_HYDRATION */
+                )) : createCommentVNode("v-if", true),
+                createBaseVNode("header", _hoisted_2, [
+                  createBaseVNode("div", _hoisted_3, [
+                    createBaseVNode("div", _hoisted_4, [
+                      createBaseVNode("img", {
+                        class: "mda-title-logo",
+                        src: unref(magnusLogo),
+                        alt: "Magnus"
+                      }, null, 8, _hoisted_5)
+                    ]),
+                    createBaseVNode(
+                      "div",
+                      _hoisted_6,
+                      toDisplayString(pageHost.value),
+                      1
+                      /* TEXT */
+                    )
                   ]),
-                  createBaseVNode(
-                    "div",
-                    _hoisted_6,
-                    toDisplayString(pageHost.value),
-                    1
-                    /* TEXT */
-                  )
-                ]),
-                createBaseVNode("div", _hoisted_7, [
-                  createBaseVNode(
-                    "button",
-                    {
+                  createBaseVNode("div", _hoisted_7, [
+                    isSidePanel.value ? (openBlock(), createElementBlock("button", {
+                      key: 0,
                       class: "mda-icon",
                       type: "button",
-                      title: "收起/展开",
-                      onClick: _cache[1] || (_cache[1] = withModifiers(($event) => collapsed.value = !unref(collapsed), ["stop"]))
+                      title: "开始页面选区",
+                      onClick: withModifiers(startRemotePicker, ["stop"])
+                    }, " ⌖ ")) : createCommentVNode("v-if", true),
+                    !isSidePanel.value ? (openBlock(), createElementBlock(
+                      "button",
+                      {
+                        key: 1,
+                        class: "mda-icon",
+                        type: "button",
+                        title: "收起/展开",
+                        onClick: _cache[1] || (_cache[1] = withModifiers(($event) => collapsed.value = !unref(collapsed), ["stop"]))
+                      },
+                      toDisplayString(unref(collapsed) ? "<" : ">"),
+                      1
+                      /* TEXT */
+                    )) : createCommentVNode("v-if", true),
+                    !isSidePanel.value ? (openBlock(), createElementBlock("button", {
+                      key: 2,
+                      class: "mda-icon",
+                      type: "button",
+                      title: "关闭",
+                      onClick: withModifiers(destroy, ["stop"])
+                    }, "x")) : createCommentVNode("v-if", true)
+                  ])
+                ]),
+                createBaseVNode("div", _hoisted_8, [
+                  createBaseVNode(
+                    "input",
+                    {
+                      ref_key: "fileInputRef",
+                      ref: fileInputRef,
+                      class: "mda-file-input",
+                      type: "file",
+                      webkitdirectory: "",
+                      multiple: "",
+                      onChange: _cache[2] || (_cache[2] = (...args) => unref(onFileInputChange) && unref(onFileInputChange)(...args))
                     },
-                    toDisplayString(unref(collapsed) ? "<" : ">"),
-                    1
-                    /* TEXT */
+                    null,
+                    544
+                    /* NEED_HYDRATION, NEED_PATCH */
                   ),
-                  createBaseVNode("button", {
-                    class: "mda-icon",
-                    type: "button",
-                    title: "关闭",
-                    onClick: withModifiers(destroy, ["stop"])
-                  }, "x")
+                  createVNode(_sfc_main$3),
+                  createVNode(
+                    _sfc_main$1,
+                    {
+                      ref_key: "composerPanelRef",
+                      ref: composerPanelRef
+                    },
+                    null,
+                    512
+                    /* NEED_PATCH */
+                  )
                 ])
-              ]),
-              createBaseVNode("div", _hoisted_8, [
-                createBaseVNode(
-                  "input",
-                  {
-                    ref_key: "fileInputRef",
-                    ref: fileInputRef,
-                    class: "mda-file-input",
-                    type: "file",
-                    webkitdirectory: "",
-                    multiple: "",
-                    onChange: _cache[2] || (_cache[2] = (...args) => unref(onFileInputChange) && unref(onFileInputChange)(...args))
-                  },
-                  null,
-                  544
-                  /* NEED_HYDRATION, NEED_PATCH */
-                ),
-                createVNode(_sfc_main$3),
-                createVNode(
-                  _sfc_main$1,
-                  {
-                    ref_key: "composerPanelRef",
-                    ref: composerPanelRef
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                )
-              ])
-            ],
-            6
-            /* CLASS, STYLE */
-          )
-        ]);
+              ],
+              6
+              /* CLASS, STYLE */
+            )
+          ],
+          2
+          /* CLASS */
+        );
       };
     }
   };
-  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  position: fixed;\n  z-index: 2147483647;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 420px;\n  max-width: min(420px, calc(100vw - 20px));\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 1px solid #d8dee6;\n  box-shadow: -14px 0 34px rgba(17, 24, 39, 0.18);\n  pointer-events: auto;\n  overflow: hidden;\n  transition: width 180ms ease, box-shadow 180ms ease;\n  animation: mda-slide-in 180ms ease both;\n}\n\n.mda-resizer {\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: -4px;\n  z-index: 2;\n  width: 9px;\n  cursor: col-resize;\n  pointer-events: auto;\n}\n\n.mda-resizer::after {\n  content: "";\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: 4px;\n  width: 1px;\n  background: transparent;\n}\n\n.mda-resizer:hover::after {\n  background: #98a2b3;\n}\n\n.mda-panel.is-resizing {\n  transition: box-shadow 180ms ease;\n}\n\n.mda-hotkey-tip {\n  position: fixed;\n  top: 10px;\n  left: 10px;\n  z-index: 2147483647;\n  height: 28px;\n  padding: 0 10px;\n  border-radius: 6px;\n  background: #05070a;\n  color: #ffffff;\n  font: 12px/28px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);\n  pointer-events: none;\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 440px;\n  max-width: min(440px, calc(100vw - 18px));\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-overlay {\n  position: fixed;\n  z-index: 2147483644;\n  box-sizing: border-box;\n  border: 2px solid #2563eb;\n  background: rgba(37, 99, 235, 0.12);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 0 99999px rgba(15, 23, 42, 0.05);\n  pointer-events: none;\n}\n\n.mda-overlay.is-selected {\n  border-color: #16a34a;\n  background: rgba(22, 163, 74, 0.14);\n}\n\n.mda-badge {\n  position: fixed;\n  z-index: 2147483646;\n  max-width: calc(100vw - 16px);\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 5px;\n  background: #111827;\n  color: #ffffff;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);\n  pointer-events: none;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.mda-panel.is-collapsed {\n  width: 54px;\n  box-shadow: -8px 0 18px rgba(17, 24, 39, 0.14);\n}\n\n.mda-panel.is-collapsed .mda-body,\n.mda-panel.is-collapsed .mda-head-main {\n  display: none;\n}\n\n.mda-panel.is-collapsed .mda-head {\n  height: 100%;\n  padding: 8px 0;\n  justify-content: flex-start;\n}\n\n.mda-panel.is-collapsed .mda-actions {\n  width: 100%;\n  flex-direction: column;\n}\n\n@keyframes mda-slide-in {\n  from {\n    transform: translateX(100%);\n  }\n\n  to {\n    transform: translateX(0);\n  }\n}\n';
+  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-root.is-side-panel {\n  pointer-events: auto;\n  background: #f7f8fa;\n}\n\n.mda-panel {\n  position: fixed;\n  z-index: 2147483647;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 420px;\n  max-width: min(420px, calc(100vw - 20px));\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 1px solid #d8dee6;\n  box-shadow: -14px 0 34px rgba(17, 24, 39, 0.18);\n  pointer-events: auto;\n  overflow: hidden;\n  transition: width 180ms ease, box-shadow 180ms ease;\n  animation: mda-slide-in 180ms ease both;\n}\n\n.mda-panel.is-side-panel {\n  position: fixed;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  border-left: 0;\n  box-shadow: none;\n  animation: none;\n}\n\n.mda-resizer {\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: -4px;\n  z-index: 2;\n  width: 9px;\n  cursor: col-resize;\n  pointer-events: auto;\n}\n\n.mda-resizer::after {\n  content: "";\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: 4px;\n  width: 1px;\n  background: transparent;\n}\n\n.mda-resizer:hover::after {\n  background: #98a2b3;\n}\n\n.mda-panel.is-resizing {\n  transition: box-shadow 180ms ease;\n}\n\n.mda-hotkey-tip {\n  position: fixed;\n  top: 10px;\n  left: 10px;\n  z-index: 2147483647;\n  height: 28px;\n  padding: 0 10px;\n  border-radius: 6px;\n  background: #05070a;\n  color: #ffffff;\n  font: 12px/28px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);\n  pointer-events: none;\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 440px;\n  max-width: min(440px, calc(100vw - 18px));\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-overlay {\n  position: fixed;\n  z-index: 2147483644;\n  box-sizing: border-box;\n  border: 2px solid #2563eb;\n  background: rgba(37, 99, 235, 0.12);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 0 99999px rgba(15, 23, 42, 0.05);\n  pointer-events: none;\n}\n\n.mda-overlay.is-selected {\n  border-color: #16a34a;\n  background: rgba(22, 163, 74, 0.14);\n}\n\n.mda-badge {\n  position: fixed;\n  z-index: 2147483646;\n  max-width: calc(100vw - 16px);\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 5px;\n  background: #111827;\n  color: #ffffff;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);\n  pointer-events: none;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.mda-panel.is-collapsed {\n  width: 54px;\n  box-shadow: -8px 0 18px rgba(17, 24, 39, 0.14);\n}\n\n.mda-panel.is-collapsed .mda-body,\n.mda-panel.is-collapsed .mda-head-main {\n  display: none;\n}\n\n.mda-panel.is-collapsed .mda-head {\n  height: 100%;\n  padding: 8px 0;\n  justify-content: flex-start;\n}\n\n.mda-panel.is-collapsed .mda-actions {\n  width: 100%;\n  flex-direction: column;\n}\n\n@keyframes mda-slide-in {\n  from {\n    transform: translateX(100%);\n  }\n\n  to {\n    transform: translateX(0);\n  }\n}\n';
   (function bootstrapDevAssistant() {
     const APP_KEY = "__MAGNUS_DEV_ASSISTANT__";
     const LEGACY_APP_KEY = "__MAGNUS_ELEMENT_INSPECTOR__";
+    const sidePanelConfig = window.__MAGNUS_SIDE_PANEL__ || null;
+    const isSidePanel = !!sidePanelConfig;
     const HOST_ID = "magnus-dev-assistant-root";
     const oldApp = window[APP_KEY];
     const legacyApp = window[LEGACY_APP_KEY];
@@ -12231,7 +14060,12 @@ ${source}` : "",
     }
     const host = document.createElement("div");
     host.id = HOST_ID;
-    host.style.cssText = [
+    host.style.cssText = isSidePanel ? [
+      "position:fixed",
+      "inset:0",
+      "z-index:1",
+      "font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif"
+    ].join(";") : [
       "position:fixed",
       "inset:0",
       "z-index:2147483647",
@@ -12271,6 +14105,8 @@ ${source}` : "",
         }
       }
     };
+    api.sidePanel = isSidePanel;
+    api.sidePanelConfig = sidePanelConfig;
     const app = createApp(_sfc_main, { api });
     api.app = app;
     window[APP_KEY] = api;

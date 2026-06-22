@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Magnus Side Panel Demo</title>
+    <style>
+      :root {
+        color: #202327;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #eef1f5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        display: grid;
+        grid-template-columns: minmax(620px, 1fr) 392px;
+        overflow: hidden;
+      }
+
+      .browser {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: #f7f8fa;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 48px;
+        padding: 0 16px;
+        border-bottom: 1px solid #dde1e7;
+        background: #ffffff;
+      }
+
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #f0605b;
+        box-shadow: 20px 0 0 #f6c145, 40px 0 0 #57c46b;
+      }
+
+      .address {
+        flex: 1;
+        min-width: 0;
+        margin-left: 48px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        color: #67707d;
+        background: #f1f3f6;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .page {
+        flex: 1;
+        overflow: auto;
+        padding: 28px;
+      }
+
+      .content {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+
+      .headline {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 26px;
+        letter-spacing: 0;
+      }
+
+      .subtle {
+        margin: 8px 0 0;
+        color: #67707d;
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .button {
+        border: 1px solid #d2d8e1;
+        border-radius: 8px;
+        padding: 9px 12px;
+        background: #fff;
+        color: #202327;
+      }
+
+      .button.primary {
+        border-color: #15191f;
+        background: #15191f;
+        color: #fff;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric,
+      .table-wrap,
+      .activity {
+        border: 1px solid #e0e4ea;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .metric {
+        padding: 16px;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 10px;
+        font-size: 26px;
+      }
+
+      .metric span {
+        color: #67707d;
+        font-size: 13px;
+      }
+
+      .table-wrap {
+        margin-top: 14px;
+        overflow: hidden;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 13px 16px;
+        border-bottom: 1px solid #edf0f4;
+        text-align: left;
+      }
+
+      th {
+        color: #4c5664;
+        background: #f8fafc;
+        font-weight: 600;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: #e8f7ef;
+        color: #137a43;
+        font-size: 12px;
+      }
+
+      .activity {
+        margin-top: 14px;
+        padding: 16px;
+      }
+
+      .activity h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+
+      .activity p {
+        margin: 0;
+        color: #5d6674;
+        line-height: 1.8;
+      }
+
+      .panel {
+        min-width: 0;
+        border-left: 1px solid #d8dde5;
+        background: #ffffff;
+      }
+
+      .panel iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="browser">
+      <div class="toolbar">
+        <div class="dot"></div>
+        <div class="address">https://demo.local/workspace/campaign</div>
+      </div>
+      <section class="page">
+        <div class="content">
+          <div class="headline">
+            <div>
+              <h1>Campaign Workspace</h1>
+              <p class="subtle">Mock host page for testing Magnus inside Chrome Side Panel.</p>
+            </div>
+            <div class="actions">
+              <button class="button">导出报表</button>
+              <button class="button primary">新增计划</button>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="metric"><span>投放中计划</span><strong>18</strong></div>
+            <div class="metric"><span>今日消耗</span><strong>¥23,420</strong></div>
+            <div class="metric"><span>转化成本</span><strong>¥31.8</strong></div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>计划名称</th>
+                  <th>状态</th>
+                  <th>负责人</th>
+                  <th>预算</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>夏季素材测试</td>
+                  <td><span class="status">投放中</span></td>
+                  <td>Jojo</td>
+                  <td>¥8,000</td>
+                </tr>
+                <tr>
+                  <td>复购人群召回</td>
+                  <td><span class="status">投放中</span></td>
+                  <td>Magnus</td>
+                  <td>¥12,000</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="activity">
+            <h2>最近动态</h2>
+            <p>系统检测到素材点击率提升，建议继续观察同类计划的成本变化。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="panel">
+      <iframe src="/magnus-ui.html" title="Magnus side panel demo"></iframe>
+    </aside>
+  </body>
+</html>

@@ -15,6 +15,11 @@
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
+.mda-root.is-side-panel {
+  pointer-events: auto;
+  background: #f7f8fa;
+}
+
 .mda-panel {
   position: fixed;
   z-index: 2147483647;
@@ -32,6 +37,17 @@
   overflow: hidden;
   transition: width 180ms ease, box-shadow 180ms ease;
   animation: mda-slide-in 180ms ease both;
+}
+
+.mda-panel.is-side-panel {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  border-left: 0;
+  box-shadow: none;
+  animation: none;
 }
 
 .mda-resizer {

@@ -166,6 +166,15 @@ function loadBuildRuleConfig(projectDir, entryPath) {
   if (typeof raw.supportIframe === 'boolean') {
     next.supportIframe = raw.supportIframe;
   }
+  if (typeof raw.inject === 'boolean') {
+    next.inject = raw.inject;
+  }
+  if (Array.isArray(raw.injectJsUrls)) {
+    next.injectJsUrls = raw.injectJsUrls.map(item => String(item || '').trim()).filter(Boolean);
+  }
+  if (Array.isArray(raw.injectCssUrls)) {
+    next.injectCssUrls = raw.injectCssUrls.map(item => String(item || '').trim()).filter(Boolean);
+  }
   next.filePath = filePath;
   return next;
 }
@@ -375,9 +384,12 @@ function updateConfig({
   appName,
   jsUrls,
   cssUrls,
+  injectJsUrls,
+  injectCssUrls,
   matches,
   supportIframe,
   includeDevClient,
+  inject,
   poll,
   outputChanged,
   dryRun,
@@ -399,28 +411,49 @@ function updateConfig({
 
   const managedJs = jsUrls.map(file => posixJoin(appName, file));
   const managedCss = cssUrls.map(file => posixJoin(appName, file));
+  const extraManagedJs = (injectJsUrls || []).map(file => posixJoin(appName, file));
+  const extraManagedCss = (injectCssUrls || []).map(file => posixJoin(appName, file));
   const nextJs = config.result.jsUrls.filter(url => !isManagedUrl(url));
   const nextCss = config.result.cssUrls.filter(url => !isManagedUrl(url));
 
-  config.result.jsUrls = dedupe([
-    ...nextJs,
-    ...(includeDevClient ? [devClientUrl] : []),
-    ...managedJs,
-  ]);
-  config.result.cssUrls = dedupe([
-    ...nextCss,
-    ...managedCss,
-  ]);
+  const shouldInject = inject !== false;
+
+  config.result.jsUrls = dedupe(shouldInject
+    ? [
+        ...nextJs,
+        ...(includeDevClient ? [devClientUrl] : []),
+        ...managedJs,
+        ...extraManagedJs,
+      ]
+    : [
+        ...nextJs,
+        ...extraManagedJs,
+      ]);
+  config.result.cssUrls = dedupe(shouldInject
+    ? [
+        ...nextCss,
+        ...managedCss,
+        ...extraManagedCss,
+      ]
+    : [
+        ...nextCss,
+        ...extraManagedCss,
+      ]);
 
   for (const key of Object.keys(config.rules)) {
     if (isManagedUrl(key)) delete config.rules[key];
   }
 
   const rule = { matches, supportIframe };
-  for (const url of [...managedJs, ...managedCss]) {
+  if (shouldInject) {
+    for (const url of [...managedJs, ...managedCss]) {
+      config.rules[url] = rule;
+    }
+  }
+  for (const url of [...extraManagedJs, ...extraManagedCss]) {
     config.rules[url] = rule;
   }
-  if (includeDevClient) {
+  if (includeDevClient && shouldInject) {
     config.rules[devClientUrl] = rule;
     config.dev = {
       ...(config.dev || {}),
@@ -506,11 +539,14 @@ function createSyncPlugin(context) {
         appName: context.appName,
         jsUrls: output.jsFiles,
         cssUrls: output.cssFiles,
+        injectJsUrls: context.injectJsUrls,
+        injectCssUrls: context.injectCssUrls,
         matches: context.matches,
         supportIframe: context.supportIframe,
         includeDevClient: context.watch,
+        inject: context.inject,
         poll: context.poll,
-        outputChanged: output.changed,
+        outputChanged: output.changed || !!context.injectJsUrls?.length || !!context.injectCssUrls?.length,
         dryRun: context.dryRun,
       });
 
@@ -560,6 +596,9 @@ async function main() {
   const supportIframe = typeof buildRuleConfig?.supportIframe === 'boolean'
     ? buildRuleConfig.supportIframe
     : !!opts.iframe;
+  const inject = buildRuleConfig?.inject !== false;
+  const injectJsUrls = buildRuleConfig?.injectJsUrls || [];
+  const injectCssUrls = buildRuleConfig?.injectCssUrls || [];
   const minify = typeof opts.minify === 'boolean' ? opts.minify : !watch;
   const dryRun = !!opts.dryRun;
   const nodeEnv = mode === 'production' ? 'production' : 'development';
@@ -578,6 +617,9 @@ async function main() {
       matches,
       supportIframe,
       watch,
+      inject,
+      injectJsUrls,
+      injectCssUrls,
       poll,
     }),
   ];

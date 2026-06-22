@@ -5,5 +5,9 @@
     "https://*.itaored.com/*",
     "https://dc.tongmingmedia.com/*"
   ],
-  "supportIframe": false
+  "supportIframe": false,
+  "inject": false,
+  "injectJsUrls": [
+    "sfr-runtime.js"
+  ]
 }

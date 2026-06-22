@@ -8,6 +8,7 @@
     "app:inspector:build": "node scripts/app-build.js --project vue --name magnus --entry src/sites/magnus/main.js --no-minify",
     "app:inspector:dev": "node scripts/app-build.js --project vue --name magnus --entry src/sites/magnus/main.js --no-minify --watch",
     "source:server": "node scripts/source-server.js",
+    "demo:side": "node demo/side/dev-server.js --port 5197",
     "docs:dev": "vitepress dev docs --host 0.0.0.0",
     "docs:build": "node scripts/docs-build.js",
     "docs:build:dev": "node scripts/docs-build.js dev",

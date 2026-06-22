@@ -2,11 +2,11 @@
     "result": {
         "cssUrls": [],
         "jsUrls": [
-            "magnus/index.js"
+            "magnus/sfr-runtime.js"
         ]
     },
     "rules": {
-        "magnus/index.js": {
+        "magnus/sfr-runtime.js": {
             "matches": [
                 "http://localhost:*/*",
                 "http://127.0.0.1:*/*",
@@ -17,7 +17,7 @@
         }
     },
     "canInjectIframeList": [],
-    "version": "20260622.120833.364",
+    "version": "20260622.230048.661",
     "success": true,
     "api": ""
 }
