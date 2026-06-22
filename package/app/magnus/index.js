@@ -7395,9 +7395,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const result = modelAssistResult.value;
         const targets = result.modelItems || result.targetFiles || [];
         const targetLogs = targets.slice(0, 5).flatMap((item, index) => {
+          const locateLevel = item.locateLevel || item.modelLocateLevel || "exact";
+          const snippetVerified = item.snippetVerified !== false && item.modelSnippetVerified !== false;
           return [
             `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ""}${item.exists === false ? " · 文件不存在" : ""}`,
-            item.codeSnippet ? `code片段: ${item.codeSnippet}` : "",
+            `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}`,
+            item.codeSnippet ? `${snippetVerified ? "code片段" : "源码方向片段"}: ${item.codeSnippet}` : "",
             item.directionGuess ? `推测方向: ${item.directionGuess}` : "",
             item.prompt ? `提示词: ${item.prompt}` : item.reason || "-"
           ].filter(Boolean);
@@ -7739,6 +7742,8 @@ ${result.rawText}` : ""
           modelCodeSnippet: target.codeSnippet || "",
           modelLocateLevel: target.locateLevel || "exact",
           modelDirectionGuess: target.directionGuess || "",
+          modelSnippetVerified: target.snippetVerified !== false,
+          modelDowngradedToDirection: !!target.downgradedToDirection,
           modelConfidence: target.confidence,
           modelAdapter: ((_b = result.adapter) == null ? void 0 : _b.name) || ""
         });
@@ -8098,7 +8103,8 @@ ${result.rawText}` : ""
         `定位过程: 模型阅读本地预检索结果、候选文件内容和选区证据后推荐该文件`,
         hit.modelAdapter ? `模型: ${hit.modelAdapter}` : "",
         hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : "",
-        hit.modelCodeSnippet ? `模型代码片段: ${hit.modelCodeSnippet}` : "",
+        hit.modelLocateLevel ? `定位层级: ${hit.modelLocateLevel}${hit.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}` : "",
+        hit.modelCodeSnippet ? `${hit.modelSnippetVerified === false ? "模型源码方向片段" : "模型代码片段"}: ${hit.modelCodeSnippet}` : "",
         hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : "",
         hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : "",
         uniqueLine,

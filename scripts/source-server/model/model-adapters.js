@@ -1148,6 +1148,15 @@ function hasStrongSelectionEvidence(hit) {
   return false;
 }
 
+function hasDirectSelectionEvidence(hit) {
+  if (!hit) return false;
+  if (hit.preciseEvidence) return true;
+  if (hit.exactMatchText || hit.uniqueMatchText) return true;
+  if ((hit.contextScore || 0) > 0 || (hit.contextStrongMatchCount || 0) > 0) return true;
+  if ((hit.contextReasons || []).length) return true;
+  return false;
+}
+
 function stableLocalModelCandidate(body) {
   const byFile = new Map();
   for (const hit of [...(body.selectedCandidateHits || []), ...(body.candidateHits || [])]) {
@@ -1292,6 +1301,8 @@ function definitionRelatedCandidateHits(body) {
 function modelCandidateHits(body, logs) {
   const routeEntries = body?.routeResolver?.matched ? routeEntryFiles(body) : [];
   const selectedSet = new Set((body.selectedCandidateHits || []).map(hit => normalizeModelFilePath(hit?.file)).filter(Boolean));
+  const directEvidenceExists = [...(body.selectedCandidateHits || []), ...(body.candidateHits || [])]
+    .some(hit => hasDirectSelectionEvidence(hit));
   const merged = [];
   const skipped = [];
   const seen = new Set();
@@ -1301,8 +1312,9 @@ function modelCandidateHits(body, logs) {
     const normalizedHit = { ...hit, file };
     const pageScoped = isPageScopedHit(normalizedHit, routeEntries);
     const strong = hasStrongSelectionEvidence(normalizedHit);
+    const direct = hasDirectSelectionEvidence(normalizedHit);
     const routeEntry = routeEntries.includes(file);
-    if (routeEntries.length && !pageScoped && !strong && !routeEntry) {
+    if (routeEntries.length && !pageScoped && !direct && !routeEntry) {
       skipped.push(file);
       return;
     }
@@ -1311,6 +1323,7 @@ function modelCandidateHits(body, logs) {
       ...normalizedHit,
       modelCandidateSource: source,
       pageScoped,
+      directSelectionEvidence: direct,
       strongSelectionEvidence: strong,
       selectedForModel: selectedSet.has(file),
     });
@@ -1327,13 +1340,18 @@ function modelCandidateHits(body, logs) {
 
   if (routeEntries.length) {
     for (const file of routeEntries) {
-      push(candidateHitForFile(body, file) || {
+      const hit = candidateHitForFile(body, file) || {
         file,
         score: 0,
         stage: 'route-resolver',
         stages: ['route-resolver'],
         reasons: ['页面源码入口'],
-      }, 'route-entry');
+      };
+      if (directEvidenceExists && !hasDirectSelectionEvidence(hit) && !selectedSet.has(file)) {
+        skipped.push(file);
+        continue;
+      }
+      push(hit, 'route-entry');
     }
   }
   for (const hit of body.selectedCandidateHits || []) push(hit, 'selected');
@@ -2660,11 +2678,47 @@ function hasRouteOrApiSupport(item) {
   });
 }
 
+function hasLocalCandidateSupport(item) {
+  if (!item) return false;
+  if (item.localPreciseEvidence) return true;
+  if ((item.localScore || 0) > 0) return true;
+  if ((item.localContextScore || 0) > 0) return true;
+  if ((item.localReasons || []).length) return true;
+  if ((item.localContextReasons || []).length) return true;
+  if ((item.localStages || []).length) return true;
+  return false;
+}
+
+function shouldDowngradeUnverifiedExactToDirection(item) {
+  if (!item?.exists) return false;
+  if (item.locateLevel === 'direction') return false;
+  if (item.snippetVerified) return false;
+  if (!String(item.rawCodeSnippet || '').trim()) return false;
+  if ((item.confidence || 0) < 85) return false;
+  if ((item.selectionEvidenceScore || 0) < 85) return false;
+  return hasLocalCandidateSupport(item);
+}
+
+function normalizeModelLocateLevel(item) {
+  if (!shouldDowngradeUnverifiedExactToDirection(item)) return item;
+  return {
+    ...item,
+    locateLevel: 'direction',
+    codeSnippet: item.codeSnippet || item.rawCodeSnippet,
+    snippetSource: 'unverified-direction-snippet',
+    downgradedToDirection: true,
+  };
+}
+
 function modelItemAccepted(item) {
   if (!item?.exists) return false;
   const directionLevel = item.locateLevel === 'direction';
   if (!directionLevel && (!item.snippetVerified || !item.codeSnippet)) return false;
-  if (directionLevel && !(item.localPreciseEvidence || (item.localContextScore || 0) >= 42 || (item.localScore || 0) >= 180)) return false;
+  const semanticDirection = !!item.downgradedToDirection
+    && (item.confidence || 0) >= 85
+    && (item.selectionEvidenceScore || 0) >= 85
+    && hasLocalCandidateSupport(item);
+  if (directionLevel && !(semanticDirection || item.localPreciseEvidence || (item.localContextScore || 0) >= 42 || (item.localScore || 0) >= 180)) return false;
   if (item.localPreciseEvidence) return true;
   if ((item.localContextScore || 0) >= 42) return true;
   if ((item.selectionEvidenceScore || 0) >= 70) return true;
@@ -2688,27 +2742,32 @@ function reconcileModelItems(items, body) {
       localContextReasons: mergeList((local?.contextReasons || []).slice(0, 4), item.localContextReasons || []),
       localContextScore: Math.max(local?.contextScore || 0, item.localContextScore || 0),
     };
+    const normalized = normalizeModelLocateLevel(enriched);
     const old = merged.get(item.file);
-    if (!old || modelItemRank(enriched) > modelItemRank(old)) {
-      merged.set(item.file, enriched);
+    if (!old || modelItemRank(normalized) > modelItemRank(old)) {
+      merged.set(item.file, normalized);
       continue;
     }
     merged.set(item.file, {
       ...old,
-      confidence: Math.max(old.confidence || 0, enriched.confidence || 0),
-      prompt: old.prompt || enriched.prompt,
-      reason: old.reason || enriched.reason,
-      directionGuess: old.directionGuess || enriched.directionGuess,
-      codeSnippet: old.codeSnippet || enriched.codeSnippet,
-      snippetVerified: !!(old.snippetVerified || enriched.snippetVerified),
-      localScore: Math.max(old.localScore || 0, enriched.localScore || 0),
-      localPreciseEvidence: !!(old.localPreciseEvidence || enriched.localPreciseEvidence),
-      localStages: mergeList(old.localStages || [], enriched.localStages || []),
-      localReasons: mergeList(old.localReasons || [], enriched.localReasons || []),
-      localContextReasons: mergeList(old.localContextReasons || [], enriched.localContextReasons || []),
-      localContextScore: Math.max(old.localContextScore || 0, enriched.localContextScore || 0),
-      selectionEvidenceScore: Math.max(old.selectionEvidenceScore || 0, enriched.selectionEvidenceScore || 0),
-      selectionEvidenceReasons: mergeList(old.selectionEvidenceReasons || [], enriched.selectionEvidenceReasons || []),
+      confidence: Math.max(old.confidence || 0, normalized.confidence || 0),
+      prompt: old.prompt || normalized.prompt,
+      reason: old.reason || normalized.reason,
+      directionGuess: old.directionGuess || normalized.directionGuess,
+      codeSnippet: old.codeSnippet || normalized.codeSnippet,
+      rawCodeSnippet: old.rawCodeSnippet || normalized.rawCodeSnippet,
+      snippetVerified: !!(old.snippetVerified || normalized.snippetVerified),
+      snippetSource: old.snippetSource || normalized.snippetSource,
+      locateLevel: old.locateLevel === 'direction' || normalized.locateLevel === 'direction' ? 'direction' : old.locateLevel,
+      downgradedToDirection: !!(old.downgradedToDirection || normalized.downgradedToDirection),
+      localScore: Math.max(old.localScore || 0, normalized.localScore || 0),
+      localPreciseEvidence: !!(old.localPreciseEvidence || normalized.localPreciseEvidence),
+      localStages: mergeList(old.localStages || [], normalized.localStages || []),
+      localReasons: mergeList(old.localReasons || [], normalized.localReasons || []),
+      localContextReasons: mergeList(old.localContextReasons || [], normalized.localContextReasons || []),
+      localContextScore: Math.max(old.localContextScore || 0, normalized.localContextScore || 0),
+      selectionEvidenceScore: Math.max(old.selectionEvidenceScore || 0, normalized.selectionEvidenceScore || 0),
+      selectionEvidenceReasons: mergeList(old.selectionEvidenceReasons || [], normalized.selectionEvidenceReasons || []),
     });
   }
 
@@ -2817,6 +2876,7 @@ function validateModelItems(project, parsed, body, textCache) {
       selectionEvidenceReasons,
       directionGuess,
       codeSnippet: snippetResult.codeSnippet,
+      rawCodeSnippet,
       prompt,
       reason: prompt || snippetResult.codeSnippet || rawCodeSnippet,
       exists: !!projectFile(project, file),
@@ -3170,13 +3230,13 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     for (const item of allModelItems.filter(item => !modelItemAccepted(item)).slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果丢弃：${item.file}；原因：${!item.exists ? '文件不存在' : item.locateLevel !== 'direction' && !item.snippetVerified ? '代码片段未验证' : '缺少本地候选证据'}；confidence ${item.confidence || 0}；selectionEvidence ${item.selectionEvidenceScore || 0}；本地上下文分 ${item.localContextScore || 0}`
+        `模型结果丢弃：${item.file}；原因：${!item.exists ? '文件不存在' : item.locateLevel !== 'direction' && !item.snippetVerified ? '代码片段未验证' : '缺少本地候选证据'}；confidence ${item.confidence || 0}；selectionEvidence ${item.selectionEvidenceScore || 0}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}`
       );
     }
     for (const item of modelItems.slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果接收：${item.file}；定位层级 ${item.locateLevel || 'exact'}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}；AI语义匹配分 ${item.selectionEvidenceScore || 0}；代码片段${item.snippetVerified ? '已按连续源码原样命中' : '未验证'}`
+        `模型结果接收：${item.file}；定位层级 ${item.locateLevel || 'exact'}${item.downgradedToDirection ? '（片段未逐字验证，按强语义证据降级为源码方向）' : ''}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}；AI语义匹配分 ${item.selectionEvidenceScore || 0}；代码片段${item.snippetVerified ? '已按连续源码原样命中' : '未验证'}`
       );
     }
     const multiFileMatches = modelItems.filter(item => item.localPreciseEvidence || item.localScore >= 120);
@@ -3198,6 +3258,8 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         confidence: item.confidence,
         reason: item.reason,
         codeSnippet: item.codeSnippet,
+        snippetVerified: item.snippetVerified,
+        downgradedToDirection: !!item.downgradedToDirection,
         prompt: item.prompt,
         locateLevel: item.locateLevel || 'exact',
         directionGuess: item.directionGuess || '',

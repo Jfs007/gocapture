@@ -288,6 +288,8 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
         modelCodeSnippet: target.codeSnippet || '',
         modelLocateLevel: target.locateLevel || 'exact',
         modelDirectionGuess: target.directionGuess || '',
+        modelSnippetVerified: target.snippetVerified !== false,
+        modelDowngradedToDirection: !!target.downgradedToDirection,
         modelConfidence: target.confidence,
         modelAdapter: result.adapter?.name || ''
       };

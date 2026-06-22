@@ -57,3 +57,5 @@ npm run docs:dev
 ```
 
 当你开始一个新业务时，可以用 `npm run app:build` 自动输出 `package/app/<name>/index.js` 并更新 `jsUrls`、`cssUrls` 和 `rules`。详细说明见 [工程化 App 打包](/guide/app-build)。
+
+源码定位相关约束见 [源码定位规则](/guide/source-locate-rules)。
