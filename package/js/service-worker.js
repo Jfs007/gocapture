@@ -22,17 +22,29 @@ async function fetchData(url) {
 function isUrlMatch(url, matches) {
   const patterns = Array.isArray(matches) ? matches : [matches];
   if (!patterns.length) return true;
-  return patterns.some(p => matchOne(url, normalizePattern(p)))
+  return patterns.some(pattern => matchOne(url, pattern))
 }
 
 function matchPort(actual, expected) {
-  if (!expected) return true
+  if (!expected || expected === '*') return true
   return actual === expected
 }
 
 function splitHostPort(patternHost) {
+  if (!patternHost || patternHost === '*') return { host: patternHost || '*', port: null }
+  if (patternHost.startsWith('[')) {
+    const end = patternHost.indexOf(']')
+    if (end !== -1) {
+      const host = patternHost.slice(0, end + 1)
+      const rest = patternHost.slice(end + 1)
+      return {
+        host,
+        port: rest.startsWith(':') ? rest.slice(1) || null : null
+      }
+    }
+  }
   const idx = patternHost.lastIndexOf(':')
-  if (idx > -1 && /^\d+$/.test(patternHost.slice(idx + 1))) {
+  if (idx > -1 && /^[\d*]+$/.test(patternHost.slice(idx + 1))) {
     return {
       host: patternHost.slice(0, idx),
       port: patternHost.slice(idx + 1)
@@ -43,31 +55,48 @@ function splitHostPort(patternHost) {
 
 
 function normalizePattern(pattern) {
-  if (pattern === '<all_urls>') return pattern
-
-  let p = pattern.trim()
-
-  // 1️⃣ 没有 scheme
-  if (!p.includes('://')) {
-    p = '*://' + p
+  const raw = String(pattern || '').trim()
+  if (!raw || raw === '*' || raw === '<all_urls>' || raw === '*://*/*') {
+    return {
+      all: true,
+      scheme: '*',
+      host: '*',
+      port: null,
+      path: '*'
+    }
   }
 
-  // 2️⃣ 没有 path
-  const idx = p.indexOf('/', p.indexOf('://') + 3)
-  if (idx === -1) {
-    p += '/*'
+  let scheme = '*'
+  let rest = raw
+  const schemeMatch = raw.match(/^([a-z*][a-z0-9+.-]*|\*):\/\/(.*)$/i)
+  if (schemeMatch) {
+    scheme = schemeMatch[1].toLowerCase()
+    rest = schemeMatch[2]
   }
 
-  // 3️⃣ 只有 / 结尾
-  if (p.endsWith('/')) {
-    p += '*'
+  let hostPort = rest
+  let path = '*'
+  const slashIndex = rest.indexOf('/')
+  if (slashIndex !== -1) {
+    hostPort = rest.slice(0, slashIndex)
+    path = rest.slice(slashIndex) || '/'
   }
+  if (!hostPort) hostPort = '*'
+  if (!path || path === '/') path = '/*'
 
-  return p
+  const { host, port } = splitHostPort(hostPort)
+  return {
+    all: false,
+    scheme,
+    host: normalizeHostPattern(host),
+    port,
+    path
+  }
 }
 
 function matchOne(url, pattern) {
-  if (pattern === '<all_urls>') return true
+  const rule = normalizePattern(pattern)
+  if (rule.all) return true
 
   let urlObj
   try {
@@ -76,17 +105,11 @@ function matchOne(url, pattern) {
     return false
   }
 
-  const [scheme, rest] = pattern.split('://')
-  const [hostPart, ...pathParts] = rest.split('/')
-  const pathPattern = '/' + pathParts.join('/')
-
-  const { host: hostPattern, port: portPattern } = splitHostPort(hostPart)
-
   return (
-    matchScheme(urlObj.protocol.slice(0, -1), scheme) &&
-    matchHost(urlObj.hostname, hostPattern) &&
-    matchPort(urlObj.port, portPattern) &&
-    matchPath(urlObj.pathname, pathPattern)
+    matchScheme(urlObj.protocol.slice(0, -1), rule.scheme) &&
+    matchHost(urlObj.hostname, rule.host) &&
+    matchPort(urlObj.port, rule.port) &&
+    matchPath(urlObj.pathname, rule.path)
   )
 }
 
@@ -96,15 +119,17 @@ function matchScheme(protocol, scheme) {
 }
 
 function matchHost(host, pattern) {
-  if (pattern === '*') return true
+  const normalizedHost = String(host || '').toLowerCase()
+  const normalizedPattern = normalizeHostPattern(pattern)
+  if (normalizedPattern === '*') return true
 
   // *.example.com
-  if (pattern.startsWith('*.')) {
-    const bare = pattern.slice(2)
-    return host === bare || host.endsWith('.' + bare)
+  if (normalizedPattern.startsWith('*.')) {
+    const bare = normalizedPattern.slice(2)
+    return normalizedHost === bare || normalizedHost.endsWith('.' + bare)
   }
 
-  return wildcardMatch(host, pattern)
+  return wildcardMatch(normalizedHost, normalizedPattern)
 }
 
 function matchPath(path, pattern) {
@@ -112,14 +137,22 @@ function matchPath(path, pattern) {
 }
 
 function wildcardMatch(str, pattern) {
+  if (pattern === '*') return true
   const regex = new RegExp(
     '^' +
-    pattern
-      .replace(/\./g, '\\.')
+    String(pattern || '*')
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
       .replace(/\*/g, '.*') +
     '$'
   )
   return regex.test(str)
+}
+
+function normalizeHostPattern(host) {
+  const value = String(host || '*').trim().toLowerCase()
+  if (!value || value === '*') return '*'
+  if (value === 'localhost') return 'localhost'
+  return value
 }
 
 

@@ -8,20 +8,16 @@
     "rules": {
         "magnus/index.js": {
             "matches": [
-                "*host:9002",
-                "*host:9003",
-                "https://ad.itaored.com",
-                "https://winsup.itaored.com",
-                "https://www.itaored.com",
-                "https://dc.tongmingmedia.com",
-                "http://localhost:3006",
-                "http://localhost:5173"
+                "http://localhost:*/*",
+                "http://127.0.0.1:*/*",
+                "https://*.itaored.com/*",
+                "https://dc.tongmingmedia.com/*"
             ],
             "supportIframe": false
         }
     },
     "canInjectIframeList": [],
-    "version": "20260622.015703.749",
+    "version": "20260622.090233.227",
     "success": true,
     "api": ""
 }
