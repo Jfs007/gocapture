@@ -1253,6 +1253,8 @@ function evidenceForScopes(evidence, scopes) {
     tokens: Array.from(tokenMap.values()).slice(0, 80),
     phrases: Array.from(phraseMap.values()).slice(0, 40),
     selectionSignals,
+    selectionGroups: allowedScopes.has('self') ? (evidence.selectionGroups || []) : [],
+    selectionKinds: evidence.selectionKinds || [],
     structuredEvidences: (evidence.structuredEvidences || [])
       .filter(item => allowedScopes.has(item.scope || '') && (item.kind === 'text' || item.kind === 'class' || item.kind === 'icon')),
   };
@@ -1649,6 +1651,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
   const graph = buildImportGraph(project, textCache);
   const allScope = scopes[scopes.length - 1] || { name: 'fullRepo', files: fileSetFromProject(project) };
   const scopePlan = buildLayeredScopePlan(project, routeHits, evidence, textCache, scopes);
+  const selfEvidence = selfOnlyEvidence(evidence);
 
   let last = { hits: [], activeScope: allScope, layer: 'L3' };
   for (const scope of scopePlan) {
@@ -1672,7 +1675,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
           ...(hit.reasons || []),
         ]).slice(0, 12),
       }));
-    const groupHits = domGroupCoverageHits(project, evidence, textCache, scope.files, {
+    const groupHits = domGroupCoverageHits(project, selfEvidence, textCache, scope.files, {
       fileFilter: isUiOrStyleSourceFile,
     }).map(hit => ({
       ...hit,
@@ -1692,7 +1695,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         layer: scope.name.replace(/：.*$/, ''),
       };
     }
-    const recalledHits = recallByStructuredEvidence(project, routeHits, evidence, textCache, {
+    const recalledHits = recallByStructuredEvidence(project, routeHits, selfEvidence, textCache, {
       scopeFiles: scope.files,
     }).map(hit => ({
       ...hit,
@@ -1705,13 +1708,54 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
       ...localStructuredHits,
       ...recalledHits,
     ]).sort((a, b) => b.score - a.score);
+    const meaningfulScopeHits = mergedScopeHits.filter(hit => !isOnlyRouteHitWithoutLocalEvidence(hit));
+    if (meaningfulScopeHits.length) {
+      const refinedHits = refineHitsByExpandedSelection(project, mergedScopeHits, evidence, textCache)
+        .sort((a, b) => b.score - a.score);
+      last = {
+        hits: refinedHits,
+        activeScope: scope,
+        layer: scope.name.replace(/：.*$/, ''),
+      };
+      if (stableLocalHits(refinedHits)) return last;
+      if (exactTextIsUniqueEnough(refinedHits)) return last;
+      continue;
+    }
+
+    const fallbackHits = recallByStructuredEvidence(project, routeHits, evidence, textCache, {
+      scopeFiles: scope.files,
+    }).map(hit => ({
+      ...hit,
+      score: Math.round((hit.score || 0) * 0.82),
+      reasons: uniq([
+        `检索层级：${scope.name}`,
+        '当前选区未形成候选，启用扩区证据兜底召回',
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    }));
+    const fallbackGroupHits = domGroupCoverageHits(project, evidence, textCache, scope.files, {
+      fileFilter: isUiOrStyleSourceFile,
+    }).map(hit => ({
+      ...hit,
+      score: Math.round((hit.score || 0) * 0.82),
+      reasons: uniq([
+        `检索层级：${scope.name}`,
+        '当前选区未形成候选，启用扩区证据兜底召回',
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    }));
+    const fallbackMergedHits = mergeHits([
+      ...fallbackHits,
+      ...fallbackGroupHits,
+    ]).sort((a, b) => b.score - a.score);
+    const meaningfulFallbackHits = fallbackMergedHits.filter(hit => !isOnlyRouteHitWithoutLocalEvidence(hit));
     last = {
-      hits: mergedScopeHits,
+      hits: fallbackMergedHits,
       activeScope: scope,
       layer: scope.name.replace(/：.*$/, ''),
     };
-    if (stableLocalHits(mergedScopeHits)) return last;
-    if (exactTextIsUniqueEnough(mergedScopeHits)) return last;
+    if (meaningfulFallbackHits.length && stableLocalHits(fallbackMergedHits)) return last;
+    if (meaningfulFallbackHits.length && exactTextIsUniqueEnough(fallbackMergedHits)) return last;
   }
   return last;
 }
