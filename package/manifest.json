@@ -6,28 +6,15 @@
     "site": "http://localhost:3000/",
     "env": "local"
   },
-  "name": "Chrome Extension Scaffold (Dev)",
-  "short_name": "Scaffold",
-  "author_name": "chrome",
+  "name": "Magnus",
+  "short_name": "Magnus",
+  "author_name": "Jf.S",
   "app_module": "Offline",
   "version": "30.2.3",
-  "description": "Script injection and web bridge scaffold.",
-  "icons": {
-    "16": "icons/icon.png",
-    "19": "icons/icon.png",
-    "38": "icons/icon.png",
-    "48": "icons/icon.png",
-    "128": "icons/icon.png"
-  },
+  "description": "源起·伟大",
   "action": {
-    "default_title": "Chrome Extension Scaffold (Dev)",
-    "default_icon": {
-      "16": "icons/icon.png",
-      "19": "icons/icon.png",
-      "38": "icons/icon.png",
-      "48": "icons/icon.png",
-      "128": "icons/icon.png"
-    }
+    "default_title": "Magnus"
+    
   },
   "side_panel": {
     "default_path": "sidepanel.html"

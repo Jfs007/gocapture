@@ -26,6 +26,50 @@ function encodeFrame(text) {
   return Buffer.concat([header, payload]);
 }
 
+function encodeControlFrame(opcode, payload = Buffer.alloc(0)) {
+  const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+  if (body.length > 125) return Buffer.alloc(0);
+  return Buffer.concat([Buffer.from([0x80 | opcode, body.length]), body]);
+}
+
+function unmaskPayload(payload, mask) {
+  if (!mask) return payload;
+  for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4];
+  return payload;
+}
+
+function emitCompleteMessage(socket, opcode, payload, onText) {
+  if (opcode === 0x1) {
+    onText(payload.toString('utf8'));
+  }
+}
+
+function appendFragment(socket, opcode, payload, fin, onText) {
+  if (opcode === 0x1 || opcode === 0x2) {
+    if (fin) {
+      emitCompleteMessage(socket, opcode, payload, onText);
+      return;
+    }
+    socket.__magnusWsFragmentOpcode = opcode;
+    socket.__magnusWsFragments = [payload];
+    return;
+  }
+
+  if (opcode !== 0x0) return;
+  const fragmentOpcode = socket.__magnusWsFragmentOpcode;
+  const fragments = socket.__magnusWsFragments;
+  if (!fragmentOpcode || !Array.isArray(fragments)) {
+    socket.destroy();
+    return;
+  }
+  fragments.push(payload);
+  if (!fin) return;
+  const complete = Buffer.concat(fragments);
+  socket.__magnusWsFragmentOpcode = 0;
+  socket.__magnusWsFragments = null;
+  emitCompleteMessage(socket, fragmentOpcode, complete, onText);
+}
+
 function decodeFrames(socket, chunk, onText) {
   socket.__magnusWsBuffer = Buffer.concat([socket.__magnusWsBuffer || Buffer.alloc(0), chunk]);
   let buffer = socket.__magnusWsBuffer;
@@ -34,6 +78,7 @@ function decodeFrames(socket, chunk, onText) {
   while (buffer.length - offset >= 2) {
     const first = buffer[offset];
     const second = buffer[offset + 1];
+    const fin = (first & 0x80) === 0x80;
     const opcode = first & 0x0f;
     const masked = (second & 0x80) === 0x80;
     let length = second & 0x7f;
@@ -63,15 +108,16 @@ function decodeFrames(socket, chunk, onText) {
       return;
     }
 
-    if (opcode === 0x1) {
-      const maskOffset = offset + headerLength;
-      const payloadOffset = maskOffset + maskLength;
-      const payload = Buffer.from(buffer.subarray(payloadOffset, payloadOffset + length));
-      if (masked) {
-        const mask = buffer.subarray(maskOffset, maskOffset + 4);
-        for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4];
-      }
-      onText(payload.toString('utf8'));
+    const maskOffset = offset + headerLength;
+    const payloadOffset = maskOffset + maskLength;
+    const mask = masked ? buffer.subarray(maskOffset, maskOffset + 4) : null;
+    const payload = unmaskPayload(Buffer.from(buffer.subarray(payloadOffset, payloadOffset + length)), mask);
+
+    if (opcode === 0x9) {
+      const pong = encodeControlFrame(0xA, payload);
+      if (pong.length) socket.write(pong);
+    } else if (opcode === 0x1 || opcode === 0x2 || opcode === 0x0) {
+      appendFragment(socket, opcode, payload, fin, onText);
     }
 
     offset += frameLength;

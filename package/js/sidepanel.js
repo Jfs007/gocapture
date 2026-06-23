@@ -41,32 +41,48 @@ function queryActiveTab() {
   });
 }
 
-function executeScript(target, details) {
-  return chrome.scripting.executeScript({
-    target,
-    ...details,
+function sendRuntimeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, response => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve(response);
+    });
   });
 }
 
-async function injectRuntime(tab) {
-  if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) return;
-  const boot = {
-    browserTabId: tab.id,
+async function installRuntime(tab) {
+  if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) {
+    throw new Error(`当前页面不支持注入 Magnus runtime：${tab?.url || ''}`);
+  }
+  const response = await sendRuntimeMessage({
+    cmd: 'install',
+    tabId: tab.id,
     windowId: tab.windowId,
-    sourceServerUrl: SOURCE_SERVER_URL,
-    bridgeUrl: SOURCE_SERVER_URL.replace(/^http/, 'ws') + '/bridge',
-  };
-  await executeScript({ tabId: tab.id }, {
-    world: 'MAIN',
-    func: value => {
-      window.__MAGNUS_SFR_BOOT__ = value;
+    url: tab.url || '',
+    page: {
+      url: tab.url || '',
+      title: tab.title || '',
     },
-    args: [boot],
+    magnusBoot: {
+      browserTabId: tab.id,
+      windowId: tab.windowId,
+      sourceServerUrl: SOURCE_SERVER_URL,
+      bridgeUrl: SOURCE_SERVER_URL.replace(/^http/, 'ws') + '/bridge',
+      autoStartPicker: true,
+    },
   });
-  await executeScript({ tabId: tab.id }, {
-    world: 'MAIN',
-    files: ['app/magnus/sfr-runtime.js'],
-  });
+  if (!response || response.success === false) {
+    throw new Error(response?.error || 'Install runtime failed.');
+  }
+  const jsUrls = Array.isArray(response.config?.jsUrls) ? response.config.jsUrls : [];
+  const hasRuntime = jsUrls.some(url => String(url || '').includes('/app/magnus/sfr-runtime.js'));
+  if (!hasRuntime) {
+    throw new Error(`当前页面未匹配 Magnus runtime 注入规则：${tab.url || ''}`);
+  }
 }
 
 async function bindCurrentTab() {
@@ -76,9 +92,7 @@ async function bindCurrentTab() {
     setStatus('绑定当前页面...');
     const tab = await queryActiveTab();
     if (!tab?.id) throw new Error('No active tab.');
-    await injectRuntime(tab).catch(error => {
-      console.warn('[Magnus] inject SFR failed:', error);
-    });
+    await installRuntime(tab);
     const result = await postJson('/api/panel/bind', {
       tabId: tab.id,
       windowId: tab.windowId,

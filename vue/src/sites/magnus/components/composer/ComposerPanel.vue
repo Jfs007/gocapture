@@ -645,6 +645,7 @@ function closeAssetPopover() {
   activeAssetPopoverUid.value = '';
   activeAssetPopoverRect.value = null;
   activeAssetPopoverAnchor = null;
+  api.restoreSelectionPreview?.();
 }
 
 function scheduleAssetPopoverHide(uid = '') {
@@ -657,6 +658,7 @@ function scheduleAssetPopoverHide(uid = '') {
 function openAssetPopover(asset, event) {
   if (!asset) return;
   clearAssetPopoverTimer();
+  api.previewSelection?.(asset);
   activeAssetPopoverUid.value = asset.uid;
   activeAssetPopoverAnchor = event?.currentTarget || null;
   updateAssetPopoverRect();

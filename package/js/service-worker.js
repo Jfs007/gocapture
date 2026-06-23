@@ -331,7 +331,7 @@ function hasIframeSupportedRule(url, result, rules) {
  * @returns {Promise<Object|undefined>} 返回配置对象，如果不满足条件则返回 undefined
  */
 async function GetConfig(context, sender, callback) {
-  const url = sender.url;
+  const url = context.url || context.page?.url || sender.url;
   // 1️⃣ 判断是否子 iframe
   // 2️⃣ 获取 manifest 信息
   context.isSub = sender.frameId && sender.frameId > 0;
@@ -399,7 +399,7 @@ async function GetConfig(context, sender, callback) {
       if (context.isSub && !supportIframe) return false;
 
       // 检查 URL 是否匹配
-      const isMatch = isUrlMatch(sender?.url || '', matches || []);
+      const isMatch = isUrlMatch(url || '', matches || []);
       if (!isMatch) return false;
 
       return true;
@@ -418,27 +418,82 @@ async function GetConfig(context, sender, callback) {
  * @param {Object} sender - 消息发送者信息
  * @param {Function} sendResponse - 回调函数，用于异步返回
  */
-async function hotCodeLister(message, sender, sendResponse) {
-  // 2️⃣ 注入本地通用 JS 文件
+async function setupCodeLister(message, sender, sendResponse) {
   await requestLocalExecuteScript({}, message, sender);
+  sendResponse && sendResponse({ success: true, type: 'setup' });
+}
 
-  // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
-  const config = await GetConfig(message, sender, sendResponse);
+async function installCodeLister(message, sender, sendResponse) {
+  console.log('install', sender, message);
 
-  if (!config || (!config.jsUrls && !config.cssUrls)) return;
+  try {
+    // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
+    const config = await GetConfig(message, sender);
+    let jsUrls = Array.isArray(config?.jsUrls) ? config.jsUrls : [];
+    const cssUrls = Array.isArray(config?.cssUrls) ? config.cssUrls : [];
+    let fallbackReason = '';
 
-  // 3️⃣ 注入本地通用 CSS 文件
-  await requestLocalExecuteCss(config, message, sender);
+    if (!config || (!jsUrls.length && !cssUrls.length)) {
+      if (!message.magnusBoot) {
+        sendResponse && sendResponse({
+          success: false,
+          type: 'install',
+          config: config || null,
+          error: `当前页面未匹配任何 app 注入规则：${message.url || message.page?.url || sender.url || ''}`,
+        });
+        return;
+      }
+      fallbackReason = `当前页面未匹配任何 app 注入规则，Side Panel 显式安装兜底注入 magnus/sfr-runtime.js：${message.url || message.page?.url || sender.url || ''}`;
+      jsUrls = [chrome.runtime.getURL('app/magnus/sfr-runtime.js')];
+    }
 
-  // 4️⃣ 注入配置中指定的 CSS 文件
-  for (let cssUrl of config.cssUrls || []) {
-    await executeCss(cssUrl, config, message, sender);
+    if (message.magnusBoot) {
+      let bootExecData = {
+        world: 'MAIN',
+        function: value => {
+          window.__MAGNUS_SFR_BOOT__ = value;
+        },
+        args: [message.magnusBoot],
+      };
+      bootExecData = fillIframeIdToData(message, sender, bootExecData);
+      await chrome.scripting.executeScript(bootExecData);
+    }
+
+    // 3️⃣ 注入本地通用 CSS 文件
+    await requestLocalExecuteCss(config, message, sender);
+
+    // 4️⃣ 注入配置中指定的 CSS 文件
+    for (let cssUrl of cssUrls) {
+      await executeCss(cssUrl, config, message, sender);
+    }
+
+    // 5️⃣ 注入配置中指定的 JS 文件
+    for (let jsUrl of jsUrls) {
+      await executeScript(jsUrl, config, message, sender);
+    }
+    sendResponse && sendResponse({
+      success: true,
+      type: 'install',
+      config: {
+        ...(config || {}),
+        jsUrls,
+        cssUrls,
+      },
+      warning: fallbackReason,
+    });
+  } catch (error) {
+    sendResponse && sendResponse({
+      success: false,
+      type: 'install',
+      error: error.message || String(error),
+    });
   }
+}
 
-  // 5️⃣ 注入配置中指定的 JS 文件
-  for (let jsUrl of config.jsUrls || []) {
-    await executeScript(jsUrl, config, message, sender);
-  }
+async function hotCodeLister(message, sender, sendResponse) {
+  console.log('start', sender, message);
+  await setupCodeLister(message, sender);
+  return installCodeLister(message, sender, sendResponse);
 }
 
 /**
@@ -1174,6 +1229,8 @@ function onMessageLister(message, sender, sendResponse) {
     return;
   }
   if ("changeAccount" === message.cmd) return ChangeAccountCmd.Lister(message, sender, sendResponse);
+  if ("setup" === message.cmd) return setupCodeLister(message, sender, sendResponse);
+  if ("install" === message.cmd) return installCodeLister(message, sender, sendResponse);
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
   if ("inject" === message.cmd) return injectCmd.Lister(message, sender, sendResponse);
   if ("fetch" === message.cmd || "ajax" === message.cmd) return fetchCmd.Lister(message, sender, sendResponse);

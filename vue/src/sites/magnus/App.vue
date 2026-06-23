@@ -458,6 +458,7 @@ const ctx = useCtx({
   empty: () => clearSelections(),
   previewSelection,
   restoreSelectionPreview,
+  expandSelection: expandRemoteSelection,
   removeSelection,
   chooseProject,
   copyPrompt: () => copyTextWithToast(promptText.value),
@@ -688,7 +689,7 @@ function applyRemoteSessionEvent(message) {
   }
   if (event.type === 'page.route_changed') {
     currentPageHref.value = payload.url || currentPageHref.value;
-    clearSelections();
+    clearSelections(false);
     scheduleRouteResolve();
     return;
   }
@@ -1208,6 +1209,10 @@ async function onKeyDown(event) {
 }
 
 function previewSelection(item) {
+  if (isSidePanel.value) {
+    sendSidePanelCommand('selection.highlight', { uid: item?.uid || '' });
+    return;
+  }
   if (!item || !item.element) return;
   selectedElement.value = item.element;
   displayInfo.value = item.info;
@@ -1215,7 +1220,16 @@ function previewSelection(item) {
 }
 
 function restoreSelectionPreview() {
+  if (isSidePanel.value) {
+    sendSidePanelCommand('selection.highlight', { uid: '' });
+    return;
+  }
   hideOverlay();
+}
+
+function expandRemoteSelection(uid) {
+  if (!isSidePanel.value || !uid) return;
+  sendSidePanelCommand('selection.expand', { uid });
 }
 
 function onScrollOrResize() {
@@ -1236,6 +1250,7 @@ function onScrollOrResize() {
 function removeSelection(uid) {
   const index = selectedItems.value.findIndex(item => item.uid === uid);
   if (index === -1) return;
+  if (isSidePanel.value) sendSidePanelCommand('selection.remove', { uid });
   selectedItems.value.splice(index, 1);
   invalidateSelectionConfirm();
   window.__MAGNUS_SELECTIONS__ = selectionPayloads();
@@ -1244,7 +1259,8 @@ function removeSelection(uid) {
   onScrollOrResize();
 }
 
-function clearSelections() {
+function clearSelections(notifyRuntime = true) {
+  if (notifyRuntime && isSidePanel.value) sendSidePanelCommand('selection.clear');
   selectedItems.value = [];
   selectedElement.value = null;
   hoveredElement.value = null;
