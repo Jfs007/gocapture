@@ -317,6 +317,7 @@ const {
   searchKeywords,
   includeApiEvidence,
   searchApiRequests,
+  currentPageHref,
   pageUrlPath,
   project,
   promptText,
@@ -807,6 +808,22 @@ async function resolveCurrentPageRoute() {
   }
 }
 
+function sameRouteTracePage(trace) {
+  const tracePath = String(trace?.pagePath || '').trim();
+  return !tracePath || tracePath === pageUrlPath.value;
+}
+
+function applyRouteResolverTrace(nextTrace) {
+  const currentTrace = routeResolverTrace.value;
+  if (!nextTrace) return;
+  if (nextTrace.matched) {
+    routeResolverTrace.value = nextTrace;
+    return;
+  }
+  if (currentTrace?.matched && sameRouteTracePage(currentTrace)) return;
+  routeResolverTrace.value = nextTrace;
+}
+
 function installLocationWatcher() {
   const rawPushState = window.history.pushState;
   const rawReplaceState = window.history.replaceState;
@@ -1285,6 +1302,9 @@ async function searchCandidateFiles() {
   resetModelAssist();
   filesConfirmed.value = false;
   try {
+    if (!sameRouteTracePage(routeResolverTrace.value)) {
+      await resolveCurrentPageRoute();
+    }
     searchRunning.value = true;
     searchStartedAt.value = Date.now();
     searchFinishedAt.value = 0;
@@ -1303,7 +1323,7 @@ async function searchCandidateFiles() {
       }
     })();
     candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
-    routeResolverTrace.value = data.routeResolver || null;
+    applyRouteResolverTrace(data.routeResolver || null);
     apiTrace.value = data.apiTrace || null;
     i18nTrace.value = data.i18nTrace || null;
     definitionTrace.value = data.definitionTrace || null;
@@ -1438,7 +1458,6 @@ watch(effectivePanelWidth, () => {
 });
 
 watch([project, currentPageHref], () => {
-  routeResolverTrace.value = null;
   i18nTrace.value = null;
   definitionTrace.value = null;
   scheduleRouteResolve();

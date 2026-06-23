@@ -16,6 +16,7 @@ export function useSearchPrompt({
   searchKeywords,
   includeApiEvidence,
   searchApiRequests,
+  currentPageHref,
   pageUrlPath,
   project,
   promptText,
@@ -566,9 +567,12 @@ export function useSearchPrompt({
       requestKeys: item.requestKeys
     }));
     const query = combinedSelectionText({ expandedRetry });
+    const pageHref = currentPageHref?.value || window.location.href;
     return {
       query,
-      url: window.location.href,
+      url: pageHref,
+      pageUrl: pageHref,
+      pagePath: pageUrlPath.value,
       className: selectedItems.value.map(item => item.info.className).join(' '),
       text: query,
       userPrompt: normalizeInstructionText(promptIntent.value),
@@ -669,9 +673,11 @@ export function useSearchPrompt({
 
   function routeResolverLogLines() {
     const trace = routeResolverTrace?.value;
-    if (!trace) {
+    const tracePath = String(trace?.pagePath || '').trim();
+    const isStaleTrace = !!tracePath && tracePath !== pageUrlPath.value;
+    if (!trace || isStaleTrace) {
       return [
-        `2. 页面路由适配: 未执行或本地服务未返回结果；projectKind=${project.value?.kind || 'unknown'}；pagePath=${pageUrlPath.value}`
+        `2. 页面路由适配: ${isStaleTrace ? `旧结果已忽略(${tracePath})` : '未执行或本地服务未返回结果'}；projectKind=${project.value?.kind || 'unknown'}；pagePath=${pageUrlPath.value}`
       ];
     }
 
@@ -702,7 +708,7 @@ export function useSearchPrompt({
     const tasks = finalPromptTaskLines(command);
     const selectionReference = selectionTextReferenceLines(command);
     promptText.value = [
-      `当前 page: ${window.location.href}`,
+      `当前 page: ${currentPageHref?.value || window.location.href}`,
       `页面路径: ${pageUrlPath.value}`,
       tasks || `需求: ${command}`,
       selectionReference ? `选区文本参考: ${selectionReference}` : '',
