@@ -60,12 +60,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   **/
   // @__NO_SIDE_EFFECTS__
   function makeMap(str) {
-    const map2 = /* @__PURE__ */ Object.create(null);
-    for (const key of str.split(",")) map2[key] = 1;
-    return (val) => val in map2;
+    const map = /* @__PURE__ */ Object.create(null);
+    for (const key of str.split(",")) map[key] = 1;
+    return (val) => val in map;
   }
-  const EMPTY_OBJ = Object.freeze({});
-  const EMPTY_ARR = Object.freeze([]);
+  const EMPTY_OBJ = {};
+  const EMPTY_ARR = [];
   const NOOP = () => {
   };
   const NO = () => false;
@@ -97,14 +97,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const toRawType = (value) => {
     return toTypeString(value).slice(8, -1);
   };
-  const isPlainObject = (val) => toTypeString(val) === "[object Object]";
+  const isPlainObject$1 = (val) => toTypeString(val) === "[object Object]";
   const isIntegerKey = (key) => isString(key) && key !== "NaN" && key[0] !== "-" && "" + parseInt(key, 10) === key;
   const isReservedProp = /* @__PURE__ */ makeMap(
     // the leading comma is intentional so empty string "" is also included
     ",key,ref,ref_for,ref_key,onVnodeBeforeMount,onVnodeMounted,onVnodeBeforeUpdate,onVnodeUpdated,onVnodeBeforeUnmount,onVnodeUnmounted"
-  );
-  const isBuiltInDirective = /* @__PURE__ */ makeMap(
-    "bind,cloak,else-if,else,for,html,if,model,on,once,pre,show,slot,text,memo"
   );
   const cacheStringFunction = (fn) => {
     const cache = /* @__PURE__ */ Object.create(null);
@@ -204,12 +201,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     return res.trim();
   }
-  const HTML_TAGS = "html,body,base,head,link,meta,style,title,address,article,aside,footer,header,hgroup,h1,h2,h3,h4,h5,h6,nav,section,div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,ruby,s,samp,small,span,strong,sub,sup,time,u,var,wbr,area,audio,map,track,video,embed,object,param,source,canvas,script,noscript,del,ins,caption,col,colgroup,table,thead,tbody,td,th,tr,button,datalist,fieldset,form,input,label,legend,meter,optgroup,option,output,progress,select,textarea,details,dialog,menu,summary,template,blockquote,iframe,tfoot";
-  const SVG_TAGS = "svg,animate,animateMotion,animateTransform,circle,clipPath,color-profile,defs,desc,discard,ellipse,feBlend,feColorMatrix,feComponentTransfer,feComposite,feConvolveMatrix,feDiffuseLighting,feDisplacementMap,feDistantLight,feDropShadow,feFlood,feFuncA,feFuncB,feFuncG,feFuncR,feGaussianBlur,feImage,feMerge,feMergeNode,feMorphology,feOffset,fePointLight,feSpecularLighting,feSpotLight,feTile,feTurbulence,filter,foreignObject,g,hatch,hatchpath,image,line,linearGradient,marker,mask,mesh,meshgradient,meshpatch,meshrow,metadata,mpath,path,pattern,polygon,polyline,radialGradient,rect,set,solidcolor,stop,switch,symbol,text,textPath,title,tspan,unknown,use,view";
-  const MATH_TAGS = "annotation,annotation-xml,maction,maligngroup,malignmark,math,menclose,merror,mfenced,mfrac,mfraction,mglyph,mi,mlabeledtr,mlongdiv,mmultiscripts,mn,mo,mover,mpadded,mphantom,mprescripts,mroot,mrow,ms,mscarries,mscarry,msgroup,msline,mspace,msqrt,msrow,mstack,mstyle,msub,msubsup,msup,mtable,mtd,mtext,mtr,munder,munderover,none,semantics";
-  const isHTMLTag = /* @__PURE__ */ makeMap(HTML_TAGS);
-  const isSVGTag = /* @__PURE__ */ makeMap(SVG_TAGS);
-  const isMathMLTag = /* @__PURE__ */ makeMap(MATH_TAGS);
   const specialBooleanAttrs = `itemscope,allowfullscreen,formnovalidate,ismap,nomodule,novalidate,readonly`;
   const isSpecialBooleanAttr = /* @__PURE__ */ makeMap(specialBooleanAttrs);
   function includeBooleanAttr(value) {
@@ -289,7 +280,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       };
     } else if (isSymbol(val)) {
       return stringifySymbol(val);
-    } else if (isObject(val) && !isArray(val) && !isPlainObject(val)) {
+    } else if (isObject(val) && !isArray(val) && !isPlainObject$1(val)) {
       return String(val);
     }
     return val;
@@ -307,9 +298,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **/
-  function warn$2(msg, ...args) {
-    console.warn(`[Vue warn] ${msg}`, ...args);
-  }
   let activeEffectScope;
   class EffectScope {
     // TODO isolatedDeclarations "__v_skip"
@@ -379,8 +367,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         } finally {
           activeEffectScope = currentEffectScope;
         }
-      } else if (this._warnOnRun) {
-        warn$2(`cannot run an inactive effect scope.`);
       }
     }
     /**
@@ -443,8 +429,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
   }
+  function effectScope(detached) {
+    return new EffectScope(detached);
+  }
   function getCurrentScope() {
     return activeEffectScope;
+  }
+  function onScopeDispose(fn, failSilently = false) {
+    if (activeEffectScope) {
+      activeEffectScope.cleanups.push(fn);
+    }
   }
   let activeSub;
   const pausedQueueEffects = /* @__PURE__ */ new WeakSet();
@@ -502,11 +496,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       try {
         return this.fn();
       } finally {
-        if (activeSub !== this) {
-          warn$2(
-            "Active effect was not restored correctly - this is likely a Vue internal bug."
-          );
-        }
         cleanupDeps(this);
         activeSub = prevEffect;
         shouldTrack = prevShouldTrack;
@@ -548,9 +537,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   let batchDepth = 0;
   let batchedSub;
   let batchedComputed;
-  function batch(sub, isComputed = false) {
+  function batch(sub, isComputed2 = false) {
     sub.flags |= 8;
-    if (isComputed) {
+    if (isComputed2) {
       sub.next = batchedComputed;
       batchedComputed = sub;
       return;
@@ -680,9 +669,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       nextSub.prevSub = prevSub;
       link.nextSub = void 0;
     }
-    if (dep.subsHead === link) {
-      dep.subsHead = nextSub;
-    }
     if (dep.subs === link) {
       dep.subs = prevSub;
       if (!prevSub && dep.computed) {
@@ -750,9 +736,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       this.key = void 0;
       this.sc = 0;
       this.__v_skip = true;
-      {
-        this.subsHead = void 0;
-      }
     }
     track(debugInfo) {
       if (!activeSub || !shouldTrack || activeSub === this.computed) {
@@ -786,16 +769,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           }
         }
       }
-      if (activeSub.onTrack) {
-        activeSub.onTrack(
-          extend(
-            {
-              effect: activeSub
-            },
-            debugInfo
-          )
-        );
-      }
       return link;
     }
     trigger(debugInfo) {
@@ -806,20 +779,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     notify(debugInfo) {
       startBatch();
       try {
-        if (true) {
-          for (let head = this.subsHead; head; head = head.nextSub) {
-            if (head.sub.onTrigger && !(head.sub.flags & 8)) {
-              head.sub.onTrigger(
-                extend(
-                  {
-                    effect: head.sub
-                  },
-                  debugInfo
-                )
-              );
-            }
-          }
-        }
+        if (false) ;
         for (let link = this.subs; link; link = link.prevSub) {
           if (link.sub.notify()) {
             ;
@@ -846,21 +806,18 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         link.prevSub = currentTail;
         if (currentTail) currentTail.nextSub = link;
       }
-      if (link.dep.subsHead === void 0) {
-        link.dep.subsHead = link;
-      }
       link.dep.subs = link;
     }
   }
   const targetMap = /* @__PURE__ */ new WeakMap();
   const ITERATE_KEY = /* @__PURE__ */ Symbol(
-    "Object iterate"
+    ""
   );
   const MAP_KEY_ITERATE_KEY = /* @__PURE__ */ Symbol(
-    "Map keys iterate"
+    ""
   );
   const ARRAY_ITERATE_KEY = /* @__PURE__ */ Symbol(
-    "Array iterate"
+    ""
   );
   function track(target, type, key) {
     if (shouldTrack && activeSub) {
@@ -875,11 +832,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         dep.key = key;
       }
       {
-        dep.track({
-          target,
-          type,
-          key
-        });
+        dep.track();
       }
     }
   }
@@ -892,14 +845,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const run = (dep) => {
       if (dep) {
         {
-          dep.trigger({
-            target,
-            type,
-            key,
-            newValue,
-            oldValue,
-            oldTarget
-          });
+          dep.trigger();
         }
       }
     };
@@ -951,6 +897,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     endBatch();
+  }
+  function getDepFromReactive(object, key) {
+    const depMap = targetMap.get(object);
+    return depMap && depMap.get(key);
   }
   function reactiveReadArray(array) {
     const raw = /* @__PURE__ */ toRaw(array);
@@ -1246,12 +1196,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         }
         if (!isArrayWithIntegerKey && /* @__PURE__ */ isRef(oldValue) && !/* @__PURE__ */ isRef(value)) {
           if (isOldValueReadonly) {
-            {
-              warn$2(
-                `Set operation on key "${String(key)}" failed: target is readonly.`,
-                target[key]
-              );
-            }
             return true;
           } else {
             oldValue.value = value;
@@ -1270,17 +1214,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         if (!hadKey) {
           trigger(target, "add", key, value);
         } else if (hasChanged(value, oldValue)) {
-          trigger(target, "set", key, value, oldValue);
+          trigger(target, "set", key, value);
         }
       }
       return result;
     }
     deleteProperty(target, key) {
       const hadKey = hasOwn(target, key);
-      const oldValue = target[key];
+      target[key];
       const result = Reflect.deleteProperty(target, key);
       if (result && hadKey) {
-        trigger(target, "delete", key, void 0, oldValue);
+        trigger(target, "delete", key, void 0);
       }
       return result;
     }
@@ -1305,21 +1249,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       super(true, isShallow2);
     }
     set(target, key) {
-      {
-        warn$2(
-          `Set operation on key "${String(key)}" failed: target is readonly.`,
-          target
-        );
-      }
       return true;
     }
     deleteProperty(target, key) {
-      {
-        warn$2(
-          `Delete operation on key "${String(key)}" failed: target is readonly.`,
-          target
-        );
-      }
       return true;
     }
   }
@@ -1361,13 +1293,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function createReadonlyMethod(type) {
     return function(...args) {
-      {
-        const key = args[0] ? `on key "${args[0]}" ` : ``;
-        warn$2(
-          `${capitalize(type)} operation ${key}failed: target is readonly.`,
-          /* @__PURE__ */ toRaw(this)
-        );
-      }
       return type === "delete" ? false : type === "clear" ? void 0 : this;
     };
   }
@@ -1451,15 +1376,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           if (!hadKey) {
             key = /* @__PURE__ */ toRaw(key);
             hadKey = has.call(target, key);
-          } else {
-            checkIdentityKeys(target, has, key);
           }
           const oldValue = get.call(target, key);
           target.set(key, value);
           if (!hadKey) {
             trigger(target, "add", key, value);
           } else if (hasChanged(value, oldValue)) {
-            trigger(target, "set", key, value, oldValue);
+            trigger(target, "set", key, value);
           }
           return this;
         },
@@ -1470,28 +1393,24 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           if (!hadKey) {
             key = /* @__PURE__ */ toRaw(key);
             hadKey = has.call(target, key);
-          } else {
-            checkIdentityKeys(target, has, key);
           }
-          const oldValue = get ? get.call(target, key) : void 0;
+          get ? get.call(target, key) : void 0;
           const result = target.delete(key);
           if (hadKey) {
-            trigger(target, "delete", key, void 0, oldValue);
+            trigger(target, "delete", key, void 0);
           }
           return result;
         },
         clear() {
           const target = /* @__PURE__ */ toRaw(this);
           const hadItems = target.size !== 0;
-          const oldTarget = isMap(target) ? new Map(target) : new Set(target);
           const result = target.clear();
           if (hadItems) {
             trigger(
               target,
               "clear",
               void 0,
-              void 0,
-              oldTarget
+              void 0
             );
           }
           return result;
@@ -1538,15 +1457,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const shallowReadonlyCollectionHandlers = {
     get: /* @__PURE__ */ createInstrumentationGetter(true, true)
   };
-  function checkIdentityKeys(target, has, key) {
-    const rawKey = /* @__PURE__ */ toRaw(key);
-    if (rawKey !== key && has.call(target, rawKey)) {
-      const type = toRawType(target);
-      warn$2(
-        `Reactive ${type} contains both the raw and reactive versions of the same object${type === `Map` ? ` as keys` : ``}, which can lead to inconsistencies. Avoid differentiating between the raw and reactive versions of an object and only use the reactive version if possible.`
-      );
-    }
-  }
   const reactiveMap = /* @__PURE__ */ new WeakMap();
   const shallowReactiveMap = /* @__PURE__ */ new WeakMap();
   const readonlyMap = /* @__PURE__ */ new WeakMap();
@@ -1610,13 +1520,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function createReactiveObject(target, isReadonly2, baseHandlers, collectionHandlers, proxyMap) {
     if (!isObject(target)) {
-      {
-        warn$2(
-          `value cannot be made ${isReadonly2 ? "readonly" : "reactive"}: ${String(
-            target
-          )}`
-        );
-      }
       return target;
     }
     if (target["__v_raw"] && !(isReadonly2 && target["__v_isReactive"])) {
@@ -1701,11 +1604,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     get value() {
       {
-        this.dep.track({
-          target: this,
-          type: "get",
-          key: "value"
-        });
+        this.dep.track();
       }
       return this._value;
     }
@@ -1717,13 +1616,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         this._rawValue = newValue;
         this._value = useDirectValue ? newValue : toReactive(newValue);
         {
-          this.dep.trigger({
-            target: this,
-            type: "set",
-            key: "value",
-            newValue,
-            oldValue
-          });
+          this.dep.trigger();
         }
       }
     }
@@ -1745,6 +1638,55 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   };
   function proxyRefs(objectWithRefs) {
     return /* @__PURE__ */ isReactive(objectWithRefs) ? objectWithRefs : new Proxy(objectWithRefs, shallowUnwrapHandlers);
+  }
+  // @__NO_SIDE_EFFECTS__
+  function toRefs(object) {
+    const ret = isArray(object) ? new Array(object.length) : {};
+    for (const key in object) {
+      ret[key] = propertyToRef(object, key);
+    }
+    return ret;
+  }
+  class ObjectRefImpl {
+    constructor(_object, key, _defaultValue) {
+      this._object = _object;
+      this._defaultValue = _defaultValue;
+      this["__v_isRef"] = true;
+      this._value = void 0;
+      this._key = isSymbol(key) ? key : String(key);
+      this._raw = /* @__PURE__ */ toRaw(_object);
+      let shallow = true;
+      let obj = _object;
+      if (!isArray(_object) || isSymbol(this._key) || !isIntegerKey(this._key)) {
+        do {
+          shallow = !/* @__PURE__ */ isProxy(obj) || /* @__PURE__ */ isShallow(obj);
+        } while (shallow && (obj = obj["__v_raw"]));
+      }
+      this._shallow = shallow;
+    }
+    get value() {
+      let val = this._object[this._key];
+      if (this._shallow) {
+        val = unref(val);
+      }
+      return this._value = val === void 0 ? this._defaultValue : val;
+    }
+    set value(newVal) {
+      if (this._shallow && /* @__PURE__ */ isRef(this._raw[this._key])) {
+        const nestedRef = this._object[this._key];
+        if (/* @__PURE__ */ isRef(nestedRef)) {
+          nestedRef.value = newVal;
+          return;
+        }
+      }
+      this._object[this._key] = newVal;
+    }
+    get dep() {
+      return getDepFromReactive(this._raw, this._key);
+    }
+  }
+  function propertyToRef(source, key, defaultValue) {
+    return new ObjectRefImpl(source, key, defaultValue);
   }
   class ComputedRefImpl {
     constructor(fn, setter, isSSR) {
@@ -1774,11 +1716,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     get value() {
-      const link = this.dep.track({
-        target: this,
-        type: "get",
-        key: "value"
-      });
+      const link = this.dep.track();
       refreshComputed(this);
       if (link) {
         link.version = this.dep.version;
@@ -1788,8 +1726,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     set value(newValue) {
       if (this.setter) {
         this.setter(newValue);
-      } else {
-        warn$2("Write operation failed: computed value is readonly");
       }
     }
   }
@@ -1814,21 +1750,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       let cleanups = cleanupMap.get(owner);
       if (!cleanups) cleanupMap.set(owner, cleanups = []);
       cleanups.push(cleanupFn);
-    } else if (!failSilently) {
-      warn$2(
-        `onWatcherCleanup() was called when there was no active watcher to associate with.`
-      );
     }
   }
   function watch$1(source, cb, options = EMPTY_OBJ) {
     const { immediate, deep, once, scheduler, augmentJob, call } = options;
-    const warnInvalidSource = (s) => {
-      (options.onWarn || warn$2)(
-        `Invalid watch source: `,
-        s,
-        `A watch source can only be a getter/effect function, a ref, a reactive object, or an array of these types.`
-      );
-    };
     const reactiveGetter = (source2) => {
       if (deep) return source2;
       if (/* @__PURE__ */ isShallow(source2) || deep === false || deep === 0)
@@ -1857,9 +1782,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           return reactiveGetter(s);
         } else if (isFunction(s)) {
           return call ? call(s, 2) : s();
-        } else {
-          warnInvalidSource(s);
-        }
+        } else ;
       });
     } else if (isFunction(source)) {
       if (cb) {
@@ -1885,7 +1808,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     } else {
       getter = NOOP;
-      warnInvalidSource(source);
     }
     if (cb && deep) {
       const baseGetter = getter;
@@ -1956,10 +1878,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         cleanupMap.delete(effect2);
       }
     };
-    {
-      effect2.onTrack = options.onTrack;
-      effect2.onTrigger = options.onTrigger;
-    }
     if (cb) {
       if (immediate) {
         job(true);
@@ -1996,7 +1914,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       value.forEach((v) => {
         traverse(v, depth, seen);
       });
-    } else if (isPlainObject(value)) {
+    } else if (isPlainObject$1(value)) {
       for (const key in value) {
         traverse(value[key], depth, seen);
       }
@@ -2014,12 +1932,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   * @license MIT
   **/
   const stack = [];
-  function pushWarningContext(vnode) {
-    stack.push(vnode);
-  }
-  function popWarningContext() {
-    stack.pop();
-  }
   let isWarning = false;
   function warn$1(msg, ...args) {
     if (isWarning) return;
@@ -2125,39 +2037,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return raw ? value : [`${key}=`, value];
     }
   }
-  const ErrorTypeStrings$1 = {
-    ["sp"]: "serverPrefetch hook",
-    ["bc"]: "beforeCreate hook",
-    ["c"]: "created hook",
-    ["bm"]: "beforeMount hook",
-    ["m"]: "mounted hook",
-    ["bu"]: "beforeUpdate hook",
-    ["u"]: "updated",
-    ["bum"]: "beforeUnmount hook",
-    ["um"]: "unmounted hook",
-    ["a"]: "activated hook",
-    ["da"]: "deactivated hook",
-    ["ec"]: "errorCaptured hook",
-    ["rtc"]: "renderTracked hook",
-    ["rtg"]: "renderTriggered hook",
-    [0]: "setup function",
-    [1]: "render function",
-    [2]: "watcher getter",
-    [3]: "watcher callback",
-    [4]: "watcher cleanup function",
-    [5]: "native event handler",
-    [6]: "component event handler",
-    [7]: "vnode hook",
-    [8]: "directive hook",
-    [9]: "transition hook",
-    [10]: "app errorHandler",
-    [11]: "app warnHandler",
-    [12]: "ref function",
-    [13]: "async component loader",
-    [14]: "scheduler flush",
-    [15]: "component update",
-    [16]: "app unmount cleanup function"
-  };
   function callWithErrorHandling(fn, instance, type, args) {
     try {
       return args ? fn(...args) : fn();
@@ -2181,10 +2060,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         values.push(callWithAsyncErrorHandling(fn[i], instance, type, args));
       }
       return values;
-    } else {
-      warn$1(
-        `Invalid value type passed to callWithAsyncErrorHandling(): ${typeof fn}`
-      );
     }
   }
   function handleError(err, instance, type, throwInDev = true) {
@@ -2193,7 +2068,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     if (instance) {
       let cur = instance.parent;
       const exposedInstance = instance.proxy;
-      const errorInfo = ErrorTypeStrings$1[type];
+      const errorInfo = `https://vuejs.org/error-reference/#runtime-${type}`;
       while (cur) {
         const errorCapturedHooks = cur.ec;
         if (errorCapturedHooks) {
@@ -2219,20 +2094,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     logError(err, type, contextVNode, throwInDev, throwUnhandledErrorInProduction);
   }
   function logError(err, type, contextVNode, throwInDev = true, throwInProd = false) {
-    {
-      const info = ErrorTypeStrings$1[type];
-      if (contextVNode) {
-        pushWarningContext(contextVNode);
-      }
-      warn$1(`Unhandled error${info ? ` during execution of ${info}` : ``}`);
-      if (contextVNode) {
-        popWarningContext();
-      }
-      if (throwInDev) {
-        throw err;
-      } else {
-        console.error(err);
-      }
+    if (throwInProd) {
+      throw err;
+    } else {
+      console.error(err);
     }
   }
   const queue = [];
@@ -2242,7 +2107,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   let postFlushIndex = 0;
   const resolvedPromise = /* @__PURE__ */ Promise.resolve();
   let currentFlushPromise = null;
-  const RECURSION_LIMIT = 100;
   function nextTick(fn) {
     const p2 = currentFlushPromise || resolvedPromise;
     return fn ? p2.then(this ? fn.bind(this) : fn) : p2;
@@ -2295,16 +2159,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     queueFlush();
   }
   function flushPreFlushCbs(instance, seen, i = flushIndex + 1) {
-    {
-      seen = seen || /* @__PURE__ */ new Map();
-    }
     for (; i < queue.length; i++) {
       const cb = queue[i];
       if (cb && cb.flags & 2) {
         if (instance && cb.id !== instance.uid) {
-          continue;
-        }
-        if (checkRecursiveUpdates(seen, cb)) {
           continue;
         }
         queue.splice(i, 1);
@@ -2330,14 +2188,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return;
       }
       activePostFlushCbs = deduped;
-      {
-        seen = seen || /* @__PURE__ */ new Map();
-      }
       for (postFlushIndex = 0; postFlushIndex < activePostFlushCbs.length; postFlushIndex++) {
         const cb = activePostFlushCbs[postFlushIndex];
-        if (checkRecursiveUpdates(seen, cb)) {
-          continue;
-        }
         if (cb.flags & 4) {
           cb.flags &= -2;
         }
@@ -2350,17 +2202,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const getId = (job) => job.id == null ? job.flags & 2 ? -1 : Infinity : job.id;
   function flushJobs(seen) {
-    {
-      seen = seen || /* @__PURE__ */ new Map();
-    }
-    const check = (job) => checkRecursiveUpdates(seen, job);
     try {
       for (flushIndex = 0; flushIndex < queue.length; flushIndex++) {
         const job = queue[flushIndex];
         if (job && !(job.flags & 8)) {
-          if (check(job)) {
-            continue;
-          }
+          if (false) ;
           if (job.flags & 4) {
             job.flags &= ~1;
           }
@@ -2383,263 +2229,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
       flushIndex = -1;
       queue.length = 0;
-      flushPostFlushCbs(seen);
+      flushPostFlushCbs();
       currentFlushPromise = null;
       if (queue.length || pendingPostFlushCbs.length) {
-        flushJobs(seen);
+        flushJobs();
       }
     }
-  }
-  function checkRecursiveUpdates(seen, fn) {
-    const count = seen.get(fn) || 0;
-    if (count > RECURSION_LIMIT) {
-      const instance = fn.i;
-      const componentName = instance && getComponentName(instance.type);
-      handleError(
-        `Maximum recursive updates exceeded${componentName ? ` in component <${componentName}>` : ``}. This means you have a reactive effect that is mutating its own dependencies and thus recursively triggering itself. Possible sources include component template, render function, updated hook or watcher source function.`,
-        null,
-        10
-      );
-      return true;
-    }
-    seen.set(fn, count + 1);
-    return false;
-  }
-  let isHmrUpdating = false;
-  const setHmrUpdating = (v) => {
-    try {
-      return isHmrUpdating;
-    } finally {
-      isHmrUpdating = v;
-    }
-  };
-  const hmrDirtyComponents = /* @__PURE__ */ new Map();
-  {
-    getGlobalThis().__VUE_HMR_RUNTIME__ = {
-      createRecord: tryWrap(createRecord),
-      rerender: tryWrap(rerender),
-      reload: tryWrap(reload)
-    };
-  }
-  const map = /* @__PURE__ */ new Map();
-  function registerHMR(instance) {
-    const id = instance.type.__hmrId;
-    let record = map.get(id);
-    if (!record) {
-      createRecord(id, instance.type);
-      record = map.get(id);
-    }
-    record.instances.add(instance);
-  }
-  function unregisterHMR(instance) {
-    map.get(instance.type.__hmrId).instances.delete(instance);
-  }
-  function createRecord(id, initialDef) {
-    if (map.has(id)) {
-      return false;
-    }
-    map.set(id, {
-      initialDef: normalizeClassComponent(initialDef),
-      instances: /* @__PURE__ */ new Set()
-    });
-    return true;
-  }
-  function normalizeClassComponent(component) {
-    return isClassComponent(component) ? component.__vccOpts : component;
-  }
-  function rerender(id, newRender) {
-    const record = map.get(id);
-    if (!record) {
-      return;
-    }
-    record.initialDef.render = newRender;
-    [...record.instances].forEach((instance) => {
-      if (newRender) {
-        instance.render = newRender;
-        normalizeClassComponent(instance.type).render = newRender;
-      }
-      instance.renderCache = [];
-      isHmrUpdating = true;
-      if (!(instance.job.flags & 8)) {
-        instance.update();
-      }
-      isHmrUpdating = false;
-    });
-  }
-  function reload(id, newComp) {
-    const record = map.get(id);
-    if (!record) return;
-    newComp = normalizeClassComponent(newComp);
-    updateComponentDef(record.initialDef, newComp);
-    const instances = [...record.instances];
-    for (let i = 0; i < instances.length; i++) {
-      const instance = instances[i];
-      const oldComp = normalizeClassComponent(instance.type);
-      let dirtyInstances = hmrDirtyComponents.get(oldComp);
-      if (!dirtyInstances) {
-        if (oldComp !== record.initialDef) {
-          updateComponentDef(oldComp, newComp);
-        }
-        hmrDirtyComponents.set(oldComp, dirtyInstances = /* @__PURE__ */ new Set());
-      }
-      dirtyInstances.add(instance);
-      instance.appContext.propsCache.delete(instance.type);
-      instance.appContext.emitsCache.delete(instance.type);
-      instance.appContext.optionsCache.delete(instance.type);
-      if (instance.ceReload) {
-        dirtyInstances.add(instance);
-        instance.ceReload(newComp.styles);
-        dirtyInstances.delete(instance);
-      } else if (instance.parent) {
-        queueJob(() => {
-          if (!(instance.job.flags & 8)) {
-            isHmrUpdating = true;
-            instance.parent.update();
-            isHmrUpdating = false;
-            dirtyInstances.delete(instance);
-          }
-        });
-      } else if (instance.appContext.reload) {
-        instance.appContext.reload();
-      } else if (typeof window !== "undefined") {
-        window.location.reload();
-      } else {
-        console.warn(
-          "[HMR] Root or manually mounted instance modified. Full reload required."
-        );
-      }
-      if (instance.root.ce && instance !== instance.root) {
-        instance.root.ce._removeChildStyle(oldComp);
-      }
-    }
-    queuePostFlushCb(() => {
-      hmrDirtyComponents.clear();
-    });
-  }
-  function updateComponentDef(oldComp, newComp) {
-    extend(oldComp, newComp);
-    for (const key in oldComp) {
-      if (key !== "__file" && !(key in newComp)) {
-        delete oldComp[key];
-      }
-    }
-  }
-  function tryWrap(fn) {
-    return (id, arg) => {
-      try {
-        return fn(id, arg);
-      } catch (e) {
-        console.error(e);
-        console.warn(
-          `[HMR] Something went wrong during Vue component hot-reload. Full reload required.`
-        );
-      }
-    };
-  }
-  let devtools$1;
-  let buffer = [];
-  let devtoolsNotInstalled = false;
-  function emit$1(event, ...args) {
-    if (devtools$1) {
-      devtools$1.emit(event, ...args);
-    } else if (!devtoolsNotInstalled) {
-      buffer.push({ event, args });
-    }
-  }
-  function setDevtoolsHook$1(hook, target) {
-    var _a, _b;
-    devtools$1 = hook;
-    if (devtools$1) {
-      devtools$1.enabled = true;
-      buffer.forEach(({ event, args }) => devtools$1.emit(event, ...args));
-      buffer = [];
-    } else if (
-      // handle late devtools injection - only do this if we are in an actual
-      // browser environment to avoid the timer handle stalling test runner exit
-      // (#4815)
-      typeof window !== "undefined" && // some envs mock window but not fully
-      window.HTMLElement && // also exclude jsdom
-      // eslint-disable-next-line no-restricted-syntax
-      !((_b = (_a = window.navigator) == null ? void 0 : _a.userAgent) == null ? void 0 : _b.includes("jsdom"))
-    ) {
-      const replay = target.__VUE_DEVTOOLS_HOOK_REPLAY__ = target.__VUE_DEVTOOLS_HOOK_REPLAY__ || [];
-      replay.push((newHook) => {
-        setDevtoolsHook$1(newHook, target);
-      });
-      setTimeout(() => {
-        if (!devtools$1) {
-          target.__VUE_DEVTOOLS_HOOK_REPLAY__ = null;
-          devtoolsNotInstalled = true;
-          buffer = [];
-        }
-      }, 3e3);
-    } else {
-      devtoolsNotInstalled = true;
-      buffer = [];
-    }
-  }
-  function devtoolsInitApp(app, version2) {
-    emit$1("app:init", app, version2, {
-      Fragment,
-      Text,
-      Comment,
-      Static
-    });
-  }
-  function devtoolsUnmountApp(app) {
-    emit$1("app:unmount", app);
-  }
-  const devtoolsComponentAdded = /* @__PURE__ */ createDevtoolsComponentHook(
-    "component:added"
-    /* COMPONENT_ADDED */
-  );
-  const devtoolsComponentUpdated = /* @__PURE__ */ createDevtoolsComponentHook(
-    "component:updated"
-    /* COMPONENT_UPDATED */
-  );
-  const _devtoolsComponentRemoved = /* @__PURE__ */ createDevtoolsComponentHook(
-    "component:removed"
-    /* COMPONENT_REMOVED */
-  );
-  const devtoolsComponentRemoved = (component) => {
-    if (devtools$1 && typeof devtools$1.cleanupBuffer === "function" && // remove the component if it wasn't buffered
-    !devtools$1.cleanupBuffer(component)) {
-      _devtoolsComponentRemoved(component);
-    }
-  };
-  // @__NO_SIDE_EFFECTS__
-  function createDevtoolsComponentHook(hook) {
-    return (component) => {
-      emit$1(
-        hook,
-        component.appContext.app,
-        component.uid,
-        component.parent ? component.parent.uid : void 0,
-        component
-      );
-    };
-  }
-  const devtoolsPerfStart = /* @__PURE__ */ createDevtoolsPerformanceHook(
-    "perf:start"
-    /* PERFORMANCE_START */
-  );
-  const devtoolsPerfEnd = /* @__PURE__ */ createDevtoolsPerformanceHook(
-    "perf:end"
-    /* PERFORMANCE_END */
-  );
-  function createDevtoolsPerformanceHook(hook) {
-    return (component, type, time) => {
-      emit$1(hook, component.appContext.app, component.uid, component, type, time);
-    };
-  }
-  function devtoolsComponentEmit(component, event, params) {
-    emit$1(
-      "component:emit",
-      component.appContext.app,
-      component,
-      event,
-      params
-    );
   }
   let currentRenderingInstance = null;
   let currentScopeId = null;
@@ -2668,9 +2263,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           setBlockTracking(1);
         }
       }
-      {
-        devtoolsComponentUpdated(ctx);
-      }
       return res;
     };
     renderFnWithContext._n = true;
@@ -2678,14 +2270,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     renderFnWithContext._d = true;
     return renderFnWithContext;
   }
-  function validateDirectiveName(name) {
-    if (isBuiltInDirective(name)) {
-      warn$1("Do not use built-in directive ids as custom directive id: " + name);
-    }
-  }
   function withDirectives(vnode, directives) {
     if (currentRenderingInstance === null) {
-      warn$1(`withDirectives can only be used inside render functions.`);
       return vnode;
     }
     const instance = getComponentPublicInstance(currentRenderingInstance);
@@ -2736,11 +2322,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
   }
   function provide(key, value) {
-    {
-      if (!currentInstance || currentInstance.isMounted) {
-        warn$1(`provide() can only be used inside setup().`);
-      }
-    }
     if (currentInstance) {
       let provides = currentInstance.provides;
       const parentProvides = currentInstance.parent && currentInstance.parent.provides;
@@ -2758,54 +2339,25 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return provides[key];
       } else if (arguments.length > 1) {
         return treatDefaultAsFactory && isFunction(defaultValue) ? defaultValue.call(instance && instance.proxy) : defaultValue;
-      } else {
-        warn$1(`injection "${String(key)}" not found.`);
-      }
-    } else {
-      warn$1(`inject() can only be used inside setup() or functional components.`);
+      } else ;
     }
+  }
+  function hasInjectionContext() {
+    return !!(getCurrentInstance() || currentApp);
   }
   const ssrContextKey = /* @__PURE__ */ Symbol.for("v-scx");
   const useSSRContext = () => {
     {
       const ctx = inject(ssrContextKey);
-      if (!ctx) {
-        warn$1(
-          `Server rendering context not provided. Make sure to only call useSSRContext() conditionally in the server build.`
-        );
-      }
       return ctx;
     }
   };
   function watch(source, cb, options) {
-    if (!isFunction(cb)) {
-      warn$1(
-        `\`watch(fn, options?)\` signature has been moved to a separate API. Use \`watchEffect(fn, options?)\` instead. \`watch\` now only supports \`watch(source, cb, options?) signature.`
-      );
-    }
     return doWatch(source, cb, options);
   }
   function doWatch(source, cb, options = EMPTY_OBJ) {
     const { immediate, deep, flush, once } = options;
-    if (!cb) {
-      if (immediate !== void 0) {
-        warn$1(
-          `watch() "immediate" option is only respected when using the watch(source, callback, options?) signature.`
-        );
-      }
-      if (deep !== void 0) {
-        warn$1(
-          `watch() "deep" option is only respected when using the watch(source, callback, options?) signature.`
-        );
-      }
-      if (once !== void 0) {
-        warn$1(
-          `watch() "once" option is only respected when using the watch(source, callback, options?) signature.`
-        );
-      }
-    }
     const baseWatchOptions = extend({}, options);
-    baseWatchOptions.onWarn = warn$1;
     const runsImmediately = cb && immediate || !cb && flush !== "post";
     let ssrCleanup;
     if (isInSSRComponentSetup) {
@@ -2899,10 +2451,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       vnode.transition = hooks;
     }
   }
+  // @__NO_SIDE_EFFECTS__
+  function defineComponent(options, extraOptions) {
+    return isFunction(options) ? (
+      // #8236: extend call and options.name access are considered side-effects
+      // by Rollup, so we have to wrap it in a pure-annotated IIFE.
+      /* @__PURE__ */ (() => extend({ name: options.name }, extraOptions, { setup: options }))()
+    ) : options;
+  }
   function markAsyncBoundary(instance) {
     instance.ids = [instance.ids[0] + instance.ids[2]++ + "-", 0, 0];
   }
-  const knownTemplateRefs = /* @__PURE__ */ new WeakSet();
   function isTemplateRefKey(refs, key) {
     let desc;
     return !!((desc = Object.getOwnPropertyDescriptor(refs, key)) && !desc.configurable);
@@ -2930,36 +2489,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const refValue = vnode.shapeFlag & 4 ? getComponentPublicInstance(vnode.component) : vnode.el;
     const value = isUnmount ? null : refValue;
     const { i: owner, r: ref3 } = rawRef;
-    if (!owner) {
-      warn$1(
-        `Missing ref owner context. ref cannot be used on hoisted vnodes. A vnode with ref must be created inside the render function.`
-      );
-      return;
-    }
     const oldRef = oldRawRef && oldRawRef.r;
     const refs = owner.refs === EMPTY_OBJ ? owner.refs = {} : owner.refs;
     const setupState = owner.setupState;
     const rawSetupState = /* @__PURE__ */ toRaw(setupState);
     const canSetSetupRef = setupState === EMPTY_OBJ ? NO : (key) => {
-      {
-        if (hasOwn(rawSetupState, key) && !/* @__PURE__ */ isRef(rawSetupState[key])) {
-          warn$1(
-            `Template ref "${key}" used on a non-ref value. It will not work in the production build.`
-          );
-        }
-        if (knownTemplateRefs.has(rawSetupState[key])) {
-          return false;
-        }
-      }
       if (isTemplateRefKey(refs, key)) {
         return false;
       }
       return hasOwn(rawSetupState, key);
     };
     const canSetRef = (ref22, key) => {
-      if (knownTemplateRefs.has(ref22)) {
-        return false;
-      }
       if (key && isTemplateRefKey(refs, key)) {
         return false;
       }
@@ -2988,7 +2528,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       if (_isString || _isRef) {
         const doSet = () => {
           if (rawRef.f) {
-            const existing = _isString ? canSetSetupRef(ref3) ? setupState[ref3] : refs[ref3] : canSetRef(ref3) || !rawRef.k ? ref3.value : refs[rawRef.k];
+            const existing = _isString ? canSetSetupRef(ref3) ? setupState[ref3] : refs[ref3] : canSetRef() || !rawRef.k ? ref3.value : refs[rawRef.k];
             if (isUnmount) {
               isArray(existing) && remove(existing, refValue);
             } else {
@@ -3019,9 +2559,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               ref3.value = value;
             }
             if (rawRef.k) refs[rawRef.k] = value;
-          } else {
-            warn$1("Invalid template ref type:", ref3, `(${typeof ref3})`);
-          }
+          } else ;
         };
         if (value) {
           const job = () => {
@@ -3035,8 +2573,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           invalidatePendingSetRef(rawRef);
           doSet();
         }
-      } else {
-        warn$1("Invalid template ref type:", ref3, `(${typeof ref3})`);
       }
     }
   }
@@ -3108,11 +2644,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         hooks.push(wrappedHook);
       }
       return wrappedHook;
-    } else {
-      const apiName = toHandlerKey(ErrorTypeStrings$1[type].replace(/ hook$/, ""));
-      warn$1(
-        `${apiName} is called when there is no active component instance to be associated with. Lifecycle injection APIs can only be used during execution of setup(). If you are using async setup(), make sure to register lifecycle hooks before the first await statement.`
-      );
     }
   }
   const createHook = (lifecycle) => (hook, target = currentInstance) => {
@@ -3162,12 +2693,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         );
       }
     } else if (typeof source === "number") {
-      if (!Number.isInteger(source) || source < 0) {
-        warn$1(
-          `The v-for range expects a positive integer value but got ${source}.`
-        );
-        ret = [];
-      } else {
+      {
         ret = new Array(source);
         for (let i = 0; i < source; i++) {
           ret[i] = renderItem(i + 1, i, void 0, cached);
@@ -3203,12 +2729,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       );
     }
     let slot = slots[name];
-    if (slot && slot.length > 1) {
-      warn$1(
-        `SSR-optimized slot function detected in a non-SSR-optimized render function. You need to mark this component with $dynamic-slots in the parent template.`
-      );
-      slot = () => [];
-    }
     if (slot && slot._c) {
       slot._d = false;
     }
@@ -3255,10 +2775,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       $: (i) => i,
       $el: (i) => i.vnode.el,
       $data: (i) => i.data,
-      $props: (i) => /* @__PURE__ */ shallowReadonly(i.props),
-      $attrs: (i) => /* @__PURE__ */ shallowReadonly(i.attrs),
-      $slots: (i) => /* @__PURE__ */ shallowReadonly(i.slots),
-      $refs: (i) => /* @__PURE__ */ shallowReadonly(i.refs),
+      $props: (i) => i.props,
+      $attrs: (i) => i.attrs,
+      $slots: (i) => i.slots,
+      $refs: (i) => i.refs,
       $parent: (i) => getPublicInstance(i.parent),
       $root: (i) => getPublicInstance(i.root),
       $host: (i) => i.ce,
@@ -3271,7 +2791,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       $watch: (i) => instanceWatch.bind(i)
     })
   );
-  const isReservedPrefix = (key) => key === "_" || key === "$";
   const hasSetupBinding = (state, key) => state !== EMPTY_OBJ && !state.__isScriptSetup && hasOwn(state, key);
   const PublicInstanceProxyHandlers = {
     get({ _: instance }, key) {
@@ -3279,9 +2798,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return true;
       }
       const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
-      if (key === "__isVue") {
-        return true;
-      }
       if (key[0] !== "$") {
         const n = accessCache[key];
         if (n !== void 0) {
@@ -3316,9 +2832,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       if (publicGetter) {
         if (key === "$attrs") {
           track(instance.attrs, "get", "");
-          markAttrsAccessed();
-        } else if (key === "$slots") {
-          track(instance, "get", key);
         }
         return publicGetter(instance);
       } else if (
@@ -3336,50 +2849,23 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         {
           return globalProperties[key];
         }
-      } else if (currentRenderingInstance && (!isString(key) || // #1091 avoid internal isRef/isVNode checks on component instance leading
-      // to infinite warning loop
-      key.indexOf("__v") !== 0)) {
-        if (data !== EMPTY_OBJ && isReservedPrefix(key[0]) && hasOwn(data, key)) {
-          warn$1(
-            `Property ${JSON.stringify(
-              key
-            )} must be accessed via $data because it starts with a reserved character ("$" or "_") and is not proxied on the render context.`
-          );
-        } else if (instance === currentRenderingInstance) {
-          warn$1(
-            `Property ${JSON.stringify(key)} was accessed during render but is not defined on instance.`
-          );
-        }
-      }
+      } else ;
     },
     set({ _: instance }, key, value) {
       const { data, setupState, ctx } = instance;
       if (hasSetupBinding(setupState, key)) {
         setupState[key] = value;
         return true;
-      } else if (setupState.__isScriptSetup && hasOwn(setupState, key)) {
-        warn$1(`Cannot mutate <script setup> binding "${key}" from Options API.`);
-        return false;
       } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
         data[key] = value;
         return true;
       } else if (hasOwn(instance.props, key)) {
-        warn$1(`Attempting to mutate prop "${key}". Props are readonly.`);
         return false;
       }
       if (key[0] === "$" && key.slice(1) in instance) {
-        warn$1(
-          `Attempting to mutate public property "${key}". Properties starting with $ are reserved and readonly.`
-        );
         return false;
       } else {
-        if (key in instance.appContext.config.globalProperties) {
-          Object.defineProperty(ctx, key, {
-            enumerable: true,
-            configurable: true,
-            value
-          });
-        } else {
+        {
           ctx[key] = value;
         }
       }
@@ -3400,85 +2886,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return Reflect.defineProperty(target, key, descriptor);
     }
   };
-  {
-    PublicInstanceProxyHandlers.ownKeys = (target) => {
-      warn$1(
-        `Avoid app logic that relies on enumerating keys on a component instance. The keys will be empty in production mode to avoid performance overhead.`
-      );
-      return Reflect.ownKeys(target);
-    };
-  }
-  function createDevRenderContext(instance) {
-    const target = {};
-    Object.defineProperty(target, `_`, {
-      configurable: true,
-      enumerable: false,
-      get: () => instance
-    });
-    Object.keys(publicPropertiesMap).forEach((key) => {
-      Object.defineProperty(target, key, {
-        configurable: true,
-        enumerable: false,
-        get: () => publicPropertiesMap[key](instance),
-        // intercepted by the proxy so no need for implementation,
-        // but needed to prevent set errors
-        set: NOOP
-      });
-    });
-    return target;
-  }
-  function exposePropsOnRenderContext(instance) {
-    const {
-      ctx,
-      propsOptions: [propsOptions]
-    } = instance;
-    if (propsOptions) {
-      Object.keys(propsOptions).forEach((key) => {
-        Object.defineProperty(ctx, key, {
-          enumerable: true,
-          configurable: true,
-          get: () => instance.props[key],
-          set: NOOP
-        });
-      });
-    }
-  }
-  function exposeSetupStateOnRenderContext(instance) {
-    const { ctx, setupState } = instance;
-    Object.keys(/* @__PURE__ */ toRaw(setupState)).forEach((key) => {
-      if (!setupState.__isScriptSetup) {
-        if (isReservedPrefix(key[0])) {
-          warn$1(
-            `setup() return property ${JSON.stringify(
-              key
-            )} should not start with "$" or "_" which are reserved prefixes for Vue internals.`
-          );
-          return;
-        }
-        Object.defineProperty(ctx, key, {
-          enumerable: true,
-          configurable: true,
-          get: () => setupState[key],
-          set: NOOP
-        });
-      }
-    });
-  }
   function normalizePropsOrEmits(props) {
     return isArray(props) ? props.reduce(
       (normalized, p2) => (normalized[p2] = null, normalized),
       {}
     ) : props;
-  }
-  function createDuplicateChecker() {
-    const cache = /* @__PURE__ */ Object.create(null);
-    return (type, key) => {
-      if (cache[key]) {
-        warn$1(`${type} property "${key}" is already defined in ${cache[key]}.`);
-      } else {
-        cache[key] = type;
-      }
-    };
   }
   let shouldCacheAccess = true;
   function applyOptions(instance) {
@@ -3522,15 +2934,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       directives,
       filters
     } = options;
-    const checkDuplicateProperties = createDuplicateChecker();
-    {
-      const [propsOptions] = instance.propsOptions;
-      if (propsOptions) {
-        for (const key in propsOptions) {
-          checkDuplicateProperties("Props", key);
-        }
-      }
-    }
+    const checkDuplicateProperties = null;
     if (injectOptions) {
       resolveInjections(injectOptions, ctx, checkDuplicateProperties);
     }
@@ -3539,52 +2943,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const methodHandler = methods[key];
         if (isFunction(methodHandler)) {
           {
-            Object.defineProperty(ctx, key, {
-              value: methodHandler.bind(publicThis),
-              configurable: true,
-              enumerable: true,
-              writable: true
-            });
+            ctx[key] = methodHandler.bind(publicThis);
           }
-          {
-            checkDuplicateProperties("Methods", key);
-          }
-        } else {
-          warn$1(
-            `Method "${key}" has type "${typeof methodHandler}" in the component definition. Did you reference the function correctly?`
-          );
         }
       }
     }
     if (dataOptions) {
-      if (!isFunction(dataOptions)) {
-        warn$1(
-          `The data option must be a function. Plain object usage is no longer supported.`
-        );
-      }
       const data = dataOptions.call(publicThis, publicThis);
-      if (isPromise(data)) {
-        warn$1(
-          `data() returned a Promise - note data() cannot be async; If you intend to perform data fetching before component renders, use async setup() + <Suspense>.`
-        );
-      }
-      if (!isObject(data)) {
-        warn$1(`data() should return an object.`);
-      } else {
+      if (!isObject(data)) ;
+      else {
         instance.data = /* @__PURE__ */ reactive(data);
-        {
-          for (const key in data) {
-            checkDuplicateProperties("Data", key);
-            if (!isReservedPrefix(key[0])) {
-              Object.defineProperty(ctx, key, {
-                configurable: true,
-                enumerable: true,
-                get: () => data[key],
-                set: NOOP
-              });
-            }
-          }
-        }
       }
     }
     shouldCacheAccess = true;
@@ -3592,14 +2960,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       for (const key in computedOptions) {
         const opt = computedOptions[key];
         const get = isFunction(opt) ? opt.bind(publicThis, publicThis) : isFunction(opt.get) ? opt.get.bind(publicThis, publicThis) : NOOP;
-        if (get === NOOP) {
-          warn$1(`Computed property "${key}" has no getter.`);
-        }
-        const set = !isFunction(opt) && isFunction(opt.set) ? opt.set.bind(publicThis) : () => {
-          warn$1(
-            `Write operation failed: computed property "${key}" is readonly.`
-          );
-        };
+        const set = !isFunction(opt) && isFunction(opt.set) ? opt.set.bind(publicThis) : NOOP;
         const c = computed({
           get,
           set
@@ -3610,9 +2971,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           get: () => c.value,
           set: (v) => c.value = v
         });
-        {
-          checkDuplicateProperties("Computed", key);
-        }
       }
     }
     if (watchOptions) {
@@ -3704,9 +3062,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       } else {
         ctx[key] = injected;
       }
-      {
-        checkDuplicateProperties("Inject", key);
-      }
     }
   }
   function callHook(hook, instance, type) {
@@ -3724,8 +3079,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         {
           watch(getter, handler);
         }
-      } else {
-        warn$1(`Invalid watch handler specified by key "${raw}"`, handler);
       }
     } else if (isFunction(raw)) {
       {
@@ -3738,13 +3091,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const handler = isFunction(raw.handler) ? raw.handler.bind(publicThis) : ctx[raw.handler];
         if (isFunction(handler)) {
           watch(getter, handler, raw);
-        } else {
-          warn$1(`Invalid watch handler specified by key "${raw.handler}"`, handler);
         }
       }
-    } else {
-      warn$1(`Invalid watch option: "${key}"`, raw);
-    }
+    } else ;
   }
   function resolveMergedOptions(instance) {
     const base = instance.type;
@@ -3787,11 +3136,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       );
     }
     for (const key in from) {
-      if (asMixin && key === "expose") {
-        warn$1(
-          `"expose" option is ignored when declared in mixins or extends. It should only be declared in the base component itself.`
-        );
-      } else {
+      if (asMixin && key === "expose") ;
+      else {
         const strat = internalOptionMergeStrats[key] || strats && strats[key];
         to[key] = strat ? strat(to[key], from[key]) : from[key];
       }
@@ -3913,7 +3259,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         rootComponent = extend({}, rootComponent);
       }
       if (rootProps != null && !isObject(rootProps)) {
-        warn$1(`root props passed to app.mount() must be an object.`);
         rootProps = null;
       }
       const context = createAppContext();
@@ -3932,74 +3277,42 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           return context.config;
         },
         set config(v) {
-          {
-            warn$1(
-              `app.config cannot be replaced. Modify individual options instead.`
-            );
-          }
         },
         use(plugin, ...options) {
-          if (installedPlugins.has(plugin)) {
-            warn$1(`Plugin has already been applied to target app.`);
-          } else if (plugin && isFunction(plugin.install)) {
+          if (installedPlugins.has(plugin)) ;
+          else if (plugin && isFunction(plugin.install)) {
             installedPlugins.add(plugin);
             plugin.install(app, ...options);
           } else if (isFunction(plugin)) {
             installedPlugins.add(plugin);
             plugin(app, ...options);
-          } else {
-            warn$1(
-              `A plugin must either be a function or an object with an "install" function.`
-            );
-          }
+          } else ;
           return app;
         },
         mixin(mixin) {
           {
             if (!context.mixins.includes(mixin)) {
               context.mixins.push(mixin);
-            } else {
-              warn$1(
-                "Mixin has already been applied to target app" + (mixin.name ? `: ${mixin.name}` : "")
-              );
             }
           }
           return app;
         },
         component(name, component) {
-          {
-            validateComponentName(name, context.config);
-          }
           if (!component) {
             return context.components[name];
-          }
-          if (context.components[name]) {
-            warn$1(`Component "${name}" has already been registered in target app.`);
           }
           context.components[name] = component;
           return app;
         },
         directive(name, directive) {
-          {
-            validateDirectiveName(name);
-          }
           if (!directive) {
             return context.directives[name];
-          }
-          if (context.directives[name]) {
-            warn$1(`Directive "${name}" has already been registered in target app.`);
           }
           context.directives[name] = directive;
           return app;
         },
         mount(rootContainer, isHydrate, namespace) {
           if (!isMounted) {
-            if (rootContainer.__vue_app__) {
-              warn$1(
-                `There is already an app instance mounted on the host container.
- If you want to mount another app on the same host container, you need to unmount the previous app by calling \`app.unmount()\` first.`
-              );
-            }
             const vnode = app._ceVNode || createVNode(rootComponent, rootProps);
             vnode.appContext = context;
             if (namespace === true) {
@@ -4008,36 +3321,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               namespace = void 0;
             }
             {
-              context.reload = () => {
-                const cloned = cloneVNode(vnode);
-                cloned.el = null;
-                render(cloned, rootContainer, namespace);
-              };
-            }
-            {
               render(vnode, rootContainer, namespace);
             }
             isMounted = true;
             app._container = rootContainer;
             rootContainer.__vue_app__ = app;
-            {
-              app._instance = vnode.component;
-              devtoolsInitApp(app, version);
-            }
             return getComponentPublicInstance(vnode.component);
-          } else {
-            warn$1(
-              `App has already been mounted.
-If you want to remount the same app, move your app creation logic into a factory function and create fresh app instances for each mount - e.g. \`const createMyApp = () => createApp(App)\``
-            );
           }
         },
         onUnmount(cleanupFn) {
-          if (typeof cleanupFn !== "function") {
-            warn$1(
-              `Expected function as first argument to app.onUnmount(), but got ${typeof cleanupFn}`
-            );
-          }
           pluginCleanupFns.push(cleanupFn);
         },
         unmount() {
@@ -4048,27 +3340,10 @@ If you want to remount the same app, move your app creation logic into a factory
               16
             );
             render(null, app._container);
-            {
-              app._instance = null;
-              devtoolsUnmountApp(app);
-            }
             delete app._container.__vue_app__;
-          } else {
-            warn$1(`Cannot unmount an app that is not mounted.`);
           }
         },
         provide(key, value) {
-          if (key in context.provides) {
-            if (hasOwn(context.provides, key)) {
-              warn$1(
-                `App already provides property with key "${String(key)}". It will be overwritten with the new value.`
-              );
-            } else {
-              warn$1(
-                `App already provides property with key "${String(key)}" inherited from its parent element. It will be overwritten with the new value.`
-              );
-            }
-          }
           context.provides[key] = value;
           return app;
         },
@@ -4092,31 +3367,6 @@ If you want to remount the same app, move your app creation logic into a factory
   function emit(instance, event, ...rawArgs) {
     if (instance.isUnmounted) return;
     const props = instance.vnode.props || EMPTY_OBJ;
-    {
-      const {
-        emitsOptions,
-        propsOptions: [propsOptions]
-      } = instance;
-      if (emitsOptions) {
-        if (!(event in emitsOptions) && true) {
-          if (!propsOptions || !(toHandlerKey(camelize(event)) in propsOptions)) {
-            warn$1(
-              `Component emitted event "${event}" but it is neither declared in the emits option nor as an "${toHandlerKey(camelize(event))}" prop.`
-            );
-          }
-        } else {
-          const validator = emitsOptions[event];
-          if (isFunction(validator)) {
-            const isValid = validator(...rawArgs);
-            if (!isValid) {
-              warn$1(
-                `Invalid event arguments: event validation failed for event "${event}".`
-              );
-            }
-          }
-        }
-      }
-    }
     let args = rawArgs;
     const isModelListener2 = event.startsWith("update:");
     const modifiers = isModelListener2 && getModelModifiers(props, event.slice(7));
@@ -4126,22 +3376,6 @@ If you want to remount the same app, move your app creation logic into a factory
       }
       if (modifiers.number) {
         args = rawArgs.map(looseToNumber);
-      }
-    }
-    {
-      devtoolsComponentEmit(instance, event, args);
-    }
-    {
-      const lowerCaseEvent = event.toLowerCase();
-      if (lowerCaseEvent !== event && props[toHandlerKey(lowerCaseEvent)]) {
-        warn$1(
-          `Event "${lowerCaseEvent}" is emitted in component ${formatComponentName(
-            instance,
-            instance.type
-          )} but the handler is registered for "${event}". Note that HTML attributes are case-insensitive and you cannot use v-on to listen to camelCase events when using in-DOM templates. You should probably use "${hyphenate(
-            event
-          )}" instead of "${event}".`
-        );
       }
     }
     let handlerName;
@@ -4225,9 +3459,7 @@ If you want to remount the same app, move your app creation logic into a factory
     key = key.slice(2).replace(/Once$/, "");
     return hasOwn(options, key[0].toLowerCase() + key.slice(1)) || hasOwn(options, hyphenate(key)) || hasOwn(options, key);
   }
-  let accessedAttrs = false;
   function markAttrsAccessed() {
-    accessedAttrs = true;
   }
   function renderComponentRoot(instance) {
     const {
@@ -4250,13 +3482,10 @@ If you want to remount the same app, move your app creation logic into a factory
     const prev = setCurrentRenderingInstance(instance);
     let result;
     let fallthroughAttrs;
-    {
-      accessedAttrs = false;
-    }
     try {
       if (vnode.shapeFlag & 4) {
         const proxyToUse = withProxy || proxy;
-        const thisProxy = setupState.__isScriptSetup ? new Proxy(proxyToUse, {
+        const thisProxy = false ? new Proxy(proxyToUse, {
           get(target, key, receiver) {
             warn$1(
               `Property '${String(
@@ -4271,7 +3500,7 @@ If you want to remount the same app, move your app creation logic into a factory
             thisProxy,
             proxyToUse,
             renderCache,
-            true ? /* @__PURE__ */ shallowReadonly(props) : props,
+            false ? /* @__PURE__ */ shallowReadonly(props) : props,
             setupState,
             data,
             ctx
@@ -4280,13 +3509,11 @@ If you want to remount the same app, move your app creation logic into a factory
         fallthroughAttrs = attrs;
       } else {
         const render2 = Component;
-        if (attrs === props) {
-          markAttrsAccessed();
-        }
+        if (false) ;
         result = normalizeVNode(
           render2.length > 1 ? render2(
-            true ? /* @__PURE__ */ shallowReadonly(props) : props,
-            true ? {
+            false ? /* @__PURE__ */ shallowReadonly(props) : props,
+            false ? {
               get attrs() {
                 markAttrsAccessed();
                 return /* @__PURE__ */ shallowReadonly(attrs);
@@ -4295,7 +3522,7 @@ If you want to remount the same app, move your app creation logic into a factory
               emit: emit2
             } : { attrs, slots, emit: emit2 }
           ) : render2(
-            true ? /* @__PURE__ */ shallowReadonly(props) : props,
+            false ? /* @__PURE__ */ shallowReadonly(props) : props,
             null
           )
         );
@@ -4307,10 +3534,6 @@ If you want to remount the same app, move your app creation logic into a factory
       result = createVNode(Comment);
     }
     let root = result;
-    let setRoot = void 0;
-    if (result.patchFlag > 0 && result.patchFlag & 2048) {
-      [root, setRoot] = getChildRoot(result);
-    }
     if (fallthroughAttrs && inheritAttrs !== false) {
       const keys = Object.keys(fallthroughAttrs);
       const { shapeFlag } = root;
@@ -4323,101 +3546,21 @@ If you want to remount the same app, move your app creation logic into a factory
             );
           }
           root = cloneVNode(root, fallthroughAttrs, false, true);
-        } else if (!accessedAttrs && root.type !== Comment) {
-          const allAttrs = Object.keys(attrs);
-          const eventAttrs = [];
-          const extraAttrs = [];
-          for (let i = 0, l = allAttrs.length; i < l; i++) {
-            const key = allAttrs[i];
-            if (isOn(key)) {
-              if (!isModelListener(key)) {
-                eventAttrs.push(key[2].toLowerCase() + key.slice(3));
-              }
-            } else {
-              extraAttrs.push(key);
-            }
-          }
-          if (extraAttrs.length) {
-            warn$1(
-              `Extraneous non-props attributes (${extraAttrs.join(", ")}) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.`
-            );
-          }
-          if (eventAttrs.length) {
-            warn$1(
-              `Extraneous non-emits event listeners (${eventAttrs.join(", ")}) were passed to component but could not be automatically inherited because component renders fragment or text root nodes. If the listener is intended to be a component custom event listener only, declare it using the "emits" option.`
-            );
-          }
         }
       }
     }
     if (vnode.dirs) {
-      if (!isElementRoot(root)) {
-        warn$1(
-          `Runtime directive used on component with non-element root node. The directives will not function as intended.`
-        );
-      }
       root = cloneVNode(root, null, false, true);
       root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs;
     }
     if (vnode.transition) {
-      if (!isElementRoot(root)) {
-        warn$1(
-          `Component inside <Transition> renders non-element root node that cannot be animated.`
-        );
-      }
       setTransitionHooks(root, vnode.transition);
     }
-    if (setRoot) {
-      setRoot(root);
-    } else {
+    {
       result = root;
     }
     setCurrentRenderingInstance(prev);
     return result;
-  }
-  const getChildRoot = (vnode) => {
-    const rawChildren = vnode.children;
-    const dynamicChildren = vnode.dynamicChildren;
-    const childRoot = filterSingleRoot(rawChildren, false);
-    if (!childRoot) {
-      return [vnode, void 0];
-    } else if (childRoot.patchFlag > 0 && childRoot.patchFlag & 2048) {
-      return getChildRoot(childRoot);
-    }
-    const index = rawChildren.indexOf(childRoot);
-    const dynamicIndex = dynamicChildren ? dynamicChildren.indexOf(childRoot) : -1;
-    const setRoot = (updatedRoot) => {
-      rawChildren[index] = updatedRoot;
-      if (dynamicChildren) {
-        if (dynamicIndex > -1) {
-          dynamicChildren[dynamicIndex] = updatedRoot;
-        } else if (updatedRoot.patchFlag > 0) {
-          vnode.dynamicChildren = [...dynamicChildren, updatedRoot];
-        }
-      }
-    };
-    return [normalizeVNode(childRoot), setRoot];
-  };
-  function filterSingleRoot(children, recurse = true) {
-    let singleRoot;
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (isVNode(child)) {
-        if (child.type !== Comment || child.children === "v-if") {
-          if (singleRoot) {
-            return;
-          } else {
-            singleRoot = child;
-            if (recurse && singleRoot.patchFlag > 0 && singleRoot.patchFlag & 2048) {
-              return filterSingleRoot(singleRoot.children);
-            }
-          }
-        }
-      } else {
-        return;
-      }
-    }
-    return singleRoot;
   }
   const getFunctionalFallthrough = (attrs) => {
     let res;
@@ -4437,16 +3580,10 @@ If you want to remount the same app, move your app creation logic into a factory
     }
     return res;
   };
-  const isElementRoot = (vnode) => {
-    return vnode.shapeFlag & (6 | 1) || vnode.type === Comment;
-  };
   function shouldUpdateComponent(prevVNode, nextVNode, optimized) {
     const { props: prevProps, children: prevChildren, component } = prevVNode;
     const { props: nextProps, children: nextChildren, patchFlag } = nextVNode;
     const emits = component.emitsOptions;
-    if ((prevChildren || nextChildren) && isHmrUpdating) {
-      return true;
-    }
     if (nextVNode.dirs || nextVNode.transition) {
       return true;
     }
@@ -4539,9 +3676,6 @@ If you want to remount the same app, move your app creation logic into a factory
         props[key] = void 0;
       }
     }
-    {
-      validateProps(rawProps || {}, props, instance);
-    }
     if (isStateful) {
       instance.props = isSSR ? props : /* @__PURE__ */ shallowReactive(props);
     } else {
@@ -4552,12 +3686,6 @@ If you want to remount the same app, move your app creation logic into a factory
       }
     }
     instance.attrs = attrs;
-  }
-  function isInHmrContext(instance) {
-    while (instance) {
-      if (instance.type.__hmrId) return true;
-      instance = instance.parent;
-    }
   }
   function updateProps(instance, rawProps, rawPrevProps, optimized) {
     const {
@@ -4572,7 +3700,7 @@ If you want to remount the same app, move your app creation logic into a factory
       // always force full diff in dev
       // - #1942 if hmr is enabled with sfc component
       // - vite#872 non-sfc component used by sfc component
-      !isInHmrContext(instance) && (optimized || patchFlag > 0) && !(patchFlag & 16)
+      (optimized || patchFlag > 0) && !(patchFlag & 16)
     ) {
       if (patchFlag & 8) {
         const propsToUpdate = instance.vnode.dynamicProps;
@@ -4646,9 +3774,6 @@ If you want to remount the same app, move your app creation logic into a factory
     }
     if (hasAttrsChanged) {
       trigger(instance.attrs, "set", "");
-    }
-    {
-      validateProps(rawProps || {}, props, instance);
     }
   }
   function setFullProps(instance, rawProps, props, attrs) {
@@ -4770,18 +3895,12 @@ If you want to remount the same app, move your app creation logic into a factory
     }
     if (isArray(raw)) {
       for (let i = 0; i < raw.length; i++) {
-        if (!isString(raw[i])) {
-          warn$1(`props must be strings when using array syntax.`, raw[i]);
-        }
         const normalizedKey = camelize(raw[i]);
         if (validatePropName(normalizedKey)) {
           normalized[normalizedKey] = EMPTY_OBJ;
         }
       }
     } else if (raw) {
-      if (!isObject(raw)) {
-        warn$1(`invalid props options`, raw);
-      }
       for (const key in raw) {
         const normalizedKey = camelize(key);
         if (validatePropName(normalizedKey)) {
@@ -4827,130 +3946,8 @@ If you want to remount the same app, move your app creation logic into a factory
   function validatePropName(key) {
     if (key[0] !== "$" && !isReservedProp(key)) {
       return true;
-    } else {
-      warn$1(`Invalid prop name: "${key}" is a reserved property.`);
     }
     return false;
-  }
-  function getType(ctor) {
-    if (ctor === null) {
-      return "null";
-    }
-    if (typeof ctor === "function") {
-      return ctor.name || "";
-    } else if (typeof ctor === "object") {
-      const name = ctor.constructor && ctor.constructor.name;
-      return name || "";
-    }
-    return "";
-  }
-  function validateProps(rawProps, props, instance) {
-    const resolvedValues = /* @__PURE__ */ toRaw(props);
-    const options = instance.propsOptions[0];
-    const camelizePropsKey = Object.keys(rawProps).map((key) => camelize(key));
-    for (const key in options) {
-      let opt = options[key];
-      if (opt == null) continue;
-      validateProp(
-        key,
-        resolvedValues[key],
-        opt,
-        /* @__PURE__ */ shallowReadonly(resolvedValues),
-        !camelizePropsKey.includes(key)
-      );
-    }
-  }
-  function validateProp(name, value, prop, props, isAbsent) {
-    const { type, required, validator, skipCheck } = prop;
-    if (required && isAbsent) {
-      warn$1('Missing required prop: "' + name + '"');
-      return;
-    }
-    if (value == null && !required) {
-      return;
-    }
-    if (type != null && type !== true && !skipCheck) {
-      let isValid = false;
-      const types = isArray(type) ? type : [type];
-      const expectedTypes = [];
-      for (let i = 0; i < types.length && !isValid; i++) {
-        const { valid, expectedType } = assertType(value, types[i]);
-        expectedTypes.push(expectedType || "");
-        isValid = valid;
-      }
-      if (!isValid) {
-        warn$1(getInvalidTypeMessage(name, value, expectedTypes));
-        return;
-      }
-    }
-    if (validator && !validator(value, props)) {
-      warn$1('Invalid prop: custom validator check failed for prop "' + name + '".');
-    }
-  }
-  const isSimpleType = /* @__PURE__ */ makeMap(
-    "String,Number,Boolean,Function,Symbol,BigInt"
-  );
-  function assertType(value, type) {
-    let valid;
-    const expectedType = getType(type);
-    if (expectedType === "null") {
-      valid = value === null;
-    } else if (isSimpleType(expectedType)) {
-      const t = typeof value;
-      valid = t === expectedType.toLowerCase();
-      if (!valid && t === "object") {
-        valid = value instanceof type;
-      }
-    } else if (expectedType === "Object") {
-      valid = isObject(value);
-    } else if (expectedType === "Array") {
-      valid = isArray(value);
-    } else {
-      valid = value instanceof type;
-    }
-    return {
-      valid,
-      expectedType
-    };
-  }
-  function getInvalidTypeMessage(name, value, expectedTypes) {
-    if (expectedTypes.length === 0) {
-      return `Prop type [] for prop "${name}" won't match anything. Did you mean to use type Array instead?`;
-    }
-    let message = `Invalid prop: type check failed for prop "${name}". Expected ${expectedTypes.map(capitalize).join(" | ")}`;
-    const expectedType = expectedTypes[0];
-    const receivedType = toRawType(value);
-    const expectedValue = styleValue(value, expectedType);
-    const receivedValue = styleValue(value, receivedType);
-    if (expectedTypes.length === 1 && isExplicable(expectedType) && isCoercible(expectedType, receivedType)) {
-      message += ` with value ${expectedValue}`;
-    }
-    message += `, got ${receivedType} `;
-    if (isExplicable(receivedType)) {
-      message += `with value ${receivedValue}.`;
-    }
-    return message;
-  }
-  function styleValue(value, type) {
-    if (isSymbol(value)) {
-      return value.toString();
-    } else if (type === "String") {
-      return `"${value}"`;
-    } else if (type === "Number") {
-      return `${Number(value)}`;
-    } else {
-      return `${value}`;
-    }
-  }
-  function isExplicable(type) {
-    const explicitTypes = ["string", "number", "boolean"];
-    return explicitTypes.some((elem) => type.toLowerCase() === elem);
-  }
-  function isCoercible(...args) {
-    return args.every((elem) => {
-      const value = elem.toLowerCase();
-      return value !== "boolean" && value !== "symbol";
-    });
   }
   const isInternalKey = (key) => key === "_" || key === "_ctx" || key === "$stable";
   const normalizeSlotValue = (value) => isArray(value) ? value.map(normalizeVNode) : [normalizeVNode(value)];
@@ -4959,11 +3956,7 @@ If you want to remount the same app, move your app creation logic into a factory
       return rawSlot;
     }
     const normalized = withCtx((...args) => {
-      if (currentInstance && !(ctx === null && currentRenderingInstance) && !(ctx && ctx.root !== currentInstance.root)) {
-        warn$1(
-          `Slot "${key}" invoked outside of the render function: this will not track dependencies used in the slot. Invoke the slot function inside the render function instead.`
-        );
-      }
+      if (false) ;
       return normalizeSlotValue(rawSlot(...args));
     }, ctx);
     normalized._c = false;
@@ -4977,22 +3970,12 @@ If you want to remount the same app, move your app creation logic into a factory
       if (isFunction(value)) {
         slots[key] = normalizeSlot(key, value, ctx);
       } else if (value != null) {
-        {
-          warn$1(
-            `Non-function value encountered for slot "${key}". Prefer function slots for better performance.`
-          );
-        }
         const normalized = normalizeSlotValue(value);
         slots[key] = () => normalized;
       }
     }
   };
   const normalizeVNodeSlots = (instance, children) => {
-    if (!isKeepAlive(instance.vnode) && true) {
-      warn$1(
-        `Non-function value encountered for default slot. Prefer function slots for better performance.`
-      );
-    }
     const normalized = normalizeSlotValue(children);
     instance.slots.default = () => normalized;
   };
@@ -5026,10 +4009,7 @@ If you want to remount the same app, move your app creation logic into a factory
     if (vnode.shapeFlag & 32) {
       const type = children._;
       if (type) {
-        if (isHmrUpdating) {
-          assignSlots(slots, children, optimized);
-          trigger(instance, "set", "$slots");
-        } else if (optimized && type === 1) {
+        if (optimized && type === 1) {
           needDeletionCheck = false;
         } else {
           assignSlots(slots, children, optimized);
@@ -5051,67 +4031,13 @@ If you want to remount the same app, move your app creation logic into a factory
       }
     }
   };
-  let supported;
-  let perf;
-  function startMeasure(instance, type) {
-    if (instance.appContext.config.performance && isSupported()) {
-      perf.mark(`vue-${type}-${instance.uid}`);
-    }
-    {
-      devtoolsPerfStart(instance, type, isSupported() ? perf.now() : Date.now());
-    }
-  }
-  function endMeasure(instance, type) {
-    if (instance.appContext.config.performance && isSupported()) {
-      const startTag = `vue-${type}-${instance.uid}`;
-      const endTag = startTag + `:end`;
-      const measureName = `<${formatComponentName(instance, instance.type)}> ${type}`;
-      perf.mark(endTag);
-      perf.measure(measureName, startTag, endTag);
-      perf.clearMeasures(measureName);
-      perf.clearMarks(startTag);
-      perf.clearMarks(endTag);
-    }
-    {
-      devtoolsPerfEnd(instance, type, isSupported() ? perf.now() : Date.now());
-    }
-  }
-  function isSupported() {
-    if (supported !== void 0) {
-      return supported;
-    }
-    if (typeof window !== "undefined" && window.performance) {
-      supported = true;
-      perf = window.performance;
-    } else {
-      supported = false;
-    }
-    return supported;
-  }
-  function initFeatureFlags() {
-    const needWarn = [];
-    if (needWarn.length) {
-      const multi = needWarn.length > 1;
-      console.warn(
-        `Feature flag${multi ? `s` : ``} ${needWarn.join(", ")} ${multi ? `are` : `is`} not explicitly defined. You are running the esm-bundler build of Vue, which expects these compile-time feature flags to be globally injected via the bundler config in order to get better tree-shaking in the production bundle.
-
-For more details, see https://link.vuejs.org/feature-flags.`
-      );
-    }
-  }
   const queuePostRenderEffect = queueEffectWithSuspense;
   function createRenderer(options) {
     return baseCreateRenderer(options);
   }
   function baseCreateRenderer(options, createHydrationFns) {
-    {
-      initFeatureFlags();
-    }
     const target = getGlobalThis();
     target.__VUE__ = true;
-    {
-      setDevtoolsHook$1(target.__VUE_DEVTOOLS_GLOBAL_HOOK__, target);
-    }
     const {
       insert: hostInsert,
       remove: hostRemove,
@@ -5126,7 +4052,7 @@ For more details, see https://link.vuejs.org/feature-flags.`
       setScopeId: hostSetScopeId = NOOP,
       insertStaticContent: hostInsertStaticContent
     } = options;
-    const patch = (n1, n2, container, anchor = null, parentComponent = null, parentSuspense = null, namespace = void 0, slotScopeIds = null, optimized = isHmrUpdating ? false : !!n2.dynamicChildren) => {
+    const patch = (n1, n2, container, anchor = null, parentComponent = null, parentSuspense = null, namespace = void 0, slotScopeIds = null, optimized = !!n2.dynamicChildren) => {
       if (n1 === n2) {
         return;
       }
@@ -5150,8 +4076,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
         case Static:
           if (n1 == null) {
             mountStaticNode(n2, container, anchor, namespace);
-          } else {
-            patchStaticNode(n1, n2, container, namespace);
           }
           break;
         case Fragment:
@@ -5218,9 +4142,7 @@ For more details, see https://link.vuejs.org/feature-flags.`
               optimized,
               internals
             );
-          } else {
-            warn$1("Invalid VNode type:", type, `(${typeof type})`);
-          }
+          } else ;
       }
       if (ref3 != null && parentComponent) {
         setRef(ref3, n1 && n1.ref, parentSuspense, n2 || n1, !n2);
@@ -5262,21 +4184,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
         n2.el,
         n2.anchor
       );
-    };
-    const patchStaticNode = (n1, n2, container, namespace) => {
-      if (n2.children !== n1.children) {
-        const anchor = hostNextSibling(n1.anchor);
-        removeStaticNode(n1);
-        [n2.el, n2.anchor] = hostInsertStaticContent(
-          n2.children,
-          container,
-          anchor,
-          namespace
-        );
-      } else {
-        n2.el = n1.el;
-        n2.anchor = n1.anchor;
-      }
     };
     const moveStaticNode = ({ el, anchor }, container, nextSibling) => {
       let next;
@@ -5376,10 +4283,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
           invokeVNodeHook(vnodeHook, parentComponent, vnode);
         }
       }
-      {
-        def(el, "__vnode", vnode, true);
-        def(el, "__vueParentComponent", parentComponent, true);
-      }
       if (dirs) {
         invokeDirectiveHook(vnode, null, parentComponent, "beforeMount");
       }
@@ -5389,16 +4292,12 @@ For more details, see https://link.vuejs.org/feature-flags.`
       }
       hostInsert(el, container, anchor);
       if ((vnodeHook = props && props.onVnodeMounted) || needCallTransitionHooks || dirs) {
-        const isHmr = isHmrUpdating;
         queuePostRenderEffect(() => {
-          let prev;
-          prev = setHmrUpdating(isHmr);
           try {
             vnodeHook && invokeVNodeHook(vnodeHook, parentComponent, vnode);
             needCallTransitionHooks && transition.enter(el);
             dirs && invokeDirectiveHook(vnode, null, parentComponent, "mounted");
           } finally {
-            setHmrUpdating(prev);
           }
         }, parentSuspense);
       }
@@ -5414,9 +4313,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
       }
       if (parentComponent) {
         let subTree = parentComponent.subTree;
-        if (subTree.patchFlag > 0 && subTree.patchFlag & 2048) {
-          subTree = filterSingleRoot(subTree.children) || subTree;
-        }
         if (vnode === subTree || isSuspense(subTree.type) && (subTree.ssContent === vnode || subTree.ssFallback === vnode)) {
           const parentVNode = parentComponent.vnode;
           setScopeId(
@@ -5447,9 +4343,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
     };
     const patchElement = (n1, n2, parentComponent, parentSuspense, namespace, slotScopeIds, optimized) => {
       const el = n2.el = n1.el;
-      {
-        el.__vnode = n2;
-      }
       let { patchFlag, dynamicChildren, dirs } = n2;
       patchFlag |= n1.patchFlag & 16;
       const oldProps = n1.props || EMPTY_OBJ;
@@ -5463,11 +4356,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
         invokeDirectiveHook(n2, n1, parentComponent, "beforeUpdate");
       }
       parentComponent && toggleRecurse(parentComponent, true);
-      if (isHmrUpdating) {
-        patchFlag = 0;
-        optimized = false;
-        dynamicChildren = null;
-      }
       if (oldProps.innerHTML && newProps.innerHTML == null || oldProps.textContent && newProps.textContent == null) {
         hostSetElementText(el, "");
       }
@@ -5481,9 +4369,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
           resolveChildrenNamespace(n2, namespace),
           slotScopeIds
         );
-        {
-          traverseStaticChildren(n1, n2);
-        }
       } else if (!optimized) {
         patchChildren(
           n1,
@@ -5600,14 +4485,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
       const fragmentStartAnchor = n2.el = n1 ? n1.el : hostCreateText("");
       const fragmentEndAnchor = n2.anchor = n1 ? n1.anchor : hostCreateText("");
       let { patchFlag, dynamicChildren, slotScopeIds: fragmentSlotScopeIds } = n2;
-      if (
-        // #5523 dev root fragment may inherit directives
-        isHmrUpdating || patchFlag & 2048
-      ) {
-        patchFlag = 0;
-        optimized = false;
-        dynamicChildren = null;
-      }
       if (fragmentSlotScopeIds) {
         slotScopeIds = slotScopeIds ? slotScopeIds.concat(fragmentSlotScopeIds) : fragmentSlotScopeIds;
       }
@@ -5641,8 +4518,19 @@ For more details, see https://link.vuejs.org/feature-flags.`
             namespace,
             slotScopeIds
           );
-          {
-            traverseStaticChildren(n1, n2);
+          if (
+            // #2080 if the stable fragment has a key, it's a <template v-for> that may
+            //  get moved around. Make sure all root level vnodes inherit el.
+            // #2134 or if it's a component root, it may also get moved around
+            // as the component is being moved.
+            n2.key != null || parentComponent && n2 === parentComponent.subTree
+          ) {
+            traverseStaticChildren(
+              n1,
+              n2,
+              true
+              /* shallow */
+            );
           }
         } else {
           patchChildren(
@@ -5691,26 +4579,12 @@ For more details, see https://link.vuejs.org/feature-flags.`
         parentComponent,
         parentSuspense
       );
-      if (instance.type.__hmrId) {
-        registerHMR(instance);
-      }
-      {
-        pushWarningContext(initialVNode);
-        startMeasure(instance, `mount`);
-      }
       if (isKeepAlive(initialVNode)) {
         instance.ctx.renderer = internals;
       }
       {
-        {
-          startMeasure(instance, `init`);
-        }
         setupComponent(instance, false, optimized);
-        {
-          endMeasure(instance, `init`);
-        }
       }
-      if (isHmrUpdating) initialVNode.el = null;
       if (instance.asyncDep) {
         parentSuspense && parentSuspense.registerDep(instance, setupRenderEffect, optimized);
         if (!initialVNode.el) {
@@ -5729,22 +4603,12 @@ For more details, see https://link.vuejs.org/feature-flags.`
           optimized
         );
       }
-      {
-        popWarningContext();
-        endMeasure(instance, `mount`);
-      }
     };
     const updateComponent = (n1, n2, optimized) => {
       const instance = n2.component = n1.component;
       if (shouldUpdateComponent(n1, n2, optimized)) {
         if (instance.asyncDep && !instance.asyncResolved) {
-          {
-            pushWarningContext(n2);
-          }
           updateComponentPreRender(instance, n2, optimized);
-          {
-            popWarningContext();
-          }
           return;
         } else {
           instance.next = n2;
@@ -5777,16 +4641,7 @@ For more details, see https://link.vuejs.org/feature-flags.`
                 instance.parent ? instance.parent.type : void 0
               );
             }
-            {
-              startMeasure(instance, `render`);
-            }
             const subTree = instance.subTree = renderComponentRoot(instance);
-            {
-              endMeasure(instance, `render`);
-            }
-            {
-              startMeasure(instance, `patch`);
-            }
             patch(
               null,
               subTree,
@@ -5796,9 +4651,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
               parentSuspense,
               namespace
             );
-            {
-              endMeasure(instance, `patch`);
-            }
             initialVNode.el = subTree.el;
           }
           if (m) {
@@ -5815,9 +4667,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
             instance.a && queuePostRenderEffect(instance.a, parentSuspense);
           }
           instance.isMounted = true;
-          {
-            devtoolsComponentAdded(instance);
-          }
           initialVNode = container = anchor = null;
         } else {
           let { next, bu, u, parent, vnode } = instance;
@@ -5838,9 +4687,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
           }
           let originNext = next;
           let vnodeHook;
-          {
-            pushWarningContext(next || instance.vnode);
-          }
           toggleRecurse(instance, false);
           if (next) {
             next.el = vnode.el;
@@ -5855,18 +4701,9 @@ For more details, see https://link.vuejs.org/feature-flags.`
             invokeVNodeHook(vnodeHook, parent, next, vnode);
           }
           toggleRecurse(instance, true);
-          {
-            startMeasure(instance, `render`);
-          }
           const nextTree = renderComponentRoot(instance);
-          {
-            endMeasure(instance, `render`);
-          }
           const prevTree = instance.subTree;
           instance.subTree = nextTree;
-          {
-            startMeasure(instance, `patch`);
-          }
           patch(
             prevTree,
             nextTree,
@@ -5878,9 +4715,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
             parentSuspense,
             namespace
           );
-          {
-            endMeasure(instance, `patch`);
-          }
           next.el = nextTree.el;
           if (originNext === null) {
             updateHOCHostEl(instance, nextTree.el);
@@ -5894,12 +4728,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
               parentSuspense
             );
           }
-          {
-            devtoolsComponentUpdated(instance);
-          }
-          {
-            popWarningContext();
-          }
         }
       };
       instance.scope.on();
@@ -5911,10 +4739,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
       job.id = instance.uid;
       effect2.scheduler = () => queueJob(job);
       toggleRecurse(instance, true);
-      {
-        effect2.onTrack = instance.rtc ? (e) => invokeArrayFns(instance.rtc, e) : void 0;
-        effect2.onTrigger = instance.rtg ? (e) => invokeArrayFns(instance.rtg, e) : void 0;
-      }
       update();
     };
     const updateComponentPreRender = (instance, nextVNode, optimized) => {
@@ -6126,13 +4950,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
         for (i = s2; i <= e2; i++) {
           const nextChild = c2[i] = optimized ? cloneIfMounted(c2[i]) : normalizeVNode(c2[i]);
           if (nextChild.key != null) {
-            if (keyToNewIndexMap.has(nextChild.key)) {
-              warn$1(
-                `Duplicate keys found during update:`,
-                JSON.stringify(nextChild.key),
-                `Make sure keys are unique.`
-              );
-            }
             keyToNewIndexMap.set(nextChild.key, i);
           }
         }
@@ -6374,15 +5191,7 @@ For more details, see https://link.vuejs.org/feature-flags.`
     const remove2 = (vnode) => {
       const { type, el, anchor, transition } = vnode;
       if (type === Fragment) {
-        if (vnode.patchFlag > 0 && vnode.patchFlag & 2048 && transition && !transition.persisted) {
-          vnode.children.forEach((child) => {
-            if (child.type === Comment) {
-              hostRemove(child.el);
-            } else {
-              remove2(child);
-            }
-          });
-        } else {
+        {
           removeFragment(el, anchor);
         }
         return;
@@ -6419,9 +5228,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
       hostRemove(end);
     };
     const unmountComponent = (instance, parentSuspense, doRemove) => {
-      if (instance.type.__hmrId) {
-        unregisterHMR(instance);
-      }
       const { bum, scope, job, subTree, um, m, a } = instance;
       invalidateMount(m);
       invalidateMount(a);
@@ -6439,9 +5245,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
       queuePostRenderEffect(() => {
         instance.isUnmounted = true;
       }, parentSuspense);
-      {
-        devtoolsComponentRemoved(instance);
-      }
     };
     const unmountChildren = (children, parentComponent, parentSuspense, doRemove = false, optimized = false, start = 0) => {
       for (let i = start; i < children.length; i++) {
@@ -6543,9 +5346,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
         }
         if (c2.type === Comment && !c2.el) {
           c2.el = c1.el;
-        }
-        {
-          c2.el && (c2.el.__vnode = c2);
         }
       }
     }
@@ -6685,21 +5485,8 @@ For more details, see https://link.vuejs.org/feature-flags.`
     return value ? value.__v_isVNode === true : false;
   }
   function isSameVNodeType(n1, n2) {
-    if (n2.shapeFlag & 6 && n1.component) {
-      const dirtyInstances = hmrDirtyComponents.get(n2.type);
-      if (dirtyInstances && dirtyInstances.has(n1.component)) {
-        n1.shapeFlag &= -257;
-        n2.shapeFlag &= -513;
-        return false;
-      }
-    }
     return n1.type === n2.type && n1.key === n2.key;
   }
-  const createVNodeWithArgsTransform = (...args) => {
-    return _createVNode(
-      ...args
-    );
-  };
   const normalizeKey = ({ key }) => key != null ? key : null;
   const normalizeRef = ({
     ref: ref3,
@@ -6749,9 +5536,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
     } else if (children) {
       vnode.shapeFlag |= isString(children) ? 8 : 16;
     }
-    if (vnode.key !== vnode.key) {
-      warn$1(`VNode created with invalid key (NaN). VNode type:`, vnode.type);
-    }
     if (isBlockTreeEnabled > 0 && // avoid a block node from tracking itself
     !isBlockNode && // has current parent block
     currentBlock && // presence of a patch flag indicates this node needs patching on updates.
@@ -6765,12 +5549,9 @@ For more details, see https://link.vuejs.org/feature-flags.`
     }
     return vnode;
   }
-  const createVNode = createVNodeWithArgsTransform;
+  const createVNode = _createVNode;
   function _createVNode(type, props = null, children = null, patchFlag = 0, dynamicProps = null, isBlockNode = false) {
     if (!type || type === NULL_DYNAMIC_COMPONENT) {
-      if (!type) {
-        warn$1(`Invalid vnode type when creating vnode: ${type}.`);
-      }
       type = Comment;
     }
     if (isVNode(type)) {
@@ -6810,15 +5591,6 @@ For more details, see https://link.vuejs.org/feature-flags.`
       }
     }
     const shapeFlag = isString(type) ? 1 : isSuspense(type) ? 128 : isTeleport(type) ? 64 : isObject(type) ? 4 : isFunction(type) ? 2 : 0;
-    if (shapeFlag & 4 && /* @__PURE__ */ isProxy(type)) {
-      type = /* @__PURE__ */ toRaw(type);
-      warn$1(
-        `Vue received a Component that was made a reactive object. This can lead to unnecessary performance overhead and should be avoided by marking the component with \`markRaw\` or using \`shallowRef\` instead of \`ref\`.`,
-        `
-Component that was made reactive: `,
-        type
-      );
-    }
     return createBaseVNode(
       type,
       props,
@@ -6851,7 +5623,7 @@ Component that was made reactive: `,
       ) : ref3,
       scopeId: vnode.scopeId,
       slotScopeIds: vnode.slotScopeIds,
-      children: patchFlag === -1 && isArray(children) ? children.map(deepCloneVNode) : children,
+      children,
       target: vnode.target,
       targetStart: vnode.targetStart,
       targetAnchor: vnode.targetAnchor,
@@ -6886,13 +5658,6 @@ Component that was made reactive: `,
         cloned,
         transition.clone(cloned)
       );
-    }
-    return cloned;
-  }
-  function deepCloneVNode(vnode) {
-    const cloned = cloneVNode(vnode);
-    if (isArray(vnode.children)) {
-      cloned.children = vnode.children.map(deepCloneVNode);
     }
     return cloned;
   }
@@ -7082,7 +5847,7 @@ Component that was made reactive: `,
       sp: null
     };
     {
-      instance.ctx = createDevRenderContext(instance);
+      instance.ctx = { _: instance };
     }
     instance.root = parent ? parent.root : instance;
     instance.emit = emit.bind(null, instance);
@@ -7128,14 +5893,6 @@ Component that was made reactive: `,
     currentInstance && currentInstance.scope.off();
     internalSetCurrentInstance(null);
   };
-  const isBuiltInTag = /* @__PURE__ */ makeMap("slot,component");
-  function validateComponentName(name, { isNativeTag }) {
-    if (isBuiltInTag(name) || isNativeTag(name)) {
-      warn$1(
-        "Do not use built-in or reserved HTML elements as component id: " + name
-      );
-    }
-  }
   function isStatefulComponent(instance) {
     return instance.vnode.shapeFlag & 4;
   }
@@ -7152,33 +5909,8 @@ Component that was made reactive: `,
   }
   function setupStatefulComponent(instance, isSSR) {
     const Component = instance.type;
-    {
-      if (Component.name) {
-        validateComponentName(Component.name, instance.appContext.config);
-      }
-      if (Component.components) {
-        const names = Object.keys(Component.components);
-        for (let i = 0; i < names.length; i++) {
-          validateComponentName(names[i], instance.appContext.config);
-        }
-      }
-      if (Component.directives) {
-        const names = Object.keys(Component.directives);
-        for (let i = 0; i < names.length; i++) {
-          validateDirectiveName(names[i]);
-        }
-      }
-      if (Component.compilerOptions && isRuntimeOnly()) {
-        warn$1(
-          `"compilerOptions" is only supported when using a build of Vue that includes the runtime compiler. Since you are using a runtime-only build, the options should be passed via your build tool config instead.`
-        );
-      }
-    }
     instance.accessCache = /* @__PURE__ */ Object.create(null);
     instance.proxy = new Proxy(instance.ctx, PublicInstanceProxyHandlers);
-    {
-      exposePropsOnRenderContext(instance);
-    }
     const { setup } = Component;
     if (setup) {
       pauseTracking();
@@ -7189,7 +5921,7 @@ Component that was made reactive: `,
         instance,
         0,
         [
-          /* @__PURE__ */ shallowReadonly(instance.props),
+          instance.props,
           setupContext
         ]
       );
@@ -7203,24 +5935,18 @@ Component that was made reactive: `,
         setupResult.then(unsetCurrentInstance, unsetCurrentInstance);
         if (isSSR) {
           return setupResult.then((resolvedResult) => {
-            handleSetupResult(instance, resolvedResult, isSSR);
+            handleSetupResult(instance, resolvedResult);
           }).catch((e) => {
             handleError(e, instance, 0);
           });
         } else {
           instance.asyncDep = setupResult;
-          if (!instance.suspense) {
-            const name = formatComponentName(instance, Component);
-            warn$1(
-              `Component <${name}>: setup function returned a promise, but no <Suspense> boundary was found in the parent component tree. A component with async setup() must be nested in a <Suspense> in order to be rendered.`
-            );
-          }
         }
       } else {
-        handleSetupResult(instance, setupResult, isSSR);
+        handleSetupResult(instance, setupResult);
       }
     } else {
-      finishComponentSetup(instance, isSSR);
+      finishComponentSetup(instance);
     }
   }
   function handleSetupResult(instance, setupResult, isSSR) {
@@ -7231,26 +5957,10 @@ Component that was made reactive: `,
         instance.render = setupResult;
       }
     } else if (isObject(setupResult)) {
-      if (isVNode(setupResult)) {
-        warn$1(
-          `setup() should not return VNodes directly - return a render function instead.`
-        );
-      }
-      {
-        instance.devtoolsRawSetupState = setupResult;
-      }
       instance.setupState = proxyRefs(setupResult);
-      {
-        exposeSetupStateOnRenderContext(instance);
-      }
-    } else if (setupResult !== void 0) {
-      warn$1(
-        `setup() should return an object. Received: ${setupResult === null ? "null" : typeof setupResult}`
-      );
-    }
-    finishComponentSetup(instance, isSSR);
+    } else ;
+    finishComponentSetup(instance);
   }
-  const isRuntimeOnly = () => true;
   function finishComponentSetup(instance, isSSR, skipOptions) {
     const Component = instance.type;
     if (!instance.render) {
@@ -7266,78 +5976,24 @@ Component that was made reactive: `,
         reset();
       }
     }
-    if (!Component.render && instance.render === NOOP && !isSSR) {
-      if (Component.template) {
-        warn$1(
-          `Component provided template option but runtime compilation is not supported in this build of Vue. Configure your bundler to alias "vue" to "vue/dist/vue.esm-bundler.js".`
-        );
-      } else {
-        warn$1(`Component is missing template or render function: `, Component);
-      }
-    }
   }
   const attrsProxyHandlers = {
     get(target, key) {
-      markAttrsAccessed();
       track(target, "get", "");
       return target[key];
-    },
-    set() {
-      warn$1(`setupContext.attrs is readonly.`);
-      return false;
-    },
-    deleteProperty() {
-      warn$1(`setupContext.attrs is readonly.`);
-      return false;
     }
   };
-  function getSlotsProxy(instance) {
-    return new Proxy(instance.slots, {
-      get(target, key) {
-        track(instance, "get", "$slots");
-        return target[key];
-      }
-    });
-  }
   function createSetupContext(instance) {
     const expose = (exposed) => {
-      {
-        if (instance.exposed) {
-          warn$1(`expose() should be called only once per setup().`);
-        }
-        if (exposed != null) {
-          let exposedType = typeof exposed;
-          if (exposedType === "object") {
-            if (isArray(exposed)) {
-              exposedType = "array";
-            } else if (/* @__PURE__ */ isRef(exposed)) {
-              exposedType = "ref";
-            }
-          }
-          if (exposedType !== "object") {
-            warn$1(
-              `expose() should be passed a plain object, received ${exposedType}.`
-            );
-          }
-        }
-      }
       instance.exposed = exposed || {};
     };
     {
-      let attrsProxy;
-      let slotsProxy;
-      return Object.freeze({
-        get attrs() {
-          return attrsProxy || (attrsProxy = new Proxy(instance.attrs, attrsProxyHandlers));
-        },
-        get slots() {
-          return slotsProxy || (slotsProxy = getSlotsProxy(instance));
-        },
-        get emit() {
-          return (event, ...args) => instance.emit(event, ...args);
-        },
+      return {
+        attrs: new Proxy(instance.attrs, attrsProxyHandlers),
+        slots: instance.slots,
+        emit: instance.emit,
         expose
-      });
+      };
     }
   }
   function getComponentPublicInstance(instance) {
@@ -7390,195 +6046,9 @@ Component that was made reactive: `,
   }
   const computed = (getterOrOptions, debugOptions) => {
     const c = /* @__PURE__ */ computed$1(getterOrOptions, debugOptions, isInSSRComponentSetup);
-    {
-      const i = getCurrentInstance();
-      if (i && i.appContext.config.warnRecursiveComputed) {
-        c._warnRecursive = true;
-      }
-    }
     return c;
   };
-  function initCustomFormatter() {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const vueStyle = { style: "color:#3ba776" };
-    const numberStyle = { style: "color:#1677ff" };
-    const stringStyle = { style: "color:#f5222d" };
-    const keywordStyle = { style: "color:#eb2f96" };
-    const formatter = {
-      __vue_custom_formatter: true,
-      header(obj) {
-        if (!isObject(obj)) {
-          return null;
-        }
-        if (obj.__isVue) {
-          return ["div", vueStyle, `VueInstance`];
-        } else if (/* @__PURE__ */ isRef(obj)) {
-          pauseTracking();
-          const value = obj.value;
-          resetTracking();
-          return [
-            "div",
-            {},
-            ["span", vueStyle, genRefFlag(obj)],
-            "<",
-            formatValue(value),
-            `>`
-          ];
-        } else if (/* @__PURE__ */ isReactive(obj)) {
-          return [
-            "div",
-            {},
-            ["span", vueStyle, /* @__PURE__ */ isShallow(obj) ? "ShallowReactive" : "Reactive"],
-            "<",
-            formatValue(obj),
-            `>${/* @__PURE__ */ isReadonly(obj) ? ` (readonly)` : ``}`
-          ];
-        } else if (/* @__PURE__ */ isReadonly(obj)) {
-          return [
-            "div",
-            {},
-            ["span", vueStyle, /* @__PURE__ */ isShallow(obj) ? "ShallowReadonly" : "Readonly"],
-            "<",
-            formatValue(obj),
-            ">"
-          ];
-        }
-        return null;
-      },
-      hasBody(obj) {
-        return obj && obj.__isVue;
-      },
-      body(obj) {
-        if (obj && obj.__isVue) {
-          return [
-            "div",
-            {},
-            ...formatInstance(obj.$)
-          ];
-        }
-      }
-    };
-    function formatInstance(instance) {
-      const blocks = [];
-      if (instance.type.props && instance.props) {
-        blocks.push(createInstanceBlock("props", /* @__PURE__ */ toRaw(instance.props)));
-      }
-      if (instance.setupState !== EMPTY_OBJ) {
-        blocks.push(createInstanceBlock("setup", instance.setupState));
-      }
-      if (instance.data !== EMPTY_OBJ) {
-        blocks.push(createInstanceBlock("data", /* @__PURE__ */ toRaw(instance.data)));
-      }
-      const computed2 = extractKeys(instance, "computed");
-      if (computed2) {
-        blocks.push(createInstanceBlock("computed", computed2));
-      }
-      const injected = extractKeys(instance, "inject");
-      if (injected) {
-        blocks.push(createInstanceBlock("injected", injected));
-      }
-      blocks.push([
-        "div",
-        {},
-        [
-          "span",
-          {
-            style: keywordStyle.style + ";opacity:0.66"
-          },
-          "$ (internal): "
-        ],
-        ["object", { object: instance }]
-      ]);
-      return blocks;
-    }
-    function createInstanceBlock(type, target) {
-      target = extend({}, target);
-      if (!Object.keys(target).length) {
-        return ["span", {}];
-      }
-      return [
-        "div",
-        { style: "line-height:1.25em;margin-bottom:0.6em" },
-        [
-          "div",
-          {
-            style: "color:#476582"
-          },
-          type
-        ],
-        [
-          "div",
-          {
-            style: "padding-left:1.25em"
-          },
-          ...Object.keys(target).map((key) => {
-            return [
-              "div",
-              {},
-              ["span", keywordStyle, key + ": "],
-              formatValue(target[key], false)
-            ];
-          })
-        ]
-      ];
-    }
-    function formatValue(v, asRaw = true) {
-      if (typeof v === "number") {
-        return ["span", numberStyle, v];
-      } else if (typeof v === "string") {
-        return ["span", stringStyle, JSON.stringify(v)];
-      } else if (typeof v === "boolean") {
-        return ["span", keywordStyle, v];
-      } else if (isObject(v)) {
-        return ["object", { object: asRaw ? /* @__PURE__ */ toRaw(v) : v }];
-      } else {
-        return ["span", stringStyle, String(v)];
-      }
-    }
-    function extractKeys(instance, type) {
-      const Comp = instance.type;
-      if (isFunction(Comp)) {
-        return;
-      }
-      const extracted = {};
-      for (const key in instance.ctx) {
-        if (isKeyOfType(Comp, key, type)) {
-          extracted[key] = instance.ctx[key];
-        }
-      }
-      return extracted;
-    }
-    function isKeyOfType(Comp, key, type) {
-      const opts = Comp[type];
-      if (isArray(opts) && opts.includes(key) || isObject(opts) && key in opts) {
-        return true;
-      }
-      if (Comp.extends && isKeyOfType(Comp.extends, key, type)) {
-        return true;
-      }
-      if (Comp.mixins && Comp.mixins.some((m) => isKeyOfType(m, key, type))) {
-        return true;
-      }
-    }
-    function genRefFlag(v) {
-      if (/* @__PURE__ */ isShallow(v)) {
-        return `ShallowRef`;
-      }
-      if (v.effect) {
-        return `ComputedRef`;
-      }
-      return `Ref`;
-    }
-    if (window.devtoolsFormatters) {
-      window.devtoolsFormatters.push(formatter);
-    } else {
-      window.devtoolsFormatters = [formatter];
-    }
-  }
   const version = "3.5.35";
-  const warn = warn$1;
   /**
   * @vue/runtime-dom v3.5.35
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
@@ -7592,7 +6062,6 @@ Component that was made reactive: `,
         createHTML: (val) => val
       });
     } catch (e) {
-      warn(`Error creating trusted types policy: ${e}`);
     }
   }
   const unsafeToTrustedHTML = policy ? (val) => policy.createHTML(val) : (val) => val;
@@ -7680,7 +6149,7 @@ Component that was made reactive: `,
   }
   const vShowOriginalDisplay = /* @__PURE__ */ Symbol("_vod");
   const vShowHidden = /* @__PURE__ */ Symbol("_vsh");
-  const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("CSS_VAR_TEXT");
+  const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("");
   const displayRE = /(?:^|;)\s*display\s*:/;
   function patchStyle(el, prev, next) {
     const style = el.style;
@@ -7742,20 +6211,12 @@ Component that was made reactive: `,
       }
     }
   }
-  const semicolonRE = /[^\\];\s*$/;
   const importantRE = /\s*!important$/;
   function setStyle(style, name, val) {
     if (isArray(val)) {
       val.forEach((v) => setStyle(style, name, v));
     } else {
       if (val == null) val = "";
-      {
-        if (semicolonRE.test(val)) {
-          warn(
-            `Unexpected semicolon at the end of '${name}' style value: '${val}'`
-          );
-        }
-      }
       if (name.startsWith("--")) {
         style.setProperty(name, val);
       } else {
@@ -7855,12 +6316,6 @@ Component that was made reactive: `,
     try {
       el[key] = value;
     } catch (e) {
-      if (!needRemove) {
-        warn(
-          `Failed setting prop "${key}" on <${tag.toLowerCase()}>: value ${value} is invalid.`,
-          e
-        );
-      }
     }
     needRemove && el.removeAttribute(attrName || key);
   }
@@ -7875,12 +6330,12 @@ Component that was made reactive: `,
     const invokers = el[veiKey] || (el[veiKey] = {});
     const existingInvoker = invokers[rawName];
     if (nextValue && existingInvoker) {
-      existingInvoker.value = sanitizeEventValue(nextValue, rawName);
+      existingInvoker.value = nextValue;
     } else {
       const [name, options] = parseName(rawName);
       if (nextValue) {
         const invoker = invokers[rawName] = createInvoker(
-          sanitizeEventValue(nextValue, rawName),
+          nextValue,
           instance
         );
         addEventListener(el, name, invoker, options);
@@ -7949,16 +6404,6 @@ Component that was made reactive: `,
     invoker.value = initialValue;
     invoker.attached = getNow();
     return invoker;
-  }
-  function sanitizeEventValue(value, propName) {
-    if (isFunction(value) || isArray(value)) {
-      return value;
-    }
-    warn(
-      `Wrong type passed as event handler to ${propName} - did you forget @ or : in front of your prop?
-Expected function or array of functions, received type ${typeof value}.`
-    );
-    return NOOP;
   }
   const isNativeOn = (key) => key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && // lowercase letter
   key.charCodeAt(2) > 96 && key.charCodeAt(2) < 123;
@@ -8140,9 +6585,6 @@ Expected function or array of functions, received type ${typeof value}.`
     const isMultiple = el.multiple;
     const isArrayValue = isArray(value);
     if (isMultiple && !isArrayValue && !isSet(value)) {
-      warn(
-        `<select multiple v-model> expects an Array or Set value for its binding, but got ${Object.prototype.toString.call(value).slice(8, -1)}.`
-      );
       return;
     }
     for (let i = 0, l = el.options.length; i < l; i++) {
@@ -8228,10 +6670,6 @@ Expected function or array of functions, received type ${typeof value}.`
   }
   const createApp = (...args) => {
     const app = ensureRenderer().createApp(...args);
-    {
-      injectNativeTagCheck(app);
-      injectCompilerOptionsCheck(app);
-    }
     const { mount } = app;
     app.mount = (containerOrSelector) => {
       const container = normalizeContainer(containerOrSelector);
@@ -8260,71 +6698,2607 @@ Expected function or array of functions, received type ${typeof value}.`
       return "mathml";
     }
   }
-  function injectNativeTagCheck(app) {
-    Object.defineProperty(app.config, "isNativeTag", {
-      value: (tag) => isHTMLTag(tag) || isSVGTag(tag) || isMathMLTag(tag),
-      writable: false
-    });
-  }
-  function injectCompilerOptionsCheck(app) {
-    {
-      const isCustomElement = app.config.isCustomElement;
-      Object.defineProperty(app.config, "isCustomElement", {
-        get() {
-          return isCustomElement;
-        },
-        set() {
-          warn(
-            `The \`isCustomElement\` config option is deprecated. Use \`compilerOptions.isCustomElement\` instead.`
-          );
-        }
-      });
-      const compilerOptions = app.config.compilerOptions;
-      const msg = `The \`compilerOptions\` config option is only respected when using a build of Vue.js that includes the runtime compiler (aka "full build"). Since you are using the runtime-only build, \`compilerOptions\` must be passed to \`@vue/compiler-dom\` in the build setup instead.
-- For vue-loader: pass it via vue-loader's \`compilerOptions\` loader option.
-- For vue-cli: see https://cli.vuejs.org/guide/webpack.html#modifying-options-of-a-loader
-- For vite: pass it via @vitejs/plugin-vue options. See https://github.com/vitejs/vite-plugin-vue/tree/main/packages/plugin-vue#example-for-passing-options-to-vuecompiler-sfc`;
-      Object.defineProperty(app.config, "compilerOptions", {
-        get() {
-          warn(msg);
-          return compilerOptions;
-        },
-        set() {
-          warn(msg);
-        }
-      });
-    }
-  }
   function normalizeContainer(container) {
     if (isString(container)) {
       const res = document.querySelector(container);
-      if (!res) {
-        warn(
-          `Failed to mount app: mount target selector "${container}" returned null.`
-        );
-      }
       return res;
-    }
-    if (window.ShadowRoot && container instanceof window.ShadowRoot && container.mode === "closed") {
-      warn(
-        `mounting on a ShadowRoot with \`{mode: "closed"}\` may lead to unpredictable bugs`
-      );
     }
     return container;
   }
-  /**
-  * vue v3.5.35
-  * (c) 2018-present Yuxi (Evan) You and Vue contributors
-  * @license MIT
-  **/
-  function initDev() {
-    {
-      initCustomFormatter();
+  const MAGNUS_COMMANDS_KEY = Symbol("magnus.commands");
+  function provideMagnusCommands(commands) {
+    provide(MAGNUS_COMMANDS_KEY, commands);
+  }
+  function useMagnusCommands() {
+    const commands = inject(MAGNUS_COMMANDS_KEY);
+    if (!commands) throw new Error("Magnus commands are not provided");
+    return commands;
+  }
+  /*!
+   * pinia v3.0.4
+   * (c) 2025 Eduardo San Martin Morote
+   * @license MIT
+   */
+  let activePinia;
+  const setActivePinia = (pinia) => activePinia = pinia;
+  const piniaSymbol = (
+    /* istanbul ignore next */
+    Symbol()
+  );
+  function isPlainObject(o) {
+    return o && typeof o === "object" && Object.prototype.toString.call(o) === "[object Object]" && typeof o.toJSON !== "function";
+  }
+  var MutationType;
+  (function(MutationType2) {
+    MutationType2["direct"] = "direct";
+    MutationType2["patchObject"] = "patch object";
+    MutationType2["patchFunction"] = "patch function";
+  })(MutationType || (MutationType = {}));
+  function createPinia() {
+    const scope = effectScope(true);
+    const state = scope.run(() => /* @__PURE__ */ ref({}));
+    let _p = [];
+    let toBeInstalled = [];
+    const pinia = markRaw({
+      install(app) {
+        setActivePinia(pinia);
+        pinia._a = app;
+        app.provide(piniaSymbol, pinia);
+        app.config.globalProperties.$pinia = pinia;
+        toBeInstalled.forEach((plugin) => _p.push(plugin));
+        toBeInstalled = [];
+      },
+      use(plugin) {
+        if (!this._a) {
+          toBeInstalled.push(plugin);
+        } else {
+          _p.push(plugin);
+        }
+        return this;
+      },
+      _p,
+      // it's actually undefined here
+      // @ts-expect-error
+      _a: null,
+      _e: scope,
+      _s: /* @__PURE__ */ new Map(),
+      state
+    });
+    return pinia;
+  }
+  const noop = () => {
+  };
+  function addSubscription(subscriptions, callback, detached, onCleanup = noop) {
+    subscriptions.add(callback);
+    const removeSubscription = () => {
+      const isDel = subscriptions.delete(callback);
+      isDel && onCleanup();
+    };
+    if (!detached && getCurrentScope()) {
+      onScopeDispose(removeSubscription);
     }
+    return removeSubscription;
   }
-  {
-    initDev();
+  function triggerSubscriptions(subscriptions, ...args) {
+    subscriptions.forEach((callback) => {
+      callback(...args);
+    });
   }
+  const fallbackRunWithContext = (fn) => fn();
+  const ACTION_MARKER = Symbol();
+  const ACTION_NAME = Symbol();
+  function mergeReactiveObjects(target, patchToApply) {
+    if (target instanceof Map && patchToApply instanceof Map) {
+      patchToApply.forEach((value, key) => target.set(key, value));
+    } else if (target instanceof Set && patchToApply instanceof Set) {
+      patchToApply.forEach(target.add, target);
+    }
+    for (const key in patchToApply) {
+      if (!patchToApply.hasOwnProperty(key))
+        continue;
+      const subPatch = patchToApply[key];
+      const targetValue = target[key];
+      if (isPlainObject(targetValue) && isPlainObject(subPatch) && target.hasOwnProperty(key) && !/* @__PURE__ */ isRef(subPatch) && !/* @__PURE__ */ isReactive(subPatch)) {
+        target[key] = mergeReactiveObjects(targetValue, subPatch);
+      } else {
+        target[key] = subPatch;
+      }
+    }
+    return target;
+  }
+  const skipHydrateSymbol = (
+    /* istanbul ignore next */
+    Symbol()
+  );
+  function shouldHydrate(obj) {
+    return !isPlainObject(obj) || !Object.prototype.hasOwnProperty.call(obj, skipHydrateSymbol);
+  }
+  const { assign } = Object;
+  function isComputed(o) {
+    return !!(/* @__PURE__ */ isRef(o) && o.effect);
+  }
+  function createOptionsStore(id, options, pinia, hot) {
+    const { state, actions, getters } = options;
+    const initialState = pinia.state.value[id];
+    let store;
+    function setup() {
+      if (!initialState && true) {
+        pinia.state.value[id] = state ? state() : {};
+      }
+      const localState = /* @__PURE__ */ toRefs(pinia.state.value[id]);
+      return assign(localState, actions, Object.keys(getters || {}).reduce((computedGetters, name) => {
+        computedGetters[name] = markRaw(computed(() => {
+          setActivePinia(pinia);
+          const store2 = pinia._s.get(id);
+          return getters[name].call(store2, store2);
+        }));
+        return computedGetters;
+      }, {}));
+    }
+    store = createSetupStore(id, setup, options, pinia, hot, true);
+    return store;
+  }
+  function createSetupStore($id, setup, options = {}, pinia, hot, isOptionsStore) {
+    let scope;
+    const optionsForPlugin = assign({ actions: {} }, options);
+    const $subscribeOptions = { deep: true };
+    let isListening;
+    let isSyncListening;
+    let subscriptions = /* @__PURE__ */ new Set();
+    let actionSubscriptions = /* @__PURE__ */ new Set();
+    let debuggerEvents;
+    const initialState = pinia.state.value[$id];
+    if (!isOptionsStore && !initialState && true) {
+      pinia.state.value[$id] = {};
+    }
+    let activeListener;
+    function $patch(partialStateOrMutator) {
+      let subscriptionMutation;
+      isListening = isSyncListening = false;
+      if (typeof partialStateOrMutator === "function") {
+        partialStateOrMutator(pinia.state.value[$id]);
+        subscriptionMutation = {
+          type: MutationType.patchFunction,
+          storeId: $id,
+          events: debuggerEvents
+        };
+      } else {
+        mergeReactiveObjects(pinia.state.value[$id], partialStateOrMutator);
+        subscriptionMutation = {
+          type: MutationType.patchObject,
+          payload: partialStateOrMutator,
+          storeId: $id,
+          events: debuggerEvents
+        };
+      }
+      const myListenerId = activeListener = Symbol();
+      nextTick().then(() => {
+        if (activeListener === myListenerId) {
+          isListening = true;
+        }
+      });
+      isSyncListening = true;
+      triggerSubscriptions(subscriptions, subscriptionMutation, pinia.state.value[$id]);
+    }
+    const $reset = isOptionsStore ? function $reset2() {
+      const { state } = options;
+      const newState = state ? state() : {};
+      this.$patch(($state) => {
+        assign($state, newState);
+      });
+    } : (
+      /* istanbul ignore next */
+      noop
+    );
+    function $dispose() {
+      scope.stop();
+      subscriptions.clear();
+      actionSubscriptions.clear();
+      pinia._s.delete($id);
+    }
+    const action = (fn, name = "") => {
+      if (ACTION_MARKER in fn) {
+        fn[ACTION_NAME] = name;
+        return fn;
+      }
+      const wrappedAction = function() {
+        setActivePinia(pinia);
+        const args = Array.from(arguments);
+        const afterCallbackSet = /* @__PURE__ */ new Set();
+        const onErrorCallbackSet = /* @__PURE__ */ new Set();
+        function after(callback) {
+          afterCallbackSet.add(callback);
+        }
+        function onError(callback) {
+          onErrorCallbackSet.add(callback);
+        }
+        triggerSubscriptions(actionSubscriptions, {
+          args,
+          name: wrappedAction[ACTION_NAME],
+          store,
+          after,
+          onError
+        });
+        let ret;
+        try {
+          ret = fn.apply(this && this.$id === $id ? this : store, args);
+        } catch (error) {
+          triggerSubscriptions(onErrorCallbackSet, error);
+          throw error;
+        }
+        if (ret instanceof Promise) {
+          return ret.then((value) => {
+            triggerSubscriptions(afterCallbackSet, value);
+            return value;
+          }).catch((error) => {
+            triggerSubscriptions(onErrorCallbackSet, error);
+            return Promise.reject(error);
+          });
+        }
+        triggerSubscriptions(afterCallbackSet, ret);
+        return ret;
+      };
+      wrappedAction[ACTION_MARKER] = true;
+      wrappedAction[ACTION_NAME] = name;
+      return wrappedAction;
+    };
+    const partialStore = {
+      _p: pinia,
+      // _s: scope,
+      $id,
+      $onAction: addSubscription.bind(null, actionSubscriptions),
+      $patch,
+      $reset,
+      $subscribe(callback, options2 = {}) {
+        const removeSubscription = addSubscription(subscriptions, callback, options2.detached, () => stopWatcher());
+        const stopWatcher = scope.run(() => watch(() => pinia.state.value[$id], (state) => {
+          if (options2.flush === "sync" ? isSyncListening : isListening) {
+            callback({
+              storeId: $id,
+              type: MutationType.direct,
+              events: debuggerEvents
+            }, state);
+          }
+        }, assign({}, $subscribeOptions, options2)));
+        return removeSubscription;
+      },
+      $dispose
+    };
+    const store = /* @__PURE__ */ reactive(partialStore);
+    pinia._s.set($id, store);
+    const runWithContext = pinia._a && pinia._a.runWithContext || fallbackRunWithContext;
+    const setupStore = runWithContext(() => pinia._e.run(() => (scope = effectScope()).run(() => setup({ action }))));
+    for (const key in setupStore) {
+      const prop = setupStore[key];
+      if (/* @__PURE__ */ isRef(prop) && !isComputed(prop) || /* @__PURE__ */ isReactive(prop)) {
+        if (!isOptionsStore) {
+          if (initialState && shouldHydrate(prop)) {
+            if (/* @__PURE__ */ isRef(prop)) {
+              prop.value = initialState[key];
+            } else {
+              mergeReactiveObjects(prop, initialState[key]);
+            }
+          }
+          pinia.state.value[$id][key] = prop;
+        }
+      } else if (typeof prop === "function") {
+        const actionValue = action(prop, key);
+        setupStore[key] = actionValue;
+        optionsForPlugin.actions[key] = prop;
+      } else ;
+    }
+    assign(store, setupStore);
+    assign(/* @__PURE__ */ toRaw(store), setupStore);
+    Object.defineProperty(store, "$state", {
+      get: () => pinia.state.value[$id],
+      set: (state) => {
+        $patch(($state) => {
+          assign($state, state);
+        });
+      }
+    });
+    pinia._p.forEach((extender) => {
+      {
+        assign(store, scope.run(() => extender({
+          store,
+          app: pinia._a,
+          pinia,
+          options: optionsForPlugin
+        })));
+      }
+    });
+    if (initialState && isOptionsStore && options.hydrate) {
+      options.hydrate(store.$state, initialState);
+    }
+    isListening = true;
+    isSyncListening = true;
+    return store;
+  }
+  /*! #__NO_SIDE_EFFECTS__ */
+  // @__NO_SIDE_EFFECTS__
+  function defineStore(id, setup, setupOptions) {
+    let options;
+    const isSetupStore = typeof setup === "function";
+    options = isSetupStore ? setupOptions : setup;
+    function useStore(pinia, hot) {
+      const hasContext = hasInjectionContext();
+      pinia = // in test mode, ignore the argument provided as we can always retrieve a
+      // pinia instance with getActivePinia()
+      pinia || (hasContext ? inject(piniaSymbol, null) : null);
+      if (pinia)
+        setActivePinia(pinia);
+      pinia = activePinia;
+      if (!pinia._s.has(id)) {
+        if (isSetupStore) {
+          createSetupStore(id, setup, options, pinia);
+        } else {
+          createOptionsStore(id, options, pinia);
+        }
+      }
+      const store = pinia._s.get(id);
+      return store;
+    }
+    useStore.$id = id;
+    return useStore;
+  }
+  const useChatStore = /* @__PURE__ */ defineStore("magnus.chat", () => {
+    const messages = /* @__PURE__ */ ref([]);
+    function setMessages(nextMessages) {
+      messages.value = Array.isArray(nextMessages) ? nextMessages : [];
+    }
+    function append(message) {
+      messages.value.push(message);
+    }
+    function clear() {
+      messages.value = [];
+    }
+    return {
+      messages,
+      setMessages,
+      append,
+      clear
+    };
+  });
+  const useProjectStore = /* @__PURE__ */ defineStore("magnus.project", () => {
+    const current = /* @__PURE__ */ ref(null);
+    const serviceStatus = /* @__PURE__ */ ref("unknown");
+    const serviceError = /* @__PURE__ */ ref("");
+    const serviceMessage = /* @__PURE__ */ ref("");
+    function setProject(project) {
+      current.value = project;
+    }
+    function setServiceStatus(status, message = "", error = "") {
+      serviceStatus.value = status;
+      serviceMessage.value = message;
+      serviceError.value = error;
+    }
+    return {
+      current,
+      serviceStatus,
+      serviceError,
+      serviceMessage,
+      setProject,
+      setServiceStatus
+    };
+  });
+  const useSearchStore = /* @__PURE__ */ defineStore("magnus.search", () => {
+    const status = /* @__PURE__ */ ref("idle");
+    const candidates = /* @__PURE__ */ ref([]);
+    const selectedCandidatePaths = /* @__PURE__ */ ref([]);
+    const expandedCandidatePath = /* @__PURE__ */ ref("");
+    const apiTrace = /* @__PURE__ */ ref(null);
+    const i18nTrace = /* @__PURE__ */ ref(null);
+    const definitionTrace = /* @__PURE__ */ ref(null);
+    const startedAt = /* @__PURE__ */ ref(0);
+    const finishedAt = /* @__PURE__ */ ref(0);
+    const error = /* @__PURE__ */ ref("");
+    const includeApiEvidence = /* @__PURE__ */ ref(true);
+    const modelAssistAttempted = /* @__PURE__ */ ref(false);
+    const selectedCandidates = computed(() => {
+      const selected = new Set(selectedCandidatePaths.value);
+      return candidates.value.filter((item) => selected.has(item.file));
+    });
+    function start() {
+      status.value = "loading";
+      error.value = "";
+      startedAt.value = Date.now();
+      finishedAt.value = 0;
+      modelAssistAttempted.value = false;
+    }
+    function applyResult(result) {
+      var _a;
+      candidates.value = Array.isArray(result == null ? void 0 : result.hits) ? result.hits : [];
+      selectedCandidatePaths.value = ((_a = candidates.value[0]) == null ? void 0 : _a.file) ? [candidates.value[0].file] : [];
+      expandedCandidatePath.value = "";
+      apiTrace.value = (result == null ? void 0 : result.apiTrace) || null;
+      i18nTrace.value = (result == null ? void 0 : result.i18nTrace) || null;
+      definitionTrace.value = (result == null ? void 0 : result.definitionTrace) || null;
+      status.value = candidates.value.length ? "success" : "idle";
+      finishedAt.value = Date.now();
+    }
+    function fail(reason) {
+      status.value = "error";
+      error.value = `${(reason == null ? void 0 : reason.message) || reason || ""}`;
+      finishedAt.value = Date.now();
+    }
+    function reset() {
+      status.value = "idle";
+      candidates.value = [];
+      selectedCandidatePaths.value = [];
+      expandedCandidatePath.value = "";
+      apiTrace.value = null;
+      i18nTrace.value = null;
+      definitionTrace.value = null;
+      startedAt.value = 0;
+      finishedAt.value = 0;
+      error.value = "";
+      modelAssistAttempted.value = false;
+    }
+    return {
+      status,
+      candidates,
+      selectedCandidatePaths,
+      expandedCandidatePath,
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      startedAt,
+      finishedAt,
+      error,
+      includeApiEvidence,
+      modelAssistAttempted,
+      selectedCandidates,
+      start,
+      applyResult,
+      fail,
+      reset
+    };
+  });
+  const _hoisted_1$7 = {
+    class: "mda-chat-thread",
+    "aria-label": "页面改造对话"
+  };
+  const _hoisted_2$7 = { class: "mda-message-avatar" };
+  const _hoisted_3$7 = { class: "mda-message-bubble" };
+  const _hoisted_4$7 = {
+    key: 0,
+    class: "mda-message-work"
+  };
+  const _hoisted_5$7 = ["aria-expanded", "onClick"];
+  const _hoisted_6$5 = { class: "mda-message-work-label" };
+  const _hoisted_7$5 = {
+    key: 1,
+    class: "mda-message-work-label"
+  };
+  const _hoisted_8$5 = {
+    key: 1,
+    class: "mda-message-logs"
+  };
+  const _hoisted_9$4 = { class: "mda-log-file-label" };
+  const _hoisted_10$4 = ["onClick"];
+  const _hoisted_11$4 = {
+    key: 1,
+    class: "mda-message-log-pre"
+  };
+  const _hoisted_12$3 = {
+    key: 0,
+    class: "mda-message-title"
+  };
+  const _hoisted_13$3 = {
+    key: 1,
+    class: "mda-message-text"
+  };
+  const _hoisted_14$2 = {
+    key: 2,
+    class: "mda-message-pre"
+  };
+  const _hoisted_15$2 = {
+    key: 3,
+    class: "mda-message-actions"
+  };
+  const _hoisted_16$2 = ["disabled"];
+  const _hoisted_17$1 = {
+    key: 4,
+    class: "mda-message-actions"
+  };
+  const _hoisted_18$1 = {
+    key: 0,
+    class: "mda-warning"
+  };
+  const _hoisted_19$1 = {
+    key: 1,
+    class: "mda-warning"
+  };
+  const _sfc_main$9 = {
+    __name: "ChatThread",
+    setup(__props) {
+      const commands = useMagnusCommands();
+      const chatStore = useChatStore();
+      const projectStore = useProjectStore();
+      const searchStore = useSearchStore();
+      const messages = computed(() => chatStore.messages);
+      const sourceServiceStatus = computed(() => projectStore.serviceStatus);
+      const sourceServiceError = computed(() => projectStore.serviceError);
+      const candidateError = computed(() => searchStore.error);
+      const nowTick = /* @__PURE__ */ ref(Date.now());
+      const logOpenState = /* @__PURE__ */ ref({});
+      let clockTimer = 0;
+      watch(messages, (nextMessages) => {
+        const nextState = {};
+        for (const message of nextMessages || []) {
+          if (!(message == null ? void 0 : message.id)) continue;
+          if (Object.prototype.hasOwnProperty.call(logOpenState.value, message.id)) {
+            nextState[message.id] = logOpenState.value[message.id];
+          } else {
+            nextState[message.id] = !!message.logExpanded;
+          }
+        }
+        logOpenState.value = nextState;
+      }, { immediate: true });
+      onMounted(() => {
+        clockTimer = window.setInterval(() => {
+          nowTick.value = Date.now();
+        }, 1e3);
+      });
+      onBeforeUnmount(() => {
+        window.clearInterval(clockTimer);
+      });
+      function avatarText(role) {
+        if (role === "user") return "你";
+        if (role === "agent") return "模型";
+        return "系统";
+      }
+      function hasLogs(message) {
+        return Array.isArray(message == null ? void 0 : message.logs) && message.logs.length > 0;
+      }
+      function showMessageWork(message) {
+        return (message == null ? void 0 : message.role) !== "user" && (hasLogs(message) || Number((message == null ? void 0 : message.durationStartedAt) || 0) > 0);
+      }
+      function isLogExpanded(id, fallback) {
+        if (!id) return !!fallback;
+        return Object.prototype.hasOwnProperty.call(logOpenState.value, id) ? logOpenState.value[id] : !!fallback;
+      }
+      function toggleLog(id, fallback) {
+        logOpenState.value = __spreadProps(__spreadValues({}, logOpenState.value), {
+          [id]: !isLogExpanded(id, fallback)
+        });
+      }
+      function formatDuration(ms) {
+        const totalSeconds = Math.max(0, Math.round(Number(ms || 0) / 1e3));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      }
+      function messageDurationMs(message) {
+        const startedAt = Number((message == null ? void 0 : message.durationStartedAt) || 0);
+        if (!startedAt) return 0;
+        const finishedAt = Number((message == null ? void 0 : message.durationFinishedAt) || 0);
+        return Math.max(0, (finishedAt || nowTick.value) - startedAt);
+      }
+      function messageWorkLabel(message) {
+        const duration = messageDurationMs(message);
+        return `${(message == null ? void 0 : message.durationActive) ? "处理中" : "已处理"} ${formatDuration(duration)}`;
+      }
+      function isCandidateLog(log) {
+        return /^候选\s+\d+:\s+/.test(log) || /^文件:\s+/.test(log);
+      }
+      function isMultilineLog(log) {
+        return typeof log === "string" && /\n/.test(log);
+      }
+      function candidatePrefix(log) {
+        const match = String(log || "").match(/^(候选\s+\d+:\s+|文件:\s+)/);
+        return match ? match[1] : "";
+      }
+      function candidateFile(log) {
+        return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock("section", _hoisted_1$7, [
+          (openBlock(true), createElementBlock(
+            Fragment,
+            null,
+            renderList(messages.value, (message) => {
+              return openBlock(), createElementBlock(
+                "article",
+                {
+                  key: message.id,
+                  class: normalizeClass(["mda-chat-message", `is-${message.role}`])
+                },
+                [
+                  createBaseVNode(
+                    "div",
+                    _hoisted_2$7,
+                    toDisplayString(avatarText(message.role)),
+                    1
+                    /* TEXT */
+                  ),
+                  createBaseVNode("div", _hoisted_3$7, [
+                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$7, [
+                      hasLogs(message) ? (openBlock(), createElementBlock("button", {
+                        key: 0,
+                        class: "mda-message-work-toggle",
+                        type: "button",
+                        "aria-expanded": String(isLogExpanded(message.id, message.logExpanded)),
+                        onClick: ($event) => toggleLog(message.id, message.logExpanded)
+                      }, [
+                        createBaseVNode(
+                          "span",
+                          _hoisted_6$5,
+                          toDisplayString(messageWorkLabel(message)),
+                          1
+                          /* TEXT */
+                        ),
+                        createBaseVNode(
+                          "i",
+                          {
+                            class: normalizeClass(["mda-message-work-caret", { "is-open": isLogExpanded(message.id, message.logExpanded) }])
+                          },
+                          null,
+                          2
+                          /* CLASS */
+                        )
+                      ], 8, _hoisted_5$7)) : (openBlock(), createElementBlock(
+                        "div",
+                        _hoisted_7$5,
+                        toDisplayString(messageWorkLabel(message)),
+                        1
+                        /* TEXT */
+                      ))
+                    ])) : createCommentVNode("v-if", true),
+                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_8$5, [
+                      (openBlock(true), createElementBlock(
+                        Fragment,
+                        null,
+                        renderList(message.logs, (log, logIndex) => {
+                          return openBlock(), createElementBlock(
+                            "div",
+                            {
+                              key: logIndex,
+                              class: normalizeClass(["mda-message-log-item", { "is-candidate-log": isCandidateLog(log) }])
+                            },
+                            [
+                              isCandidateLog(log) ? (openBlock(), createElementBlock(
+                                Fragment,
+                                { key: 0 },
+                                [
+                                  createBaseVNode(
+                                    "span",
+                                    _hoisted_9$4,
+                                    toDisplayString(candidatePrefix(log)),
+                                    1
+                                    /* TEXT */
+                                  ),
+                                  createBaseVNode("button", {
+                                    class: "mda-log-file-link",
+                                    type: "button",
+                                    onClick: ($event) => unref(commands).openSourceFile(candidateFile(log))
+                                  }, toDisplayString(candidateFile(log)), 9, _hoisted_10$4)
+                                ],
+                                64
+                                /* STABLE_FRAGMENT */
+                              )) : isMultilineLog(log) ? (openBlock(), createElementBlock(
+                                "pre",
+                                _hoisted_11$4,
+                                toDisplayString(log),
+                                1
+                                /* TEXT */
+                              )) : (openBlock(), createElementBlock(
+                                Fragment,
+                                { key: 2 },
+                                [
+                                  createTextVNode(
+                                    toDisplayString(log),
+                                    1
+                                    /* TEXT */
+                                  )
+                                ],
+                                64
+                                /* STABLE_FRAGMENT */
+                              ))
+                            ],
+                            2
+                            /* CLASS */
+                          );
+                        }),
+                        128
+                        /* KEYED_FRAGMENT */
+                      ))
+                    ])) : createCommentVNode("v-if", true),
+                    createBaseVNode(
+                      "div",
+                      {
+                        class: normalizeClass(["mda-message-content", { "has-work": showMessageWork(message) }])
+                      },
+                      [
+                        message.title ? (openBlock(), createElementBlock(
+                          "div",
+                          _hoisted_12$3,
+                          toDisplayString(message.title),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        message.text ? (openBlock(), createElementBlock(
+                          "div",
+                          _hoisted_13$3,
+                          toDisplayString(message.text),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        message.pre ? (openBlock(), createElementBlock(
+                          "pre",
+                          _hoisted_14$2,
+                          toDisplayString(message.pre),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$2, [
+                          createBaseVNode("button", {
+                            class: "mda-btn mda-btn-primary",
+                            type: "button",
+                            disabled: sourceServiceStatus.value === "loading",
+                            onClick: _cache[0] || (_cache[0] = (...args) => unref(commands).selectProject && unref(commands).selectProject(...args))
+                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$2)
+                        ])) : createCommentVNode("v-if", true),
+                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$1, [
+                          createBaseVNode("button", {
+                            class: "mda-btn",
+                            type: "button",
+                            onClick: _cache[1] || (_cache[1] = (...args) => unref(commands).copyPrompt && unref(commands).copyPrompt(...args))
+                          }, "复制提示词")
+                        ])) : createCommentVNode("v-if", true)
+                      ],
+                      2
+                      /* CLASS */
+                    )
+                  ])
+                ],
+                2
+                /* CLASS */
+              );
+            }),
+            128
+            /* KEYED_FRAGMENT */
+          )),
+          sourceServiceError.value ? (openBlock(), createElementBlock(
+            "div",
+            _hoisted_18$1,
+            toDisplayString(sourceServiceError.value),
+            1
+            /* TEXT */
+          )) : createCommentVNode("v-if", true),
+          candidateError.value ? (openBlock(), createElementBlock(
+            "div",
+            _hoisted_19$1,
+            toDisplayString(candidateError.value),
+            1
+            /* TEXT */
+          )) : createCommentVNode("v-if", true)
+        ]);
+      };
+    }
+  };
+  const CTX_VALUE_KEY = Symbol("magnus-inspector-ctx-value");
+  const CTX_API_KEY = Symbol("magnus-inspector-ctx-api");
+  function useCtx(ctxValue, ctxApi) {
+    const value = /* @__PURE__ */ shallowRef(ctxValue || {});
+    const api = ctxApi || {};
+    const setup = () => {
+      provide(CTX_VALUE_KEY, value);
+      provide(CTX_API_KEY, api);
+    };
+    return __spreadProps(__spreadValues({
+      value
+    }, api), {
+      setup
+    });
+  }
+  function useForm(key) {
+    const ctxValue = inject(CTX_VALUE_KEY);
+    if (!ctxValue) throw new Error("Magnus inspector context value is not provided");
+    if (!key) return ctxValue;
+    return ctxValue.value[key];
+  }
+  function useApi() {
+    const api = inject(CTX_API_KEY);
+    if (!api) throw new Error("Magnus inspector context api is not provided");
+    return api;
+  }
+  function candidateStageLabel(hit) {
+    const labels = {
+      keyword: "关键词命中",
+      reverse: "组件反查",
+      "import-chain": "import 链路",
+      "route-import-chain": "页面链路",
+      "api-endpoint": "接口定义",
+      "api-usage": "接口调用",
+      "api-upstream": "上层引用",
+      "model-agent": "模型定位",
+      "route-resolver": "页面路由"
+    };
+    return labels[hit == null ? void 0 : hit.stage] || "候选命中";
+  }
+  function candidateStageExplanation(hit) {
+    const reasons = hit.reasons || [];
+    const uniqueLine = hit.preciseEvidence ? `可靠证据: 选区上下文与命中文案在同文件汇合${hit.exactMatchText ? `；命中 "${hit.exactMatchText}"` : ""}${hit.contextScore ? `；上下文分 ${hit.contextScore}` : ""}` : hit.uniqueSnippet && hit.uniqueMatchCount === 1 ? `可靠证据: 文件内唯一文案命中(${hit.uniqueMatchLabel || "文案"}) "${hit.uniqueMatchText || "-"}"，但仍需结合页面上下文判断` : "可靠证据: 暂无强页面上下文证据，当前只作为候选参与排序";
+    if (hit.stage === "import-chain" || hit.stage === "route-import-chain") {
+      return [
+        hit.stage === "route-import-chain" ? `定位过程: 先用页面 path 命中当前页面入口 ${hit.anchorFile || hit.from || "-"}，再沿 import 链路访问到该候选文件` : `定位过程: 先用补充线索命中 ${hit.anchorFile || hit.from || "-"}，再沿 import 链路访问到该候选文件`,
+        hit.importChain && hit.importChain.length ? `import 链路: ${hit.importChain.join(" -> ")}` : "",
+        uniqueLine,
+        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+      ];
+    }
+    if (hit.stage === "reverse") {
+      return [
+        `定位过程: 先命中子组件/模块 ${hit.from || "-"}，再反查哪些页面或模块引用它`,
+        uniqueLine,
+        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+      ];
+    }
+    if (hit.stage === "api-endpoint" || hit.stage === "api-usage" || hit.stage === "api-upstream") {
+      return [
+        "定位过程: 先用接口端点搜索接口封装，再追踪函数/符号引用到页面或模块",
+        hit.from ? `来源: ${hit.from}` : "",
+        uniqueLine,
+        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+      ];
+    }
+    if (hit.stage === "route-resolver") {
+      return [
+        `定位过程: 先按当前页面 path 选择 ${hit.routeAdapter || "unknown"} 路由适配器，再解析路由声明或文件系统路由`,
+        hit.from ? `来源: ${hit.from}` : "",
+        hit.routePath ? `路由 path: ${hit.routePath}` : "",
+        uniqueLine,
+        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+      ];
+    }
+    if (hit.stage === "model-agent") {
+      return [
+        `定位过程: 模型阅读本地预检索结果、候选文件内容和选区证据后推荐该文件`,
+        hit.modelAdapter ? `模型: ${hit.modelAdapter}` : "",
+        hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : "",
+        hit.modelLocateLevel ? `定位层级: ${hit.modelLocateLevel}${hit.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}` : "",
+        hit.modelCodeSnippet ? `${hit.modelSnippetVerified === false ? "模型源码方向片段" : "模型代码片段"}: ${hit.modelCodeSnippet}` : "",
+        hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : "",
+        hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : "",
+        uniqueLine,
+        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+      ];
+    }
+    return [
+      "定位过程: 直接用页面文案、className、URL path、用户补充证据检索源码内容和路径",
+      uniqueLine,
+      ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+    ];
+  }
+  function candidateLogLines(hit, index) {
+    if (!hit) return [];
+    const lines = [
+      index != null ? `候选 ${index + 1}: ${hit.file}` : `文件: ${hit.file}`,
+      `命中方式: ${candidateStageLabel(hit)}；分数 ${hit.score}`,
+      hit.exactMatchText ? `文案命中统计: "${hit.exactMatchText}" 在该文件出现 ${hit.exactMatchCount || 0} 次` : "",
+      ...candidateStageExplanation(hit)
+    ].filter(Boolean);
+    if (hit.preciseSnippet || hit.uniqueSnippet && hit.uniqueMatchCount === 1) {
+      lines.push(`源码片段:
+${hit.preciseSnippet || hit.uniqueSnippet}`);
+    }
+    return lines;
+  }
+  function candidateDetailTitle(hit) {
+    return (hit == null ? void 0 : hit.preciseSnippet) || (hit == null ? void 0 : hit.uniqueSnippet) && hit.uniqueMatchCount === 1 ? "查看命中片段和日志" : "查看检索日志";
+  }
+  function candidateLogText(hit) {
+    return candidateLogLines(hit).join("\n");
+  }
+  const _hoisted_1$6 = {
+    key: 0,
+    class: "mda-composer-options"
+  };
+  const _hoisted_2$6 = { class: "mda-collapsible-head" };
+  const _hoisted_3$6 = {
+    key: 0,
+    class: "mda-collapsed-summary"
+  };
+  const _hoisted_4$6 = {
+    key: 1,
+    class: "mda-choice-list"
+  };
+  const _hoisted_5$6 = { class: "mda-choice-check" };
+  const _hoisted_6$4 = ["checked", "onChange"];
+  const _hoisted_7$4 = ["onClick"];
+  const _hoisted_8$4 = { class: "mda-choice-meta" };
+  const _hoisted_9$3 = ["onClick"];
+  const _hoisted_10$3 = {
+    key: 0,
+    class: "mda-candidate-log"
+  };
+  const _hoisted_11$3 = {
+    key: 1,
+    class: "mda-composer-options"
+  };
+  const _sfc_main$8 = {
+    __name: "CandidateOptions",
+    setup(__props) {
+      const api = useApi();
+      const showCandidatePicker = useForm("showCandidatePicker");
+      const needsMoreEvidence = useForm("needsMoreEvidence");
+      const candidateHits = useForm("candidateHits");
+      const selectedCandidatePaths = useForm("selectedCandidatePaths");
+      const expandedCandidatePath = useForm("expandedCandidatePath");
+      const modelAssistLoading = useForm("modelAssistLoading");
+      const collapsed = /* @__PURE__ */ ref(false);
+      watch(modelAssistLoading, (value) => {
+        if (value) collapsed.value = true;
+      });
+      function isCandidateSelected(hit) {
+        return !!hit && selectedCandidatePaths.value.includes(hit.file);
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock(
+          Fragment,
+          null,
+          [
+            unref(showCandidatePicker) ? (openBlock(), createElementBlock("div", _hoisted_1$6, [
+              createBaseVNode("div", _hoisted_2$6, [
+                _cache[1] || (_cache[1] = createBaseVNode(
+                  "div",
+                  { class: "mda-option-title" },
+                  "存在多个命中文件，请确认",
+                  -1
+                  /* CACHED */
+                )),
+                createBaseVNode(
+                  "button",
+                  {
+                    class: "mda-collapse-btn",
+                    type: "button",
+                    onClick: _cache[0] || (_cache[0] = ($event) => collapsed.value = !collapsed.value)
+                  },
+                  toDisplayString(collapsed.value ? "展开" : "收起"),
+                  1
+                  /* TEXT */
+                )
+              ]),
+              collapsed.value ? (openBlock(), createElementBlock(
+                "div",
+                _hoisted_3$6,
+                " 已选 " + toDisplayString(unref(selectedCandidatePaths).length || 0) + " / " + toDisplayString(unref(candidateHits).length) + " 个文件 ",
+                1
+                /* TEXT */
+              )) : (openBlock(), createElementBlock("div", _hoisted_4$6, [
+                (openBlock(true), createElementBlock(
+                  Fragment,
+                  null,
+                  renderList(unref(candidateHits), (hit) => {
+                    return openBlock(), createElementBlock(
+                      "article",
+                      {
+                        key: hit.file,
+                        class: normalizeClass(["mda-choice-card", { "is-selected": isCandidateSelected(hit) }])
+                      },
+                      [
+                        createBaseVNode("div", _hoisted_5$6, [
+                          createBaseVNode("input", {
+                            type: "checkbox",
+                            checked: isCandidateSelected(hit),
+                            onChange: ($event) => unref(api).toggleCandidateFile(hit)
+                          }, null, 40, _hoisted_6$4),
+                          createBaseVNode("button", {
+                            class: "mda-file-link",
+                            type: "button",
+                            onClick: withModifiers(($event) => unref(api).openSourceFile(hit.file), ["stop"])
+                          }, toDisplayString(hit.file), 9, _hoisted_7$4)
+                        ]),
+                        createBaseVNode(
+                          "div",
+                          _hoisted_8$4,
+                          toDisplayString(unref(candidateStageLabel)(hit)) + " · " + toDisplayString(hit.score),
+                          1
+                          /* TEXT */
+                        ),
+                        createBaseVNode("button", {
+                          class: "mda-link-btn",
+                          type: "button",
+                          onClick: ($event) => unref(api).toggleCandidateDetail(hit)
+                        }, toDisplayString(unref(expandedCandidatePath) === hit.file ? "收起" : unref(candidateDetailTitle)(hit)), 9, _hoisted_9$3),
+                        unref(expandedCandidatePath) === hit.file ? (openBlock(), createElementBlock(
+                          "pre",
+                          _hoisted_10$3,
+                          toDisplayString(unref(candidateLogText)(hit)),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true)
+                      ],
+                      2
+                      /* CLASS */
+                    );
+                  }),
+                  128
+                  /* KEYED_FRAGMENT */
+                ))
+              ]))
+            ])) : createCommentVNode("v-if", true),
+            unref(needsMoreEvidence) ? (openBlock(), createElementBlock("div", _hoisted_11$3, [..._cache[2] || (_cache[2] = [
+              createBaseVNode(
+                "div",
+                { class: "mda-option-title" },
+                "线索不足，需要补充页面证据",
+                -1
+                /* CACHED */
+              ),
+              createBaseVNode(
+                "div",
+                { class: "mda-option-desc" },
+                "这些候选文件缺少唯一命中文案，可能是重复复制粘贴的组件。请继续在页面上选择更外层/更独特的区域，或在输入框补充页面位置、业务模块、交互目标。",
+                -1
+                /* CACHED */
+              )
+            ])])) : createCommentVNode("v-if", true)
+          ],
+          64
+          /* STABLE_FRAGMENT */
+        );
+      };
+    }
+  };
+  const _hoisted_1$5 = ["value", "readonly", "placeholder"];
+  const _hoisted_2$5 = ["onClick"];
+  const _hoisted_3$5 = {
+    key: 1,
+    class: "mda-composer-shortcut-thumb is-empty"
+  };
+  const _hoisted_4$5 = { class: "mda-composer-shortcut-meta" };
+  const _hoisted_5$5 = {
+    key: 0,
+    class: "mda-composer-shortcut-empty"
+  };
+  const _sfc_main$7 = {
+    __name: "ComposerInput",
+    setup(__props, { expose: __expose }) {
+      const api = useApi();
+      const inputRef = /* @__PURE__ */ ref(null);
+      const shortcutMenuRef = /* @__PURE__ */ ref(null);
+      const shortcutMenuOpen = /* @__PURE__ */ ref(false);
+      const shortcutMenuQuery = /* @__PURE__ */ ref("");
+      const shortcutRangeStart = /* @__PURE__ */ ref(-1);
+      const shortcutRangeEnd = /* @__PURE__ */ ref(-1);
+      const shortcutActiveIndex = /* @__PURE__ */ ref(0);
+      const selectionStart = /* @__PURE__ */ ref(0);
+      const selectionEnd = /* @__PURE__ */ ref(0);
+      const promptAssets = useForm("promptAssets");
+      const composerInputValue = useForm("composerInputValue");
+      const composerEditable = useForm("composerEditable");
+      const composerPlaceholder = useForm("composerPlaceholder");
+      const shortcutAssets = computed(() => {
+        const query = shortcutMenuQuery.value.trim().toLowerCase();
+        const items = Array.isArray(promptAssets.value) ? promptAssets.value : [];
+        if (!query) return items;
+        return items.filter((asset) => {
+          const text = [
+            asset.token,
+            asset.label,
+            asset.summary,
+            asset.text,
+            asset.className
+          ].filter(Boolean).join(" ").toLowerCase();
+          return text.includes(query);
+        });
+      });
+      watch(composerInputValue, () => {
+        nextTick(() => {
+          syncComposerHeight();
+        });
+      });
+      watch([promptAssets, composerEditable], ([assets, editable]) => {
+        if (!editable || !(assets && assets.length)) closeShortcutMenu();
+      });
+      watch(shortcutAssets, (assets) => {
+        if (!assets.length) {
+          shortcutActiveIndex.value = 0;
+          return;
+        }
+        if (shortcutActiveIndex.value >= assets.length) {
+          shortcutActiveIndex.value = assets.length - 1;
+        }
+      });
+      onMounted(() => {
+        window.addEventListener("pointerdown", handleGlobalPointerDown, true);
+        nextTick(() => {
+          syncComposerHeight();
+        });
+      });
+      onBeforeUnmount(() => {
+        window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
+      });
+      __expose({
+        focusEvidenceInput(cursor = null) {
+          focusComposer(cursor);
+        },
+        insertAsset(asset) {
+          insertAssetToken(asset, { replaceMention: false });
+        }
+      });
+      function handleGlobalPointerDown(event) {
+        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+        const insideShortcutMenu = shortcutMenuRef.value && path.includes(shortcutMenuRef.value);
+        const insideComposerInput = inputRef.value && path.includes(inputRef.value);
+        if (!insideShortcutMenu && !insideComposerInput) {
+          closeShortcutMenu();
+        }
+      }
+      function assetThumbStyle(asset) {
+        return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+      }
+      function syncComposerHeight(target = inputRef.value) {
+        if (!target) return;
+        target.style.height = "auto";
+        target.style.height = `${Math.min(Math.max(target.scrollHeight, 72), 184)}px`;
+      }
+      function focusComposer(cursor = null) {
+        nextTick(() => {
+          if (!inputRef.value || typeof inputRef.value.focus !== "function") return;
+          inputRef.value.focus();
+          if (cursor != null && typeof inputRef.value.setSelectionRange === "function") {
+            inputRef.value.setSelectionRange(cursor, cursor);
+            selectionStart.value = cursor;
+            selectionEnd.value = cursor;
+          }
+          syncComposerHeight(inputRef.value);
+        });
+      }
+      function closeShortcutMenu() {
+        shortcutMenuOpen.value = false;
+        shortcutMenuQuery.value = "";
+        shortcutRangeStart.value = -1;
+        shortcutRangeEnd.value = -1;
+        shortcutActiveIndex.value = 0;
+      }
+      function resolveShortcutState(value, caret) {
+        if (!promptAssets.value.length) return null;
+        const before = String(value || "").slice(0, Math.max(0, caret));
+        const match = before.match(/(^|[\s(（,，;；])@([^\s@]*)$/);
+        if (!match) return null;
+        return {
+          start: before.length - match[2].length - 1,
+          end: before.length,
+          query: match[2] || ""
+        };
+      }
+      function updateComposerSelection(target) {
+        if (!target) return;
+        selectionStart.value = Number(target.selectionStart || 0);
+        selectionEnd.value = Number(target.selectionEnd || selectionStart.value);
+      }
+      function updateShortcutMenu(target) {
+        if (!target || !composerEditable.value) {
+          closeShortcutMenu();
+          return;
+        }
+        const state = resolveShortcutState(target.value, target.selectionStart || 0);
+        if (!state) {
+          closeShortcutMenu();
+          return;
+        }
+        shortcutMenuOpen.value = true;
+        shortcutMenuQuery.value = state.query;
+        shortcutRangeStart.value = state.start;
+        shortcutRangeEnd.value = state.end;
+        if (shortcutActiveIndex.value >= shortcutAssets.value.length) {
+          shortcutActiveIndex.value = 0;
+        }
+      }
+      function handleComposerInput(event) {
+        api.onComposerInput(event);
+        updateComposerSelection(event.target);
+        updateShortcutMenu(event.target);
+        syncComposerHeight(event.target);
+      }
+      function handleComposerCursor(event) {
+        updateComposerSelection(event.target);
+        updateShortcutMenu(event.target);
+      }
+      function moveShortcutActive(step) {
+        if (!shortcutMenuOpen.value || !shortcutAssets.value.length) return;
+        const total = shortcutAssets.value.length;
+        shortcutActiveIndex.value = (shortcutActiveIndex.value + step + total) % total;
+      }
+      function handleComposerKeydown(event) {
+        if (!shortcutMenuOpen.value) return;
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          moveShortcutActive(1);
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          moveShortcutActive(-1);
+          return;
+        }
+        if (event.key === "Tab") {
+          if (!shortcutAssets.value.length) return;
+          event.preventDefault();
+          selectShortcutAsset(shortcutAssets.value[shortcutActiveIndex.value]);
+          return;
+        }
+        if (event.key === "Enter") {
+          if (!shortcutAssets.value.length) return;
+          event.preventDefault();
+          selectShortcutAsset(shortcutAssets.value[shortcutActiveIndex.value]);
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeShortcutMenu();
+        }
+      }
+      function insertAssetToken(asset, options = {}) {
+        var _a;
+        if (!asset) return;
+        const currentValue = String(composerInputValue.value || "");
+        const replaceMention = !!options.replaceMention;
+        const replaceStart = replaceMention && shortcutRangeStart.value >= 0 ? shortcutRangeStart.value : Math.min(selectionStart.value, currentValue.length);
+        const replaceEnd = replaceMention && shortcutRangeEnd.value >= replaceStart ? shortcutRangeEnd.value : Math.min(selectionEnd.value, currentValue.length);
+        const result = api.insertPromptAsset(asset.token, {
+          replaceStart,
+          replaceEnd,
+          replaceMention
+        });
+        closeShortcutMenu();
+        focusComposer((_a = result == null ? void 0 : result.cursor) != null ? _a : replaceStart + String(asset.token || "").length + 1);
+      }
+      function selectShortcutAsset(asset) {
+        insertAssetToken(asset, { replaceMention: true });
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock(
+          Fragment,
+          null,
+          [
+            createBaseVNode("textarea", {
+              ref_key: "inputRef",
+              ref: inputRef,
+              value: unref(composerInputValue),
+              class: "mda-composer-input",
+              readonly: !unref(composerEditable),
+              placeholder: unref(composerPlaceholder),
+              rows: "1",
+              onInput: handleComposerInput,
+              onClick: handleComposerCursor,
+              onKeyup: handleComposerCursor,
+              onSelect: handleComposerCursor,
+              onFocus: handleComposerCursor,
+              onKeydown: handleComposerKeydown
+            }, null, 40, _hoisted_1$5),
+            shortcutMenuOpen.value ? (openBlock(), createElementBlock(
+              "div",
+              {
+                key: 0,
+                ref_key: "shortcutMenuRef",
+                ref: shortcutMenuRef,
+                class: "mda-composer-shortcut"
+              },
+              [
+                (openBlock(true), createElementBlock(
+                  Fragment,
+                  null,
+                  renderList(shortcutAssets.value, (asset, index) => {
+                    return openBlock(), createElementBlock("button", {
+                      key: asset.uid,
+                      class: normalizeClass(["mda-composer-shortcut-item", { "is-active": index === shortcutActiveIndex.value }]),
+                      type: "button",
+                      onMousedown: _cache[0] || (_cache[0] = withModifiers(() => {
+                      }, ["prevent"])),
+                      onClick: withModifiers(($event) => selectShortcutAsset(asset), ["prevent"])
+                    }, [
+                      asset.thumbnailUrl ? (openBlock(), createElementBlock(
+                        "span",
+                        {
+                          key: 0,
+                          class: "mda-composer-shortcut-thumb",
+                          style: normalizeStyle(assetThumbStyle(asset))
+                        },
+                        null,
+                        4
+                        /* STYLE */
+                      )) : (openBlock(), createElementBlock(
+                        "span",
+                        _hoisted_3$5,
+                        toDisplayString(asset.index),
+                        1
+                        /* TEXT */
+                      )),
+                      createBaseVNode("span", _hoisted_4$5, [
+                        createBaseVNode(
+                          "strong",
+                          null,
+                          toDisplayString(asset.token),
+                          1
+                          /* TEXT */
+                        ),
+                        createBaseVNode(
+                          "em",
+                          null,
+                          toDisplayString(asset.summary),
+                          1
+                          /* TEXT */
+                        )
+                      ])
+                    ], 42, _hoisted_2$5);
+                  }),
+                  128
+                  /* KEYED_FRAGMENT */
+                )),
+                !shortcutAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_5$5, "@ 无匹配选区")) : createCommentVNode("v-if", true)
+              ],
+              512
+              /* NEED_PATCH */
+            )) : createCommentVNode("v-if", true)
+          ],
+          64
+          /* STABLE_FRAGMENT */
+        );
+      };
+    }
+  };
+  const _sfc_main$6 = {
+    __name: "PopoverPanel",
+    props: {
+      visible: {
+        type: Boolean,
+        default: false
+      },
+      anchorRect: {
+        type: Object,
+        default: null
+      },
+      width: {
+        type: Number,
+        default: 380
+      },
+      maxHeight: {
+        type: Number,
+        default: 360
+      },
+      placement: {
+        type: String,
+        default: "auto"
+      },
+      gap: {
+        type: Number,
+        default: 10
+      },
+      viewportPadding: {
+        type: Number,
+        default: 12
+      }
+    },
+    emits: ["mouseenter", "mouseleave"],
+    setup(__props) {
+      const props = __props;
+      const panelStyle = computed(() => {
+        const rect = props.anchorRect;
+        if (!props.visible || !rect) return {};
+        const width = Math.min(props.width, Math.max(260, window.innerWidth - props.viewportPadding * 2));
+        const left = Math.max(
+          props.viewportPadding,
+          Math.min(rect.left, window.innerWidth - width - props.viewportPadding)
+        );
+        const roomBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
+        const roomAbove = rect.top - props.gap - props.maxHeight >= props.viewportPadding;
+        const showBelow = props.placement === "bottom" ? true : props.placement === "top" ? !roomAbove && roomBelow : roomBelow;
+        const top = showBelow ? rect.bottom + props.gap : Math.max(props.viewportPadding, rect.top - props.gap - props.maxHeight);
+        return {
+          left: `${Math.round(left)}px`,
+          top: `${Math.round(top)}px`,
+          width: `${Math.round(width)}px`,
+          maxHeight: `${Math.round(props.maxHeight)}px`
+        };
+      });
+      return (_ctx, _cache) => {
+        return __props.visible && __props.anchorRect ? (openBlock(), createElementBlock(
+          "div",
+          {
+            key: 0,
+            class: "mda-popover-panel",
+            style: normalizeStyle(panelStyle.value),
+            onMouseenter: _cache[0] || (_cache[0] = ($event) => _ctx.$emit("mouseenter")),
+            onMouseleave: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("mouseleave"))
+          },
+          [
+            renderSlot(_ctx.$slots, "default")
+          ],
+          36
+          /* STYLE, NEED_HYDRATION */
+        )) : createCommentVNode("v-if", true);
+      };
+    }
+  };
+  const _hoisted_1$4 = { class: "mda-composer-prebar" };
+  const _hoisted_2$4 = { class: "mda-composer-prebar-main" };
+  const _hoisted_3$4 = ["disabled"];
+  const _hoisted_4$4 = {
+    key: 0,
+    class: "mda-asset-strip"
+  };
+  const _hoisted_5$4 = ["title", "onMouseenter", "onMouseleave", "onClick", "onKeydown"];
+  const _hoisted_6$3 = {
+    key: 1,
+    class: "mda-asset-thumb is-empty"
+  };
+  const _hoisted_7$3 = ["onClick"];
+  const _hoisted_8$3 = {
+    key: 0,
+    class: "mda-asset-popover"
+  };
+  const _hoisted_9$2 = { class: "mda-asset-popover-head" };
+  const _hoisted_10$2 = { class: "mda-asset-popover-badge" };
+  const _hoisted_11$2 = { class: "mda-asset-popover-title-wrap" };
+  const _hoisted_12$2 = { class: "mda-asset-popover-title" };
+  const _hoisted_13$2 = { class: "mda-asset-popover-subtitle" };
+  const _hoisted_14$1 = { class: "mda-asset-popover-grid" };
+  const _hoisted_15$1 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_16$1 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_17 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_18 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_19 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_20 = { class: "mda-asset-popover-grid-item" };
+  const _sfc_main$5 = {
+    __name: "ComposerPrebar",
+    emits: ["insert-asset"],
+    setup(__props) {
+      const api = useApi();
+      const promptAssets = useForm("promptAssets");
+      const includeApiEvidence = useForm("includeApiEvidence");
+      const candidateLoading = useForm("candidateLoading");
+      const promptText = useForm("promptText");
+      const activeAssetPopoverUid = /* @__PURE__ */ ref("");
+      const activeAssetPopoverRect = /* @__PURE__ */ ref(null);
+      let activeAssetPopoverAnchor = null;
+      let assetPopoverTimer = 0;
+      const activeAssetPopover = computed(() => {
+        return promptAssets.value.find((item) => item.uid === activeAssetPopoverUid.value) || null;
+      });
+      onMounted(() => {
+        window.addEventListener("scroll", updateAssetPopoverRect, true);
+        window.addEventListener("resize", updateAssetPopoverRect, true);
+      });
+      onBeforeUnmount(() => {
+        window.removeEventListener("scroll", updateAssetPopoverRect, true);
+        window.removeEventListener("resize", updateAssetPopoverRect, true);
+        clearAssetPopoverTimer();
+      });
+      function toggleApiEvidence() {
+        api.setIncludeApiEvidence(!includeApiEvidence.value);
+        api.onSearchOptionChange();
+      }
+      function assetTooltip(asset) {
+        if (!asset) return "";
+        return [
+          `${asset.token} · 点击插入`,
+          "悬浮查看节点详情",
+          asset.text ? `文案: ${asset.text}` : "",
+          asset.className ? `class: ${asset.className}` : ""
+        ].filter(Boolean).join("\n");
+      }
+      function assetThumbStyle(asset) {
+        return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+      }
+      function formatAssetValue(value) {
+        if (!value) return "-";
+        if (typeof value === "string") return value;
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch (error) {
+          return String(value);
+        }
+      }
+      function assetDetailSections(asset) {
+        if (!asset) return [];
+        return [
+          { label: "选区 inline style", value: asset.inlineStyle || "-" },
+          { label: "选区 computed style", value: formatAssetValue(asset.computedStyle) },
+          { label: "选区 innerHTML", value: asset.innerHtml || "-" },
+          { label: "扩大选区文案", value: asset.assetText || "-" },
+          { label: "扩大选区 inline style", value: asset.assetInlineStyle || "-" },
+          { label: "扩大选区 computed style", value: formatAssetValue(asset.assetComputedStyle) },
+          { label: "扩大选区 innerHTML", value: asset.assetInnerHtml || "-" }
+        ];
+      }
+      function updateAssetPopoverRect() {
+        if (!activeAssetPopoverAnchor || !activeAssetPopoverAnchor.isConnected) return;
+        activeAssetPopoverRect.value = activeAssetPopoverAnchor.getBoundingClientRect();
+      }
+      function clearAssetPopoverTimer() {
+        if (!assetPopoverTimer) return;
+        window.clearTimeout(assetPopoverTimer);
+        assetPopoverTimer = 0;
+      }
+      function cancelAssetPopoverHide() {
+        clearAssetPopoverTimer();
+      }
+      function closeAssetPopover() {
+        var _a;
+        clearAssetPopoverTimer();
+        activeAssetPopoverUid.value = "";
+        activeAssetPopoverRect.value = null;
+        activeAssetPopoverAnchor = null;
+        (_a = api.restoreSelectionPreview) == null ? void 0 : _a.call(api);
+      }
+      function scheduleAssetPopoverHide(uid2 = "") {
+        clearAssetPopoverTimer();
+        assetPopoverTimer = window.setTimeout(() => {
+          if (!uid2 || activeAssetPopoverUid.value === uid2) closeAssetPopover();
+        }, 220);
+      }
+      function openAssetPopover(asset, event) {
+        var _a;
+        if (!asset) return;
+        clearAssetPopoverTimer();
+        (_a = api.previewSelection) == null ? void 0 : _a.call(api, asset);
+        activeAssetPopoverUid.value = asset.uid;
+        activeAssetPopoverAnchor = (event == null ? void 0 : event.currentTarget) || null;
+        updateAssetPopoverRect();
+        window.requestAnimationFrame(updateAssetPopoverRect);
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock("div", _hoisted_1$4, [
+          createBaseVNode("div", _hoisted_2$4, [
+            createBaseVNode("button", {
+              class: normalizeClass(["mda-assist-chip", { "is-active": unref(includeApiEvidence) }]),
+              type: "button",
+              disabled: unref(candidateLoading) || !!unref(promptText),
+              onClick: toggleApiEvidence
+            }, [..._cache[1] || (_cache[1] = [
+              createBaseVNode(
+                "span",
+                { class: "mda-chip-shield" },
+                null,
+                -1
+                /* CACHED */
+              ),
+              createBaseVNode(
+                "span",
+                null,
+                "接口线索",
+                -1
+                /* CACHED */
+              )
+            ])], 10, _hoisted_3$4),
+            unref(promptAssets).length ? (openBlock(), createElementBlock("div", _hoisted_4$4, [
+              (openBlock(true), createElementBlock(
+                Fragment,
+                null,
+                renderList(unref(promptAssets), (asset) => {
+                  return openBlock(), createElementBlock("article", {
+                    key: asset.token,
+                    class: "mda-asset-card"
+                  }, [
+                    createBaseVNode("div", {
+                      class: "mda-asset-chip",
+                      role: "button",
+                      tabindex: "0",
+                      title: assetTooltip(asset),
+                      onMouseenter: ($event) => openAssetPopover(asset, $event),
+                      onMouseleave: ($event) => scheduleAssetPopoverHide(asset.uid),
+                      onClick: ($event) => _ctx.$emit("insert-asset", asset),
+                      onKeydown: [
+                        withKeys(withModifiers(($event) => _ctx.$emit("insert-asset", asset), ["prevent"]), ["enter"]),
+                        withKeys(withModifiers(($event) => _ctx.$emit("insert-asset", asset), ["prevent"]), ["space"])
+                      ]
+                    }, [
+                      asset.thumbnailUrl ? (openBlock(), createElementBlock(
+                        "span",
+                        {
+                          key: 0,
+                          class: "mda-asset-thumb",
+                          style: normalizeStyle(assetThumbStyle(asset))
+                        },
+                        null,
+                        4
+                        /* STYLE */
+                      )) : (openBlock(), createElementBlock(
+                        "span",
+                        _hoisted_6$3,
+                        toDisplayString(asset.index),
+                        1
+                        /* TEXT */
+                      )),
+                      createBaseVNode("button", {
+                        class: "mda-asset-remove",
+                        type: "button",
+                        title: "移除这个选区",
+                        onClick: withModifiers(($event) => unref(api).removeSelection(asset.uid), ["stop"])
+                      }, "×", 8, _hoisted_7$3)
+                    ], 40, _hoisted_5$4)
+                  ]);
+                }),
+                128
+                /* KEYED_FRAGMENT */
+              ))
+            ])) : createCommentVNode("v-if", true)
+          ]),
+          createVNode(_sfc_main$6, {
+            visible: !!activeAssetPopover.value,
+            "anchor-rect": activeAssetPopoverRect.value,
+            width: 344,
+            placement: "top",
+            gap: 6,
+            "max-height": 320,
+            onMouseenter: cancelAssetPopoverHide,
+            onMouseleave: _cache[0] || (_cache[0] = ($event) => scheduleAssetPopoverHide())
+          }, {
+            default: withCtx(() => [
+              activeAssetPopover.value ? (openBlock(), createElementBlock("article", _hoisted_8$3, [
+                createBaseVNode("header", _hoisted_9$2, [
+                  createBaseVNode(
+                    "div",
+                    _hoisted_10$2,
+                    toDisplayString(activeAssetPopover.value.token),
+                    1
+                    /* TEXT */
+                  ),
+                  createBaseVNode("div", _hoisted_11$2, [
+                    createBaseVNode(
+                      "strong",
+                      _hoisted_12$2,
+                      toDisplayString(activeAssetPopover.value.label),
+                      1
+                      /* TEXT */
+                    ),
+                    createBaseVNode(
+                      "div",
+                      _hoisted_13$2,
+                      toDisplayString(activeAssetPopover.value.selector || activeAssetPopover.value.className || activeAssetPopover.value.text || "-"),
+                      1
+                      /* TEXT */
+                    )
+                  ])
+                ]),
+                createBaseVNode("div", _hoisted_14$1, [
+                  createBaseVNode("div", _hoisted_15$1, [
+                    _cache[2] || (_cache[2] = createBaseVNode(
+                      "span",
+                      null,
+                      "选区文案",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "pre",
+                      null,
+                      toDisplayString(activeAssetPopover.value.text || "-"),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("div", _hoisted_16$1, [
+                    _cache[3] || (_cache[3] = createBaseVNode(
+                      "span",
+                      null,
+                      "选区 selector",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "pre",
+                      null,
+                      toDisplayString(activeAssetPopover.value.selector || "-"),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("div", _hoisted_17, [
+                    _cache[4] || (_cache[4] = createBaseVNode(
+                      "span",
+                      null,
+                      "选区 class",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "pre",
+                      null,
+                      toDisplayString(activeAssetPopover.value.className || "-"),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("div", _hoisted_18, [
+                    _cache[5] || (_cache[5] = createBaseVNode(
+                      "span",
+                      null,
+                      "选区盒模型",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "pre",
+                      null,
+                      toDisplayString(formatAssetValue(activeAssetPopover.value.box)),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("div", _hoisted_19, [
+                    _cache[6] || (_cache[6] = createBaseVNode(
+                      "span",
+                      null,
+                      "扩大选区 selector",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "pre",
+                      null,
+                      toDisplayString(activeAssetPopover.value.assetSelector || "-"),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("div", _hoisted_20, [
+                    _cache[7] || (_cache[7] = createBaseVNode(
+                      "span",
+                      null,
+                      "扩大选区盒模型",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "pre",
+                      null,
+                      toDisplayString(formatAssetValue(activeAssetPopover.value.assetBox)),
+                      1
+                      /* TEXT */
+                    )
+                  ])
+                ]),
+                (openBlock(true), createElementBlock(
+                  Fragment,
+                  null,
+                  renderList(assetDetailSections(activeAssetPopover.value), (section) => {
+                    return openBlock(), createElementBlock("section", {
+                      key: section.label,
+                      class: "mda-asset-popover-section"
+                    }, [
+                      createBaseVNode(
+                        "span",
+                        null,
+                        toDisplayString(section.label),
+                        1
+                        /* TEXT */
+                      ),
+                      createBaseVNode(
+                        "pre",
+                        null,
+                        toDisplayString(section.value),
+                        1
+                        /* TEXT */
+                      )
+                    ]);
+                  }),
+                  128
+                  /* KEYED_FRAGMENT */
+                ))
+              ])) : createCommentVNode("v-if", true)
+            ]),
+            _: 1
+            /* STABLE */
+          }, 8, ["visible", "anchor-rect"])
+        ]);
+      };
+    }
+  };
+  const _hoisted_1$3 = ["disabled"];
+  const _hoisted_2$3 = { key: 0 };
+  const _hoisted_3$3 = {
+    key: 0,
+    class: "mda-model-dropdown"
+  };
+  const _hoisted_4$3 = ["onClick"];
+  const _hoisted_5$3 = {
+    key: 0,
+    class: "mda-model-divider"
+  };
+  const _sfc_main$4 = {
+    __name: "ModelMenu",
+    setup(__props) {
+      const api = useApi();
+      const menuRef = /* @__PURE__ */ ref(null);
+      const open = /* @__PURE__ */ ref(false);
+      const modelConfigs = useForm("modelConfigs");
+      const selectedModelId = useForm("selectedModelId");
+      const selectedModel = useForm("selectedModel");
+      const modelAssistLoading = useForm("modelAssistLoading");
+      const candidateLoading = useForm("candidateLoading");
+      const activeModelLabel = computed(() => {
+        var _a;
+        return ((_a = selectedModel.value) == null ? void 0 : _a.name) || "不启用";
+      });
+      const activeModelMeta = computed(() => {
+        if (!selectedModel.value) return "";
+        if (modelAssistLoading.value) return "定位中";
+        if (selectedModel.value.provider === "deepseek") return "DeepSeek API";
+        return formatModelType(selectedModel.value.type);
+      });
+      watch(modelAssistLoading, (value) => {
+        if (value) open.value = false;
+      });
+      onMounted(() => {
+        window.addEventListener("pointerdown", handleGlobalPointerDown, true);
+      });
+      onBeforeUnmount(() => {
+        window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
+      });
+      function handleGlobalPointerDown(event) {
+        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+        if (menuRef.value && (path.includes(menuRef.value) || menuRef.value.contains(event.target))) return;
+        open.value = false;
+      }
+      function toggleMenu() {
+        open.value = !open.value;
+      }
+      function closeMenu() {
+        open.value = false;
+      }
+      function modelOptionMeta(model) {
+        if (!model) return "";
+        if (model.provider === "deepseek") return "DeepSeek API";
+        return formatModelType(model.type);
+      }
+      function formatModelType(type) {
+        return type === "api" ? "API" : "Cli";
+      }
+      function selectDisabledModel() {
+        api.disableModelAssist();
+        closeMenu();
+      }
+      function selectSavedModel(model) {
+        if (!model) return;
+        api.selectModelAndEnable(model.id);
+        closeMenu();
+      }
+      function editSelectedModel() {
+        closeMenu();
+        api.openModelEditor(selectedModel.value);
+      }
+      function createDeepSeekModel() {
+        closeMenu();
+        api.openProviderModelEditor("deepseek");
+      }
+      function createCustomApiModel() {
+        closeMenu();
+        api.openModelEditor({
+          id: "",
+          name: "",
+          provider: "custom",
+          type: "api",
+          command: "",
+          endpoint: "",
+          apiKey: "",
+          model: "",
+          proxyUrl: "",
+          timeoutMs: 12e4
+        });
+      }
+      function createExecModel() {
+        closeMenu();
+        api.openModelEditor();
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock(
+          "div",
+          {
+            ref_key: "menuRef",
+            ref: menuRef,
+            class: "mda-model-menu"
+          },
+          [
+            createBaseVNode("button", {
+              class: normalizeClass(["mda-model-trigger", { "is-active": !!unref(selectedModelId) }]),
+              type: "button",
+              disabled: unref(candidateLoading) || unref(modelAssistLoading),
+              onClick: toggleMenu
+            }, [
+              createBaseVNode(
+                "strong",
+                null,
+                toDisplayString(activeModelLabel.value),
+                1
+                /* TEXT */
+              ),
+              activeModelMeta.value ? (openBlock(), createElementBlock(
+                "em",
+                _hoisted_2$3,
+                toDisplayString(activeModelMeta.value),
+                1
+                /* TEXT */
+              )) : createCommentVNode("v-if", true),
+              _cache[0] || (_cache[0] = createBaseVNode(
+                "i",
+                null,
+                null,
+                -1
+                /* CACHED */
+              ))
+            ], 10, _hoisted_1$3),
+            open.value ? (openBlock(), createElementBlock("div", _hoisted_3$3, [
+              createBaseVNode(
+                "button",
+                {
+                  class: normalizeClass(["mda-model-option", { "is-selected": !unref(selectedModelId) }]),
+                  type: "button",
+                  onClick: selectDisabledModel
+                },
+                [..._cache[1] || (_cache[1] = [
+                  createBaseVNode(
+                    "span",
+                    null,
+                    "不启用",
+                    -1
+                    /* CACHED */
+                  )
+                ])],
+                2
+                /* CLASS */
+              ),
+              (openBlock(true), createElementBlock(
+                Fragment,
+                null,
+                renderList(unref(modelConfigs), (model) => {
+                  return openBlock(), createElementBlock("button", {
+                    key: model.id,
+                    class: normalizeClass(["mda-model-option", { "is-selected": unref(selectedModelId) === model.id }]),
+                    type: "button",
+                    onClick: ($event) => selectSavedModel(model)
+                  }, [
+                    createBaseVNode(
+                      "span",
+                      null,
+                      toDisplayString(model.name),
+                      1
+                      /* TEXT */
+                    ),
+                    createBaseVNode(
+                      "em",
+                      null,
+                      toDisplayString(modelOptionMeta(model)),
+                      1
+                      /* TEXT */
+                    )
+                  ], 10, _hoisted_4$3);
+                }),
+                128
+                /* KEYED_FRAGMENT */
+              )),
+              unref(modelConfigs).length ? (openBlock(), createElementBlock("div", _hoisted_5$3)) : createCommentVNode("v-if", true),
+              unref(selectedModel) ? (openBlock(), createElementBlock("button", {
+                key: 1,
+                class: "mda-model-option",
+                type: "button",
+                onClick: editSelectedModel
+              }, [..._cache[2] || (_cache[2] = [
+                createBaseVNode(
+                  "span",
+                  null,
+                  "配置当前模型",
+                  -1
+                  /* CACHED */
+                )
+              ])])) : createCommentVNode("v-if", true),
+              createBaseVNode("button", {
+                class: "mda-model-option",
+                type: "button",
+                onClick: createDeepSeekModel
+              }, [..._cache[3] || (_cache[3] = [
+                createBaseVNode(
+                  "span",
+                  null,
+                  "DeepSeek",
+                  -1
+                  /* CACHED */
+                ),
+                createBaseVNode(
+                  "em",
+                  null,
+                  "API",
+                  -1
+                  /* CACHED */
+                )
+              ])]),
+              createBaseVNode("button", {
+                class: "mda-model-option",
+                type: "button",
+                onClick: createCustomApiModel
+              }, [..._cache[4] || (_cache[4] = [
+                createBaseVNode(
+                  "span",
+                  null,
+                  "新增 API 模型",
+                  -1
+                  /* CACHED */
+                )
+              ])]),
+              createBaseVNode("button", {
+                class: "mda-model-option",
+                type: "button",
+                onClick: createExecModel
+              }, [..._cache[5] || (_cache[5] = [
+                createBaseVNode(
+                  "span",
+                  null,
+                  "新增 Cli 模型",
+                  -1
+                  /* CACHED */
+                )
+              ])])
+            ])) : createCommentVNode("v-if", true)
+          ],
+          512
+          /* NEED_PATCH */
+        );
+      };
+    }
+  };
+  const _hoisted_1$2 = {
+    key: 0,
+    class: "mda-model-editor"
+  };
+  const _hoisted_2$2 = { class: "mda-model-editor-head" };
+  const _hoisted_3$2 = { class: "mda-model-grid" };
+  const _hoisted_4$2 = {
+    key: 0,
+    class: "is-wide"
+  };
+  const _hoisted_5$2 = ["value"];
+  const _hoisted_6$2 = ["value"];
+  const _hoisted_7$2 = ["value"];
+  const _hoisted_8$2 = {
+    key: 1,
+    class: "is-wide"
+  };
+  const _hoisted_9$1 = {
+    key: 2,
+    class: "is-wide"
+  };
+  const _hoisted_10$1 = { key: 3 };
+  const _hoisted_11$1 = { key: 4 };
+  const _hoisted_12$1 = { key: 5 };
+  const _hoisted_13$1 = { class: "is-wide" };
+  const _hoisted_14 = { class: "mda-model-hint" };
+  const _hoisted_15 = { class: "mda-model-actions" };
+  const _hoisted_16 = ["disabled"];
+  const _sfc_main$3 = {
+    __name: "ModelEditorPanel",
+    setup(__props) {
+      const api = useApi();
+      const modelConfigs = useForm("modelConfigs");
+      const selectedModelId = useForm("selectedModelId");
+      const selectedModel = useForm("selectedModel");
+      const modelEditorOpen = useForm("modelEditorOpen");
+      const modelForm = useForm("modelForm");
+      const modelAssistLoading = useForm("modelAssistLoading");
+      const candidateLoading = useForm("candidateLoading");
+      const modelTypeHint = computed(() => {
+        return modelForm.value.type === "exec" ? "Cli 启动较慢，适合后续改代码；定位阶段会启用轻量 JSON 约束。" : "API 模型更适合快速源码定位。";
+      });
+      function onModelEditorSelect(event) {
+        const id = event.target.value || "";
+        if (!id) {
+          api.setSelectedModel("");
+          api.openModelEditor();
+          return;
+        }
+        const model = modelConfigs.value.find((item) => item.id === id);
+        api.setSelectedModel(id);
+        api.openModelEditor(model);
+      }
+      function onModelProviderChange(event) {
+        const provider = event.target.value || "custom";
+        if (provider === "deepseek") {
+          modelForm.value = __spreadProps(__spreadValues({}, modelForm.value), {
+            provider: "deepseek",
+            type: "api",
+            endpoint: "https://api.deepseek.com/chat/completions",
+            model: modelForm.value.model || "deepseek-v4-pro",
+            name: modelForm.value.name || "DeepSeek"
+          });
+          return;
+        }
+        modelForm.value = __spreadProps(__spreadValues({}, modelForm.value), {
+          provider: "custom"
+        });
+      }
+      function formatModelType(type) {
+        return type === "api" ? "API" : "Cli";
+      }
+      return (_ctx, _cache) => {
+        return unref(modelEditorOpen) ? (openBlock(), createElementBlock("div", _hoisted_1$2, [
+          createBaseVNode("div", _hoisted_2$2, [
+            _cache[12] || (_cache[12] = createBaseVNode(
+              "strong",
+              null,
+              "模型适配器",
+              -1
+              /* CACHED */
+            )),
+            createBaseVNode("button", {
+              class: "mda-mini-btn",
+              type: "button",
+              onClick: _cache[0] || (_cache[0] = (...args) => unref(api).closeModelEditor && unref(api).closeModelEditor(...args))
+            }, "关闭")
+          ]),
+          createBaseVNode("div", _hoisted_3$2, [
+            unref(modelConfigs).length ? (openBlock(), createElementBlock("label", _hoisted_4$2, [
+              _cache[14] || (_cache[14] = createBaseVNode(
+                "span",
+                null,
+                "当前模型",
+                -1
+                /* CACHED */
+              )),
+              createBaseVNode("select", {
+                value: unref(selectedModelId),
+                class: "mda-model-input",
+                onChange: onModelEditorSelect
+              }, [
+                _cache[13] || (_cache[13] = createBaseVNode(
+                  "option",
+                  { value: "" },
+                  "新增模型",
+                  -1
+                  /* CACHED */
+                )),
+                (openBlock(true), createElementBlock(
+                  Fragment,
+                  null,
+                  renderList(unref(modelConfigs), (model) => {
+                    return openBlock(), createElementBlock("option", {
+                      key: model.id,
+                      value: model.id
+                    }, toDisplayString(model.name) + " · " + toDisplayString(formatModelType(model.type)), 9, _hoisted_6$2);
+                  }),
+                  128
+                  /* KEYED_FRAGMENT */
+                ))
+              ], 40, _hoisted_5$2)
+            ])) : createCommentVNode("v-if", true),
+            createBaseVNode("label", null, [
+              _cache[16] || (_cache[16] = createBaseVNode(
+                "span",
+                null,
+                "供应商",
+                -1
+                /* CACHED */
+              )),
+              createBaseVNode("select", {
+                value: unref(modelForm).provider || "custom",
+                class: "mda-model-input",
+                onChange: onModelProviderChange
+              }, [..._cache[15] || (_cache[15] = [
+                createBaseVNode(
+                  "option",
+                  { value: "custom" },
+                  "自定义",
+                  -1
+                  /* CACHED */
+                ),
+                createBaseVNode(
+                  "option",
+                  { value: "deepseek" },
+                  "DeepSeek",
+                  -1
+                  /* CACHED */
+                )
+              ])], 40, _hoisted_7$2)
+            ]),
+            createBaseVNode("label", null, [
+              _cache[17] || (_cache[17] = createBaseVNode(
+                "span",
+                null,
+                "名称",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => unref(modelForm).name = $event),
+                  class: "mda-model-input",
+                  placeholder: "Codex / Claude / OpenAI"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelText, unref(modelForm).name]
+              ])
+            ]),
+            createBaseVNode("label", null, [
+              _cache[19] || (_cache[19] = createBaseVNode(
+                "span",
+                null,
+                "类型",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "select",
+                {
+                  "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => unref(modelForm).type = $event),
+                  class: "mda-model-input"
+                },
+                [..._cache[18] || (_cache[18] = [
+                  createBaseVNode(
+                    "option",
+                    { value: "exec" },
+                    "Cli",
+                    -1
+                    /* CACHED */
+                  ),
+                  createBaseVNode(
+                    "option",
+                    { value: "api" },
+                    "API",
+                    -1
+                    /* CACHED */
+                  )
+                ])],
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelSelect, unref(modelForm).type]
+              ])
+            ]),
+            unref(modelForm).type === "exec" ? (openBlock(), createElementBlock("label", _hoisted_8$2, [
+              _cache[20] || (_cache[20] = createBaseVNode(
+                "span",
+                null,
+                "命令",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => unref(modelForm).command = $event),
+                  class: "mda-model-input",
+                  placeholder: "codex exec"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelText, unref(modelForm).command]
+              ])
+            ])) : createCommentVNode("v-if", true),
+            unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_9$1, [
+              _cache[21] || (_cache[21] = createBaseVNode(
+                "span",
+                null,
+                "Endpoint",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => unref(modelForm).endpoint = $event),
+                  class: "mda-model-input",
+                  placeholder: "https://api.openai.com/v1/chat/completions"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelText, unref(modelForm).endpoint]
+              ])
+            ])) : createCommentVNode("v-if", true),
+            unref(modelForm).type === "api" && unref(modelForm).provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_10$1, [
+              _cache[23] || (_cache[23] = createBaseVNode(
+                "span",
+                null,
+                "Model",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "select",
+                {
+                  "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => unref(modelForm).model = $event),
+                  class: "mda-model-input"
+                },
+                [..._cache[22] || (_cache[22] = [
+                  createBaseVNode(
+                    "option",
+                    { value: "deepseek-v4-pro" },
+                    "deepseek-v4-pro",
+                    -1
+                    /* CACHED */
+                  ),
+                  createBaseVNode(
+                    "option",
+                    { value: "deepseek-v4-flash" },
+                    "deepseek-v4-flash",
+                    -1
+                    /* CACHED */
+                  )
+                ])],
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelSelect, unref(modelForm).model]
+              ])
+            ])) : unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_11$1, [
+              _cache[24] || (_cache[24] = createBaseVNode(
+                "span",
+                null,
+                "Model",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => unref(modelForm).model = $event),
+                  class: "mda-model-input",
+                  placeholder: "gpt-4.1"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelText, unref(modelForm).model]
+              ])
+            ])) : createCommentVNode("v-if", true),
+            unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_12$1, [
+              _cache[25] || (_cache[25] = createBaseVNode(
+                "span",
+                null,
+                "API Key",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => unref(modelForm).apiKey = $event),
+                  class: "mda-model-input",
+                  type: "password",
+                  placeholder: "sk-..."
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelText, unref(modelForm).apiKey]
+              ])
+            ])) : createCommentVNode("v-if", true),
+            createBaseVNode("label", _hoisted_13$1, [
+              _cache[26] || (_cache[26] = createBaseVNode(
+                "span",
+                null,
+                "代理地址",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => unref(modelForm).proxyUrl = $event),
+                  class: "mda-model-input",
+                  placeholder: "http://127.0.0.1:7890，可留空"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vModelText, unref(modelForm).proxyUrl]
+              ])
+            ]),
+            createBaseVNode("label", null, [
+              _cache[27] || (_cache[27] = createBaseVNode(
+                "span",
+                null,
+                "超时 ms",
+                -1
+                /* CACHED */
+              )),
+              withDirectives(createBaseVNode(
+                "input",
+                {
+                  "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => unref(modelForm).timeoutMs = $event),
+                  class: "mda-model-input",
+                  type: "number",
+                  min: "5000",
+                  step: "1000"
+                },
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [
+                  vModelText,
+                  unref(modelForm).timeoutMs,
+                  void 0,
+                  { number: true }
+                ]
+              ])
+            ])
+          ]),
+          createBaseVNode(
+            "p",
+            _hoisted_14,
+            toDisplayString(modelTypeHint.value),
+            1
+            /* TEXT */
+          ),
+          createBaseVNode("div", _hoisted_15, [
+            unref(selectedModel) ? (openBlock(), createElementBlock("button", {
+              key: 0,
+              class: "mda-mini-btn",
+              type: "button",
+              disabled: unref(candidateLoading) || unref(modelAssistLoading),
+              onClick: _cache[10] || (_cache[10] = (...args) => unref(api).removeSelectedModel && unref(api).removeSelectedModel(...args))
+            }, "删除模型", 8, _hoisted_16)) : createCommentVNode("v-if", true),
+            createBaseVNode("button", {
+              class: "mda-btn mda-btn-primary",
+              type: "button",
+              onClick: _cache[11] || (_cache[11] = (...args) => unref(api).saveModelForm && unref(api).saveModelForm(...args))
+            }, "保存模型")
+          ])
+        ])) : createCommentVNode("v-if", true);
+      };
+    }
+  };
+  const _hoisted_1$1 = { class: "mda-composer-wrap" };
+  const _hoisted_2$1 = { class: "mda-composer" };
+  const _hoisted_3$1 = { class: "mda-composer-toolbar" };
+  const _hoisted_4$1 = { class: "mda-toolbar-left" };
+  const _hoisted_5$1 = ["disabled"];
+  const _hoisted_6$1 = { class: "mda-toolbar-right" };
+  const _hoisted_7$1 = ["title", "disabled"];
+  const _hoisted_8$1 = {
+    key: 0,
+    class: "mda-stop-icon"
+  };
+  const _hoisted_9 = { key: 1 };
+  const _hoisted_10 = {
+    key: 2,
+    class: "mda-send-arrow"
+  };
+  const _hoisted_11 = {
+    key: 0,
+    class: "mda-route-inline"
+  };
+  const _hoisted_12 = {
+    key: 1,
+    class: "mda-route-empty"
+  };
+  const _hoisted_13 = { class: "mda-toast" };
+  const _sfc_main$2 = {
+    __name: "ComposerPanel",
+    setup(__props, { expose: __expose }) {
+      const composerInputRef = /* @__PURE__ */ ref(null);
+      const api = useApi();
+      const candidateLoading = useForm("candidateLoading");
+      const selectedItems = useForm("selectedItems");
+      const project = useForm("project");
+      const modelAssistLoading = useForm("modelAssistLoading");
+      const routeResolverTrace = useForm("routeResolverTrace");
+      const sourceServiceStatus = useForm("sourceServiceStatus");
+      const composerCanSend = useForm("composerCanSend");
+      const toastText = useForm("toastText");
+      const routeHit = computed(() => {
+        const trace = routeResolverTrace.value;
+        if (!trace || !trace.matched || !Array.isArray(trace.hits) || !trace.hits.length) return null;
+        return trace.hits[0];
+      });
+      const routeFilePath = computed(() => {
+        var _a;
+        return ((_a = routeHit.value) == null ? void 0 : _a.file) || "";
+      });
+      __expose({
+        focusEvidenceInput() {
+          var _a, _b;
+          (_b = (_a = composerInputRef.value) == null ? void 0 : _a.focusEvidenceInput) == null ? void 0 : _b.call(_a);
+        }
+      });
+      function handleAssetInsert(asset) {
+        var _a, _b;
+        (_b = (_a = composerInputRef.value) == null ? void 0 : _a.insertAsset) == null ? void 0 : _b.call(_a, asset);
+      }
+      function copyRouteFilePath() {
+        if (!routeFilePath.value) return;
+        api.copyTextWithToast(routeFilePath.value);
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock("section", _hoisted_1$1, [
+          createVNode(_sfc_main$8),
+          createVNode(_sfc_main$3),
+          createVNode(_sfc_main$5, { onInsertAsset: handleAssetInsert }),
+          createBaseVNode("div", _hoisted_2$1, [
+            createVNode(
+              _sfc_main$7,
+              {
+                ref_key: "composerInputRef",
+                ref: composerInputRef
+              },
+              null,
+              512
+              /* NEED_PATCH */
+            ),
+            createBaseVNode("div", _hoisted_3$1, [
+              createBaseVNode("div", _hoisted_4$1, [
+                unref(project) ? (openBlock(), createElementBlock("button", {
+                  key: 0,
+                  class: "mda-tool-icon-btn",
+                  type: "button",
+                  title: "重新选择项目",
+                  disabled: unref(sourceServiceStatus) === "loading",
+                  onClick: _cache[0] || (_cache[0] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
+                }, null, 8, _hoisted_5$1)) : createCommentVNode("v-if", true),
+                unref(selectedItems).length ? (openBlock(), createElementBlock("button", {
+                  key: 1,
+                  class: "mda-inline-text-btn",
+                  type: "button",
+                  onClick: _cache[1] || (_cache[1] = (...args) => unref(api).clearSelections && unref(api).clearSelections(...args))
+                }, "清空选区")) : createCommentVNode("v-if", true)
+              ]),
+              createBaseVNode("div", _hoisted_6$1, [
+                createVNode(_sfc_main$4),
+                createBaseVNode("button", {
+                  class: normalizeClass(["mda-send-btn", { "is-stopping": unref(modelAssistLoading) }]),
+                  type: "button",
+                  title: unref(modelAssistLoading) ? "停止模型定位" : "提交",
+                  disabled: !unref(composerCanSend),
+                  onClick: _cache[2] || (_cache[2] = (...args) => unref(api).sendComposer && unref(api).sendComposer(...args))
+                }, [
+                  unref(modelAssistLoading) ? (openBlock(), createElementBlock("span", _hoisted_8$1)) : unref(candidateLoading) ? (openBlock(), createElementBlock("span", _hoisted_9, "检索")) : (openBlock(), createElementBlock("span", _hoisted_10))
+                ], 10, _hoisted_7$1)
+              ])
+            ])
+          ]),
+          unref(routeResolverTrace) ? (openBlock(), createElementBlock("div", _hoisted_11, [
+            _cache[4] || (_cache[4] = createBaseVNode(
+              "span",
+              { class: "mda-route-label" },
+              "页面源码地址",
+              -1
+              /* CACHED */
+            )),
+            routeFilePath.value ? (openBlock(), createElementBlock(
+              "button",
+              {
+                key: 0,
+                class: "mda-route-file",
+                type: "button",
+                onClick: _cache[3] || (_cache[3] = ($event) => unref(api).openSourceFile(routeFilePath.value))
+              },
+              toDisplayString(routeFilePath.value),
+              1
+              /* TEXT */
+            )) : (openBlock(), createElementBlock("span", _hoisted_12, "暂无命中")),
+            routeFilePath.value ? (openBlock(), createElementBlock("button", {
+              key: 2,
+              class: "mda-copy-icon",
+              type: "button",
+              title: "复制页面源码地址",
+              "aria-label": "复制页面源码地址",
+              onClick: copyRouteFilePath
+            })) : createCommentVNode("v-if", true)
+          ])) : createCommentVNode("v-if", true),
+          createBaseVNode(
+            "div",
+            _hoisted_13,
+            toDisplayString(unref(toastText)),
+            1
+            /* TEXT */
+          )
+        ]);
+      };
+    }
+  };
   const SOURCE_SERVER_URL = "http://127.0.0.1:17321";
   const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
   const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
@@ -8388,14 +9362,14 @@ Expected function or array of functions, received type ${typeof value}.`
         if (!response.body) return null;
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer2 = "";
+        let buffer = "";
         let result = null;
         while (true) {
           const { done, value } = yield reader.read();
           if (done) break;
-          buffer2 += decoder.decode(value, { stream: true });
-          const lines = buffer2.split("\n");
-          buffer2 = lines.pop() || "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
@@ -8409,7 +9383,7 @@ Expected function or array of functions, received type ${typeof value}.`
             }
           }
         }
-        const finalLine = buffer2.trim();
+        const finalLine = buffer.trim();
         if (finalLine) {
           const event = JSON.parse(finalLine);
           if (typeof options.onEvent === "function") options.onEvent(event);
@@ -8448,42 +9422,8 @@ Expected function or array of functions, received type ${typeof value}.`
       limited: !!raw.limited
     };
   }
-  const CTX_VALUE_KEY = Symbol("magnus-inspector-ctx-value");
-  const CTX_API_KEY = Symbol("magnus-inspector-ctx-api");
-  function useCtx(ctxValue, ctxApi) {
-    const value = /* @__PURE__ */ shallowRef(ctxValue || {});
-    const api = ctxApi || {};
-    const setup = () => {
-      provide(CTX_VALUE_KEY, value);
-      provide(CTX_API_KEY, api);
-    };
-    return __spreadProps(__spreadValues({
-      value
-    }, api), {
-      setup
-    });
-  }
-  function useForm(key) {
-    const ctxValue = inject(CTX_VALUE_KEY);
-    if (!ctxValue) throw new Error("Magnus inspector context value is not provided");
-    if (!key) return ctxValue;
-    return ctxValue.value[key];
-  }
-  function useApi() {
-    const api = inject(CTX_API_KEY);
-    if (!api) throw new Error("Magnus inspector context api is not provided");
-    return api;
-  }
-  function round(value) {
-    return Math.round(value);
-  }
   function compactText(text, limit = 240) {
     let value = String(text || "").replace(/\s+/g, " ").trim();
-    if (value.length > limit) value = `${value.slice(0, limit)}...`;
-    return value;
-  }
-  function compactMarkup(text, limit = 720) {
-    let value = String(text || "").replace(/\s+/g, " ").replace(/>\s+</g, "><").trim();
     if (value.length > limit) value = `${value.slice(0, limit)}...`;
     return value;
   }
@@ -8562,22 +9502,6 @@ Expected function or array of functions, received type ${typeof value}.`
       capturedAt: Date.now()
     };
   }
-  function getClassName(element) {
-    if (!element) return "";
-    const value = element.getAttribute ? element.getAttribute("class") : element.className;
-    return compactText(typeof value === "string" ? value : "", 320);
-  }
-  function getElementText(element) {
-    return compactText(element.innerText || element.textContent || "", 320);
-  }
-  function getComparableElementText(element, normalizeText, limit = 1200) {
-    const raw = String((element == null ? void 0 : element.innerText) || (element == null ? void 0 : element.textContent) || "").replace(/\s+/g, " ").trim();
-    if (!raw) return "";
-    if (typeof normalizeText === "function") {
-      return String(normalizeText(raw, limit) || "").replace(/\s+/g, " ").trim();
-    }
-    return compactText(raw, limit);
-  }
   function extractSearchTerms(text) {
     const value = String(text || "").replace(/\s+/g, " ").trim();
     const pieces = value.split(/[\n\r\t,，。；;|/\\()[\]{}<>:：]+|\s{2,}/).map((item) => item.trim()).filter(Boolean);
@@ -8591,386 +9515,665 @@ Expected function or array of functions, received type ${typeof value}.`
     }
     return Array.from(new Set(result));
   }
-  function getStyleInfo(element) {
-    const style = window.getComputedStyle(element);
-    const hasBackgroundImage = style.backgroundImage && style.backgroundImage !== "none";
-    return {
-      display: style.display,
-      position: style.position,
-      color: style.color,
-      backgroundColor: style.backgroundColor,
-      backgroundImage: hasBackgroundImage ? "[present]" : "",
-      backgroundSize: style.backgroundSize,
-      backgroundPosition: style.backgroundPosition,
-      backgroundRepeat: style.backgroundRepeat,
-      fontSize: style.fontSize,
-      fontWeight: style.fontWeight,
-      lineHeight: style.lineHeight,
-      textAlign: style.textAlign,
-      border: style.border,
-      borderRadius: style.borderRadius,
-      margin: style.margin,
-      padding: style.padding,
-      gap: style.gap,
-      alignItems: style.alignItems,
-      justifyContent: style.justifyContent,
-      objectFit: style.objectFit,
-      width: style.width,
-      height: style.height
-    };
-  }
-  function getFirstClassName(element) {
-    const list = Array.from((element == null ? void 0 : element.classList) || []);
-    return compactText(list[0] || "", 120);
-  }
-  function getDirectText(element) {
-    if (!element || !element.childNodes) return "";
-    const text = Array.from(element.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.nodeValue || "").join(" ");
-    return compactText(text, 160);
-  }
-  function getSubtreeStyleEvidence(element) {
-    var _a;
-    if (!element) return null;
-    const inlineStyle = compactText(((_a = element.getAttribute) == null ? void 0 : _a.call(element, "style")) || "", 240);
-    const style = getStyleInfo(element);
-    const result = {};
-    const backgroundColor = String(style.backgroundColor || "").trim();
-    const color = String(style.color || "").trim();
-    if (inlineStyle) result.inlineStyle = inlineStyle;
-    if (style.display && /flex|grid|table|inline-flex|inline-grid/i.test(style.display)) result.display = style.display;
-    if (style.position && /absolute|fixed|sticky/i.test(style.position)) result.position = style.position;
-    if (color && !/^rgb\(0,\s*0,\s*0\)$/i.test(color)) result.color = color;
-    if (backgroundColor && !/^(rgba\(0,\s*0,\s*0,\s*0\)|transparent)$/i.test(backgroundColor)) {
-      result.backgroundColor = backgroundColor;
+  function usePageRequests() {
+    const recentRequests = /* @__PURE__ */ ref([]);
+    function getHeaderValue(headers, name) {
+      if (!headers || !name) return "";
+      const target = String(name).toLowerCase();
+      if (typeof headers.get === "function") return headers.get(name) || headers.get(target) || "";
+      if (Array.isArray(headers)) {
+        const item = headers.find(([key]) => String(key || "").toLowerCase() === target);
+        return item ? String(item[1] || "") : "";
+      }
+      if (typeof headers === "object") {
+        const key = Object.keys(headers).find((item) => item.toLowerCase() === target);
+        return key ? String(headers[key] || "") : "";
+      }
+      return "";
     }
-    if (style.backgroundImage && style.backgroundImage !== "none") result.backgroundImage = "[present]";
-    if (style.backgroundSize && style.backgroundSize !== "auto") result.backgroundSize = style.backgroundSize;
-    if (style.backgroundPosition && style.backgroundPosition !== "0% 0%") result.backgroundPosition = style.backgroundPosition;
-    if (style.fontSize) result.fontSize = style.fontSize;
-    if (style.fontWeight && !/^400$|^normal$/i.test(style.fontWeight)) result.fontWeight = style.fontWeight;
-    if (style.textAlign && !/^start|left$/i.test(style.textAlign)) result.textAlign = style.textAlign;
-    if (style.borderRadius && !/^0(px)?$/i.test(style.borderRadius)) result.borderRadius = style.borderRadius;
-    if (style.objectFit && style.objectFit !== "fill") result.objectFit = style.objectFit;
-    if (style.width && !/^auto$/i.test(style.width)) result.width = style.width;
-    if (style.height && !/^auto$/i.test(style.height)) result.height = style.height;
-    return Object.keys(result).length ? result : null;
-  }
-  function getSubtreeEvidence(element, options = {}) {
-    if (!element) {
-      return {
-        classNames: [],
-        texts: [],
-        attrs: [],
-        styles: [],
-        nodeCount: 0
-      };
+    function hasInternalMagnusHeader(info) {
+      return getHeaderValue(info.headers, MAGNUS_INTERNAL_REQUEST_HEADER) === MAGNUS_INTERNAL_REQUEST_VALUE;
     }
-    const nodeLimit = options.nodeLimit || 80;
-    const queue2 = [element];
-    const classNames = [];
-    const texts = [];
-    const attrs = [];
-    const styles2 = [];
-    const nodes = [];
-    let inspected = 0;
-    const addUnique = (list, value, limit) => {
-      const text = compactText(value, 240);
-      if (!text || list.includes(text) || list.length >= limit) return;
-      list.push(text);
-    };
-    while (queue2.length && inspected < nodeLimit) {
-      const node = queue2.shift();
-      if (!node || node.nodeType !== 1) continue;
-      const tag = String(node.tagName || "").toLowerCase();
-      if (["script", "style", "noscript", "template"].includes(tag)) continue;
-      inspected++;
-      const className = getClassName(node);
-      const firstClassName = getFirstClassName(node);
-      const directText = getDirectText(node);
-      const attrInfo = getElementAttrs(node);
-      const styleInfo = getSubtreeStyleEvidence(node);
-      addUnique(classNames, firstClassName, options.classLimit || 48);
-      if (node === element) addUnique(texts, getElementText(node), options.textLimit || 48);
-      addUnique(texts, directText, options.textLimit || 48);
-      for (const [key, value] of Object.entries(attrInfo)) {
-        if (!value || attrs.length >= (options.attrLimit || 48)) continue;
-        attrs.push({
-          tag,
-          className: firstClassName,
-          key,
-          value: compactText(value, 240)
-        });
+    function isInternalMagnusRequest(info) {
+      if (hasInternalMagnusHeader(info)) return true;
+      try {
+        const url = new URL(info.url || "", window.location.href);
+        const sourceUrl = new URL(SOURCE_SERVER_URL);
+        if (url.origin !== sourceUrl.origin) return false;
+        return url.pathname === "/health" || url.pathname.startsWith("/api/source/") || url.pathname.startsWith("/api/route/") || url.pathname.startsWith("/api/model/") || url.pathname.startsWith("/api/search");
+      } catch (error) {
+        return false;
       }
-      if (styleInfo && styles2.length < (options.styleLimit || 36)) {
-        styles2.push({
-          tag,
-          className: firstClassName,
-          style: styleInfo
-        });
+    }
+    function rememberRequest(info) {
+      if (!info.url) return;
+      if (isInternalMagnusRequest(info)) return;
+      recentRequests.value = [
+        info,
+        ...recentRequests.value.filter((item) => !(item.url === info.url && item.method === info.method))
+      ].slice(0, 40);
+    }
+    function apiResponseValues() {
+      const values = recentRequests.value.slice(0, 8).flatMap((item) => item.responseValues || []).map((value) => String(value || "").replace(/\s+/g, " ").trim()).filter((value) => value.length >= 2 && value.length <= 80);
+      return Array.from(new Set(values)).sort((a, b) => b.length - a.length).slice(0, 180);
+    }
+    function denoiseTextByApi(text, limit = 140) {
+      let value = String(text || "").replace(/\s+/g, " ").trim();
+      if (!value) return "";
+      for (const dynamicValue of apiResponseValues()) {
+        if (!dynamicValue || dynamicValue.length < 2) continue;
+        value = value.replace(new RegExp(escapeRegExp(dynamicValue), "g"), " ");
       }
-      if (nodes.length < (options.nodeSummaryLimit || 48)) {
-        nodes.push({
-          tag,
-          className,
-          firstClassName,
-          text: directText,
-          attrs: attrInfo,
-          style: styleInfo || null
-        });
-      }
-      for (const child of Array.from(node.children || [])) {
-        if (queue2.length + inspected >= nodeLimit) break;
-        queue2.push(child);
-      }
+      value = value.replace(/\bY\d{4}M\d{2}\b/g, " ").replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ").replace(/\b\d{2}-\d{2}\b/g, " ").replace(/\b\d{2}:\d{2}(?::\d{2})?\b/g, " ").replace(/\s+/g, " ").trim();
+      return compactText(value, limit);
     }
     return {
-      classNames,
-      texts,
-      attrs,
-      styles: styles2,
-      nodes,
-      nodeCount: inspected
+      recentRequests,
+      rememberRequest,
+      denoiseTextByApi
     };
   }
-  function getElementAttrs(element) {
-    var _a, _b, _c, _d, _e;
-    if (!element || !element.tagName) return {};
-    const tag = element.tagName.toLowerCase();
-    const attrs = {};
-    const commonAttrs = ["id", "name", "role", "title", "aria-label", "placeholder", "href"];
-    for (const key of commonAttrs) {
-      const value = (_a = element.getAttribute) == null ? void 0 : _a.call(element, key);
-      if (value) attrs[key] = compactText(value, 240);
+  function hashRoutePath(hash) {
+    const value = String(hash || "").replace(/^#/, "");
+    if (!value) return "";
+    const route = value.startsWith("!/") ? value.slice(1) : value;
+    if (!route.startsWith("/")) return "";
+    return route.split("?")[0] || "/";
+  }
+  function useRouteResolver({
+    project,
+    currentPageHref,
+    pageUrlPath: pageUrlPath2,
+    sourceServerJson: sourceServerJson2
+  }) {
+    const routeResolverTrace = /* @__PURE__ */ ref(null);
+    let routeResolveSeq = 0;
+    let routeResolveTimer = 0;
+    function sameRouteTracePage(trace) {
+      const tracePath = String((trace == null ? void 0 : trace.pagePath) || "").trim();
+      return !tracePath || tracePath === pageUrlPath2.value;
     }
-    for (const attr of Array.from(element.attributes || [])) {
-      const key = String(attr.name || "").toLowerCase();
-      if (!key.startsWith("data-") || /^data-v-/.test(key)) continue;
-      const value = (_b = element.getAttribute) == null ? void 0 : _b.call(element, key);
-      attrs[key] = value ? compactText(value, 240) : "[present]";
-    }
-    let hasMediaSource = false;
-    for (const key of ["src", "srcset", "poster", "data-src", "data-original", "data-lazy-src"]) {
-      const value = (_c = element.getAttribute) == null ? void 0 : _c.call(element, key);
-      if (value) {
-        attrs[key] = "[present]";
-        hasMediaSource = true;
+    function applyRouteResolverTrace(nextTrace) {
+      const currentTrace = routeResolverTrace.value;
+      if (!nextTrace) return;
+      if (nextTrace.matched) {
+        routeResolverTrace.value = nextTrace;
+        return;
       }
+      if ((currentTrace == null ? void 0 : currentTrace.matched) && sameRouteTracePage(currentTrace)) return;
+      routeResolverTrace.value = nextTrace;
     }
-    if (tag === "img") {
-      if (element.currentSrc || element.src) {
-        attrs.src = "[present]";
-        hasMediaSource = true;
-      }
-      if (element.alt) attrs.alt = compactText(element.alt, 240);
-      if ((_d = element.getAttribute) == null ? void 0 : _d.call(element, "width")) attrs.width = compactText(element.getAttribute("width"), 40);
-      if ((_e = element.getAttribute) == null ? void 0 : _e.call(element, "height")) attrs.height = compactText(element.getAttribute("height"), 40);
+    function scheduleRouteResolve() {
+      if (routeResolveTimer) window.clearTimeout(routeResolveTimer);
+      routeResolveTimer = window.setTimeout(() => {
+        routeResolveTimer = 0;
+        resolveCurrentPageRoute();
+      }, 80);
     }
-    if (tag === "img" || hasMediaSource) attrs["magnus-media"] = "image";
-    return attrs;
-  }
-  function getSelectorPart(element) {
-    if (!element || !element.tagName) return "";
-    const tag = element.tagName.toLowerCase();
-    const id = element.id ? `#${element.id}` : "";
-    const classes = Array.from(element.classList || []).slice(0, 3).map((name) => `.${name}`).join("");
-    return `${tag}${id}${classes}`;
-  }
-  function getSelectorPath(element, limit = 4) {
-    const parts = [];
-    let node = element;
-    while (node && node.nodeType === 1 && parts.length < limit) {
-      parts.unshift(getSelectorPart(node));
-      if (node.id) break;
-      node = node.parentElement;
-    }
-    return parts.join(" > ");
-  }
-  function addEvidenceTerms(target, values, perValueLimit = 12, totalLimit = 72) {
-    if (!(target instanceof Set) || target.size >= totalLimit) return;
-    for (const value of values) {
-      if (target.size >= totalLimit) break;
-      for (const term of extractSearchTerms(value).slice(0, perValueLimit)) {
-        target.add(term);
-        if (target.size >= totalLimit) break;
-      }
-    }
-  }
-  function evidenceGrowth(baseSet, nextSet) {
-    let added = 0;
-    let duplicated = 0;
-    for (const item of nextSet || []) {
-      if (baseSet == null ? void 0 : baseSet.has(item)) duplicated++;
-      else added++;
-    }
-    return { added, duplicated };
-  }
-  function getContextEvidence(element, options = {}) {
-    if (!element) {
-      return {
-        text: "",
-        nodeCount: 0,
-        textTerms: /* @__PURE__ */ new Set(),
-        classTerms: /* @__PURE__ */ new Set(),
-        attrTerms: /* @__PURE__ */ new Set(),
-        styleTerms: /* @__PURE__ */ new Set()
-      };
-    }
-    const normalizeText = options.normalizeText;
-    const subtree = getSubtreeEvidence(element, options.subtreeOptions || {
-      nodeLimit: 40,
-      classLimit: 24,
-      textLimit: 24,
-      attrLimit: 24,
-      styleLimit: 16
-    });
-    const attrs = getElementAttrs(element);
-    const text = getComparableElementText(element, normalizeText, options.textLimit || 1200);
-    const textTerms = /* @__PURE__ */ new Set();
-    const classTerms = /* @__PURE__ */ new Set();
-    const attrTerms = /* @__PURE__ */ new Set();
-    const styleTerms = /* @__PURE__ */ new Set();
-    addEvidenceTerms(textTerms, [text, ...subtree.texts], 12, 36);
-    addEvidenceTerms(classTerms, [getClassName(element), ...subtree.classNames], 8, 24);
-    addEvidenceTerms(attrTerms, Object.entries(attrs).flatMap(([key, value]) => [key, value]), 8, 24);
-    addEvidenceTerms(attrTerms, subtree.attrs.flatMap((item) => [item == null ? void 0 : item.key, item == null ? void 0 : item.value]), 8, 36);
-    addEvidenceTerms(styleTerms, subtree.styles.flatMap((item) => {
-      return Object.entries((item == null ? void 0 : item.style) || {}).flatMap(([key, value]) => [key, value]);
-    }), 8, 24);
-    return {
-      text,
-      nodeCount: subtree.nodeCount || 0,
-      textTerms,
-      classTerms,
-      attrTerms,
-      styleTerms
-    };
-  }
-  function scoreContextPromotion(baseEvidence, nextEvidence) {
-    const textGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.textTerms, nextEvidence == null ? void 0 : nextEvidence.textTerms);
-    const classGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.classTerms, nextEvidence == null ? void 0 : nextEvidence.classTerms);
-    const attrGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.attrTerms, nextEvidence == null ? void 0 : nextEvidence.attrTerms);
-    const styleGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.styleTerms, nextEvidence == null ? void 0 : nextEvidence.styleTerms);
-    const novelScore = textGrowth.added * 4 + classGrowth.added * 3 + attrGrowth.added * 5 + styleGrowth.added * 2;
-    const duplicatePenalty = textGrowth.duplicated + classGrowth.duplicated + attrGrowth.duplicated + styleGrowth.duplicated;
-    const breadthPenalty = Math.max(0, Number((nextEvidence == null ? void 0 : nextEvidence.nodeCount) || 0) - Number((baseEvidence == null ? void 0 : baseEvidence.nodeCount) || 0) - 4) * 2;
-    const textLengthPenalty = Math.max(0, String((nextEvidence == null ? void 0 : nextEvidence.text) || "").length - String((baseEvidence == null ? void 0 : baseEvidence.text) || "").length - 160) / 24;
-    const score = novelScore - duplicatePenalty - breadthPenalty - textLengthPenalty;
-    return {
-      score,
-      novelCount: textGrowth.added + classGrowth.added + attrGrowth.added + styleGrowth.added,
-      duplicateCount: duplicatePenalty,
-      breadthPenalty
-    };
-  }
-  function shouldPromoteContext(baseEvidence, nextEvidence) {
-    const result = scoreContextPromotion(baseEvidence, nextEvidence);
-    if (result.novelCount <= 0) return false;
-    if (result.novelCount >= 3 && result.score >= 6) return true;
-    if (result.novelCount >= 2 && result.score >= 8) return true;
-    return result.score >= 10;
-  }
-  function hasUsefulAncestorFallback(baseEvidence, nextEvidence) {
-    const baseText = String((baseEvidence == null ? void 0 : baseEvidence.text) || "").replace(/\s+/g, " ").trim();
-    const nextText = String((nextEvidence == null ? void 0 : nextEvidence.text) || "").replace(/\s+/g, " ").trim();
-    const textGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.textTerms, nextEvidence == null ? void 0 : nextEvidence.textTerms);
-    const classGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.classTerms, nextEvidence == null ? void 0 : nextEvidence.classTerms);
-    const attrGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.attrTerms, nextEvidence == null ? void 0 : nextEvidence.attrTerms);
-    const styleGrowth = evidenceGrowth(baseEvidence == null ? void 0 : baseEvidence.styleTerms, nextEvidence == null ? void 0 : nextEvidence.styleTerms);
-    const addedEvidence = textGrowth.added + classGrowth.added + attrGrowth.added + styleGrowth.added;
-    if (addedEvidence >= 2) return true;
-    if (textGrowth.added >= 1 && classGrowth.added + attrGrowth.added + styleGrowth.added >= 1) return true;
-    if (baseText && nextText && nextText.length > baseText.length && nextText.length <= 260) return true;
-    if (!baseText && nextText && nextText.length <= 220) return true;
-    return false;
-  }
-  function getAncestorInfo(element, options = {}) {
-    var _a;
-    const result = [];
-    let node = element.parentElement;
-    let currentEvidence = getContextEvidence(element, {
-      normalizeText: options.normalizeText,
-      subtreeOptions: {
-        nodeLimit: 40,
-        classLimit: 24,
-        textLimit: 24,
-        attrLimit: 24,
-        styleLimit: 16
-      }
-    });
-    let inspected = 0;
-    while (node && node !== document.body && result.length < 4 && inspected < 16) {
-      inspected++;
-      const nextEvidence = getContextEvidence(node, {
-        normalizeText: options.normalizeText,
-        subtreeOptions: {
-          nodeLimit: 40,
-          classLimit: 24,
-          textLimit: 24,
-          attrLimit: 24,
-          styleLimit: 16
+    function resolveCurrentPageRoute() {
+      return __async(this, null, function* () {
+        var _a;
+        if (!project.value || project.value.source !== "source-server") {
+          routeResolverTrace.value = null;
+          return;
+        }
+        const seq = ++routeResolveSeq;
+        try {
+          const data = yield sourceServerJson2("/api/route/resolve", {
+            method: "POST",
+            body: {
+              url: currentPageHref.value,
+              pagePath: pageUrlPath2.value
+            },
+            timeoutMs: 5e3,
+            timeoutMessage: "页面路由解析超过 5 秒"
+          });
+          if (seq !== routeResolveSeq) return;
+          routeResolverTrace.value = data.routeResolver || null;
+        } catch (error) {
+          if (seq !== routeResolveSeq) return;
+          routeResolverTrace.value = {
+            projectKind: ((_a = project.value) == null ? void 0 : _a.kind) || "unknown",
+            pagePath: pageUrlPath2.value,
+            adapters: [],
+            matched: false,
+            hits: [],
+            errors: [error.message || String(error)]
+          };
         }
       });
-      if (!shouldPromoteContext(currentEvidence, nextEvidence) && !hasUsefulAncestorFallback(currentEvidence, nextEvidence)) {
-        node = node.parentElement;
-        continue;
+    }
+    function cleanupRouteResolver() {
+      if (routeResolveTimer) {
+        window.clearTimeout(routeResolveTimer);
+        routeResolveTimer = 0;
       }
-      const comparableText = nextEvidence.text;
-      const rect = node.getBoundingClientRect();
-      result.push({
-        tag: node.tagName.toLowerCase(),
-        selector: getSelectorPath(node),
-        className: getClassName(node),
-        attrs: getElementAttrs(node),
-        text: compactText(comparableText, 180),
-        subtree: getSubtreeEvidence(node, {
-          nodeLimit: 64,
-          classLimit: 36,
-          textLimit: 36,
-          attrLimit: 36,
-          styleLimit: 28
+    }
+    return {
+      routeResolverTrace,
+      sameRouteTracePage,
+      applyRouteResolverTrace,
+      scheduleRouteResolve,
+      resolveCurrentPageRoute,
+      cleanupRouteResolver
+    };
+  }
+  function useSidePanelBridge({
+    sidePanelConfig,
+    currentPageHref,
+    selectedItems,
+    selectionFromRemote,
+    onNetworkRequest,
+    onRuntimeEvent,
+    invalidateSelectionConfirm,
+    clearSelections,
+    scheduleRouteResolve,
+    setToast
+  }) {
+    let socket = null;
+    let pageSessionId = "";
+    function applyRemoteSnapshot(snapshot) {
+      var _a;
+      if (!snapshot) return;
+      if ((_a = snapshot.page) == null ? void 0 : _a.url) currentPageHref.value = snapshot.page.url;
+      const list = Array.isArray(snapshot.selections) ? snapshot.selections : snapshot.selection ? [snapshot.selection] : [];
+      selectedItems.value = list.map(selectionFromRemote);
+    }
+    function applyRemoteSessionEvent(message) {
+      var _a;
+      const event = (message == null ? void 0 : message.event) || {};
+      const payload = event.payload || {};
+      if (event.type) onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: event.type, payload });
+      if (event.type === "selection.changed") {
+        const list = Array.isArray(payload.selections) ? payload.selections : payload.selection ? [payload.selection] : [];
+        selectedItems.value = list.map(selectionFromRemote);
+        invalidateSelectionConfirm();
+        setToast(`已添加选区 ${selectedItems.value.length}`);
+        return;
+      }
+      if (event.type === "page.route_changed") {
+        currentPageHref.value = payload.url || currentPageHref.value;
+        clearSelections(false);
+        scheduleRouteResolve();
+        return;
+      }
+      if (event.type === "runtime.connected" && ((_a = payload.page) == null ? void 0 : _a.url)) {
+        currentPageHref.value = payload.page.url;
+        return;
+      }
+      if (event.type === "network.request") {
+        onNetworkRequest == null ? void 0 : onNetworkRequest(payload);
+      }
+    }
+    function connectSidePanelBridge() {
+      const config = sidePanelConfig.value || {};
+      if (!config.panelTicket || !config.bridgeUrl) return;
+      try {
+        const nextSocket = new WebSocket(config.bridgeUrl);
+        socket = nextSocket;
+        nextSocket.addEventListener("open", () => {
+          nextSocket.send(JSON.stringify({
+            type: "sideiframe.connect",
+            panelTicket: config.panelTicket
+          }));
+        });
+        nextSocket.addEventListener("message", (event) => {
+          let message = null;
+          try {
+            message = JSON.parse(event.data);
+          } catch (error) {
+            return;
+          }
+          if (message.type === "sideiframe.bound_session") {
+            pageSessionId = message.pageSessionId || "";
+            applyRemoteSnapshot(message.snapshot);
+          } else if (message.type === "session.event") {
+            applyRemoteSessionEvent(message);
+          }
+        });
+        nextSocket.addEventListener("close", () => {
+          if (socket === nextSocket) socket = null;
+        });
+      } catch (error) {
+        setToast(error.message || "连接 Side Panel Bridge 失败");
+      }
+    }
+    function disconnectSidePanelBridge() {
+      socket == null ? void 0 : socket.close();
+      socket = null;
+      pageSessionId = "";
+    }
+    function sendSidePanelCommand(type, payload) {
+      if (!socket || socket.readyState !== WebSocket.OPEN || !pageSessionId) {
+        setToast("页面 Runtime 未连接");
+        return;
+      }
+      socket.send(JSON.stringify({
+        type: "session.command",
+        requestId: `cmd-${Date.now()}`,
+        pageSessionId,
+        command: {
+          type,
+          payload: payload || {}
+        }
+      }));
+    }
+    function startRemotePicker() {
+      sendSidePanelCommand("picker.start");
+    }
+    return {
+      connectSidePanelBridge,
+      disconnectSidePanelBridge,
+      sendSidePanelCommand,
+      startRemotePicker
+    };
+  }
+  const MAX_PROJECT_FILES = 800;
+  const MAX_SNIPPET_BYTES = 18e4;
+  const PROJECT_SNIPPET_FILES = [
+    "package.json",
+    "vite.config.js",
+    "vite.config.ts",
+    "vue.config.js",
+    "webpack.config.js",
+    "src/main.js",
+    "src/main.ts",
+    "src/App.vue",
+    "index.html"
+  ];
+  const SKIP_DIRS = /* @__PURE__ */ new Set([
+    ".git",
+    ".idea",
+    ".vscode",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".nuxt",
+    ".output",
+    ".cache"
+  ]);
+  function normalizePath(path) {
+    return String(path || "").replace(/\\/g, "/").replace(/^\/+/, "");
+  }
+  function shouldSkipPath(path) {
+    const parts = normalizePath(path).split("/");
+    return parts.some((part) => SKIP_DIRS.has(part));
+  }
+  function inferStack(files, snippets) {
+    const paths = files.map((file) => file.path);
+    const packageText = snippets["package.json"] || "";
+    const hits = [];
+    const hasPath = (matcher) => paths.some(matcher);
+    const hasPackage = (text) => packageText.includes(text);
+    if (hasPackage('"vue"') || hasPath((path) => path.endsWith(".vue"))) hits.push("Vue");
+    if (hasPackage('"react"') || hasPath((path) => path.endsWith(".jsx") || path.endsWith(".tsx"))) hits.push("React");
+    if (hasPackage('"vite"') || hasPath((path) => path.startsWith("vite.config."))) hits.push("Vite");
+    if (hasPackage('"webpack"') || hasPath((path) => path.includes("webpack.config"))) hits.push("Webpack");
+    if (hasPackage('"typescript"') || hasPath((path) => path.endsWith(".ts") || path.endsWith(".tsx"))) hits.push("TypeScript");
+    if (hasPackage('"tailwindcss"') || hasPath((path) => path.includes("tailwind.config"))) hits.push("Tailwind");
+    return Array.from(new Set(hits));
+  }
+  function readSnippetFromFile(file) {
+    return __async(this, null, function* () {
+      if (!file || !PROJECT_SNIPPET_FILES.includes(file.path)) return null;
+      if (file.size > MAX_SNIPPET_BYTES) return null;
+      try {
+        const text = yield file.raw.text();
+        return [file.path, text.slice(0, 3e3)];
+      } catch (error) {
+        return null;
+      }
+    });
+  }
+  function buildProjectFromFileList(fileList) {
+    return __async(this, null, function* () {
+      var _a, _b;
+      const rawFiles = Array.from(fileList || []);
+      const firstPath = normalizePath(((_a = rawFiles[0]) == null ? void 0 : _a.webkitRelativePath) || ((_b = rawFiles[0]) == null ? void 0 : _b.name) || "");
+      const rootName = firstPath.includes("/") ? firstPath.split("/")[0] : "本地项目";
+      const files = [];
+      for (const file of rawFiles) {
+        const fullPath = normalizePath(file.webkitRelativePath || file.name);
+        const path = fullPath.startsWith(`${rootName}/`) ? fullPath.slice(rootName.length + 1) : fullPath;
+        if (!path || shouldSkipPath(path)) continue;
+        files.push({
+          path,
+          name: file.name,
+          size: file.size,
+          raw: file
+        });
+        if (files.length >= MAX_PROJECT_FILES) break;
+      }
+      const snippets = {};
+      const pairs = yield Promise.all(files.map(readSnippetFromFile));
+      pairs.filter(Boolean).forEach(([path, text]) => {
+        snippets[path] = text;
+      });
+      const stack2 = inferStack(files, snippets);
+      return {
+        name: rootName,
+        source: "file-input",
+        fileCount: files.length,
+        files: files.map((_c) => {
+          var _d = _c, { raw } = _d, file = __objRest(_d, ["raw"]);
+          return file;
         }),
-        inlineStyle: compactText(((_a = node.getAttribute) == null ? void 0 : _a.call(node, "style")) || "", 240),
-        computedStyle: getStyleInfo(node),
-        box: {
-          x: round(rect.left + window.scrollX),
-          y: round(rect.top + window.scrollY),
-          width: round(rect.width),
-          height: round(rect.height)
+        snippets,
+        stack: stack2,
+        stackText: stack2.join(" / "),
+        limited: rawFiles.length > files.length
+      };
+    });
+  }
+  function scanDirectoryHandle(handle) {
+    return __async(this, null, function* () {
+      const files = [];
+      const snippets = {};
+      function walk(dirHandle, prefix) {
+        return __async(this, null, function* () {
+          if (files.length >= MAX_PROJECT_FILES) return;
+          try {
+            for (var iter = __forAwait(dirHandle.entries()), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+              const [name, child] = temp.value;
+              if (files.length >= MAX_PROJECT_FILES) break;
+              const path = normalizePath(prefix ? `${prefix}/${name}` : name);
+              if (shouldSkipPath(path)) continue;
+              if (child.kind === "directory") {
+                yield walk(child, path);
+                continue;
+              }
+              if (child.kind !== "file") continue;
+              try {
+                const file = yield child.getFile();
+                const item = {
+                  path,
+                  name,
+                  size: file.size,
+                  lastModified: file.lastModified
+                };
+                files.push(item);
+                if (PROJECT_SNIPPET_FILES.includes(path) && file.size <= MAX_SNIPPET_BYTES) {
+                  snippets[path] = (yield file.text()).slice(0, 3e3);
+                }
+              } catch (error2) {
+              }
+            }
+          } catch (temp) {
+            error = [temp];
+          } finally {
+            try {
+              more && (temp = iter.return) && (yield temp.call(iter));
+            } finally {
+              if (error)
+                throw error[0];
+            }
+          }
+        });
+      }
+      yield walk(handle, "");
+      const stack2 = inferStack(files, snippets);
+      return {
+        name: handle.name || "本地项目",
+        source: "directory-picker",
+        fileCount: files.length,
+        files,
+        snippets,
+        stack: stack2,
+        stackText: stack2.join(" / "),
+        limited: files.length >= MAX_PROJECT_FILES
+      };
+    });
+  }
+  function useSourceProject({ projectStorageKey, resetProjectContext, setToast }) {
+    const fileInputRef = /* @__PURE__ */ ref(null);
+    const project = /* @__PURE__ */ shallowRef(null);
+    const sourceServiceStatus = /* @__PURE__ */ ref("idle");
+    const sourceServiceError = /* @__PURE__ */ ref("");
+    const sourceServiceMessage = /* @__PURE__ */ ref("");
+    function rememberProjectPath(projectValue) {
+      if (!projectValue || projectValue.source !== "source-server" || !projectValue.path) return;
+      try {
+        window.localStorage.setItem(projectStorageKey.value, JSON.stringify({
+          path: projectValue.path,
+          name: projectValue.name || "",
+          savedAt: Date.now()
+        }));
+      } catch (error) {
+      }
+    }
+    function savedProjectPath() {
+      try {
+        const raw = window.localStorage.getItem(projectStorageKey.value);
+        if (!raw) return "";
+        const data = JSON.parse(raw);
+        return data && typeof data.path === "string" ? data.path : "";
+      } catch (error) {
+        return "";
+      }
+    }
+    function resetAfterProjectChange() {
+      if (typeof resetProjectContext === "function") resetProjectContext();
+    }
+    function restoreSavedProject() {
+      return __async(this, null, function* () {
+        const path = savedProjectPath();
+        if (!path || project.value || sourceServiceStatus.value === "loading") return false;
+        sourceServiceStatus.value = "loading";
+        sourceServiceError.value = "";
+        sourceServiceMessage.value = "正在恢复当前域名的本地源码路径...";
+        try {
+          yield sourceServerJson("/health", {
+            timeoutMs: 3e3,
+            timeoutMessage: "本地源码服务未响应，请确认已运行 npm run source:server"
+          });
+          const data = yield sourceServerJson("/api/source/scan", {
+            method: "POST",
+            body: { path },
+            timeoutMs: 2e4,
+            timeoutMessage: "恢复源码路径超时，请重新选择项目源码"
+          });
+          project.value = normalizeSourceServerProject(data.project || {});
+          sourceServiceStatus.value = "connected";
+          sourceServiceMessage.value = "";
+          resetAfterProjectChange();
+          setToast(`已恢复 ${project.value.name}`);
+          return true;
+        } catch (error) {
+          sourceServiceStatus.value = "idle";
+          sourceServiceMessage.value = "";
+          sourceServiceError.value = `恢复已保存源码路径失败：${error.message || error}`;
+          return false;
         }
       });
-      currentEvidence = nextEvidence;
-      node = node.parentElement;
     }
-    return result;
-  }
-  function getElementInfo(element, options = {}) {
-    var _a;
-    if (!element) return null;
-    const rect = element.getBoundingClientRect();
+    function chooseProjectFromSourceServer() {
+      return __async(this, null, function* () {
+        sourceServiceStatus.value = "loading";
+        sourceServiceError.value = "";
+        sourceServiceMessage.value = "正在检查本地源码服务...";
+        yield sourceServerJson("/health", {
+          timeoutMs: 3e3,
+          timeoutMessage: "本地源码服务未响应，请确认已运行 npm run source:server"
+        });
+        sourceServiceMessage.value = "等待系统目录选择器，请在弹窗中选择源码目录...";
+        const data = yield sourceServerJson("/api/source/select", {
+          method: "POST",
+          body: {},
+          timeoutMs: 9e4,
+          timeoutMessage: "等待目录选择器超时，请确认系统弹窗是否被遮挡"
+        });
+        project.value = normalizeSourceServerProject(data.project || {});
+        rememberProjectPath(project.value);
+        resetAfterProjectChange();
+        sourceServiceStatus.value = "connected";
+        sourceServiceMessage.value = "";
+        setToast(`已关联 ${project.value.name}`);
+      });
+    }
+    function chooseProject() {
+      return __async(this, null, function* () {
+        setToast("正在选择项目...");
+        try {
+          yield chooseProjectFromSourceServer();
+          return;
+        } catch (error) {
+          sourceServiceStatus.value = "fallback";
+          sourceServiceMessage.value = "";
+          sourceServiceError.value = `${error.message || error}。请先运行 npm run source:server；当前将使用浏览器目录选择兜底，无法拿到真实路径。`;
+        }
+        if (window.showDirectoryPicker && window.isSecureContext) {
+          try {
+            const handle = yield window.showDirectoryPicker({ mode: "read" });
+            project.value = yield scanDirectoryHandle(handle);
+            resetAfterProjectChange();
+            sourceServiceError.value = "";
+            setToast(`已关联 ${project.value.name}`);
+            return;
+          } catch (error) {
+            if (error && error.name === "AbortError") {
+              setToast("已取消选择");
+              return;
+            }
+            setToast("目录选择器不可用，改用文件夹输入");
+          }
+        }
+        if (fileInputRef.value) {
+          fileInputRef.value.value = "";
+          fileInputRef.value.click();
+        }
+      });
+    }
+    function onFileInputChange(event) {
+      return __async(this, null, function* () {
+        const files = event.target.files;
+        if (!files || !files.length) return;
+        project.value = yield buildProjectFromFileList(files);
+        resetAfterProjectChange();
+        sourceServiceError.value = "";
+        setToast(`已关联 ${project.value.name}`);
+      });
+    }
     return {
-      tag: element.tagName.toLowerCase(),
-      selector: getSelectorPath(element),
-      className: getClassName(element),
-      attrs: getElementAttrs(element),
-      text: getElementText(element),
-      subtree: getSubtreeEvidence(element),
-      innerHtml: compactMarkup(element.innerHTML || "", 960),
-      outerHtml: compactMarkup(element.outerHTML || "", 1200),
-      inlineStyle: compactText(((_a = element.getAttribute) == null ? void 0 : _a.call(element, "style")) || "", 480),
-      computedStyle: getStyleInfo(element),
-      ancestors: getAncestorInfo(element, options),
-      box: {
-        x: round(rect.left + window.scrollX),
-        y: round(rect.top + window.scrollY),
-        width: round(rect.width),
-        height: round(rect.height)
-      },
-      viewportBox: {
-        left: round(rect.left),
-        top: round(rect.top),
-        width: round(rect.width),
-        height: round(rect.height)
+      fileInputRef,
+      project,
+      sourceServiceStatus,
+      sourceServiceError,
+      sourceServiceMessage,
+      chooseProject,
+      onFileInputChange,
+      restoreSavedProject
+    };
+  }
+  function useToast() {
+    const toastText = /* @__PURE__ */ ref("");
+    const toastTimer = /* @__PURE__ */ ref(0);
+    function setToast(message) {
+      toastText.value = message || "";
+      if (toastTimer.value) clearTimeout(toastTimer.value);
+      if (message) {
+        toastTimer.value = window.setTimeout(() => {
+          toastText.value = "";
+        }, 1800);
       }
+    }
+    function cleanupToast() {
+      if (toastTimer.value) clearTimeout(toastTimer.value);
+      toastTimer.value = 0;
+    }
+    return {
+      toastText,
+      setToast,
+      cleanupToast
+    };
+  }
+  function useComposerModule({
+    project,
+    selectedItems,
+    candidateLoading,
+    modelAssistLoading,
+    showCandidatePicker,
+    selectedCandidateHits
+  }) {
+    const promptText = /* @__PURE__ */ ref("");
+    const promptIntent = /* @__PURE__ */ ref("");
+    const composerEditable = computed(() => selectedItems.value.length > 0);
+    const composerPlaceholder = computed(
+      () => selectedItems.value.length ? "输入修改要求，可用 @选区 或 @选区1 引用已选区" : ""
+    );
+    const composerText = computed(() => {
+      if (!project.value) return "请选择项目源码";
+      if (!selectedItems.value.length) return "选择页面选区后，可用 @选区1 描述修改";
+      return promptIntent.value;
+    });
+    const composerInputValue = computed(() => composerEditable.value ? promptIntent.value : composerText.value);
+    const composerCanSend = computed(() => {
+      if (modelAssistLoading.value) return true;
+      if (candidateLoading.value) return false;
+      if (!project.value) return false;
+      if (!selectedItems.value.length) return false;
+      if (showCandidatePicker.value) return selectedCandidateHits.value.length > 0;
+      return promptIntent.value.trim().length > 0;
+    });
+    function invalidatePrompt() {
+      promptText.value = "";
+    }
+    function resetPromptComposer() {
+      promptText.value = "";
+      promptIntent.value = "";
+    }
+    function setComposerValue(value) {
+      if (!composerEditable.value) return String(promptIntent.value || "");
+      if (promptText.value) invalidatePrompt();
+      promptIntent.value = String(value || "");
+      return promptIntent.value;
+    }
+    function onComposerInput(event) {
+      var _a;
+      setComposerValue(((_a = event == null ? void 0 : event.target) == null ? void 0 : _a.value) || "");
+    }
+    function insertPromptAsset(token, options = {}) {
+      if (!selectedItems.value.length || !token) {
+        return {
+          value: String(promptIntent.value || ""),
+          cursor: String(promptIntent.value || "").length
+        };
+      }
+      const nextToken = String(token).trim();
+      const currentValue = String(promptIntent.value || "");
+      if (!nextToken) {
+        return {
+          value: currentValue,
+          cursor: currentValue.length
+        };
+      }
+      const replaceMention = !!options.replaceMention;
+      const start = Number.isFinite(options.replaceStart) ? Math.max(0, Math.min(Number(options.replaceStart), currentValue.length)) : currentValue.length;
+      const end = Number.isFinite(options.replaceEnd) ? Math.max(start, Math.min(Number(options.replaceEnd), currentValue.length)) : start;
+      const before = currentValue.slice(0, start);
+      const after = currentValue.slice(end);
+      const prefix = replaceMention || !before || /\s$/.test(before) ? "" : " ";
+      const suffix = after && /^\s/.test(after) ? "" : " ";
+      const nextValue = `${before}${prefix}${nextToken}${suffix}${after}`;
+      const cursor = (before + prefix + nextToken + suffix).length;
+      setComposerValue(nextValue);
+      return {
+        value: nextValue,
+        cursor
+      };
+    }
+    return {
+      promptText,
+      promptIntent,
+      composerEditable,
+      composerPlaceholder,
+      composerInputValue,
+      composerCanSend,
+      invalidatePrompt,
+      resetPromptComposer,
+      onComposerInput,
+      insertPromptAsset
     };
   }
   function useChatMessages({
@@ -9187,6 +10390,40 @@ ${result.rawText}` : ""
       sourceServiceText,
       chatMessages
     };
+  }
+  function useMessageModule({
+    source,
+    search,
+    selection,
+    composer,
+    model,
+    prompt
+  }) {
+    return useChatMessages({
+      project: source.project,
+      selectedItems: selection.selectedItems,
+      selectionConfirmed: selection.selectionConfirmed,
+      evidenceMessages: selection.evidenceMessages,
+      candidateLoading: search.candidateLoading,
+      searchRunning: search.searchRunning,
+      includeApiEvidence: search.includeApiEvidence,
+      candidateHits: search.candidateHits,
+      needsMoreEvidence: search.needsMoreEvidence,
+      filesConfirmed: selection.filesConfirmed,
+      promptText: composer.promptText,
+      sourceServiceStatus: source.sourceServiceStatus,
+      sourceServiceMessage: source.sourceServiceMessage,
+      modelAssistLoading: model.modelAssistLoading,
+      modelAssistError: model.modelAssistError,
+      modelAssistLogs: model.modelAssistLogs,
+      modelAssistResult: model.modelAssistResult,
+      searchStartedAt: search.searchStartedAt,
+      searchFinishedAt: search.searchFinishedAt,
+      modelAssistStartedAt: model.modelAssistStartedAt,
+      modelAssistFinishedAt: model.modelAssistFinishedAt,
+      selectionChatSummary: prompt.selectionChatSummary,
+      searchLogLines: prompt.searchLogLines
+    });
   }
   const MODEL_STORAGE_KEY = "magnus:model-adapters";
   const MODEL_SELECTED_KEY = "magnus:model-adapters:selected";
@@ -9573,299 +10810,143 @@ ${result.rawText}` : ""
       stopModelAssist
     };
   }
-  function usePageRequests() {
-    const recentRequests = /* @__PURE__ */ ref([]);
-    function getHeaderValue(headers, name) {
-      if (!headers || !name) return "";
-      const target = String(name).toLowerCase();
-      if (typeof headers.get === "function") return headers.get(name) || headers.get(target) || "";
-      if (Array.isArray(headers)) {
-        const item = headers.find(([key]) => String(key || "").toLowerCase() === target);
-        return item ? String(item[1] || "") : "";
-      }
-      if (typeof headers === "object") {
-        const key = Object.keys(headers).find((item) => item.toLowerCase() === target);
-        return key ? String(headers[key] || "") : "";
-      }
-      return "";
-    }
-    function hasInternalMagnusHeader(info) {
-      return getHeaderValue(info.headers, MAGNUS_INTERNAL_REQUEST_HEADER) === MAGNUS_INTERNAL_REQUEST_VALUE;
-    }
-    function isInternalMagnusRequest(info) {
-      if (hasInternalMagnusHeader(info)) return true;
-      try {
-        const url = new URL(info.url || "", window.location.href);
-        const sourceUrl = new URL(SOURCE_SERVER_URL);
-        if (url.origin !== sourceUrl.origin) return false;
-        return url.pathname === "/health" || url.pathname.startsWith("/api/source/") || url.pathname.startsWith("/api/route/") || url.pathname.startsWith("/api/model/") || url.pathname.startsWith("/api/search");
-      } catch (error) {
-        return false;
-      }
-    }
-    function rememberRequest(info) {
-      if (!info.url) return;
-      if (isInternalMagnusRequest(info)) return;
-      recentRequests.value = [
-        info,
-        ...recentRequests.value.filter((item) => !(item.url === info.url && item.method === info.method))
-      ].slice(0, 40);
-    }
-    function apiResponseValues() {
-      const values = recentRequests.value.slice(0, 8).flatMap((item) => item.responseValues || []).map((value) => String(value || "").replace(/\s+/g, " ").trim()).filter((value) => value.length >= 2 && value.length <= 80);
-      return Array.from(new Set(values)).sort((a, b) => b.length - a.length).slice(0, 180);
-    }
-    function denoiseTextByApi(text, limit = 140) {
-      let value = String(text || "").replace(/\s+/g, " ").trim();
-      if (!value) return "";
-      for (const dynamicValue of apiResponseValues()) {
-        if (!dynamicValue || dynamicValue.length < 2) continue;
-        value = value.replace(new RegExp(escapeRegExp(dynamicValue), "g"), " ");
-      }
-      value = value.replace(/\bY\d{4}M\d{2}\b/g, " ").replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ").replace(/\b\d{2}-\d{2}\b/g, " ").replace(/\b\d{2}:\d{2}(?::\d{2})?\b/g, " ").replace(/\s+/g, " ").trim();
-      return compactText(value, limit);
-    }
-    return {
-      recentRequests,
-      rememberRequest,
-      denoiseTextByApi
-    };
+  function useModelModule({
+    source,
+    route,
+    search,
+    prompt,
+    setToast
+  }) {
+    return useModelAdapters({
+      project: source.project,
+      candidateHits: search.candidateHits,
+      selectedCandidatePaths: search.selectedCandidatePaths,
+      searchPayload: prompt.searchPayload,
+      routeResolverTrace: route.routeResolverTrace,
+      apiTrace: search.apiTrace,
+      i18nTrace: search.i18nTrace,
+      definitionTrace: search.definitionTrace,
+      setToast
+    });
   }
-  const MIN_PANEL_WIDTH = 320;
-  const MAX_PANEL_WIDTH = 760;
-  const COLLAPSED_PANEL_WIDTH = 54;
-  function usePanelLayout({ active }) {
-    const collapsed = /* @__PURE__ */ ref(false);
-    const resizing = /* @__PURE__ */ ref(false);
-    const panelWidth = /* @__PURE__ */ ref(440);
-    let resizeState = null;
-    let pageStyleSnapshot = null;
-    let lastAppliedPanelWidth = 0;
-    let resizeDispatchFrame = 0;
-    const effectivePanelWidth = computed(() => collapsed.value ? COLLAPSED_PANEL_WIDTH : clampPanelWidth(panelWidth.value));
-    const panelStyle = computed(() => ({
-      width: `${effectivePanelWidth.value}px`,
-      maxWidth: "calc(100vw - 18px)"
-    }));
-    function clampPanelWidth(value) {
-      const viewportWidth = window.innerWidth || MAX_PANEL_WIDTH;
-      const viewportMax = Math.max(220, Math.min(MAX_PANEL_WIDTH, viewportWidth - 18));
-      const minWidth = Math.min(MIN_PANEL_WIDTH, viewportMax);
-      return Math.max(minWidth, Math.min(Math.round(Number(value) || 440), viewportMax));
-    }
-    function capturePageStyleSnapshot() {
-      if (pageStyleSnapshot || !document.body) return;
-      pageStyleSnapshot = {
-        bodyWidth: document.body.style.width,
-        bodyMaxWidth: document.body.style.maxWidth,
-        bodyMinWidth: document.body.style.minWidth,
-        bodyBoxSizing: document.body.style.boxSizing,
-        bodyTransition: document.body.style.transition,
-        bodyUserSelect: document.body.style.userSelect,
-        htmlOverflowX: document.documentElement.style.overflowX
-      };
-    }
-    function applyPageInset() {
-      if (!document.body) return;
-      capturePageStyleSnapshot();
-      const currentWidth = effectivePanelWidth.value;
-      const width = `calc(100% - ${effectivePanelWidth.value}px)`;
-      document.body.style.boxSizing = "border-box";
-      document.body.style.width = width;
-      document.body.style.maxWidth = width;
-      document.body.style.minWidth = "0";
-      document.body.style.transition = resizing.value ? "none" : "width 120ms ease, max-width 120ms ease";
-      document.documentElement.style.overflowX = "hidden";
-      if (lastAppliedPanelWidth === currentWidth) return;
-      lastAppliedPanelWidth = currentWidth;
-      if (resizeDispatchFrame) cancelAnimationFrame(resizeDispatchFrame);
-      resizeDispatchFrame = window.requestAnimationFrame(() => {
-        resizeDispatchFrame = 0;
-        window.dispatchEvent(new Event("resize"));
-      });
-    }
-    function restorePageInset() {
-      if (!pageStyleSnapshot || !document.body) return;
-      document.body.style.width = pageStyleSnapshot.bodyWidth;
-      document.body.style.maxWidth = pageStyleSnapshot.bodyMaxWidth;
-      document.body.style.minWidth = pageStyleSnapshot.bodyMinWidth;
-      document.body.style.boxSizing = pageStyleSnapshot.bodyBoxSizing;
-      document.body.style.transition = pageStyleSnapshot.bodyTransition;
-      document.body.style.userSelect = pageStyleSnapshot.bodyUserSelect;
-      document.documentElement.style.overflowX = pageStyleSnapshot.htmlOverflowX;
-      pageStyleSnapshot = null;
-      lastAppliedPanelWidth = 0;
-    }
-    function startPanelResize(event) {
-      if (collapsed.value) return;
-      resizeState = {
-        startX: event.clientX,
-        startWidth: panelWidth.value
-      };
-      resizing.value = true;
-      document.documentElement.style.cursor = "col-resize";
-      if (document.body) document.body.style.userSelect = "none";
-      window.addEventListener("pointermove", onPanelResizeMove, true);
-      window.addEventListener("pointerup", stopPanelResize, true);
-      window.addEventListener("pointercancel", stopPanelResize, true);
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch (error) {
-      }
-    }
-    function onPanelResizeMove(event) {
-      if (!resizeState) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const nextWidth = resizeState.startWidth + resizeState.startX - event.clientX;
-      panelWidth.value = clampPanelWidth(nextWidth);
-    }
-    function stopPanelResize() {
-      if (!resizeState) return;
-      resizeState = null;
-      resizing.value = false;
-      window.removeEventListener("pointermove", onPanelResizeMove, true);
-      window.removeEventListener("pointerup", stopPanelResize, true);
-      window.removeEventListener("pointercancel", stopPanelResize, true);
-      document.documentElement.style.cursor = active.value ? "crosshair" : "";
-      if (document.body && pageStyleSnapshot) document.body.style.userSelect = pageStyleSnapshot.bodyUserSelect;
-    }
-    function syncPanelWidth() {
-      const clampedWidth = clampPanelWidth(panelWidth.value);
-      if (panelWidth.value !== clampedWidth) panelWidth.value = clampedWidth;
-    }
-    function cleanupPanelLayout() {
-      stopPanelResize();
-      if (resizeDispatchFrame) cancelAnimationFrame(resizeDispatchFrame);
-      resizeDispatchFrame = 0;
-      restorePageInset();
-    }
-    return {
-      collapsed,
-      resizing,
-      panelWidth,
-      effectivePanelWidth,
-      panelStyle,
-      clampPanelWidth,
-      applyPageInset,
-      restorePageInset,
-      startPanelResize,
-      stopPanelResize,
-      syncPanelWidth,
-      cleanupPanelLayout
-    };
-  }
-  function candidateStageLabel(hit) {
-    const labels = {
-      keyword: "关键词命中",
-      reverse: "组件反查",
-      "import-chain": "import 链路",
-      "route-import-chain": "页面链路",
-      "api-endpoint": "接口定义",
-      "api-usage": "接口调用",
-      "api-upstream": "上层引用",
-      "model-agent": "模型定位",
-      "route-resolver": "页面路由"
-    };
-    return labels[hit == null ? void 0 : hit.stage] || "候选命中";
-  }
-  function candidateStageExplanation(hit) {
-    const reasons = hit.reasons || [];
-    const uniqueLine = hit.preciseEvidence ? `可靠证据: 选区上下文与命中文案在同文件汇合${hit.exactMatchText ? `；命中 "${hit.exactMatchText}"` : ""}${hit.contextScore ? `；上下文分 ${hit.contextScore}` : ""}` : hit.uniqueSnippet && hit.uniqueMatchCount === 1 ? `可靠证据: 文件内唯一文案命中(${hit.uniqueMatchLabel || "文案"}) "${hit.uniqueMatchText || "-"}"，但仍需结合页面上下文判断` : "可靠证据: 暂无强页面上下文证据，当前只作为候选参与排序";
-    if (hit.stage === "import-chain" || hit.stage === "route-import-chain") {
-      return [
-        hit.stage === "route-import-chain" ? `定位过程: 先用页面 path 命中当前页面入口 ${hit.anchorFile || hit.from || "-"}，再沿 import 链路访问到该候选文件` : `定位过程: 先用补充线索命中 ${hit.anchorFile || hit.from || "-"}，再沿 import 链路访问到该候选文件`,
-        hit.importChain && hit.importChain.length ? `import 链路: ${hit.importChain.join(" -> ")}` : "",
-        uniqueLine,
-        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
-      ];
-    }
-    if (hit.stage === "reverse") {
-      return [
-        `定位过程: 先命中子组件/模块 ${hit.from || "-"}，再反查哪些页面或模块引用它`,
-        uniqueLine,
-        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
-      ];
-    }
-    if (hit.stage === "api-endpoint" || hit.stage === "api-usage" || hit.stage === "api-upstream") {
-      return [
-        "定位过程: 先用接口端点搜索接口封装，再追踪函数/符号引用到页面或模块",
-        hit.from ? `来源: ${hit.from}` : "",
-        uniqueLine,
-        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
-      ];
-    }
-    if (hit.stage === "route-resolver") {
-      return [
-        `定位过程: 先按当前页面 path 选择 ${hit.routeAdapter || "unknown"} 路由适配器，再解析路由声明或文件系统路由`,
-        hit.from ? `来源: ${hit.from}` : "",
-        hit.routePath ? `路由 path: ${hit.routePath}` : "",
-        uniqueLine,
-        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
-      ];
-    }
-    if (hit.stage === "model-agent") {
-      return [
-        `定位过程: 模型阅读本地预检索结果、候选文件内容和选区证据后推荐该文件`,
-        hit.modelAdapter ? `模型: ${hit.modelAdapter}` : "",
-        hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : "",
-        hit.modelLocateLevel ? `定位层级: ${hit.modelLocateLevel}${hit.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}` : "",
-        hit.modelCodeSnippet ? `${hit.modelSnippetVerified === false ? "模型源码方向片段" : "模型代码片段"}: ${hit.modelCodeSnippet}` : "",
-        hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : "",
-        hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : "",
-        uniqueLine,
-        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
-      ];
-    }
-    return [
-      "定位过程: 直接用页面文案、className、URL path、用户补充证据检索源码内容和路径",
-      uniqueLine,
-      ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
-    ];
-  }
-  function candidateLogLines(hit, index) {
-    if (!hit) return [];
-    const lines = [
-      index != null ? `候选 ${index + 1}: ${hit.file}` : `文件: ${hit.file}`,
-      `命中方式: ${candidateStageLabel(hit)}；分数 ${hit.score}`,
-      hit.exactMatchText ? `文案命中统计: "${hit.exactMatchText}" 在该文件出现 ${hit.exactMatchCount || 0} 次` : "",
-      ...candidateStageExplanation(hit)
-    ].filter(Boolean);
-    if (hit.preciseSnippet || hit.uniqueSnippet && hit.uniqueMatchCount === 1) {
-      lines.push(`源码片段:
-${hit.preciseSnippet || hit.uniqueSnippet}`);
-    }
-    return lines;
-  }
-  function candidateDetailTitle(hit) {
-    return (hit == null ? void 0 : hit.preciseSnippet) || (hit == null ? void 0 : hit.uniqueSnippet) && hit.uniqueMatchCount === 1 ? "查看命中片段和日志" : "查看检索日志";
-  }
-  function candidateLogText(hit) {
-    return candidateLogLines(hit).join("\n");
-  }
-  function useSearchPrompt({
+  function createSearchLogLines({
     selectedItems,
-    selectedCandidatePaths,
-    selectedCandidateHits,
+    project,
+    pageUrlPath: pageUrlPath2,
+    promptIntent,
+    includeApiEvidence,
+    searchApiRequests,
     candidateHits,
     routeResolverTrace,
     apiTrace,
     i18nTrace,
     definitionTrace,
-    evidenceMessages,
-    customEvidence,
-    promptIntent,
-    searchKeywords,
-    includeApiEvidence,
-    searchApiRequests,
-    currentPageHref,
-    pageUrlPath,
-    project,
-    promptText,
-    denoiseTextByApi,
-    selectionPayloads,
-    setToast
+    combinedSelectionText,
+    normalizeInstructionText
   }) {
+    return function searchLogLines() {
+      var _a, _b;
+      const routeLines = routeResolverLogLines({ routeResolverTrace, pageUrlPath: pageUrlPath2, project });
+      const lines = [
+        `1. 收集页面证据: pagePath=${pageUrlPath2.value}；选区数=${selectedItems.value.length}；className=${selectedItems.value.map((item) => item.info.className).filter(Boolean).join(" ") || "-"}`,
+        `   源码项目: ${((_a = project.value) == null ? void 0 : _a.path) || ((_b = project.value) == null ? void 0 : _b.name) || "-"}`,
+        ...routeLines,
+        `3. 组合检索词: ${combinedSelectionText() || "-"}`,
+        `4. 用户指令: ${normalizeInstructionText(promptIntent.value) || "-"}`,
+        "5. 源码检索: 再按文案/className/url path/用户指令搜索开发源码文件，跳过 node_modules/dist/build 等非源码目录",
+        "6. 链路推断: 对页面线索或用户指令命中的文件继续沿 import 链路向下追踪，并对组件候选做引用反查"
+      ];
+      if (includeApiEvidence.value) {
+        const endpoints = searchApiRequests.value.map((item) => item.pathname || item.url).filter(Boolean).slice(0, 5);
+        lines.push(`7. 接口线索: ${endpoints.length ? endpoints.join("；") : "未捕获到接口端点"}`);
+        lines.push(...apiTraceLogLines(apiTrace));
+      }
+      lines.push(...i18nTraceLogLines(i18nTrace));
+      lines.push(...definitionTraceLogLines(definitionTrace));
+      for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
+        lines.push(...candidateLogLines(hit, index));
+      }
+      return lines;
+    };
+  }
+  function i18nTraceLogLines(i18nTrace) {
+    var _a, _b;
+    const trace = i18nTrace == null ? void 0 : i18nTrace.value;
+    if (!trace || !trace.active) return [];
+    const lines = [];
+    const hints = [
+      ...((_a = trace.environment) == null ? void 0 : _a.packageHints) || [],
+      ...(((_b = trace.environment) == null ? void 0 : _b.codeHints) || []).slice(0, 3)
+    ].filter(Boolean);
+    lines.push(`9. 国际化识别: 已启用；线索=${hints.length ? hints.join("，") : "语言文件/目录命中"}`);
+    for (const item of (trace.definitions || []).slice(0, 4)) {
+      lines.push(`   国际化文案: ${item.file}；key=${item.keyPath}；text=${item.phrase}`);
+    }
+    for (const item of (trace.usages || []).slice(0, 4)) {
+      lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || "-"}；来源=${item.i18nDefinitionFile || item.from || "-"}`);
+    }
+    return lines;
+  }
+  function definitionTraceLogLines(definitionTrace) {
+    const trace = definitionTrace == null ? void 0 : definitionTrace.value;
+    if (!trace || !trace.active) return [];
+    const lines = ["10. 字面量定义链: 已启用"];
+    for (const item of (trace.definitions || []).slice(0, 4)) {
+      lines.push(`   定义文案: ${item.file}；symbol=${item.symbol || "-"}；key=${item.keyPath || "-"}；text=${item.phrase}`);
+    }
+    for (const item of (trace.usages || []).slice(0, 4)) {
+      lines.push(`   定义使用: ${item.file}；symbol=${item.definitionSymbol || "-"}；key=${item.definitionKeyPath || "-"}；来源=${item.definitionFile || item.from || "-"}`);
+    }
+    return lines;
+  }
+  function apiTraceLogLines(apiTrace) {
+    var _a;
+    const trace = apiTrace == null ? void 0 : apiTrace.value;
+    if (!trace || !Array.isArray(trace.endpoints) || !trace.endpoints.length) return [];
+    const lines = [];
+    for (const endpoint of trace.endpoints.slice(0, 4)) {
+      const endpointLabel = [endpoint.method, endpoint.path].filter(Boolean).join(" ") || endpoint.path || endpoint.url || "-";
+      const names = (endpoint.symbols || []).slice(0, 6).join(", ") || "-";
+      lines.push(`8. 接口识别: ${endpointLabel}；接口名=${names}`);
+      for (const file of endpoint.files || []) {
+        lines.push(`   接口文件: ${file.file}${((_a = file.symbols) == null ? void 0 : _a.length) ? `；符号=${file.symbols.join(", ")}` : ""}`);
+      }
+      for (const chain of endpoint.chains || []) {
+        lines.push(`   接口引用链: ${chain.chain.join(" -> ")}${chain.symbol ? `；引用=${chain.symbol}` : ""}`);
+      }
+    }
+    return lines;
+  }
+  function routeResolverLogLines({ routeResolverTrace, pageUrlPath: pageUrlPath2, project }) {
+    var _a, _b;
+    const trace = routeResolverTrace == null ? void 0 : routeResolverTrace.value;
+    const tracePath = String((trace == null ? void 0 : trace.pagePath) || "").trim();
+    const isStaleTrace = !!tracePath && tracePath !== pageUrlPath2.value;
+    if (!trace || isStaleTrace) {
+      return [
+        `2. 页面路由适配: ${isStaleTrace ? `旧结果已忽略(${tracePath})` : "未执行或本地服务未返回结果"}；projectKind=${((_a = project.value) == null ? void 0 : _a.kind) || "unknown"}；pagePath=${pageUrlPath2.value}`
+      ];
+    }
+    const adapters = trace.adapters && trace.adapters.length ? trace.adapters.join(", ") : "-";
+    const status = trace.matched ? `命中 ${trace.hits.length} 个文件` : "未命中";
+    const lines = [
+      `2. 页面路由适配: ${status}；projectKind=${trace.projectKind || ((_b = project.value) == null ? void 0 : _b.kind) || "unknown"}；pagePath=${trace.pagePath || pageUrlPath2.value}；adapters=${adapters}`
+    ];
+    if (trace.matched) {
+      for (const [index, hit] of (trace.hits || []).slice(0, 5).entries()) {
+        lines.push(`   路由命中 ${index + 1}: ${hit.file}；adapter=${hit.adapter || "-"}；routePath=${hit.routePath || "-"}；score=${hit.score}`);
+        const reason = (hit.reasons || []).find((item) => item && !item.startsWith("路由适配器"));
+        if (reason) lines.push(`   路由依据 ${index + 1}: ${reason}`);
+      }
+    } else {
+      lines.push("   路由结果: 当前页面 path 没有通过路由表或文件系统路由定位到页面文件，继续走文案/className/API 检索。");
+    }
+    if (trace.errors && trace.errors.length) {
+      lines.push(`   路由适配异常: ${trace.errors.slice(0, 3).join("；")}`);
+    }
+    return lines;
+  }
+  function createSearchContextTools({ denoiseTextByApi }) {
     function isNoiseClassTerm(term) {
       return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term) || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
     }
@@ -9947,11 +11028,39 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       if (novelTerms.length >= 4 && breadthGap <= 18) return true;
       return breadthGap <= 12;
     }
+    return {
+      shouldKeepExpandedSearchContext
+    };
+  }
+  function useSearchPrompt({
+    selectedItems,
+    selectedCandidatePaths,
+    selectedCandidateHits,
+    candidateHits,
+    routeResolverTrace,
+    apiTrace,
+    i18nTrace,
+    definitionTrace,
+    evidenceMessages,
+    customEvidence,
+    promptIntent,
+    searchKeywords,
+    includeApiEvidence,
+    searchApiRequests,
+    currentPageHref,
+    pageUrlPath: pageUrlPath2,
+    project,
+    promptText,
+    denoiseTextByApi,
+    selectionPayloads,
+    setToast
+  }) {
+    const searchContext = createSearchContextTools({ denoiseTextByApi });
     function filteredAncestorsForSearch(info) {
-      return ((info == null ? void 0 : info.ancestors) || []).filter((ancestor) => shouldKeepExpandedSearchContext(info, ancestor));
+      return ((info == null ? void 0 : info.ancestors) || []).filter((ancestor) => searchContext.shouldKeepExpandedSearchContext(info, ancestor));
     }
     function filteredAssetForSearch(info, asset) {
-      return shouldKeepExpandedSearchContext(info, asset) ? asset : null;
+      return searchContext.shouldKeepExpandedSearchContext(info, asset) ? asset : null;
     }
     function promptAssetToken(index) {
       return `@选区${index}`;
@@ -10228,7 +11337,7 @@ ${source}` : "",
         query,
         url: pageHref,
         pageUrl: pageHref,
-        pagePath: pageUrlPath.value,
+        pagePath: pageUrlPath2.value,
         className: selectedItems.value.map((item) => item.info.className).join(" "),
         text: query,
         userPrompt: normalizeInstructionText(promptIntent.value),
@@ -10253,120 +11362,34 @@ ${source}` : "",
         limit: 30
       };
     }
-    function searchLogLines() {
-      var _a, _b;
-      const routeLines = routeResolverLogLines();
-      const lines = [
-        `1. 收集页面证据: pagePath=${pageUrlPath.value}；选区数=${selectedItems.value.length}；className=${selectedItems.value.map((item) => item.info.className).filter(Boolean).join(" ") || "-"}`,
-        `   源码项目: ${((_a = project.value) == null ? void 0 : _a.path) || ((_b = project.value) == null ? void 0 : _b.name) || "-"}`,
-        ...routeLines,
-        `3. 组合检索词: ${combinedSelectionText() || "-"}`,
-        `4. 用户指令: ${normalizeInstructionText(promptIntent.value) || "-"}`,
-        "5. 源码检索: 再按文案/className/url path/用户指令搜索开发源码文件，跳过 node_modules/dist/build 等非源码目录",
-        "6. 链路推断: 对页面线索或用户指令命中的文件继续沿 import 链路向下追踪，并对组件候选做引用反查"
-      ];
-      if (includeApiEvidence.value) {
-        const endpoints = searchApiRequests.value.map((item) => item.pathname || item.url).filter(Boolean).slice(0, 5);
-        lines.push(`7. 接口线索: ${endpoints.length ? endpoints.join("；") : "未捕获到接口端点"}`);
-        lines.push(...apiTraceLogLines());
-      }
-      lines.push(...i18nTraceLogLines());
-      lines.push(...definitionTraceLogLines());
-      for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
-        lines.push(...candidateLogLines(hit, index));
-      }
-      return lines;
-    }
-    function i18nTraceLogLines() {
-      var _a, _b;
-      const trace = i18nTrace == null ? void 0 : i18nTrace.value;
-      if (!trace || !trace.active) return [];
-      const lines = [];
-      const hints = [
-        ...((_a = trace.environment) == null ? void 0 : _a.packageHints) || [],
-        ...(((_b = trace.environment) == null ? void 0 : _b.codeHints) || []).slice(0, 3)
-      ].filter(Boolean);
-      lines.push(`9. 国际化识别: 已启用；线索=${hints.length ? hints.join("，") : "语言文件/目录命中"}`);
-      for (const item of (trace.definitions || []).slice(0, 4)) {
-        lines.push(`   国际化文案: ${item.file}；key=${item.keyPath}；text=${item.phrase}`);
-      }
-      for (const item of (trace.usages || []).slice(0, 4)) {
-        lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || "-"}；来源=${item.i18nDefinitionFile || item.from || "-"}`);
-      }
-      return lines;
-    }
-    function definitionTraceLogLines() {
-      const trace = definitionTrace == null ? void 0 : definitionTrace.value;
-      if (!trace || !trace.active) return [];
-      const lines = ["10. 字面量定义链: 已启用"];
-      for (const item of (trace.definitions || []).slice(0, 4)) {
-        lines.push(`   定义文案: ${item.file}；symbol=${item.symbol || "-"}；key=${item.keyPath || "-"}；text=${item.phrase}`);
-      }
-      for (const item of (trace.usages || []).slice(0, 4)) {
-        lines.push(`   定义使用: ${item.file}；symbol=${item.definitionSymbol || "-"}；key=${item.definitionKeyPath || "-"}；来源=${item.definitionFile || item.from || "-"}`);
-      }
-      return lines;
-    }
-    function apiTraceLogLines() {
-      var _a;
-      const trace = apiTrace == null ? void 0 : apiTrace.value;
-      if (!trace || !Array.isArray(trace.endpoints) || !trace.endpoints.length) return [];
-      const lines = [];
-      for (const endpoint of trace.endpoints.slice(0, 4)) {
-        const endpointLabel = [endpoint.method, endpoint.path].filter(Boolean).join(" ") || endpoint.path || endpoint.url || "-";
-        const names = (endpoint.symbols || []).slice(0, 6).join(", ") || "-";
-        lines.push(`8. 接口识别: ${endpointLabel}；接口名=${names}`);
-        for (const file of endpoint.files || []) {
-          lines.push(`   接口文件: ${file.file}${((_a = file.symbols) == null ? void 0 : _a.length) ? `；符号=${file.symbols.join(", ")}` : ""}`);
-        }
-        for (const chain of endpoint.chains || []) {
-          lines.push(`   接口引用链: ${chain.chain.join(" -> ")}${chain.symbol ? `；引用=${chain.symbol}` : ""}`);
-        }
-      }
-      return lines;
-    }
-    function routeResolverLogLines() {
-      var _a, _b;
-      const trace = routeResolverTrace == null ? void 0 : routeResolverTrace.value;
-      const tracePath = String((trace == null ? void 0 : trace.pagePath) || "").trim();
-      const isStaleTrace = !!tracePath && tracePath !== pageUrlPath.value;
-      if (!trace || isStaleTrace) {
-        return [
-          `2. 页面路由适配: ${isStaleTrace ? `旧结果已忽略(${tracePath})` : "未执行或本地服务未返回结果"}；projectKind=${((_a = project.value) == null ? void 0 : _a.kind) || "unknown"}；pagePath=${pageUrlPath.value}`
-        ];
-      }
-      const adapters = trace.adapters && trace.adapters.length ? trace.adapters.join(", ") : "-";
-      const status = trace.matched ? `命中 ${trace.hits.length} 个文件` : "未命中";
-      const lines = [
-        `2. 页面路由适配: ${status}；projectKind=${trace.projectKind || ((_b = project.value) == null ? void 0 : _b.kind) || "unknown"}；pagePath=${trace.pagePath || pageUrlPath.value}；adapters=${adapters}`
-      ];
-      if (trace.matched) {
-        for (const [index, hit] of (trace.hits || []).slice(0, 5).entries()) {
-          lines.push(`   路由命中 ${index + 1}: ${hit.file}；adapter=${hit.adapter || "-"}；routePath=${hit.routePath || "-"}；score=${hit.score}`);
-          const reason = (hit.reasons || []).find((item) => item && !item.startsWith("路由适配器"));
-          if (reason) lines.push(`   路由依据 ${index + 1}: ${reason}`);
-        }
-      } else {
-        lines.push("   路由结果: 当前页面 path 没有通过路由表或文件系统路由定位到页面文件，继续走文案/className/API 检索。");
-      }
-      if (trace.errors && trace.errors.length) {
-        lines.push(`   路由适配异常: ${trace.errors.slice(0, 3).join("；")}`);
-      }
-      return lines;
-    }
     function generatePrompt(options = {}) {
       const command = normalizeInstructionText(options.userInstruction || buildPromptIntentDraft()) || modificationCommand();
       const tasks = finalPromptTaskLines(command);
       const selectionReference = selectionTextReferenceLines(command);
       promptText.value = [
         `当前 page: ${(currentPageHref == null ? void 0 : currentPageHref.value) || window.location.href}`,
-        `页面路径: ${pageUrlPath.value}`,
+        `页面路径: ${pageUrlPath2.value}`,
         tasks || `需求: ${command}`,
         selectionReference ? `选区文本参考: ${selectionReference}` : "",
         agentSafetyGuardLines()
       ].filter(Boolean).join("\n\n");
       setToast("提示词已生成");
     }
+    const searchLogLines = createSearchLogLines({
+      selectedItems,
+      project,
+      pageUrlPath: pageUrlPath2,
+      promptIntent,
+      includeApiEvidence,
+      searchApiRequests,
+      candidateHits,
+      routeResolverTrace,
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      combinedSelectionText,
+      normalizeInstructionText
+    });
     return {
       selectionChatSummary,
       selectionNodeLine,
@@ -10379,3752 +11402,1407 @@ ${source}` : "",
       buildPromptIntentDraft
     };
   }
-  const MAX_PROJECT_FILES = 800;
-  const MAX_SNIPPET_BYTES = 18e4;
-  const PROJECT_SNIPPET_FILES = [
-    "package.json",
-    "vite.config.js",
-    "vite.config.ts",
-    "vue.config.js",
-    "webpack.config.js",
-    "src/main.js",
-    "src/main.ts",
-    "src/App.vue",
-    "index.html"
-  ];
-  const SKIP_DIRS = /* @__PURE__ */ new Set([
-    ".git",
-    ".idea",
-    ".vscode",
-    "node_modules",
-    "dist",
-    "build",
-    "coverage",
-    ".next",
-    ".nuxt",
-    ".output",
-    ".cache"
-  ]);
-  function normalizePath(path) {
-    return String(path || "").replace(/\\/g, "/").replace(/^\/+/, "");
-  }
-  function shouldSkipPath(path) {
-    const parts = normalizePath(path).split("/");
-    return parts.some((part) => SKIP_DIRS.has(part));
-  }
-  function inferStack(files, snippets) {
-    const paths = files.map((file) => file.path);
-    const packageText = snippets["package.json"] || "";
-    const hits = [];
-    const hasPath = (matcher) => paths.some(matcher);
-    const hasPackage = (text) => packageText.includes(text);
-    if (hasPackage('"vue"') || hasPath((path) => path.endsWith(".vue"))) hits.push("Vue");
-    if (hasPackage('"react"') || hasPath((path) => path.endsWith(".jsx") || path.endsWith(".tsx"))) hits.push("React");
-    if (hasPackage('"vite"') || hasPath((path) => path.startsWith("vite.config."))) hits.push("Vite");
-    if (hasPackage('"webpack"') || hasPath((path) => path.includes("webpack.config"))) hits.push("Webpack");
-    if (hasPackage('"typescript"') || hasPath((path) => path.endsWith(".ts") || path.endsWith(".tsx"))) hits.push("TypeScript");
-    if (hasPackage('"tailwindcss"') || hasPath((path) => path.includes("tailwind.config"))) hits.push("Tailwind");
-    return Array.from(new Set(hits));
-  }
-  function readSnippetFromFile(file) {
-    return __async(this, null, function* () {
-      if (!file || !PROJECT_SNIPPET_FILES.includes(file.path)) return null;
-      if (file.size > MAX_SNIPPET_BYTES) return null;
-      try {
-        const text = yield file.raw.text();
-        return [file.path, text.slice(0, 3e3)];
-      } catch (error) {
-        return null;
-      }
+  function usePromptModule({
+    source,
+    route,
+    search,
+    selection,
+    composer,
+    requests,
+    currentPageHref,
+    pageUrlPath: pageUrlPath2,
+    setToast
+  }) {
+    return useSearchPrompt({
+      selectedItems: selection.selectedItems,
+      selectedCandidatePaths: search.selectedCandidatePaths,
+      selectedCandidateHits: search.selectedCandidateHits,
+      candidateHits: search.candidateHits,
+      routeResolverTrace: route.routeResolverTrace,
+      apiTrace: search.apiTrace,
+      i18nTrace: search.i18nTrace,
+      definitionTrace: search.definitionTrace,
+      evidenceMessages: selection.evidenceMessages,
+      customEvidence: selection.customEvidence,
+      promptIntent: composer.promptIntent,
+      searchKeywords: search.searchKeywords,
+      includeApiEvidence: search.includeApiEvidence,
+      searchApiRequests: search.searchApiRequests,
+      currentPageHref,
+      pageUrlPath: pageUrlPath2,
+      project: source.project,
+      promptText: composer.promptText,
+      denoiseTextByApi: requests.denoiseTextByApi,
+      selectionPayloads: selection.selectionPayloads,
+      setToast
     });
   }
-  function buildProjectFromFileList(fileList) {
-    return __async(this, null, function* () {
-      var _a, _b;
-      const rawFiles = Array.from(fileList || []);
-      const firstPath = normalizePath(((_a = rawFiles[0]) == null ? void 0 : _a.webkitRelativePath) || ((_b = rawFiles[0]) == null ? void 0 : _b.name) || "");
-      const rootName = firstPath.includes("/") ? firstPath.split("/")[0] : "本地项目";
-      const files = [];
-      for (const file of rawFiles) {
-        const fullPath = normalizePath(file.webkitRelativePath || file.name);
-        const path = fullPath.startsWith(`${rootName}/`) ? fullPath.slice(rootName.length + 1) : fullPath;
-        if (!path || shouldSkipPath(path)) continue;
-        files.push({
-          path,
-          name: file.name,
-          size: file.size,
-          raw: file
-        });
-        if (files.length >= MAX_PROJECT_FILES) break;
-      }
-      const snippets = {};
-      const pairs = yield Promise.all(files.map(readSnippetFromFile));
-      pairs.filter(Boolean).forEach(([path, text]) => {
-        snippets[path] = text;
-      });
-      const stack2 = inferStack(files, snippets);
-      return {
-        name: rootName,
-        source: "file-input",
-        fileCount: files.length,
-        files: files.map((_c) => {
-          var _d = _c, { raw } = _d, file = __objRest(_d, ["raw"]);
-          return file;
-        }),
-        snippets,
-        stack: stack2,
-        stackText: stack2.join(" / "),
-        limited: rawFiles.length > files.length
-      };
+  function useSearchState({
+    routeResolverTrace,
+    recentRequests,
+    modelAssistLoading,
+    filesConfirmed,
+    resetModelAssist,
+    invalidatePrompt
+  }) {
+    const candidateHits = /* @__PURE__ */ ref([]);
+    const apiTrace = /* @__PURE__ */ ref(null);
+    const i18nTrace = /* @__PURE__ */ ref(null);
+    const definitionTrace = /* @__PURE__ */ ref(null);
+    const candidateLoading = /* @__PURE__ */ ref(false);
+    const searchRunning = /* @__PURE__ */ ref(false);
+    const candidateError = /* @__PURE__ */ ref("");
+    const searchStartedAt = /* @__PURE__ */ ref(0);
+    const searchFinishedAt = /* @__PURE__ */ ref(0);
+    const searchKeywords = /* @__PURE__ */ ref("");
+    const includeApiEvidence = /* @__PURE__ */ ref(true);
+    const selectedCandidatePaths = /* @__PURE__ */ ref([]);
+    const expandedCandidatePath = /* @__PURE__ */ ref("");
+    const modelAssistAttempted = /* @__PURE__ */ ref(false);
+    const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
+    const selectedCandidateHits = computed(() => {
+      const selected = new Set(selectedCandidatePaths.value);
+      return candidateHits.value.filter((hit) => selected.has(hit.file));
     });
-  }
-  function scanDirectoryHandle(handle) {
-    return __async(this, null, function* () {
-      const files = [];
-      const snippets = {};
-      function walk(dirHandle, prefix) {
-        return __async(this, null, function* () {
-          if (files.length >= MAX_PROJECT_FILES) return;
-          try {
-            for (var iter = __forAwait(dirHandle.entries()), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
-              const [name, child] = temp.value;
-              if (files.length >= MAX_PROJECT_FILES) break;
-              const path = normalizePath(prefix ? `${prefix}/${name}` : name);
-              if (shouldSkipPath(path)) continue;
-              if (child.kind === "directory") {
-                yield walk(child, path);
-                continue;
-              }
-              if (child.kind !== "file") continue;
-              try {
-                const file = yield child.getFile();
-                const item = {
-                  path,
-                  name,
-                  size: file.size,
-                  lastModified: file.lastModified
-                };
-                files.push(item);
-                if (PROJECT_SNIPPET_FILES.includes(path) && file.size <= MAX_SNIPPET_BYTES) {
-                  snippets[path] = (yield file.text()).slice(0, 3e3);
-                }
-              } catch (error2) {
-              }
-            }
-          } catch (temp) {
-            error = [temp];
-          } finally {
-            try {
-              more && (temp = iter.return) && (yield temp.call(iter));
-            } finally {
-              if (error)
-                throw error[0];
-            }
-          }
-        });
-      }
-      yield walk(handle, "");
-      const stack2 = inferStack(files, snippets);
-      return {
-        name: handle.name || "本地项目",
-        source: "directory-picker",
-        fileCount: files.length,
-        files,
-        snippets,
-        stack: stack2,
-        stackText: stack2.join(" / "),
-        limited: files.length >= MAX_PROJECT_FILES
-      };
+    const routeResolverMatched = computed(() => {
+      var _a;
+      return !!((_a = routeResolverTrace.value) == null ? void 0 : _a.matched);
     });
-  }
-  function useSourceProject({ projectStorageKey, resetProjectContext, setToast }) {
-    const fileInputRef = /* @__PURE__ */ ref(null);
-    const project = /* @__PURE__ */ shallowRef(null);
-    const sourceServiceStatus = /* @__PURE__ */ ref("idle");
-    const sourceServiceError = /* @__PURE__ */ ref("");
-    const sourceServiceMessage = /* @__PURE__ */ ref("");
-    function rememberProjectPath(projectValue) {
-      if (!projectValue || projectValue.source !== "source-server" || !projectValue.path) return;
-      try {
-        window.localStorage.setItem(projectStorageKey.value, JSON.stringify({
-          path: projectValue.path,
-          name: projectValue.name || "",
-          savedAt: Date.now()
-        }));
-      } catch (error) {
-      }
-    }
-    function savedProjectPath() {
-      try {
-        const raw = window.localStorage.getItem(projectStorageKey.value);
-        if (!raw) return "";
-        const data = JSON.parse(raw);
-        return data && typeof data.path === "string" ? data.path : "";
-      } catch (error) {
-        return "";
-      }
-    }
-    function resetAfterProjectChange() {
-      if (typeof resetProjectContext === "function") resetProjectContext();
-    }
-    function restoreSavedProject() {
-      return __async(this, null, function* () {
-        const path = savedProjectPath();
-        if (!path || project.value || sourceServiceStatus.value === "loading") return false;
-        sourceServiceStatus.value = "loading";
-        sourceServiceError.value = "";
-        sourceServiceMessage.value = "正在恢复当前域名的本地源码路径...";
-        try {
-          yield sourceServerJson("/health", {
-            timeoutMs: 3e3,
-            timeoutMessage: "本地源码服务未响应，请确认已运行 npm run source:server"
-          });
-          const data = yield sourceServerJson("/api/source/scan", {
-            method: "POST",
-            body: { path },
-            timeoutMs: 2e4,
-            timeoutMessage: "恢复源码路径超时，请重新选择项目源码"
-          });
-          project.value = normalizeSourceServerProject(data.project || {});
-          sourceServiceStatus.value = "connected";
-          sourceServiceMessage.value = "";
-          resetAfterProjectChange();
-          setToast(`已恢复 ${project.value.name}`);
-          return true;
-        } catch (error) {
-          sourceServiceStatus.value = "idle";
-          sourceServiceMessage.value = "";
-          sourceServiceError.value = `恢复已保存源码路径失败：${error.message || error}`;
-          return false;
-        }
+    const hasReliableCandidateEvidence = computed(() => {
+      return routeResolverMatched.value || candidateHits.value.some((hit) => {
+        return hit.stage === "model-agent" || hit.preciseEvidence;
       });
+    });
+    const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+    const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
+    const showCandidatePicker = computed(() => {
+      return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
+    });
+    function invalidateCandidateConfirm(filesConfirmed2) {
+      filesConfirmed2.value = false;
+      invalidatePrompt();
     }
-    function chooseProjectFromSourceServer() {
-      return __async(this, null, function* () {
-        sourceServiceStatus.value = "loading";
-        sourceServiceError.value = "";
-        sourceServiceMessage.value = "正在检查本地源码服务...";
-        yield sourceServerJson("/health", {
-          timeoutMs: 3e3,
-          timeoutMessage: "本地源码服务未响应，请确认已运行 npm run source:server"
-        });
-        sourceServiceMessage.value = "等待系统目录选择器，请在弹窗中选择源码目录...";
-        const data = yield sourceServerJson("/api/source/select", {
-          method: "POST",
-          body: {},
-          timeoutMs: 9e4,
-          timeoutMessage: "等待目录选择器超时，请确认系统弹窗是否被遮挡"
-        });
-        project.value = normalizeSourceServerProject(data.project || {});
-        rememberProjectPath(project.value);
-        resetAfterProjectChange();
-        sourceServiceStatus.value = "connected";
-        sourceServiceMessage.value = "";
-        setToast(`已关联 ${project.value.name}`);
-      });
+    function clearCandidateState(filesConfirmed2) {
+      candidateHits.value = [];
+      candidateError.value = "";
+      searchRunning.value = false;
+      searchStartedAt.value = 0;
+      searchFinishedAt.value = 0;
+      selectedCandidatePaths.value = [];
+      expandedCandidatePath.value = "";
+      if (filesConfirmed2) filesConfirmed2.value = false;
+      modelAssistAttempted.value = false;
+      resetModelAssist();
+      invalidatePrompt();
     }
-    function chooseProject() {
-      return __async(this, null, function* () {
-        setToast("正在选择项目...");
-        try {
-          yield chooseProjectFromSourceServer();
-          return;
-        } catch (error) {
-          sourceServiceStatus.value = "fallback";
-          sourceServiceMessage.value = "";
-          sourceServiceError.value = `${error.message || error}。请先运行 npm run source:server；当前将使用浏览器目录选择兜底，无法拿到真实路径。`;
-        }
-        if (window.showDirectoryPicker && window.isSecureContext) {
-          try {
-            const handle = yield window.showDirectoryPicker({ mode: "read" });
-            project.value = yield scanDirectoryHandle(handle);
-            resetAfterProjectChange();
-            sourceServiceError.value = "";
-            setToast(`已关联 ${project.value.name}`);
-            return;
-          } catch (error) {
-            if (error && error.name === "AbortError") {
-              setToast("已取消选择");
-              return;
-            }
-            setToast("目录选择器不可用，改用文件夹输入");
-          }
-        }
-        if (fileInputRef.value) {
-          fileInputRef.value.value = "";
-          fileInputRef.value.click();
-        }
-      });
-    }
-    function onFileInputChange(event) {
-      return __async(this, null, function* () {
-        const files = event.target.files;
-        if (!files || !files.length) return;
-        project.value = yield buildProjectFromFileList(files);
-        resetAfterProjectChange();
-        sourceServiceError.value = "";
-        setToast(`已关联 ${project.value.name}`);
-      });
+    function resetProjectContext(selection, composer) {
+      selection.selectionConfirmed.value = false;
+      selection.customEvidence.value = "";
+      selection.evidenceMessages.value = [];
+      clearCandidateState(selection.filesConfirmed);
+      composer.resetPromptComposer();
     }
     return {
-      fileInputRef,
-      project,
-      sourceServiceStatus,
-      sourceServiceError,
-      sourceServiceMessage,
-      chooseProject,
-      onFileInputChange,
-      restoreSavedProject
+      candidateHits,
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      candidateLoading,
+      searchRunning,
+      candidateError,
+      searchStartedAt,
+      searchFinishedAt,
+      searchKeywords,
+      includeApiEvidence,
+      selectedCandidatePaths,
+      expandedCandidatePath,
+      modelAssistAttempted,
+      searchApiRequests,
+      selectedCandidateHits,
+      needsMoreEvidence,
+      showCandidatePicker,
+      invalidateCandidateConfirm,
+      clearCandidateState,
+      resetProjectContext
     };
   }
-  function useToast() {
-    const toastText = /* @__PURE__ */ ref("");
-    const toastTimer = /* @__PURE__ */ ref(0);
-    function setToast(message) {
-      toastText.value = message || "";
-      if (toastTimer.value) clearTimeout(toastTimer.value);
-      if (message) {
-        toastTimer.value = window.setTimeout(() => {
-          toastText.value = "";
-        }, 1800);
-      }
+  function useSelectionModule({
+    sendCommand,
+    getPromptIntent,
+    resetCandidateState,
+    resetComposer,
+    setToast
+  }) {
+    const selectedItems = /* @__PURE__ */ ref([]);
+    const layoutTick = /* @__PURE__ */ ref(0);
+    const selectionConfirmed = /* @__PURE__ */ ref(false);
+    const filesConfirmed = /* @__PURE__ */ ref(false);
+    const customEvidence = /* @__PURE__ */ ref("");
+    const evidenceMessages = /* @__PURE__ */ ref([]);
+    const latestSelection = computed(() => selectedItems.value[selectedItems.value.length - 1] || null);
+    const canConfirmSelection = computed(() => selectedItems.value.length > 0);
+    const promptAssets = computed(() => {
+      return selectedItems.value.map((item, index) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+        return {
+          uid: item.uid,
+          token: `@选区${index + 1}`,
+          index: index + 1,
+          label: `选区 ${index + 1}`,
+          summary: compactText(((_a = item.info) == null ? void 0 : _a.text) || ((_b = item.info) == null ? void 0 : _b.className) || ((_c = item.info) == null ? void 0 : _c.tag) || ((_d = item.assetInfo) == null ? void 0 : _d.text) || `选区${index + 1}`, 24),
+          thumbnailUrl: item.thumbnailUrl || "",
+          className: ((_e = item.info) == null ? void 0 : _e.className) || "",
+          text: ((_f = item.info) == null ? void 0 : _f.text) || "",
+          selector: ((_g = item.info) == null ? void 0 : _g.selector) || "",
+          innerHtml: ((_h = item.info) == null ? void 0 : _h.innerHtml) || "",
+          outerHtml: ((_i = item.info) == null ? void 0 : _i.outerHtml) || "",
+          inlineStyle: ((_j = item.info) == null ? void 0 : _j.inlineStyle) || "",
+          computedStyle: ((_k = item.info) == null ? void 0 : _k.computedStyle) || null,
+          box: ((_l = item.info) == null ? void 0 : _l.box) || null,
+          assetSelector: ((_m = item.assetInfo) == null ? void 0 : _m.selector) || "",
+          assetText: ((_n = item.assetInfo) == null ? void 0 : _n.text) || "",
+          assetInnerHtml: ((_o = item.assetInfo) == null ? void 0 : _o.innerHtml) || "",
+          assetOuterHtml: ((_p = item.assetInfo) == null ? void 0 : _p.outerHtml) || "",
+          assetInlineStyle: ((_q = item.assetInfo) == null ? void 0 : _q.inlineStyle) || "",
+          assetComputedStyle: ((_r = item.assetInfo) == null ? void 0 : _r.computedStyle) || null,
+          assetBox: ((_s = item.assetInfo) == null ? void 0 : _s.box) || null,
+          thumbnailCaptured: !!item.thumbnailUrl
+        };
+      });
+    });
+    function selectionPayloads() {
+      return selectedItems.value.map((item, index) => ({
+        index: index + 1,
+        token: `@选区${index + 1}`,
+        element: item.info,
+        asset: item.assetInfo || null,
+        thumbnailCaptured: !!item.thumbnailUrl
+      }));
     }
-    function cleanupToast() {
-      if (toastTimer.value) clearTimeout(toastTimer.value);
-      toastTimer.value = 0;
+    function selectionFromRemote(raw, index) {
+      const info = (raw == null ? void 0 : raw.element) || (raw == null ? void 0 : raw.info) || raw || {};
+      const uid2 = (raw == null ? void 0 : raw.uid) || info.uid || `remote-selection-${Date.now()}-${index}`;
+      return {
+        uid: uid2,
+        element: null,
+        info,
+        assetElement: null,
+        assetInfo: (raw == null ? void 0 : raw.asset) || info,
+        thumbnailUrl: (raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail) || ""
+      };
+    }
+    function applyRemoteSelections(rawSelections) {
+      const list = Array.isArray(rawSelections) ? rawSelections : [];
+      selectedItems.value = list.map(selectionFromRemote);
+    }
+    function invalidateSelectionConfirm() {
+      selectionConfirmed.value = false;
+      filesConfirmed.value = false;
+      resetCandidateState == null ? void 0 : resetCandidateState();
+    }
+    function confirmSelectionContext(invalidatePrompt) {
+      if (!canConfirmSelection.value) return false;
+      selectionConfirmed.value = true;
+      filesConfirmed.value = false;
+      invalidatePrompt == null ? void 0 : invalidatePrompt();
+      setToast("选区已确认");
+      return true;
+    }
+    function previewSelection(item) {
+      sendCommand("selection.highlight", { uid: (item == null ? void 0 : item.uid) || "" });
+    }
+    function restoreSelectionPreview() {
+      sendCommand("selection.highlight", { uid: "" });
+    }
+    function expandSelection(uid2) {
+      if (!uid2) return;
+      sendCommand("selection.expand", { uid: uid2 });
+    }
+    function removeSelection(uid2) {
+      const index = selectedItems.value.findIndex((item) => item.uid === uid2);
+      if (index === -1) return;
+      sendCommand("selection.remove", { uid: uid2 });
+      selectedItems.value.splice(index, 1);
+      invalidateSelectionConfirm();
+      window.__MAGNUS_SELECTIONS__ = selectionPayloads();
+      setToast(String((getPromptIntent == null ? void 0 : getPromptIntent()) || "").includes("@选区") ? "已移除选区，请检查输入框中的 @选区 引用" : "已移除选区");
+      layoutTick.value++;
+    }
+    function clearSelections(notifyRuntime = true) {
+      if (notifyRuntime) sendCommand("selection.clear");
+      selectedItems.value = [];
+      selectionConfirmed.value = false;
+      customEvidence.value = "";
+      evidenceMessages.value = [];
+      resetCandidateState == null ? void 0 : resetCandidateState();
+      resetComposer == null ? void 0 : resetComposer();
+      window.__MAGNUS_LAST_ELEMENT__ = null;
+      window.__MAGNUS_LAST_ELEMENT_INFO__ = null;
+      window.__MAGNUS_SELECTIONS__ = [];
+      setToast("");
     }
     return {
-      toastText,
-      setToast,
-      cleanupToast
+      selectedItems,
+      layoutTick,
+      selectionConfirmed,
+      filesConfirmed,
+      customEvidence,
+      evidenceMessages,
+      latestSelection,
+      canConfirmSelection,
+      promptAssets,
+      selectionPayloads,
+      selectionFromRemote,
+      applyRemoteSelections,
+      invalidateSelectionConfirm,
+      confirmSelectionContext,
+      previewSelection,
+      restoreSelectionPreview,
+      expandSelection,
+      removeSelection,
+      clearSelections
     };
   }
-  const _hoisted_1$2 = {
-    class: "mda-chat-thread",
-    "aria-label": "页面改造对话"
-  };
-  const _hoisted_2$2 = { class: "mda-message-avatar" };
-  const _hoisted_3$2 = { class: "mda-message-bubble" };
-  const _hoisted_4$2 = {
-    key: 0,
-    class: "mda-message-work"
-  };
-  const _hoisted_5$2 = ["aria-expanded", "onClick"];
-  const _hoisted_6$2 = { class: "mda-message-work-label" };
-  const _hoisted_7$2 = {
-    key: 1,
-    class: "mda-message-work-label"
-  };
-  const _hoisted_8$2 = {
-    key: 1,
-    class: "mda-message-logs"
-  };
-  const _hoisted_9$1 = { class: "mda-log-file-label" };
-  const _hoisted_10$1 = ["onClick"];
-  const _hoisted_11$1 = {
-    key: 1,
-    class: "mda-message-log-pre"
-  };
-  const _hoisted_12$1 = {
-    key: 0,
-    class: "mda-message-title"
-  };
-  const _hoisted_13$1 = {
-    key: 1,
-    class: "mda-message-text"
-  };
-  const _hoisted_14$1 = {
-    key: 2,
-    class: "mda-message-pre"
-  };
-  const _hoisted_15$1 = {
-    key: 3,
-    class: "mda-message-actions"
-  };
-  const _hoisted_16$1 = ["disabled"];
-  const _hoisted_17$1 = {
-    key: 4,
-    class: "mda-message-actions"
-  };
-  const _hoisted_18$1 = {
-    key: 0,
-    class: "mda-warning"
-  };
-  const _hoisted_19$1 = {
-    key: 1,
-    class: "mda-warning"
-  };
-  const _sfc_main$3 = {
-    __name: "ChatThread",
-    setup(__props) {
-      const messages = useForm("chatMessages");
-      const sourceServiceStatus = useForm("sourceServiceStatus");
-      const sourceServiceError = useForm("sourceServiceError");
-      const candidateError = useForm("candidateError");
-      const api = useApi();
-      const nowTick = /* @__PURE__ */ ref(Date.now());
-      const logOpenState = /* @__PURE__ */ ref({});
-      let clockTimer = 0;
-      watch(messages, (nextMessages) => {
-        const nextState = {};
-        for (const message of nextMessages || []) {
-          if (!(message == null ? void 0 : message.id)) continue;
-          if (Object.prototype.hasOwnProperty.call(logOpenState.value, message.id)) {
-            nextState[message.id] = logOpenState.value[message.id];
-          } else {
-            nextState[message.id] = !!message.logExpanded;
-          }
-        }
-        logOpenState.value = nextState;
-      }, { immediate: true });
-      onMounted(() => {
-        clockTimer = window.setInterval(() => {
-          nowTick.value = Date.now();
-        }, 1e3);
-      });
-      onBeforeUnmount(() => {
-        window.clearInterval(clockTimer);
-      });
-      function avatarText(role) {
-        if (role === "user") return "你";
-        if (role === "agent") return "模型";
-        return "系统";
-      }
-      function hasLogs(message) {
-        return Array.isArray(message == null ? void 0 : message.logs) && message.logs.length > 0;
-      }
-      function showMessageWork(message) {
-        return (message == null ? void 0 : message.role) !== "user" && (hasLogs(message) || Number((message == null ? void 0 : message.durationStartedAt) || 0) > 0);
-      }
-      function isLogExpanded(id, fallback) {
-        if (!id) return !!fallback;
-        return Object.prototype.hasOwnProperty.call(logOpenState.value, id) ? logOpenState.value[id] : !!fallback;
-      }
-      function toggleLog(id, fallback) {
-        logOpenState.value = __spreadProps(__spreadValues({}, logOpenState.value), {
-          [id]: !isLogExpanded(id, fallback)
-        });
-      }
-      function formatDuration(ms) {
-        const totalSeconds = Math.max(0, Math.round(Number(ms || 0) / 1e3));
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
-      }
-      function messageDurationMs(message) {
-        const startedAt = Number((message == null ? void 0 : message.durationStartedAt) || 0);
-        if (!startedAt) return 0;
-        const finishedAt = Number((message == null ? void 0 : message.durationFinishedAt) || 0);
-        return Math.max(0, (finishedAt || nowTick.value) - startedAt);
-      }
-      function messageWorkLabel(message) {
-        const duration = messageDurationMs(message);
-        return `${(message == null ? void 0 : message.durationActive) ? "处理中" : "已处理"} ${formatDuration(duration)}`;
-      }
-      function isCandidateLog(log) {
-        return /^候选\s+\d+:\s+/.test(log) || /^文件:\s+/.test(log);
-      }
-      function isMultilineLog(log) {
-        return typeof log === "string" && /\n/.test(log);
-      }
-      function candidatePrefix(log) {
-        const match = String(log || "").match(/^(候选\s+\d+:\s+|文件:\s+)/);
-        return match ? match[1] : "";
-      }
-      function candidateFile(log) {
-        return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
-      }
-      return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$2, [
-          (openBlock(true), createElementBlock(
-            Fragment,
-            null,
-            renderList(unref(messages), (message) => {
-              return openBlock(), createElementBlock(
-                "article",
-                {
-                  key: message.id,
-                  class: normalizeClass(["mda-chat-message", `is-${message.role}`])
-                },
-                [
-                  createBaseVNode(
-                    "div",
-                    _hoisted_2$2,
-                    toDisplayString(avatarText(message.role)),
-                    1
-                    /* TEXT */
-                  ),
-                  createBaseVNode("div", _hoisted_3$2, [
-                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$2, [
-                      hasLogs(message) ? (openBlock(), createElementBlock("button", {
-                        key: 0,
-                        class: "mda-message-work-toggle",
-                        type: "button",
-                        "aria-expanded": String(isLogExpanded(message.id, message.logExpanded)),
-                        onClick: ($event) => toggleLog(message.id, message.logExpanded)
-                      }, [
-                        createBaseVNode(
-                          "span",
-                          _hoisted_6$2,
-                          toDisplayString(messageWorkLabel(message)),
-                          1
-                          /* TEXT */
-                        ),
-                        createBaseVNode(
-                          "i",
-                          {
-                            class: normalizeClass(["mda-message-work-caret", { "is-open": isLogExpanded(message.id, message.logExpanded) }])
-                          },
-                          null,
-                          2
-                          /* CLASS */
-                        )
-                      ], 8, _hoisted_5$2)) : (openBlock(), createElementBlock(
-                        "div",
-                        _hoisted_7$2,
-                        toDisplayString(messageWorkLabel(message)),
-                        1
-                        /* TEXT */
-                      ))
-                    ])) : createCommentVNode("v-if", true),
-                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_8$2, [
-                      (openBlock(true), createElementBlock(
-                        Fragment,
-                        null,
-                        renderList(message.logs, (log, logIndex) => {
-                          return openBlock(), createElementBlock(
-                            "div",
-                            {
-                              key: logIndex,
-                              class: normalizeClass(["mda-message-log-item", { "is-candidate-log": isCandidateLog(log) }])
-                            },
-                            [
-                              isCandidateLog(log) ? (openBlock(), createElementBlock(
-                                Fragment,
-                                { key: 0 },
-                                [
-                                  createBaseVNode(
-                                    "span",
-                                    _hoisted_9$1,
-                                    toDisplayString(candidatePrefix(log)),
-                                    1
-                                    /* TEXT */
-                                  ),
-                                  createBaseVNode("button", {
-                                    class: "mda-log-file-link",
-                                    type: "button",
-                                    onClick: ($event) => unref(api).openSourceFile(candidateFile(log))
-                                  }, toDisplayString(candidateFile(log)), 9, _hoisted_10$1)
-                                ],
-                                64
-                                /* STABLE_FRAGMENT */
-                              )) : isMultilineLog(log) ? (openBlock(), createElementBlock(
-                                "pre",
-                                _hoisted_11$1,
-                                toDisplayString(log),
-                                1
-                                /* TEXT */
-                              )) : (openBlock(), createElementBlock(
-                                Fragment,
-                                { key: 2 },
-                                [
-                                  createTextVNode(
-                                    toDisplayString(log),
-                                    1
-                                    /* TEXT */
-                                  )
-                                ],
-                                64
-                                /* STABLE_FRAGMENT */
-                              ))
-                            ],
-                            2
-                            /* CLASS */
-                          );
-                        }),
-                        128
-                        /* KEYED_FRAGMENT */
-                      ))
-                    ])) : createCommentVNode("v-if", true),
-                    createBaseVNode(
-                      "div",
-                      {
-                        class: normalizeClass(["mda-message-content", { "has-work": showMessageWork(message) }])
-                      },
-                      [
-                        message.title ? (openBlock(), createElementBlock(
-                          "div",
-                          _hoisted_12$1,
-                          toDisplayString(message.title),
-                          1
-                          /* TEXT */
-                        )) : createCommentVNode("v-if", true),
-                        message.text ? (openBlock(), createElementBlock(
-                          "div",
-                          _hoisted_13$1,
-                          toDisplayString(message.text),
-                          1
-                          /* TEXT */
-                        )) : createCommentVNode("v-if", true),
-                        message.pre ? (openBlock(), createElementBlock(
-                          "pre",
-                          _hoisted_14$1,
-                          toDisplayString(message.pre),
-                          1
-                          /* TEXT */
-                        )) : createCommentVNode("v-if", true),
-                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$1, [
-                          createBaseVNode("button", {
-                            class: "mda-btn mda-btn-primary",
-                            type: "button",
-                            disabled: unref(sourceServiceStatus) === "loading",
-                            onClick: _cache[0] || (_cache[0] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
-                          }, toDisplayString(unref(sourceServiceStatus) === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$1)
-                        ])) : createCommentVNode("v-if", true),
-                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$1, [
-                          createBaseVNode("button", {
-                            class: "mda-btn",
-                            type: "button",
-                            onClick: _cache[1] || (_cache[1] = (...args) => unref(api).copyPrompt && unref(api).copyPrompt(...args))
-                          }, "复制提示词")
-                        ])) : createCommentVNode("v-if", true)
-                      ],
-                      2
-                      /* CLASS */
-                    )
-                  ])
-                ],
-                2
-                /* CLASS */
-              );
-            }),
-            128
-            /* KEYED_FRAGMENT */
-          )),
-          unref(sourceServiceError) ? (openBlock(), createElementBlock(
-            "div",
-            _hoisted_18$1,
-            toDisplayString(unref(sourceServiceError)),
-            1
-            /* TEXT */
-          )) : createCommentVNode("v-if", true),
-          unref(candidateError) ? (openBlock(), createElementBlock(
-            "div",
-            _hoisted_19$1,
-            toDisplayString(unref(candidateError)),
-            1
-            /* TEXT */
-          )) : createCommentVNode("v-if", true)
-        ]);
-      };
-    }
-  };
-  const _sfc_main$2 = {
-    __name: "PopoverPanel",
-    props: {
-      visible: {
-        type: Boolean,
-        default: false
-      },
-      anchorRect: {
-        type: Object,
-        default: null
-      },
-      width: {
-        type: Number,
-        default: 380
-      },
-      maxHeight: {
-        type: Number,
-        default: 360
-      },
-      placement: {
-        type: String,
-        default: "auto"
-      },
-      gap: {
-        type: Number,
-        default: 10
-      },
-      viewportPadding: {
-        type: Number,
-        default: 12
-      }
-    },
-    emits: ["mouseenter", "mouseleave"],
-    setup(__props) {
-      const props = __props;
-      const panelStyle = computed(() => {
-        const rect = props.anchorRect;
-        if (!props.visible || !rect) return {};
-        const width = Math.min(props.width, Math.max(260, window.innerWidth - props.viewportPadding * 2));
-        const left = Math.max(
-          props.viewportPadding,
-          Math.min(rect.left, window.innerWidth - width - props.viewportPadding)
-        );
-        const roomBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
-        const roomAbove = rect.top - props.gap - props.maxHeight >= props.viewportPadding;
-        const showBelow = props.placement === "bottom" ? true : props.placement === "top" ? !roomAbove && roomBelow : roomBelow;
-        const top = showBelow ? rect.bottom + props.gap : Math.max(props.viewportPadding, rect.top - props.gap - props.maxHeight);
-        return {
-          left: `${Math.round(left)}px`,
-          top: `${Math.round(top)}px`,
-          width: `${Math.round(width)}px`,
-          maxHeight: `${Math.round(props.maxHeight)}px`
-        };
-      });
-      return (_ctx, _cache) => {
-        return __props.visible && __props.anchorRect ? (openBlock(), createElementBlock(
-          "div",
-          {
-            key: 0,
-            class: "mda-popover-panel",
-            style: normalizeStyle(panelStyle.value),
-            onMouseenter: _cache[0] || (_cache[0] = ($event) => _ctx.$emit("mouseenter")),
-            onMouseleave: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("mouseleave"))
-          },
-          [
-            renderSlot(_ctx.$slots, "default")
-          ],
-          36
-          /* STYLE, NEED_HYDRATION */
-        )) : createCommentVNode("v-if", true);
-      };
-    }
-  };
-  const _hoisted_1$1 = { class: "mda-composer-wrap" };
-  const _hoisted_2$1 = {
-    key: 0,
-    class: "mda-composer-options"
-  };
-  const _hoisted_3$1 = { class: "mda-collapsible-head" };
-  const _hoisted_4$1 = {
-    key: 0,
-    class: "mda-collapsed-summary"
-  };
-  const _hoisted_5$1 = {
-    key: 1,
-    class: "mda-choice-list"
-  };
-  const _hoisted_6$1 = { class: "mda-choice-check" };
-  const _hoisted_7$1 = ["checked", "onChange"];
-  const _hoisted_8$1 = ["onClick"];
-  const _hoisted_9 = { class: "mda-choice-meta" };
-  const _hoisted_10 = ["onClick"];
-  const _hoisted_11 = {
-    key: 0,
-    class: "mda-candidate-log"
-  };
-  const _hoisted_12 = {
-    key: 1,
-    class: "mda-composer-options"
-  };
-  const _hoisted_13 = {
-    key: 2,
-    class: "mda-model-editor"
-  };
-  const _hoisted_14 = { class: "mda-model-editor-head" };
-  const _hoisted_15 = { class: "mda-model-grid" };
-  const _hoisted_16 = {
-    key: 0,
-    class: "is-wide"
-  };
-  const _hoisted_17 = ["value"];
-  const _hoisted_18 = ["value"];
-  const _hoisted_19 = ["value"];
-  const _hoisted_20 = {
-    key: 1,
-    class: "is-wide"
-  };
-  const _hoisted_21 = {
-    key: 2,
-    class: "is-wide"
-  };
-  const _hoisted_22 = { key: 3 };
-  const _hoisted_23 = { key: 4 };
-  const _hoisted_24 = { key: 5 };
-  const _hoisted_25 = { class: "is-wide" };
-  const _hoisted_26 = { class: "mda-model-hint" };
-  const _hoisted_27 = { class: "mda-model-actions" };
-  const _hoisted_28 = ["disabled"];
-  const _hoisted_29 = { class: "mda-composer-prebar" };
-  const _hoisted_30 = { class: "mda-composer-prebar-main" };
-  const _hoisted_31 = ["disabled"];
-  const _hoisted_32 = {
-    key: 0,
-    class: "mda-asset-strip"
-  };
-  const _hoisted_33 = ["title", "onMouseenter", "onMouseleave", "onClick", "onKeydown"];
-  const _hoisted_34 = {
-    key: 1,
-    class: "mda-asset-thumb is-empty"
-  };
-  const _hoisted_35 = ["onClick"];
-  const _hoisted_36 = {
-    key: 0,
-    class: "mda-asset-popover"
-  };
-  const _hoisted_37 = { class: "mda-asset-popover-head" };
-  const _hoisted_38 = { class: "mda-asset-popover-badge" };
-  const _hoisted_39 = { class: "mda-asset-popover-title-wrap" };
-  const _hoisted_40 = { class: "mda-asset-popover-title" };
-  const _hoisted_41 = { class: "mda-asset-popover-subtitle" };
-  const _hoisted_42 = { class: "mda-asset-popover-grid" };
-  const _hoisted_43 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_44 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_45 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_46 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_47 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_48 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_49 = { class: "mda-composer" };
-  const _hoisted_50 = ["value", "readonly", "placeholder"];
-  const _hoisted_51 = ["onClick"];
-  const _hoisted_52 = {
-    key: 1,
-    class: "mda-composer-shortcut-thumb is-empty"
-  };
-  const _hoisted_53 = { class: "mda-composer-shortcut-meta" };
-  const _hoisted_54 = {
-    key: 0,
-    class: "mda-composer-shortcut-empty"
-  };
-  const _hoisted_55 = { class: "mda-composer-toolbar" };
-  const _hoisted_56 = { class: "mda-toolbar-left" };
-  const _hoisted_57 = ["disabled"];
-  const _hoisted_58 = { class: "mda-toolbar-right" };
-  const _hoisted_59 = ["disabled"];
-  const _hoisted_60 = { key: 0 };
-  const _hoisted_61 = {
-    key: 0,
-    class: "mda-model-dropdown"
-  };
-  const _hoisted_62 = ["onClick"];
-  const _hoisted_63 = {
-    key: 0,
-    class: "mda-model-divider"
-  };
-  const _hoisted_64 = ["title", "disabled"];
-  const _hoisted_65 = {
-    key: 0,
-    class: "mda-stop-icon"
-  };
-  const _hoisted_66 = { key: 1 };
-  const _hoisted_67 = {
-    key: 2,
-    class: "mda-send-arrow"
-  };
-  const _hoisted_68 = {
-    key: 3,
-    class: "mda-route-inline"
-  };
-  const _hoisted_69 = {
-    key: 1,
-    class: "mda-route-empty"
-  };
-  const _hoisted_70 = { class: "mda-toast" };
-  const _sfc_main$1 = {
-    __name: "ComposerPanel",
-    setup(__props, { expose: __expose }) {
-      const evidenceInput = /* @__PURE__ */ ref(null);
-      const shortcutMenuRef = /* @__PURE__ */ ref(null);
-      const modelMenuRef = /* @__PURE__ */ ref(null);
-      const modelMenuOpen = /* @__PURE__ */ ref(false);
-      const candidatePanelCollapsed = /* @__PURE__ */ ref(false);
-      const activeAssetPopoverUid = /* @__PURE__ */ ref("");
-      const activeAssetPopoverRect = /* @__PURE__ */ ref(null);
-      const shortcutMenuOpen = /* @__PURE__ */ ref(false);
-      const shortcutMenuQuery = /* @__PURE__ */ ref("");
-      const shortcutRangeStart = /* @__PURE__ */ ref(-1);
-      const shortcutRangeEnd = /* @__PURE__ */ ref(-1);
-      const shortcutActiveIndex = /* @__PURE__ */ ref(0);
-      const composerSelectionStart = /* @__PURE__ */ ref(0);
-      const composerSelectionEnd = /* @__PURE__ */ ref(0);
-      let activeAssetPopoverAnchor = null;
-      let assetPopoverTimer = 0;
-      const api = useApi();
-      const showCandidatePicker = useForm("showCandidatePicker");
-      const needsMoreEvidence = useForm("needsMoreEvidence");
-      const candidateHits = useForm("candidateHits");
-      const selectedCandidatePaths = useForm("selectedCandidatePaths");
-      const expandedCandidatePath = useForm("expandedCandidatePath");
-      const includeApiEvidence = useForm("includeApiEvidence");
-      const candidateLoading = useForm("candidateLoading");
-      const promptText = useForm("promptText");
-      const promptAssets = useForm("promptAssets");
-      const selectedItems = useForm("selectedItems");
-      const project = useForm("project");
-      const modelConfigs = useForm("modelConfigs");
-      const selectedModelId = useForm("selectedModelId");
-      const selectedModel = useForm("selectedModel");
-      const modelEditorOpen = useForm("modelEditorOpen");
-      const modelForm = useForm("modelForm");
-      const modelAssistLoading = useForm("modelAssistLoading");
-      const routeResolverTrace = useForm("routeResolverTrace");
-      const sourceServiceStatus = useForm("sourceServiceStatus");
-      const composerInputValue = useForm("composerInputValue");
-      const composerEditable = useForm("composerEditable");
-      const composerPlaceholder = useForm("composerPlaceholder");
-      const composerCanSend = useForm("composerCanSend");
-      const toastText = useForm("toastText");
-      const modelTypeHint = computed(() => {
-        return modelForm.value.type === "exec" ? "Cli 启动较慢，适合后续改代码；定位阶段会启用轻量 JSON 约束。" : "API 模型更适合快速源码定位。";
-      });
-      const routeHit = computed(() => {
-        const trace = routeResolverTrace.value;
-        if (!trace || !trace.matched || !Array.isArray(trace.hits) || !trace.hits.length) return null;
-        return trace.hits[0];
-      });
-      const routeFilePath = computed(() => {
-        var _a;
-        return ((_a = routeHit.value) == null ? void 0 : _a.file) || "";
-      });
-      const activeModelLabel = computed(() => {
-        var _a;
-        return ((_a = selectedModel.value) == null ? void 0 : _a.name) || "不启用";
-      });
-      const activeModelMeta = computed(() => {
-        if (!selectedModel.value) return "";
-        if (modelAssistLoading.value) return "定位中";
-        if (selectedModel.value.provider === "deepseek") return "DeepSeek API";
-        return formatModelType(selectedModel.value.type);
-      });
-      const activeAssetPopover = computed(() => {
-        return promptAssets.value.find((item) => item.uid === activeAssetPopoverUid.value) || null;
-      });
-      const shortcutAssets = computed(() => {
-        const query = shortcutMenuQuery.value.trim().toLowerCase();
-        const items = Array.isArray(promptAssets.value) ? promptAssets.value : [];
-        if (!query) return items;
-        return items.filter((asset) => {
-          const text = [
-            asset.token,
-            asset.label,
-            asset.summary,
-            asset.text,
-            asset.className
-          ].filter(Boolean).join(" ").toLowerCase();
-          return text.includes(query);
-        });
-      });
-      watch(modelAssistLoading, (value) => {
-        if (!value) return;
-        candidatePanelCollapsed.value = true;
-        modelMenuOpen.value = false;
-      });
-      watch(composerInputValue, () => {
-        nextTick(() => {
-          syncComposerHeight();
-        });
-      });
-      watch([promptAssets, composerEditable], ([assets, editable]) => {
-        if (!editable || !(assets && assets.length)) closeShortcutMenu();
-      });
-      watch(shortcutAssets, (assets) => {
-        if (!assets.length) {
-          shortcutActiveIndex.value = 0;
-          return;
-        }
-        if (shortcutActiveIndex.value >= assets.length) {
-          shortcutActiveIndex.value = assets.length - 1;
-        }
-      });
-      function handleGlobalPointerDown(event) {
-        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
-        if (modelMenuRef.value && (path.includes(modelMenuRef.value) || modelMenuRef.value.contains(event.target))) return;
-        modelMenuOpen.value = false;
-        const insideShortcutMenu = shortcutMenuRef.value && path.includes(shortcutMenuRef.value);
-        const insideComposerInput = evidenceInput.value && path.includes(evidenceInput.value);
-        if (!insideShortcutMenu && !insideComposerInput) {
-          closeShortcutMenu();
-        }
-      }
-      function updateAssetPopoverRect() {
-        if (!activeAssetPopoverAnchor || !activeAssetPopoverAnchor.isConnected) return;
-        activeAssetPopoverRect.value = activeAssetPopoverAnchor.getBoundingClientRect();
-      }
-      onMounted(() => {
-        window.addEventListener("pointerdown", handleGlobalPointerDown, true);
-        window.addEventListener("scroll", updateAssetPopoverRect, true);
-        window.addEventListener("resize", updateAssetPopoverRect, true);
-        nextTick(() => {
-          syncComposerHeight();
-        });
-      });
-      onBeforeUnmount(() => {
-        window.removeEventListener("pointerdown", handleGlobalPointerDown, true);
-        window.removeEventListener("scroll", updateAssetPopoverRect, true);
-        window.removeEventListener("resize", updateAssetPopoverRect, true);
-        clearAssetPopoverTimer();
-      });
-      __expose({
-        focusEvidenceInput() {
-          focusComposer();
-        }
-      });
-      function isCandidateSelected(hit) {
-        return !!hit && selectedCandidatePaths.value.includes(hit.file);
-      }
-      function toggleApiEvidence() {
-        api.setIncludeApiEvidence(!includeApiEvidence.value);
-        api.onSearchOptionChange();
-      }
-      function onModelEditorSelect(event) {
-        const id = event.target.value || "";
-        if (!id) {
-          api.setSelectedModel("");
-          api.openModelEditor();
-          return;
-        }
-        const model = modelConfigs.value.find((item) => item.id === id);
-        api.setSelectedModel(id);
-        api.openModelEditor(model);
-      }
-      function onModelProviderChange(event) {
-        const provider = event.target.value || "custom";
-        if (provider === "deepseek") {
-          modelForm.value = __spreadProps(__spreadValues({}, modelForm.value), {
-            provider: "deepseek",
-            type: "api",
-            endpoint: "https://api.deepseek.com/chat/completions",
-            model: modelForm.value.model || "deepseek-v4-pro",
-            name: modelForm.value.name || "DeepSeek"
-          });
-          return;
-        }
-        modelForm.value = __spreadProps(__spreadValues({}, modelForm.value), {
-          provider: "custom"
-        });
-      }
-      function toggleModelMenu() {
-        modelMenuOpen.value = !modelMenuOpen.value;
-      }
-      function closeModelMenu() {
-        modelMenuOpen.value = false;
-      }
-      function modelOptionMeta(model) {
-        if (!model) return "";
-        if (model.provider === "deepseek") return "DeepSeek API";
-        return formatModelType(model.type);
-      }
-      function formatModelType(type) {
-        return type === "api" ? "API" : "Cli";
-      }
-      function assetTooltip(asset) {
-        if (!asset) return "";
-        return [
-          `${asset.token} · 点击插入`,
-          "悬浮查看节点详情",
-          asset.text ? `文案: ${asset.text}` : "",
-          asset.className ? `class: ${asset.className}` : ""
-        ].filter(Boolean).join("\n");
-      }
-      function assetThumbStyle(asset) {
-        return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
-      }
-      function formatAssetValue(value) {
-        if (!value) return "-";
-        if (typeof value === "string") return value;
-        try {
-          return JSON.stringify(value, null, 2);
-        } catch (error) {
-          return String(value);
-        }
-      }
-      function assetDetailSections(asset) {
-        if (!asset) return [];
-        return [
-          { label: "选区 inline style", value: asset.inlineStyle || "-" },
-          { label: "选区 computed style", value: formatAssetValue(asset.computedStyle) },
-          { label: "选区 innerHTML", value: asset.innerHtml || "-" },
-          { label: "扩大选区文案", value: asset.assetText || "-" },
-          { label: "扩大选区 inline style", value: asset.assetInlineStyle || "-" },
-          { label: "扩大选区 computed style", value: formatAssetValue(asset.assetComputedStyle) },
-          { label: "扩大选区 innerHTML", value: asset.assetInnerHtml || "-" }
-        ];
-      }
-      function syncComposerHeight(target = evidenceInput.value) {
-        if (!target) return;
-        target.style.height = "auto";
-        target.style.height = `${Math.min(Math.max(target.scrollHeight, 72), 184)}px`;
-      }
-      function focusComposer(cursor = null) {
-        nextTick(() => {
-          if (!evidenceInput.value || typeof evidenceInput.value.focus !== "function") return;
-          evidenceInput.value.focus();
-          if (cursor != null && typeof evidenceInput.value.setSelectionRange === "function") {
-            evidenceInput.value.setSelectionRange(cursor, cursor);
-            composerSelectionStart.value = cursor;
-            composerSelectionEnd.value = cursor;
-          }
-          syncComposerHeight(evidenceInput.value);
-        });
-      }
-      function clearAssetPopoverTimer() {
-        if (!assetPopoverTimer) return;
-        window.clearTimeout(assetPopoverTimer);
-        assetPopoverTimer = 0;
-      }
-      function cancelAssetPopoverHide() {
-        clearAssetPopoverTimer();
-      }
-      function closeAssetPopover() {
-        var _a;
-        clearAssetPopoverTimer();
-        activeAssetPopoverUid.value = "";
-        activeAssetPopoverRect.value = null;
-        activeAssetPopoverAnchor = null;
-        (_a = api.restoreSelectionPreview) == null ? void 0 : _a.call(api);
-      }
-      function scheduleAssetPopoverHide(uid2 = "") {
-        clearAssetPopoverTimer();
-        assetPopoverTimer = window.setTimeout(() => {
-          if (!uid2 || activeAssetPopoverUid.value === uid2) closeAssetPopover();
-        }, 220);
-      }
-      function openAssetPopover(asset, event) {
-        var _a;
-        if (!asset) return;
-        clearAssetPopoverTimer();
-        (_a = api.previewSelection) == null ? void 0 : _a.call(api, asset);
-        activeAssetPopoverUid.value = asset.uid;
-        activeAssetPopoverAnchor = (event == null ? void 0 : event.currentTarget) || null;
-        updateAssetPopoverRect();
-        window.requestAnimationFrame(updateAssetPopoverRect);
-      }
-      function closeShortcutMenu() {
-        shortcutMenuOpen.value = false;
-        shortcutMenuQuery.value = "";
-        shortcutRangeStart.value = -1;
-        shortcutRangeEnd.value = -1;
-        shortcutActiveIndex.value = 0;
-      }
-      function resolveShortcutState(value, caret) {
-        if (!promptAssets.value.length) return null;
-        const before = String(value || "").slice(0, Math.max(0, caret));
-        const match = before.match(/(^|[\s(（,，;；])@([^\s@]*)$/);
-        if (!match) return null;
-        return {
-          start: before.length - match[2].length - 1,
-          end: before.length,
-          query: match[2] || ""
-        };
-      }
-      function updateComposerSelection(target) {
-        if (!target) return;
-        composerSelectionStart.value = Number(target.selectionStart || 0);
-        composerSelectionEnd.value = Number(target.selectionEnd || composerSelectionStart.value);
-      }
-      function updateShortcutMenu(target) {
-        if (!target || !composerEditable.value) {
-          closeShortcutMenu();
-          return;
-        }
-        const state = resolveShortcutState(target.value, target.selectionStart || 0);
-        if (!state) {
-          closeShortcutMenu();
-          return;
-        }
-        shortcutMenuOpen.value = true;
-        shortcutMenuQuery.value = state.query;
-        shortcutRangeStart.value = state.start;
-        shortcutRangeEnd.value = state.end;
-        if (shortcutActiveIndex.value >= shortcutAssets.value.length) {
-          shortcutActiveIndex.value = 0;
-        }
-      }
-      function handleComposerInput(event) {
-        api.onComposerInput(event);
-        updateComposerSelection(event.target);
-        updateShortcutMenu(event.target);
-        syncComposerHeight(event.target);
-      }
-      function handleComposerCursor(event) {
-        updateComposerSelection(event.target);
-        updateShortcutMenu(event.target);
-      }
-      function moveShortcutActive(step) {
-        if (!shortcutMenuOpen.value || !shortcutAssets.value.length) return;
-        const total = shortcutAssets.value.length;
-        shortcutActiveIndex.value = (shortcutActiveIndex.value + step + total) % total;
-      }
-      function handleComposerKeydown(event) {
-        if (!shortcutMenuOpen.value) return;
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          moveShortcutActive(1);
-          return;
-        }
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          moveShortcutActive(-1);
-          return;
-        }
-        if (event.key === "Tab") {
-          if (!shortcutAssets.value.length) return;
-          event.preventDefault();
-          selectShortcutAsset(shortcutAssets.value[shortcutActiveIndex.value]);
-          return;
-        }
-        if (event.key === "Enter") {
-          if (!shortcutAssets.value.length) return;
-          event.preventDefault();
-          selectShortcutAsset(shortcutAssets.value[shortcutActiveIndex.value]);
-          return;
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          closeShortcutMenu();
-        }
-      }
-      function insertAssetToken(asset, options = {}) {
-        var _a;
-        if (!asset) return;
-        const currentValue = String(composerInputValue.value || "");
-        const replaceMention = !!options.replaceMention;
-        const replaceStart = replaceMention && shortcutRangeStart.value >= 0 ? shortcutRangeStart.value : Math.min(composerSelectionStart.value, currentValue.length);
-        const replaceEnd = replaceMention && shortcutRangeEnd.value >= replaceStart ? shortcutRangeEnd.value : Math.min(composerSelectionEnd.value, currentValue.length);
-        const result = api.insertPromptAsset(asset.token, {
-          replaceStart,
-          replaceEnd,
-          replaceMention
-        });
-        closeShortcutMenu();
-        focusComposer((_a = result == null ? void 0 : result.cursor) != null ? _a : replaceStart + String(asset.token || "").length + 1);
-      }
-      function handleAssetInsert(asset) {
-        insertAssetToken(asset, { replaceMention: false });
-      }
-      function selectShortcutAsset(asset) {
-        insertAssetToken(asset, { replaceMention: true });
-      }
-      function selectDisabledModel() {
-        api.disableModelAssist();
-        closeModelMenu();
-      }
-      function selectSavedModel(model) {
-        if (!model) return;
-        api.selectModelAndEnable(model.id);
-        closeModelMenu();
-      }
-      function editSelectedModel() {
-        closeModelMenu();
-        api.openModelEditor(selectedModel.value);
-      }
-      function createDeepSeekModel() {
-        closeModelMenu();
-        api.openProviderModelEditor("deepseek");
-      }
-      function createCustomApiModel() {
-        closeModelMenu();
-        api.openModelEditor({
-          id: "",
-          name: "",
-          provider: "custom",
-          type: "api",
-          command: "",
-          endpoint: "",
-          apiKey: "",
-          model: "",
-          proxyUrl: "",
-          timeoutMs: 12e4
-        });
-      }
-      function createExecModel() {
-        closeModelMenu();
-        api.openModelEditor();
-      }
-      function copyRouteFilePath() {
-        if (!routeFilePath.value) return;
-        api.copyTextWithToast(routeFilePath.value);
-      }
-      return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$1, [
-          unref(showCandidatePicker) ? (openBlock(), createElementBlock("div", _hoisted_2$1, [
-            createBaseVNode("div", _hoisted_3$1, [
-              _cache[19] || (_cache[19] = createBaseVNode(
-                "div",
-                { class: "mda-option-title" },
-                "存在多个命中文件，请确认",
-                -1
-                /* CACHED */
-              )),
-              createBaseVNode(
-                "button",
-                {
-                  class: "mda-collapse-btn",
-                  type: "button",
-                  onClick: _cache[0] || (_cache[0] = ($event) => candidatePanelCollapsed.value = !candidatePanelCollapsed.value)
-                },
-                toDisplayString(candidatePanelCollapsed.value ? "展开" : "收起"),
-                1
-                /* TEXT */
-              )
-            ]),
-            candidatePanelCollapsed.value ? (openBlock(), createElementBlock(
-              "div",
-              _hoisted_4$1,
-              " 已选 " + toDisplayString(unref(selectedCandidatePaths).length || 0) + " / " + toDisplayString(unref(candidateHits).length) + " 个文件 ",
-              1
-              /* TEXT */
-            )) : (openBlock(), createElementBlock("div", _hoisted_5$1, [
-              (openBlock(true), createElementBlock(
-                Fragment,
-                null,
-                renderList(unref(candidateHits), (hit) => {
-                  return openBlock(), createElementBlock(
-                    "article",
-                    {
-                      key: hit.file,
-                      class: normalizeClass(["mda-choice-card", { "is-selected": isCandidateSelected(hit) }])
-                    },
-                    [
-                      createBaseVNode("div", _hoisted_6$1, [
-                        createBaseVNode("input", {
-                          type: "checkbox",
-                          checked: isCandidateSelected(hit),
-                          onChange: ($event) => unref(api).toggleCandidateFile(hit)
-                        }, null, 40, _hoisted_7$1),
-                        createBaseVNode("button", {
-                          class: "mda-file-link",
-                          type: "button",
-                          onClick: withModifiers(($event) => unref(api).openSourceFile(hit.file), ["stop"])
-                        }, toDisplayString(hit.file), 9, _hoisted_8$1)
-                      ]),
-                      createBaseVNode(
-                        "div",
-                        _hoisted_9,
-                        toDisplayString(unref(candidateStageLabel)(hit)) + " · " + toDisplayString(hit.score),
-                        1
-                        /* TEXT */
-                      ),
-                      createBaseVNode("button", {
-                        class: "mda-link-btn",
-                        type: "button",
-                        onClick: ($event) => unref(api).toggleCandidateDetail(hit)
-                      }, toDisplayString(unref(expandedCandidatePath) === hit.file ? "收起" : unref(candidateDetailTitle)(hit)), 9, _hoisted_10),
-                      unref(expandedCandidatePath) === hit.file ? (openBlock(), createElementBlock(
-                        "pre",
-                        _hoisted_11,
-                        toDisplayString(unref(candidateLogText)(hit)),
-                        1
-                        /* TEXT */
-                      )) : createCommentVNode("v-if", true)
-                    ],
-                    2
-                    /* CLASS */
-                  );
-                }),
-                128
-                /* KEYED_FRAGMENT */
-              ))
-            ]))
-          ])) : createCommentVNode("v-if", true),
-          unref(needsMoreEvidence) ? (openBlock(), createElementBlock("div", _hoisted_12, [..._cache[20] || (_cache[20] = [
-            createBaseVNode(
-              "div",
-              { class: "mda-option-title" },
-              "线索不足，需要补充页面证据",
-              -1
-              /* CACHED */
-            ),
-            createBaseVNode(
-              "div",
-              { class: "mda-option-desc" },
-              "这些候选文件缺少唯一命中文案，可能是重复复制粘贴的组件。请继续在页面上选择更外层/更独特的区域，或在输入框补充页面位置、业务模块、交互目标。",
-              -1
-              /* CACHED */
-            )
-          ])])) : createCommentVNode("v-if", true),
-          unref(modelEditorOpen) ? (openBlock(), createElementBlock("div", _hoisted_13, [
-            createBaseVNode("div", _hoisted_14, [
-              _cache[21] || (_cache[21] = createBaseVNode(
-                "strong",
-                null,
-                "模型适配器",
-                -1
-                /* CACHED */
-              )),
-              createBaseVNode("button", {
-                class: "mda-mini-btn",
-                type: "button",
-                onClick: _cache[1] || (_cache[1] = (...args) => unref(api).closeModelEditor && unref(api).closeModelEditor(...args))
-              }, "关闭")
-            ]),
-            createBaseVNode("div", _hoisted_15, [
-              unref(modelConfigs).length ? (openBlock(), createElementBlock("label", _hoisted_16, [
-                _cache[23] || (_cache[23] = createBaseVNode(
-                  "span",
-                  null,
-                  "当前模型",
-                  -1
-                  /* CACHED */
-                )),
-                createBaseVNode("select", {
-                  value: unref(selectedModelId),
-                  class: "mda-model-input",
-                  onChange: onModelEditorSelect
-                }, [
-                  _cache[22] || (_cache[22] = createBaseVNode(
-                    "option",
-                    { value: "" },
-                    "新增模型",
-                    -1
-                    /* CACHED */
-                  )),
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(unref(modelConfigs), (model) => {
-                      return openBlock(), createElementBlock("option", {
-                        key: model.id,
-                        value: model.id
-                      }, toDisplayString(model.name) + " · " + toDisplayString(formatModelType(model.type)), 9, _hoisted_18);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  ))
-                ], 40, _hoisted_17)
-              ])) : createCommentVNode("v-if", true),
-              createBaseVNode("label", null, [
-                _cache[25] || (_cache[25] = createBaseVNode(
-                  "span",
-                  null,
-                  "供应商",
-                  -1
-                  /* CACHED */
-                )),
-                createBaseVNode("select", {
-                  value: unref(modelForm).provider || "custom",
-                  class: "mda-model-input",
-                  onChange: onModelProviderChange
-                }, [..._cache[24] || (_cache[24] = [
-                  createBaseVNode(
-                    "option",
-                    { value: "custom" },
-                    "自定义",
-                    -1
-                    /* CACHED */
-                  ),
-                  createBaseVNode(
-                    "option",
-                    { value: "deepseek" },
-                    "DeepSeek",
-                    -1
-                    /* CACHED */
-                  )
-                ])], 40, _hoisted_19)
-              ]),
-              createBaseVNode("label", null, [
-                _cache[26] || (_cache[26] = createBaseVNode(
-                  "span",
-                  null,
-                  "名称",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => unref(modelForm).name = $event),
-                    class: "mda-model-input",
-                    placeholder: "Codex / Claude / OpenAI"
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelText, unref(modelForm).name]
-                ])
-              ]),
-              createBaseVNode("label", null, [
-                _cache[28] || (_cache[28] = createBaseVNode(
-                  "span",
-                  null,
-                  "类型",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "select",
-                  {
-                    "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => unref(modelForm).type = $event),
-                    class: "mda-model-input"
-                  },
-                  [..._cache[27] || (_cache[27] = [
-                    createBaseVNode(
-                      "option",
-                      { value: "exec" },
-                      "Cli",
-                      -1
-                      /* CACHED */
-                    ),
-                    createBaseVNode(
-                      "option",
-                      { value: "api" },
-                      "API",
-                      -1
-                      /* CACHED */
-                    )
-                  ])],
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelSelect, unref(modelForm).type]
-                ])
-              ]),
-              unref(modelForm).type === "exec" ? (openBlock(), createElementBlock("label", _hoisted_20, [
-                _cache[29] || (_cache[29] = createBaseVNode(
-                  "span",
-                  null,
-                  "命令",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => unref(modelForm).command = $event),
-                    class: "mda-model-input",
-                    placeholder: "codex exec"
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelText, unref(modelForm).command]
-                ])
-              ])) : createCommentVNode("v-if", true),
-              unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_21, [
-                _cache[30] || (_cache[30] = createBaseVNode(
-                  "span",
-                  null,
-                  "Endpoint",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => unref(modelForm).endpoint = $event),
-                    class: "mda-model-input",
-                    placeholder: "https://api.openai.com/v1/chat/completions"
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelText, unref(modelForm).endpoint]
-                ])
-              ])) : createCommentVNode("v-if", true),
-              unref(modelForm).type === "api" && unref(modelForm).provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_22, [
-                _cache[32] || (_cache[32] = createBaseVNode(
-                  "span",
-                  null,
-                  "Model",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "select",
-                  {
-                    "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => unref(modelForm).model = $event),
-                    class: "mda-model-input"
-                  },
-                  [..._cache[31] || (_cache[31] = [
-                    createBaseVNode(
-                      "option",
-                      { value: "deepseek-v4-pro" },
-                      "deepseek-v4-pro",
-                      -1
-                      /* CACHED */
-                    ),
-                    createBaseVNode(
-                      "option",
-                      { value: "deepseek-v4-flash" },
-                      "deepseek-v4-flash",
-                      -1
-                      /* CACHED */
-                    )
-                  ])],
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelSelect, unref(modelForm).model]
-                ])
-              ])) : unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_23, [
-                _cache[33] || (_cache[33] = createBaseVNode(
-                  "span",
-                  null,
-                  "Model",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => unref(modelForm).model = $event),
-                    class: "mda-model-input",
-                    placeholder: "gpt-4.1"
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelText, unref(modelForm).model]
-                ])
-              ])) : createCommentVNode("v-if", true),
-              unref(modelForm).type === "api" ? (openBlock(), createElementBlock("label", _hoisted_24, [
-                _cache[34] || (_cache[34] = createBaseVNode(
-                  "span",
-                  null,
-                  "API Key",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => unref(modelForm).apiKey = $event),
-                    class: "mda-model-input",
-                    type: "password",
-                    placeholder: "sk-..."
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelText, unref(modelForm).apiKey]
-                ])
-              ])) : createCommentVNode("v-if", true),
-              createBaseVNode("label", _hoisted_25, [
-                _cache[35] || (_cache[35] = createBaseVNode(
-                  "span",
-                  null,
-                  "代理地址",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => unref(modelForm).proxyUrl = $event),
-                    class: "mda-model-input",
-                    placeholder: "http://127.0.0.1:7890，可留空"
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vModelText, unref(modelForm).proxyUrl]
-                ])
-              ]),
-              createBaseVNode("label", null, [
-                _cache[36] || (_cache[36] = createBaseVNode(
-                  "span",
-                  null,
-                  "超时 ms",
-                  -1
-                  /* CACHED */
-                )),
-                withDirectives(createBaseVNode(
-                  "input",
-                  {
-                    "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => unref(modelForm).timeoutMs = $event),
-                    class: "mda-model-input",
-                    type: "number",
-                    min: "5000",
-                    step: "1000"
-                  },
-                  null,
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [
-                    vModelText,
-                    unref(modelForm).timeoutMs,
-                    void 0,
-                    { number: true }
-                  ]
-                ])
-              ])
-            ]),
-            createBaseVNode(
-              "p",
-              _hoisted_26,
-              toDisplayString(modelTypeHint.value),
-              1
-              /* TEXT */
-            ),
-            createBaseVNode("div", _hoisted_27, [
-              unref(selectedModel) ? (openBlock(), createElementBlock("button", {
-                key: 0,
-                class: "mda-mini-btn",
-                type: "button",
-                disabled: unref(candidateLoading) || unref(modelAssistLoading),
-                onClick: _cache[11] || (_cache[11] = (...args) => unref(api).removeSelectedModel && unref(api).removeSelectedModel(...args))
-              }, "删除模型", 8, _hoisted_28)) : createCommentVNode("v-if", true),
-              createBaseVNode("button", {
-                class: "mda-btn mda-btn-primary",
-                type: "button",
-                onClick: _cache[12] || (_cache[12] = (...args) => unref(api).saveModelForm && unref(api).saveModelForm(...args))
-              }, "保存模型")
-            ])
-          ])) : createCommentVNode("v-if", true),
-          createBaseVNode("div", _hoisted_29, [
-            createBaseVNode("div", _hoisted_30, [
-              createBaseVNode("button", {
-                class: normalizeClass(["mda-assist-chip", { "is-active": unref(includeApiEvidence) }]),
-                type: "button",
-                disabled: unref(candidateLoading) || !!unref(promptText),
-                onClick: toggleApiEvidence
-              }, [..._cache[37] || (_cache[37] = [
-                createBaseVNode(
-                  "span",
-                  { class: "mda-chip-shield" },
-                  null,
-                  -1
-                  /* CACHED */
-                ),
-                createBaseVNode(
-                  "span",
-                  null,
-                  "接口线索",
-                  -1
-                  /* CACHED */
-                )
-              ])], 10, _hoisted_31),
-              unref(promptAssets).length ? (openBlock(), createElementBlock("div", _hoisted_32, [
-                (openBlock(true), createElementBlock(
-                  Fragment,
-                  null,
-                  renderList(unref(promptAssets), (asset) => {
-                    return openBlock(), createElementBlock("article", {
-                      key: asset.token,
-                      class: "mda-asset-card"
-                    }, [
-                      createBaseVNode("div", {
-                        class: "mda-asset-chip",
-                        role: "button",
-                        tabindex: "0",
-                        title: assetTooltip(asset),
-                        onMouseenter: ($event) => openAssetPopover(asset, $event),
-                        onMouseleave: ($event) => scheduleAssetPopoverHide(asset.uid),
-                        onClick: ($event) => handleAssetInsert(asset),
-                        onKeydown: [
-                          withKeys(withModifiers(($event) => handleAssetInsert(asset), ["prevent"]), ["enter"]),
-                          withKeys(withModifiers(($event) => handleAssetInsert(asset), ["prevent"]), ["space"])
-                        ]
-                      }, [
-                        asset.thumbnailUrl ? (openBlock(), createElementBlock(
-                          "span",
-                          {
-                            key: 0,
-                            class: "mda-asset-thumb",
-                            style: normalizeStyle(assetThumbStyle(asset))
-                          },
-                          null,
-                          4
-                          /* STYLE */
-                        )) : (openBlock(), createElementBlock(
-                          "span",
-                          _hoisted_34,
-                          toDisplayString(asset.index),
-                          1
-                          /* TEXT */
-                        )),
-                        createBaseVNode("button", {
-                          class: "mda-asset-remove",
-                          type: "button",
-                          title: "移除这个选区",
-                          onClick: withModifiers(($event) => unref(api).removeSelection(asset.uid), ["stop"])
-                        }, "×", 8, _hoisted_35)
-                      ], 40, _hoisted_33)
-                    ]);
-                  }),
-                  128
-                  /* KEYED_FRAGMENT */
-                ))
-              ])) : createCommentVNode("v-if", true)
-            ]),
-            createVNode(_sfc_main$2, {
-              visible: !!activeAssetPopover.value,
-              "anchor-rect": activeAssetPopoverRect.value,
-              width: 344,
-              placement: "top",
-              gap: 6,
-              "max-height": 320,
-              onMouseenter: cancelAssetPopoverHide,
-              onMouseleave: _cache[13] || (_cache[13] = ($event) => scheduleAssetPopoverHide())
-            }, {
-              default: withCtx(() => [
-                activeAssetPopover.value ? (openBlock(), createElementBlock("article", _hoisted_36, [
-                  createBaseVNode("header", _hoisted_37, [
-                    createBaseVNode(
-                      "div",
-                      _hoisted_38,
-                      toDisplayString(activeAssetPopover.value.token),
-                      1
-                      /* TEXT */
-                    ),
-                    createBaseVNode("div", _hoisted_39, [
-                      createBaseVNode(
-                        "strong",
-                        _hoisted_40,
-                        toDisplayString(activeAssetPopover.value.label),
-                        1
-                        /* TEXT */
-                      ),
-                      createBaseVNode(
-                        "div",
-                        _hoisted_41,
-                        toDisplayString(activeAssetPopover.value.selector || activeAssetPopover.value.className || activeAssetPopover.value.text || "-"),
-                        1
-                        /* TEXT */
-                      )
-                    ])
-                  ]),
-                  createBaseVNode("div", _hoisted_42, [
-                    createBaseVNode("div", _hoisted_43, [
-                      _cache[38] || (_cache[38] = createBaseVNode(
-                        "span",
-                        null,
-                        "选区文案",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(activeAssetPopover.value.text || "-"),
-                        1
-                        /* TEXT */
-                      )
-                    ]),
-                    createBaseVNode("div", _hoisted_44, [
-                      _cache[39] || (_cache[39] = createBaseVNode(
-                        "span",
-                        null,
-                        "选区 selector",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(activeAssetPopover.value.selector || "-"),
-                        1
-                        /* TEXT */
-                      )
-                    ]),
-                    createBaseVNode("div", _hoisted_45, [
-                      _cache[40] || (_cache[40] = createBaseVNode(
-                        "span",
-                        null,
-                        "选区 class",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(activeAssetPopover.value.className || "-"),
-                        1
-                        /* TEXT */
-                      )
-                    ]),
-                    createBaseVNode("div", _hoisted_46, [
-                      _cache[41] || (_cache[41] = createBaseVNode(
-                        "span",
-                        null,
-                        "选区盒模型",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(formatAssetValue(activeAssetPopover.value.box)),
-                        1
-                        /* TEXT */
-                      )
-                    ]),
-                    createBaseVNode("div", _hoisted_47, [
-                      _cache[42] || (_cache[42] = createBaseVNode(
-                        "span",
-                        null,
-                        "扩大选区 selector",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(activeAssetPopover.value.assetSelector || "-"),
-                        1
-                        /* TEXT */
-                      )
-                    ]),
-                    createBaseVNode("div", _hoisted_48, [
-                      _cache[43] || (_cache[43] = createBaseVNode(
-                        "span",
-                        null,
-                        "扩大选区盒模型",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(formatAssetValue(activeAssetPopover.value.assetBox)),
-                        1
-                        /* TEXT */
-                      )
-                    ])
-                  ]),
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(assetDetailSections(activeAssetPopover.value), (section) => {
-                      return openBlock(), createElementBlock("section", {
-                        key: section.label,
-                        class: "mda-asset-popover-section"
-                      }, [
-                        createBaseVNode(
-                          "span",
-                          null,
-                          toDisplayString(section.label),
-                          1
-                          /* TEXT */
-                        ),
-                        createBaseVNode(
-                          "pre",
-                          null,
-                          toDisplayString(section.value),
-                          1
-                          /* TEXT */
-                        )
-                      ]);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  ))
-                ])) : createCommentVNode("v-if", true)
-              ]),
-              _: 1
-              /* STABLE */
-            }, 8, ["visible", "anchor-rect"])
-          ]),
-          createBaseVNode("div", _hoisted_49, [
-            createBaseVNode("textarea", {
-              ref_key: "evidenceInput",
-              ref: evidenceInput,
-              value: unref(composerInputValue),
-              class: "mda-composer-input",
-              readonly: !unref(composerEditable),
-              placeholder: unref(composerPlaceholder),
-              rows: "1",
-              onInput: handleComposerInput,
-              onClick: handleComposerCursor,
-              onKeyup: handleComposerCursor,
-              onSelect: handleComposerCursor,
-              onFocus: handleComposerCursor,
-              onKeydown: handleComposerKeydown
-            }, null, 40, _hoisted_50),
-            shortcutMenuOpen.value ? (openBlock(), createElementBlock(
-              "div",
-              {
-                key: 0,
-                ref_key: "shortcutMenuRef",
-                ref: shortcutMenuRef,
-                class: "mda-composer-shortcut"
-              },
-              [
-                (openBlock(true), createElementBlock(
-                  Fragment,
-                  null,
-                  renderList(shortcutAssets.value, (asset, index) => {
-                    return openBlock(), createElementBlock("button", {
-                      key: asset.uid,
-                      class: normalizeClass(["mda-composer-shortcut-item", { "is-active": index === shortcutActiveIndex.value }]),
-                      type: "button",
-                      onMousedown: _cache[14] || (_cache[14] = withModifiers(() => {
-                      }, ["prevent"])),
-                      onClick: withModifiers(($event) => selectShortcutAsset(asset), ["prevent"])
-                    }, [
-                      asset.thumbnailUrl ? (openBlock(), createElementBlock(
-                        "span",
-                        {
-                          key: 0,
-                          class: "mda-composer-shortcut-thumb",
-                          style: normalizeStyle(assetThumbStyle(asset))
-                        },
-                        null,
-                        4
-                        /* STYLE */
-                      )) : (openBlock(), createElementBlock(
-                        "span",
-                        _hoisted_52,
-                        toDisplayString(asset.index),
-                        1
-                        /* TEXT */
-                      )),
-                      createBaseVNode("span", _hoisted_53, [
-                        createBaseVNode(
-                          "strong",
-                          null,
-                          toDisplayString(asset.token),
-                          1
-                          /* TEXT */
-                        ),
-                        createBaseVNode(
-                          "em",
-                          null,
-                          toDisplayString(asset.summary),
-                          1
-                          /* TEXT */
-                        )
-                      ])
-                    ], 42, _hoisted_51);
-                  }),
-                  128
-                  /* KEYED_FRAGMENT */
-                )),
-                !shortcutAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_54, "@ 无匹配选区")) : createCommentVNode("v-if", true)
-              ],
-              512
-              /* NEED_PATCH */
-            )) : createCommentVNode("v-if", true),
-            createBaseVNode("div", _hoisted_55, [
-              createBaseVNode("div", _hoisted_56, [
-                unref(project) ? (openBlock(), createElementBlock("button", {
-                  key: 0,
-                  class: "mda-tool-icon-btn",
-                  type: "button",
-                  title: "重新选择项目",
-                  disabled: unref(sourceServiceStatus) === "loading",
-                  onClick: _cache[15] || (_cache[15] = (...args) => unref(api).chooseProject && unref(api).chooseProject(...args))
-                }, null, 8, _hoisted_57)) : createCommentVNode("v-if", true),
-                unref(selectedItems).length ? (openBlock(), createElementBlock("button", {
-                  key: 1,
-                  class: "mda-inline-text-btn",
-                  type: "button",
-                  onClick: _cache[16] || (_cache[16] = (...args) => unref(api).clearSelections && unref(api).clearSelections(...args))
-                }, "清空选区")) : createCommentVNode("v-if", true)
-              ]),
-              createBaseVNode("div", _hoisted_58, [
-                createBaseVNode(
-                  "div",
-                  {
-                    ref_key: "modelMenuRef",
-                    ref: modelMenuRef,
-                    class: "mda-model-menu"
-                  },
-                  [
-                    createBaseVNode("button", {
-                      class: normalizeClass(["mda-model-trigger", { "is-active": !!unref(selectedModelId) }]),
-                      type: "button",
-                      disabled: unref(candidateLoading) || unref(modelAssistLoading),
-                      onClick: toggleModelMenu
-                    }, [
-                      createBaseVNode(
-                        "strong",
-                        null,
-                        toDisplayString(activeModelLabel.value),
-                        1
-                        /* TEXT */
-                      ),
-                      activeModelMeta.value ? (openBlock(), createElementBlock(
-                        "em",
-                        _hoisted_60,
-                        toDisplayString(activeModelMeta.value),
-                        1
-                        /* TEXT */
-                      )) : createCommentVNode("v-if", true),
-                      _cache[44] || (_cache[44] = createBaseVNode(
-                        "i",
-                        null,
-                        null,
-                        -1
-                        /* CACHED */
-                      ))
-                    ], 10, _hoisted_59),
-                    modelMenuOpen.value ? (openBlock(), createElementBlock("div", _hoisted_61, [
-                      createBaseVNode(
-                        "button",
-                        {
-                          class: normalizeClass(["mda-model-option", { "is-selected": !unref(selectedModelId) }]),
-                          type: "button",
-                          onClick: selectDisabledModel
-                        },
-                        [..._cache[45] || (_cache[45] = [
-                          createBaseVNode(
-                            "span",
-                            null,
-                            "不启用",
-                            -1
-                            /* CACHED */
-                          )
-                        ])],
-                        2
-                        /* CLASS */
-                      ),
-                      (openBlock(true), createElementBlock(
-                        Fragment,
-                        null,
-                        renderList(unref(modelConfigs), (model) => {
-                          return openBlock(), createElementBlock("button", {
-                            key: model.id,
-                            class: normalizeClass(["mda-model-option", { "is-selected": unref(selectedModelId) === model.id }]),
-                            type: "button",
-                            onClick: ($event) => selectSavedModel(model)
-                          }, [
-                            createBaseVNode(
-                              "span",
-                              null,
-                              toDisplayString(model.name),
-                              1
-                              /* TEXT */
-                            ),
-                            createBaseVNode(
-                              "em",
-                              null,
-                              toDisplayString(modelOptionMeta(model)),
-                              1
-                              /* TEXT */
-                            )
-                          ], 10, _hoisted_62);
-                        }),
-                        128
-                        /* KEYED_FRAGMENT */
-                      )),
-                      unref(modelConfigs).length ? (openBlock(), createElementBlock("div", _hoisted_63)) : createCommentVNode("v-if", true),
-                      unref(selectedModel) ? (openBlock(), createElementBlock("button", {
-                        key: 1,
-                        class: "mda-model-option",
-                        type: "button",
-                        onClick: editSelectedModel
-                      }, [..._cache[46] || (_cache[46] = [
-                        createBaseVNode(
-                          "span",
-                          null,
-                          "配置当前模型",
-                          -1
-                          /* CACHED */
-                        )
-                      ])])) : createCommentVNode("v-if", true),
-                      createBaseVNode("button", {
-                        class: "mda-model-option",
-                        type: "button",
-                        onClick: createDeepSeekModel
-                      }, [..._cache[47] || (_cache[47] = [
-                        createBaseVNode(
-                          "span",
-                          null,
-                          "DeepSeek",
-                          -1
-                          /* CACHED */
-                        ),
-                        createBaseVNode(
-                          "em",
-                          null,
-                          "API",
-                          -1
-                          /* CACHED */
-                        )
-                      ])]),
-                      createBaseVNode("button", {
-                        class: "mda-model-option",
-                        type: "button",
-                        onClick: createCustomApiModel
-                      }, [..._cache[48] || (_cache[48] = [
-                        createBaseVNode(
-                          "span",
-                          null,
-                          "新增 API 模型",
-                          -1
-                          /* CACHED */
-                        )
-                      ])]),
-                      createBaseVNode("button", {
-                        class: "mda-model-option",
-                        type: "button",
-                        onClick: createExecModel
-                      }, [..._cache[49] || (_cache[49] = [
-                        createBaseVNode(
-                          "span",
-                          null,
-                          "新增 Cli 模型",
-                          -1
-                          /* CACHED */
-                        )
-                      ])])
-                    ])) : createCommentVNode("v-if", true)
-                  ],
-                  512
-                  /* NEED_PATCH */
-                ),
-                createBaseVNode("button", {
-                  class: normalizeClass(["mda-send-btn", { "is-stopping": unref(modelAssistLoading) }]),
-                  type: "button",
-                  title: unref(modelAssistLoading) ? "停止模型定位" : "提交",
-                  disabled: !unref(composerCanSend),
-                  onClick: _cache[17] || (_cache[17] = (...args) => unref(api).sendComposer && unref(api).sendComposer(...args))
-                }, [
-                  unref(modelAssistLoading) ? (openBlock(), createElementBlock("span", _hoisted_65)) : unref(candidateLoading) ? (openBlock(), createElementBlock("span", _hoisted_66, "检索")) : (openBlock(), createElementBlock("span", _hoisted_67))
-                ], 10, _hoisted_64)
-              ])
-            ])
-          ]),
-          unref(routeResolverTrace) ? (openBlock(), createElementBlock("div", _hoisted_68, [
-            _cache[50] || (_cache[50] = createBaseVNode(
-              "span",
-              { class: "mda-route-label" },
-              "页面源码地址",
-              -1
-              /* CACHED */
-            )),
-            routeFilePath.value ? (openBlock(), createElementBlock(
-              "button",
-              {
-                key: 0,
-                class: "mda-route-file",
-                type: "button",
-                onClick: _cache[18] || (_cache[18] = ($event) => unref(api).openSourceFile(routeFilePath.value))
-              },
-              toDisplayString(routeFilePath.value),
-              1
-              /* TEXT */
-            )) : (openBlock(), createElementBlock("span", _hoisted_69, "暂无命中")),
-            routeFilePath.value ? (openBlock(), createElementBlock("button", {
-              key: 2,
-              class: "mda-copy-icon",
-              type: "button",
-              title: "复制页面源码地址",
-              "aria-label": "复制页面源码地址",
-              onClick: copyRouteFilePath
-            })) : createCommentVNode("v-if", true)
-          ])) : createCommentVNode("v-if", true),
-          createBaseVNode(
-            "div",
-            _hoisted_70,
-            toDisplayString(unref(toastText)),
-            1
-            /* TEXT */
-          )
-        ]);
-      };
-    }
-  };
-  const magnusLogo = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBYRXhpZgAATU0AKgAAAAgAAgESAAMAAAABAAEAAIdpAAQAAAABAAAAJgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAACn6ADAAQAAAABAAABXQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgBXQKfAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAKv/aAAwDAQACEQMRAD8A/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAON+IHxB8GfCzwjqHjr4gatDouh6XH5k9zMTgDoFVVBZ3Y8Kigsx4AJr8Kfjn/wWA8barqN3on7Pvh+20TS8PDHqmsxGe/kLgBZobYOsEBUnKiUz7uNyKcpXhH/AAUZ/aS1r41fF/WfBFjqiv4E8D3UlnZwRjbFNdxqI7q5l+bMriUPHG3CrGPkG53Z/wA0d5+0PdyqnmPzg/dIx8pOM556j+8Oe2AD7muv+Cj/AO2zb3skqfEyQ4b7h0vSDHzghP8Ajyz39j/OvtH9n/8A4K6eLbfVrfR/2hNJtNS0WeYQf2vpcTW11boA26a4gLPFP8wGRF5RVQzBWOEr8QIUEsknmsWBOEUnPO7JJ642j+L2xV4rKkUcgUIztynAIZcruKjqSQSTjtjpxQB/b94K8beEviN4X0/xr4G1WDW9D1SPzba7tn3xuucEeqsrAq6sAysCrAMCB1NfzS/8EtP2hb34W/FxPhXrt+7eF/iFMIEjkc+VbawCy28kanhftGPJfHLsYyfuV/S1QAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAH//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuY8b6tPoPgzX9ctt3nadp91cptXe26GJnGFHU5HA7109Z+raZa61pV7o98C1tfwyQSgEglJVKMARyODQB/DYtzd3Omj+0NzuT8zEY2s2MjAAHXp6dO1UIZJGA/d7FY/IoJAwDgkHqcYycdTXf/ED4f6z8K/Fes/DvxRCbfUfDl7cWNwgycvA+0SKxAJWVQro20ZVlbvXDRxR7/IuSVVBlv9rH3Se/HGO39QBsiJHK8bNvi4DSJxkZDDtz24/HBqZImdppZAVj/jI4AweMe5Hr65qurpHJH5QJuAzKgxnYRwzYHPAOR16egq7H5scqJG+HZwEx8vKjg55PA46f1oA0/D3ibWfBPiTSvFmjqyXnh2/g1KNW+49xZSLcI5I/hLIOB7j0x/ccjB1DryGAI/Gv43v2ZfhDc/Gf42+DPASWy3FpqWsRNexvL5bNaQN514RtZXytukmCp7D15/sjoAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD8tv+Cgf7DJ+OdlJ8WfhbYJL48s4447qyGxF1WFdsasWd0RZ4EHysTl0UJyQgr+bzWNB1zR9fm0DxFp82j6jZSeXc2tzE8U0LKcMkiuA6kYOcgYPHQV/cZXkvxN+A3wa+MsAh+KHg7TfETpG8Uc9zApuYVcYPk3C4miPoyOpB5BBoA/i5tIkgjnkbqARuI5JJwcEcjcOpz9etbugeG9Y17W7bSvDWnTarq12witrO0jee5ndzgiOKMM5xk7gBx0PFf1AT/wDBL/8AY0nmaZvCN6oclig1rUtmSc9DccfhX1h8Lvgj8Jfgrpj6T8LPCtj4dhmCiaS3izcT7M7TPcPummIzwZHYjpQB8Zf8E/P2Mrn9nLw1ceOviDFH/wAJ94igWKWFGDrp1pkP9nDgkNI7ANKwO0YVV4BZv0goooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//1P38ooooAKKKKACiiigAooooAKKKKACiiigAorzTxp8Z/g/8OJhbfEHx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AooooAKKKKAP/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuE8Y/C74Z/ERI4/iB4R0jxMsOdg1Swt70JuGDt89HxkcHFd3RQB84P+x5+yjIct8HvCY6/d0WzXr9Iq6PQv2av2dfDE8N14d+F/hfTri2cSRSwaNZRyo46MriLcGGOuc17ZRQA1VVFCIAqjgAcAU6iigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k=";
-  const _hoisted_1 = {
-    key: 2,
-    class: "mda-hotkey-tip"
-  };
-  const _hoisted_2 = { class: "mda-head" };
-  const _hoisted_3 = { class: "mda-head-main" };
-  const _hoisted_4 = { class: "mda-title" };
-  const _hoisted_5 = ["src"];
-  const _hoisted_6 = { class: "mda-subtitle" };
-  const _hoisted_7 = { class: "mda-actions" };
-  const _hoisted_8 = { class: "mda-body mda-chat-body" };
   const PROJECT_STORAGE_PREFIX = "magnus:source-project:";
-  const WEB_REQUEST_HANDLER_KEY = "__MAGNUS_WEB_REQUEST_HANDLER__";
-  const WEB_REQUEST_LISTENER_KEY = "__MAGNUS_WEB_REQUEST_LISTENER_INSTALLED__";
-  const _sfc_main = {
-    __name: "App",
-    props: {
-      api: {
-        type: Object,
-        required: true
+  function createMagnusModules({
+    api,
+    currentPageHref,
+    sidePanelConfig,
+    routePagePath,
+    pageHost
+  }) {
+    var _a;
+    const projectStorageKey = computed(() => `${PROJECT_STORAGE_PREFIX}${pageHost.value}`);
+    const modelAssistLoading = computed(() => (model == null ? void 0 : model.modelAssistLoading.value) || false);
+    let search = null;
+    let selection = null;
+    let composer = null;
+    let bridge = null;
+    let model = null;
+    const toast2 = useToast();
+    const requests = usePageRequests();
+    const source = useSourceProject({
+      projectStorageKey,
+      resetProjectContext: () => search == null ? void 0 : search.resetProjectContext(selection, composer),
+      setToast: toast2.setToast
+    });
+    const route = useRouteResolver({
+      project: source.project,
+      currentPageHref,
+      pageUrlPath: routePagePath,
+      sourceServerJson
+    });
+    search = useSearchState({
+      routeResolverTrace: route.routeResolverTrace,
+      recentRequests: requests.recentRequests,
+      modelAssistLoading,
+      filesConfirmed: computed(() => (selection == null ? void 0 : selection.filesConfirmed.value) || false),
+      resetModelAssist: () => {
+        var _a2;
+        return (_a2 = model == null ? void 0 : model.resetModelAssist) == null ? void 0 : _a2.call(model);
+      },
+      invalidatePrompt: () => {
+        var _a2;
+        return (_a2 = composer == null ? void 0 : composer.invalidatePrompt) == null ? void 0 : _a2.call(composer);
       }
+    });
+    selection = useSelectionModule({
+      sendCommand: (type, payload) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload),
+      getPromptIntent: () => (composer == null ? void 0 : composer.promptIntent.value) || "",
+      resetCandidateState: () => search.clearCandidateState(selection.filesConfirmed),
+      resetComposer: () => composer.resetPromptComposer(),
+      setToast: toast2.setToast
+    });
+    composer = useComposerModule({
+      project: source.project,
+      selectedItems: selection.selectedItems,
+      candidateLoading: search.candidateLoading,
+      modelAssistLoading,
+      showCandidatePicker: search.showCandidatePicker,
+      selectedCandidateHits: search.selectedCandidateHits
+    });
+    bridge = useSidePanelBridge({
+      sidePanelConfig,
+      currentPageHref,
+      selectedItems: selection.selectedItems,
+      selectionFromRemote: selection.selectionFromRemote,
+      onRuntimeEvent: (_a = api.bootstrap) == null ? void 0 : _a.handleRuntimeEvent,
+      onNetworkRequest: (payload) => {
+        requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
+      },
+      invalidateSelectionConfirm: selection.invalidateSelectionConfirm,
+      clearSelections: selection.clearSelections,
+      scheduleRouteResolve: route.scheduleRouteResolve,
+      setToast: toast2.setToast
+    });
+    const prompt = usePromptModule({
+      source,
+      route,
+      search,
+      selection,
+      composer,
+      requests,
+      currentPageHref,
+      pageUrlPath: routePagePath,
+      setToast: toast2.setToast
+    });
+    model = useModelModule({
+      source,
+      route,
+      search,
+      prompt,
+      setToast: toast2.setToast
+    });
+    const message = useMessageModule({
+      source,
+      search,
+      selection,
+      composer,
+      model,
+      prompt
+    });
+    return {
+      toast: toast2,
+      requests,
+      source,
+      route,
+      search,
+      selection,
+      composer,
+      bridge,
+      prompt,
+      model,
+      message
+    };
+  }
+  function createComposerWorkflow({
+    source,
+    route,
+    search,
+    selection,
+    composer,
+    model,
+    prompt,
+    toast: toast2
+  }) {
+    function sendComposer() {
+      return __async(this, null, function* () {
+        if (model.modelAssistLoading.value) {
+          model.stopModelAssist();
+          return;
+        }
+        if (!source.project.value) return;
+        const instruction = composer.promptIntent.value.trim();
+        if (!instruction) return;
+        if (search.showCandidatePicker.value) {
+          yield runModelAssistForCandidates(instruction);
+          return;
+        }
+        if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
+        yield searchCandidateFiles();
+      });
+    }
+    function searchCandidateFiles() {
+      return __async(this, null, function* () {
+        var _a;
+        search.candidateLoading.value = true;
+        search.candidateError.value = "";
+        search.modelAssistAttempted.value = false;
+        model.resetModelAssist();
+        selection.filesConfirmed.value = false;
+        try {
+          if (!route.sameRouteTracePage(route.routeResolverTrace.value)) {
+            yield route.resolveCurrentPageRoute();
+          }
+          search.searchRunning.value = true;
+          search.searchStartedAt.value = Date.now();
+          search.searchFinishedAt.value = 0;
+          const timeoutMs = search.includeApiEvidence.value ? 3e4 : 12e3;
+          const data = yield runSearchWithOptionalRetry(timeoutMs);
+          search.candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
+          route.applyRouteResolverTrace(data.routeResolver || null);
+          search.apiTrace.value = data.apiTrace || null;
+          search.i18nTrace.value = data.i18nTrace || null;
+          search.definitionTrace.value = data.definitionTrace || null;
+          if (!search.candidateHits.value.length) {
+            search.selectedCandidatePaths.value = [];
+            search.candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
+          } else {
+            search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
+            search.expandedCandidatePath.value = "";
+            toast2.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
+          }
+          if (shouldAutoRunModelAssist(search.candidateHits.value)) {
+            const modelHandled = yield runModelAssistForCandidates(composer.promptIntent.value.trim());
+            if (modelHandled) return ((_a = model.modelAssistResult.value) == null ? void 0 : _a.stopped) ? [] : search.candidateHits.value;
+          }
+          return search.candidateHits.value;
+        } catch (error) {
+          search.selectedCandidatePaths.value = [];
+          search.candidateError.value = `${error.message || error}。`;
+          return [];
+        } finally {
+          search.candidateLoading.value = false;
+        }
+      });
+    }
+    function runSearchWithOptionalRetry(timeoutMs) {
+      return __async(this, null, function* () {
+        try {
+          const firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs);
+          const firstHits = Array.isArray(firstPass == null ? void 0 : firstPass.hits) ? firstPass.hits : [];
+          if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
+          const secondPass = yield runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs);
+          const secondHits = Array.isArray(secondPass == null ? void 0 : secondPass.hits) ? secondPass.hits : [];
+          return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
+        } finally {
+          search.searchFinishedAt.value = Date.now();
+          search.searchRunning.value = false;
+        }
+      });
+    }
+    function runSearchRequest(body, timeoutMs) {
+      return __async(this, null, function* () {
+        return yield sourceServerJson("/api/search", {
+          method: "POST",
+          body,
+          timeoutMs,
+          timeoutMessage: search.includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
+        });
+      });
+    }
+    function runModelAssistForCandidates(userInstruction) {
+      return __async(this, null, function* () {
+        if (!search.candidateHits.value.length) return false;
+        search.modelAssistAttempted.value = true;
+        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
+          const text = modelAssistUnavailableText();
+          search.candidateError.value = text;
+          toast2.setToast(text);
+          return true;
+        }
+        const modelResult = yield model.runModelAssist();
+        if (modelResult == null ? void 0 : modelResult.stopped) return true;
+        if (hasUsableModelResult(modelResult)) {
+          selection.filesConfirmed.value = true;
+          prompt.generatePrompt({ userInstruction });
+          return true;
+        }
+        return false;
+      });
+    }
+    function modelAssistUnavailableText() {
+      if (!model.selectedModel.value) return "模型定位未启用：请先在输入框模型菜单里选择或配置模型。";
+      if (!source.project.value || source.project.value.source !== "source-server") {
+        return "模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。";
+      }
+      return "模型定位不可用：请检查模型配置。";
+    }
+    return {
+      sendComposer,
+      searchCandidateFiles,
+      runModelAssistForCandidates
+    };
+  }
+  function hasUsableModelResult(result) {
+    return ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).some((item) => {
+      return item && item.exists !== false && (item.path || item.file);
+    });
+  }
+  function shouldAutoRunModelAssist(hits) {
+    const list = Array.isArray(hits) ? hits : [];
+    return list.length > 0;
+  }
+  function hasStrongSearchEvidence(hits) {
+    const list = Array.isArray(hits) ? hits : [];
+    return list.some((hit) => {
+      if (!hit) return false;
+      if (hit.preciseEvidence || hit.uniqueMatchText || hit.uniqueSnippet) return true;
+      if (Number(hit.exactMatchCount || 0) === 1 && Number(hit.contextScore || 0) >= 18) return true;
+      if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
+      if (Number(hit.contextScore || 0) >= 32 && (hit.contextReasons || []).length >= 2) return true;
+      return false;
+    });
+  }
+  function shouldRetryExpandedSearch(hits) {
+    const list = Array.isArray(hits) ? hits : [];
+    if (list.length < 2) return false;
+    if (hasStrongSearchEvidence(list)) return false;
+    if (list.length >= 6) return true;
+    const exactLikeHits = list.filter((hit) => (hit == null ? void 0 : hit.exactMatchText) || (hit == null ? void 0 : hit.uniqueMatchText)).length;
+    return exactLikeHits <= 1;
+  }
+  function isBetterSearchResult(nextHits, currentHits) {
+    var _a, _b;
+    const next = Array.isArray(nextHits) ? nextHits : [];
+    const current = Array.isArray(currentHits) ? currentHits : [];
+    if (!next.length) return false;
+    const nextStrong = hasStrongSearchEvidence(next);
+    const currentStrong = hasStrongSearchEvidence(current);
+    if (nextStrong !== currentStrong) return nextStrong;
+    if (next.length !== current.length) return next.length < current.length;
+    return Number(((_a = next[0]) == null ? void 0 : _a.score) || 0) > Number(((_b = current[0]) == null ? void 0 : _b.score) || 0);
+  }
+  function createMagnusActions({
+    source,
+    route,
+    search,
+    selection,
+    composer,
+    model,
+    prompt,
+    toast: toast2
+  }) {
+    const workflow = createComposerWorkflow({
+      source,
+      route,
+      search,
+      selection,
+      composer,
+      model,
+      prompt,
+      toast: toast2
+    });
+    return {
+      chooseProject: source.chooseProject,
+      onFileInputChange: source.onFileInputChange,
+      previewSelection: selection.previewSelection,
+      restoreSelectionPreview: selection.restoreSelectionPreview,
+      expandSelection: selection.expandSelection,
+      removeSelection: selection.removeSelection,
+      clearSelections: selection.clearSelections,
+      onComposerInput: composer.onComposerInput,
+      insertPromptAsset: composer.insertPromptAsset,
+      sendComposer: workflow.sendComposer,
+      openSourceFile: (file) => openSourceFile(file, toast2),
+      copyTextWithToast: (text) => copyTextWithToast(text, toast2),
+      toggleCandidateFile: (hit) => toggleCandidateFile(hit, search, selection),
+      toggleCandidateDetail: (hit) => toggleCandidateDetail(hit, search),
+      setIncludeApiEvidence: (value) => {
+        search.includeApiEvidence.value = !!value;
+      },
+      onSearchOptionChange: () => search.clearCandidateState(selection.filesConfirmed),
+      openModelEditor: model.openModelEditor,
+      openProviderModelEditor: model.openProviderModelEditor,
+      closeModelEditor: model.closeModelEditor,
+      saveModelForm: model.saveModelForm,
+      removeSelectedModel: model.removeSelectedModel,
+      setSelectedModel: model.setSelectedModel,
+      selectModelAndEnable: model.selectModelAndEnable,
+      disableModelAssist: model.disableModelAssist,
+      setUseModelAssist: model.setUseModelAssist,
+      resetModelAssist: model.resetModelAssist,
+      stopModelAssist: model.stopModelAssist
+    };
+  }
+  function openSourceFile(file, toast2) {
+    return __async(this, null, function* () {
+      if (!file) return;
+      try {
+        yield sourceServerJson("/api/source/open", {
+          method: "POST",
+          body: { file },
+          timeoutMs: 5e3,
+          timeoutMessage: "打开源码文件超时，请确认本地源码服务可用"
+        });
+        toast2.setToast(`已打开 ${file}`);
+      } catch (error) {
+        toast2.setToast(error.message || "打开源码文件失败");
+      }
+    });
+  }
+  function toggleCandidateFile(hit, search, selection) {
+    if (!hit) return;
+    const selected = new Set(search.selectedCandidatePaths.value);
+    if (selected.has(hit.file)) selected.delete(hit.file);
+    else selected.add(hit.file);
+    search.selectedCandidatePaths.value = Array.from(selected);
+    search.invalidateCandidateConfirm(selection.filesConfirmed);
+  }
+  function toggleCandidateDetail(hit, search) {
+    if (!hit) return;
+    search.expandedCandidatePath.value = search.expandedCandidatePath.value === hit.file ? "" : hit.file;
+  }
+  function copyTextWithToast(text, toast2) {
+    copyText(text).then((ok) => {
+      toast2.setToast(ok ? "已复制" : "复制失败");
+    });
+  }
+  function copyText(text) {
+    if (!text) return Promise.resolve(false);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
+    }
+    return new Promise((resolve) => {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.cssText = "position:fixed;left:-9999px;top:-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (error) {
+        ok = false;
+      }
+      textarea.parentNode.removeChild(textarea);
+      resolve(ok);
+    });
+  }
+  const useComposerStore = /* @__PURE__ */ defineStore("magnus.composer", () => {
+    const content = /* @__PURE__ */ ref("");
+    const finalPrompt = /* @__PURE__ */ ref("");
+    const isSending = /* @__PURE__ */ ref(false);
+    const mentionMenuVisible = /* @__PURE__ */ ref(false);
+    const trimmedContent = computed(() => content.value.trim());
+    function setContent(value) {
+      content.value = String(value || "");
+      if (finalPrompt.value) finalPrompt.value = "";
+    }
+    function insertSelectionMention(token) {
+      const normalized = String(token || "").trim();
+      if (!normalized) return;
+      const prefix = !content.value || /\s$/.test(content.value) ? "" : " ";
+      content.value = `${content.value}${prefix}${normalized} `;
+    }
+    function setSending(value) {
+      isSending.value = !!value;
+    }
+    function setFinalPrompt(value) {
+      finalPrompt.value = String(value || "");
+    }
+    function clearContent() {
+      content.value = "";
+    }
+    return {
+      content,
+      finalPrompt,
+      isSending,
+      mentionMenuVisible,
+      trimmedContent,
+      setContent,
+      insertSelectionMention,
+      setSending,
+      setFinalPrompt,
+      clearContent
+    };
+  });
+  const useModelStore = /* @__PURE__ */ defineStore("magnus.model", () => {
+    const selectedModelId = /* @__PURE__ */ ref(null);
+    const configs = /* @__PURE__ */ ref([]);
+    const status = /* @__PURE__ */ ref("idle");
+    const logs = /* @__PURE__ */ ref([]);
+    const result = /* @__PURE__ */ ref(null);
+    const error = /* @__PURE__ */ ref("");
+    function start() {
+      status.value = "running";
+      logs.value = [];
+      result.value = null;
+      error.value = "";
+    }
+    function appendLog(log) {
+      logs.value.push(log);
+    }
+    function applyResult(nextResult) {
+      result.value = nextResult;
+      status.value = (nextResult == null ? void 0 : nextResult.stopped) ? "stopped" : "success";
+    }
+    function fail(reason) {
+      status.value = "error";
+      error.value = `${(reason == null ? void 0 : reason.message) || reason || ""}`;
+    }
+    function reset() {
+      status.value = "idle";
+      logs.value = [];
+      result.value = null;
+      error.value = "";
+    }
+    return {
+      selectedModelId,
+      configs,
+      status,
+      logs,
+      result,
+      error,
+      start,
+      appendLog,
+      applyResult,
+      fail,
+      reset
+    };
+  });
+  function syncLegacyStateToStores({ source, search, composer, model, message }) {
+    const projectStore = useProjectStore();
+    const searchStore = useSearchStore();
+    const chatStore = useChatStore();
+    const composerStore = useComposerStore();
+    const modelStore = useModelStore();
+    watch(source.project, (value) => {
+      projectStore.setProject(value || null);
+    }, { immediate: true });
+    watch([
+      source.sourceServiceStatus,
+      source.sourceServiceMessage,
+      source.sourceServiceError
+    ], ([status, serviceMessage, serviceError]) => {
+      projectStore.setServiceStatus(status || "idle", serviceMessage || "", serviceError || "");
+    }, { immediate: true });
+    watch(message.chatMessages, (value) => {
+      chatStore.setMessages(value || []);
+    }, { immediate: true });
+    watch(search.candidateHits, (value) => {
+      searchStore.candidates = Array.isArray(value) ? value : [];
+    }, { immediate: true });
+    watch(search.selectedCandidatePaths, (value) => {
+      searchStore.selectedCandidatePaths = Array.isArray(value) ? value : [];
+    }, { immediate: true });
+    watch(search.expandedCandidatePath, (value) => {
+      searchStore.expandedCandidatePath = value || "";
+    }, { immediate: true });
+    watch([
+      search.candidateLoading,
+      search.searchRunning,
+      search.candidateError
+    ], ([candidateLoading, searchRunning, candidateError]) => {
+      searchStore.error = candidateError || "";
+      if (candidateError) searchStore.status = "error";
+      else if (candidateLoading || searchRunning) searchStore.status = "loading";
+      else if (searchStore.candidates.length) searchStore.status = "success";
+      else searchStore.status = "idle";
+    }, { immediate: true });
+    watch([
+      search.apiTrace,
+      search.i18nTrace,
+      search.definitionTrace,
+      search.searchStartedAt,
+      search.searchFinishedAt,
+      search.includeApiEvidence,
+      search.modelAssistAttempted
+    ], ([
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      startedAt,
+      finishedAt,
+      includeApiEvidence,
+      modelAssistAttempted
+    ]) => {
+      searchStore.apiTrace = apiTrace || null;
+      searchStore.i18nTrace = i18nTrace || null;
+      searchStore.definitionTrace = definitionTrace || null;
+      searchStore.startedAt = Number(startedAt || 0);
+      searchStore.finishedAt = Number(finishedAt || 0);
+      searchStore.includeApiEvidence = !!includeApiEvidence;
+      searchStore.modelAssistAttempted = !!modelAssistAttempted;
+    }, { immediate: true });
+    watch(composer.promptText, (value) => {
+      composerStore.setFinalPrompt(value || "");
+    }, { immediate: true });
+    watch(composer.promptIntent, (value) => {
+      const nextValue = value || "";
+      if (composerStore.content !== nextValue) composerStore.content = nextValue;
+    }, { immediate: true });
+    watch([
+      model.selectedModelId,
+      model.modelConfigs,
+      model.modelAssistLoading,
+      model.modelAssistError,
+      model.modelAssistLogs,
+      model.modelAssistResult
+    ], ([
+      selectedModelId,
+      modelConfigs,
+      modelAssistLoading,
+      modelAssistError,
+      modelAssistLogs,
+      modelAssistResult
+    ]) => {
+      modelStore.selectedModelId = selectedModelId || null;
+      modelStore.configs = Array.isArray(modelConfigs) ? modelConfigs : [];
+      modelStore.logs = Array.isArray(modelAssistLogs) ? modelAssistLogs : [];
+      modelStore.result = modelAssistResult || null;
+      modelStore.error = modelAssistError || "";
+      if (modelAssistLoading) modelStore.status = "running";
+      else if (modelAssistError) modelStore.status = "error";
+      else if (modelAssistResult == null ? void 0 : modelAssistResult.stopped) modelStore.status = "stopped";
+      else if (modelAssistResult) modelStore.status = "success";
+      else modelStore.status = "idle";
+    }, { immediate: true });
+  }
+  function useMagnusCtx(state, api) {
+    const ctx = useCtx({
+      selectedItems: state.selectedItems,
+      layoutTick: state.layoutTick,
+      chatMessages: state.chatMessages,
+      sourceServiceStatus: state.sourceServiceStatus,
+      sourceServiceError: state.sourceServiceError,
+      candidateError: state.candidateError,
+      showCandidatePicker: state.showCandidatePicker,
+      needsMoreEvidence: state.needsMoreEvidence,
+      candidateHits: state.candidateHits,
+      routeResolverTrace: state.routeResolverTrace,
+      selectedCandidatePaths: state.selectedCandidatePaths,
+      expandedCandidatePath: state.expandedCandidatePath,
+      includeApiEvidence: state.includeApiEvidence,
+      candidateLoading: state.candidateLoading,
+      promptText: state.promptText,
+      promptAssets: state.promptAssets,
+      project: state.project,
+      modelConfigs: state.modelConfigs,
+      selectedModelId: state.selectedModelId,
+      selectedModel: state.selectedModel,
+      useModelAssist: state.useModelAssist,
+      canUseModelAssist: state.canUseModelAssist,
+      modelEditorOpen: state.modelEditorOpen,
+      modelForm: state.modelForm,
+      modelAssistLoading: state.modelAssistLoading,
+      modelAssistError: state.modelAssistError,
+      modelAssistLogs: state.modelAssistLogs,
+      modelAssistResult: state.modelAssistResult,
+      composerInputValue: state.composerInputValue,
+      composerEditable: state.composerEditable,
+      composerPlaceholder: state.composerPlaceholder,
+      composerCanSend: state.composerCanSend,
+      toastText: state.toastText
+    }, api);
+    ctx.setup();
+    return ctx;
+  }
+  function provideMagnusModules(modules) {
+    const { source, route, search, selection, composer, model, message, prompt, toast: toast2, actions } = modules;
+    return useMagnusCtx({
+      selectedItems: selection.selectedItems,
+      layoutTick: selection.layoutTick,
+      chatMessages: message.chatMessages,
+      sourceServiceStatus: source.sourceServiceStatus,
+      sourceServiceError: source.sourceServiceError,
+      candidateError: search.candidateError,
+      showCandidatePicker: search.showCandidatePicker,
+      needsMoreEvidence: search.needsMoreEvidence,
+      candidateHits: search.candidateHits,
+      routeResolverTrace: route.routeResolverTrace,
+      selectedCandidatePaths: search.selectedCandidatePaths,
+      expandedCandidatePath: search.expandedCandidatePath,
+      includeApiEvidence: search.includeApiEvidence,
+      candidateLoading: search.candidateLoading,
+      promptText: composer.promptText,
+      promptAssets: selection.promptAssets,
+      project: source.project,
+      modelConfigs: model.modelConfigs,
+      selectedModelId: model.selectedModelId,
+      selectedModel: model.selectedModel,
+      useModelAssist: model.useModelAssist,
+      canUseModelAssist: model.canUseModelAssist,
+      modelEditorOpen: model.modelEditorOpen,
+      modelForm: model.modelForm,
+      modelAssistLoading: model.modelAssistLoading,
+      modelAssistError: model.modelAssistError,
+      modelAssistLogs: model.modelAssistLogs,
+      modelAssistResult: model.modelAssistResult,
+      composerInputValue: composer.composerInputValue,
+      composerEditable: composer.composerEditable,
+      composerPlaceholder: composer.composerPlaceholder,
+      composerCanSend: composer.composerCanSend,
+      toastText: toast2.toastText
+    }, {
+      loading: search.candidateLoading,
+      back: () => __async(this, null, function* () {
+      }),
+      validate: () => __async(this, null, function* () {
+        return { valid: true };
+      }),
+      buildParams: () => prompt.searchPayload(),
+      empty: () => selection.clearSelections(),
+      previewSelection: actions.previewSelection,
+      restoreSelectionPreview: actions.restoreSelectionPreview,
+      expandSelection: actions.expandSelection,
+      removeSelection: actions.removeSelection,
+      chooseProject: actions.chooseProject,
+      copyPrompt: () => actions.copyTextWithToast(composer.promptText.value),
+      copyTextWithToast: actions.copyTextWithToast,
+      openSourceFile: actions.openSourceFile,
+      setIncludeApiEvidence: actions.setIncludeApiEvidence,
+      onSearchOptionChange: actions.onSearchOptionChange,
+      openModelEditor: actions.openModelEditor,
+      openProviderModelEditor: actions.openProviderModelEditor,
+      closeModelEditor: actions.closeModelEditor,
+      saveModelForm: actions.saveModelForm,
+      removeSelectedModel: actions.removeSelectedModel,
+      setSelectedModel: actions.setSelectedModel,
+      selectModelAndEnable: actions.selectModelAndEnable,
+      disableModelAssist: actions.disableModelAssist,
+      setUseModelAssist: actions.setUseModelAssist,
+      resetModelAssist: actions.resetModelAssist,
+      stopModelAssist: actions.stopModelAssist,
+      clearSelections: actions.clearSelections,
+      onComposerInput: actions.onComposerInput,
+      insertPromptAsset: actions.insertPromptAsset,
+      sendComposer: actions.sendComposer,
+      toggleCandidateFile: actions.toggleCandidateFile,
+      toggleCandidateDetail: actions.toggleCandidateDetail
+    });
+  }
+  function provideMagnusRuntime(api, modules, actions) {
+    var _a, _b;
+    const {
+      source,
+      route,
+      search,
+      selection,
+      composer,
+      model,
+      message,
+      prompt,
+      toast: toast2
+    } = modules;
+    provideMagnusModules({
+      source,
+      route,
+      search,
+      selection,
+      composer,
+      model,
+      message,
+      prompt,
+      toast: toast2,
+      actions
+    });
+    const commands = {
+      sendRequest: actions.sendComposer,
+      resolveRoute: route.resolveCurrentPageRoute,
+      selectProject: source.chooseProject,
+      openSourceFile: actions.openSourceFile,
+      copyPrompt: () => actions.copyTextWithToast(composer.promptText.value),
+      expandSelection: actions.expandSelection,
+      removeSelection: actions.removeSelection,
+      clearSelections: actions.clearSelections
+    };
+    provideMagnusCommands(((_b = (_a = api.bootstrap) == null ? void 0 : _a.createCommands) == null ? void 0 : _b.call(_a, commands)) || commands);
+  }
+  function registerRuntimeApi(api, bridge, selection) {
+    api.start = () => bridge.sendSidePanelCommand("picker.start");
+    api.stop = () => bridge.sendSidePanelCommand("picker.stop");
+    api.toggle = () => bridge.sendSidePanelCommand("picker.start");
+    api.clear = selection.clearSelections;
+    api.getSelected = () => ({
+      element: null,
+      selections: selection.selectionPayloads()
+    });
+  }
+  function readCurrentHref(api) {
+    var _a, _b, _c;
+    if ((_c = (_b = (_a = api.sidePanelConfig) == null ? void 0 : _a.snapshot) == null ? void 0 : _b.page) == null ? void 0 : _c.url) {
+      return api.sidePanelConfig.snapshot.page.url;
+    }
+    try {
+      return window.location.href || "";
+    } catch (error) {
+      return "";
+    }
+  }
+  function pageHostText(href) {
+    try {
+      return new URL(href).host || href;
+    } catch (error) {
+      return "-";
+    }
+  }
+  function pageUrlPath(href) {
+    try {
+      const url = new URL(href);
+      return hashRoutePath(url.hash) || url.pathname || "/";
+    } catch (error) {
+      return "/";
+    }
+  }
+  function installLocationWatcher(currentPageHref) {
+    const rawPushState = window.history.pushState;
+    const rawReplaceState = window.history.replaceState;
+    const syncCurrentUrl = () => {
+      const nextHref = readCurrentHref({ sidePanelConfig: window.__MAGNUS_SIDE_PANEL__ || {} });
+      if (nextHref && nextHref !== currentPageHref.value) currentPageHref.value = nextHref;
+    };
+    const onChanged = () => window.setTimeout(syncCurrentUrl, 0);
+    window.history.pushState = function pushState(...args) {
+      const result = rawPushState.apply(this, args);
+      onChanged();
+      return result;
+    };
+    window.history.replaceState = function replaceState(...args) {
+      const result = rawReplaceState.apply(this, args);
+      onChanged();
+      return result;
+    };
+    window.addEventListener("popstate", onChanged, true);
+    window.addEventListener("hashchange", onChanged, true);
+    return () => {
+      window.history.pushState = rawPushState;
+      window.history.replaceState = rawReplaceState;
+      window.removeEventListener("popstate", onChanged, true);
+      window.removeEventListener("hashchange", onChanged, true);
+    };
+  }
+  function useMagnusApp(api) {
+    const currentPageHref = /* @__PURE__ */ ref(readCurrentHref(api));
+    const sidePanelConfig = computed(() => api.sidePanelConfig || {});
+    const routePagePath = computed(() => pageUrlPath(currentPageHref.value));
+    const pageHost = computed(() => pageHostText(currentPageHref.value));
+    let cleanupLocationWatcher = null;
+    const modules = createMagnusModules({
+      api,
+      sidePanelConfig,
+      currentPageHref,
+      routePagePath,
+      pageHost
+    });
+    const { source, route, search, selection, composer, bridge, model, message } = modules;
+    syncLegacyStateToStores({ source, search, composer, model, message });
+    const actions = createMagnusActions(__spreadValues({}, modules));
+    provideMagnusRuntime(api, modules, actions);
+    watch([source.project, currentPageHref], () => {
+      search.i18nTrace.value = null;
+      search.definitionTrace.value = null;
+      route.scheduleRouteResolve();
+    });
+    onMounted(() => {
+      registerRuntimeApi(api, bridge, selection);
+      cleanupLocationWatcher = installLocationWatcher(currentPageHref);
+      source.restoreSavedProject();
+      route.scheduleRouteResolve();
+      bridge.connectSidePanelBridge();
+    });
+    onBeforeUnmount(() => {
+      bridge.disconnectSidePanelBridge();
+      route.cleanupRouteResolver();
+      cleanupLocationWatcher == null ? void 0 : cleanupLocationWatcher();
+      cleanupLocationWatcher = null;
+      toast.cleanupToast();
+    });
+    return {
+      fileInputRef: source.fileInputRef,
+      onFileInputChange: source.onFileInputChange,
+      pageHost
+    };
+  }
+  const magnusLogo = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBYRXhpZgAATU0AKgAAAAgAAgESAAMAAAABAAEAAIdpAAQAAAABAAAAJgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAACn6ADAAQAAAABAAABXQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgBXQKfAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAKv/aAAwDAQACEQMRAD8A/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAON+IHxB8GfCzwjqHjr4gatDouh6XH5k9zMTgDoFVVBZ3Y8Kigsx4AJr8Kfjn/wWA8barqN3on7Pvh+20TS8PDHqmsxGe/kLgBZobYOsEBUnKiUz7uNyKcpXhH/AAUZ/aS1r41fF/WfBFjqiv4E8D3UlnZwRjbFNdxqI7q5l+bMriUPHG3CrGPkG53Z/wA0d5+0PdyqnmPzg/dIx8pOM556j+8Oe2AD7muv+Cj/AO2zb3skqfEyQ4b7h0vSDHzghP8Ajyz39j/OvtH9n/8A4K6eLbfVrfR/2hNJtNS0WeYQf2vpcTW11boA26a4gLPFP8wGRF5RVQzBWOEr8QIUEsknmsWBOEUnPO7JJ642j+L2xV4rKkUcgUIztynAIZcruKjqSQSTjtjpxQB/b94K8beEviN4X0/xr4G1WDW9D1SPzba7tn3xuucEeqsrAq6sAysCrAMCB1NfzS/8EtP2hb34W/FxPhXrt+7eF/iFMIEjkc+VbawCy28kanhftGPJfHLsYyfuV/S1QAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAH//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuY8b6tPoPgzX9ctt3nadp91cptXe26GJnGFHU5HA7109Z+raZa61pV7o98C1tfwyQSgEglJVKMARyODQB/DYtzd3Omj+0NzuT8zEY2s2MjAAHXp6dO1UIZJGA/d7FY/IoJAwDgkHqcYycdTXf/ED4f6z8K/Fes/DvxRCbfUfDl7cWNwgycvA+0SKxAJWVQro20ZVlbvXDRxR7/IuSVVBlv9rH3Se/HGO39QBsiJHK8bNvi4DSJxkZDDtz24/HBqZImdppZAVj/jI4AweMe5Hr65qurpHJH5QJuAzKgxnYRwzYHPAOR16egq7H5scqJG+HZwEx8vKjg55PA46f1oA0/D3ibWfBPiTSvFmjqyXnh2/g1KNW+49xZSLcI5I/hLIOB7j0x/ccjB1DryGAI/Gv43v2ZfhDc/Gf42+DPASWy3FpqWsRNexvL5bNaQN514RtZXytukmCp7D15/sjoAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD8tv+Cgf7DJ+OdlJ8WfhbYJL48s4447qyGxF1WFdsasWd0RZ4EHysTl0UJyQgr+bzWNB1zR9fm0DxFp82j6jZSeXc2tzE8U0LKcMkiuA6kYOcgYPHQV/cZXkvxN+A3wa+MsAh+KHg7TfETpG8Uc9zApuYVcYPk3C4miPoyOpB5BBoA/i5tIkgjnkbqARuI5JJwcEcjcOpz9etbugeG9Y17W7bSvDWnTarq12witrO0jee5ndzgiOKMM5xk7gBx0PFf1AT/wDBL/8AY0nmaZvCN6oclig1rUtmSc9DccfhX1h8Lvgj8Jfgrpj6T8LPCtj4dhmCiaS3izcT7M7TPcPummIzwZHYjpQB8Zf8E/P2Mrn9nLw1ceOviDFH/wAJ94igWKWFGDrp1pkP9nDgkNI7ANKwO0YVV4BZv0goooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//1P38ooooAKKKKACiiigAooooAKKKKACiiigAorzTxp8Z/g/8OJhbfEHx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AooooAKKKKAP/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuE8Y/C74Z/ERI4/iB4R0jxMsOdg1Swt70JuGDt89HxkcHFd3RQB84P+x5+yjIct8HvCY6/d0WzXr9Iq6PQv2av2dfDE8N14d+F/hfTri2cSRSwaNZRyo46MriLcGGOuc17ZRQA1VVFCIAqjgAcAU6iigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k=";
+  const _hoisted_1 = { class: "mda-root" };
+  const _hoisted_2 = {
+    class: "mda-panel",
+    "aria-label": "Magnus"
+  };
+  const _hoisted_3 = { class: "mda-head" };
+  const _hoisted_4 = { class: "mda-head-main" };
+  const _hoisted_5 = { class: "mda-title" };
+  const _hoisted_6 = ["src"];
+  const _hoisted_7 = { class: "mda-subtitle" };
+  const _hoisted_8 = { class: "mda-body mda-chat-body" };
+  const _sfc_main$1 = /* @__PURE__ */ defineComponent({
+    __name: "MagnusPanel",
+    props: {
+      api: {}
     },
     setup(__props) {
       const props = __props;
-      const active = /* @__PURE__ */ ref(true);
-      const isSidePanel = computed(() => !!props.api.sidePanel);
-      const panelRef = /* @__PURE__ */ ref(null);
-      const composerPanelRef = /* @__PURE__ */ ref(null);
-      const hoveredElement = /* @__PURE__ */ shallowRef(null);
-      const selectedElement = /* @__PURE__ */ shallowRef(null);
-      const displayInfo = /* @__PURE__ */ shallowRef(null);
-      const selectedItems = /* @__PURE__ */ ref([]);
-      const candidateHits = /* @__PURE__ */ ref([]);
-      const routeResolverTrace = /* @__PURE__ */ ref(null);
-      const apiTrace = /* @__PURE__ */ ref(null);
-      const i18nTrace = /* @__PURE__ */ ref(null);
-      const definitionTrace = /* @__PURE__ */ ref(null);
-      const candidateLoading = /* @__PURE__ */ ref(false);
-      const searchRunning = /* @__PURE__ */ ref(false);
-      const candidateError = /* @__PURE__ */ ref("");
-      const searchStartedAt = /* @__PURE__ */ ref(0);
-      const searchFinishedAt = /* @__PURE__ */ ref(0);
-      const searchKeywords = /* @__PURE__ */ ref("");
-      const customEvidence = /* @__PURE__ */ ref("");
-      const evidenceMessages = /* @__PURE__ */ ref([]);
-      const includeApiEvidence = /* @__PURE__ */ ref(true);
-      const selectedCandidatePaths = /* @__PURE__ */ ref([]);
-      const expandedCandidatePath = /* @__PURE__ */ ref("");
-      const selectionConfirmed = /* @__PURE__ */ ref(false);
-      const filesConfirmed = /* @__PURE__ */ ref(false);
-      const modelAssistAttempted = /* @__PURE__ */ ref(false);
-      const promptText = /* @__PURE__ */ ref("");
-      const promptIntent = /* @__PURE__ */ ref("");
-      const layoutTick = /* @__PURE__ */ ref(0);
-      const currentPageHref = /* @__PURE__ */ ref(readCurrentHref());
-      let selectionUid = 0;
-      let routeResolveSeq = 0;
-      let routeResolveTimer = 0;
-      let webRequestApiRetryTimer = 0;
-      let webRequestApiRetryCount = 0;
-      let webRequestApiInstalled = false;
-      let cleanupLocationWatcher = null;
-      let sidePanelSocket = null;
-      let sidePanelSessionId = "";
-      const {
-        collapsed,
-        resizing,
-        effectivePanelWidth,
-        panelStyle,
-        applyPageInset,
-        startPanelResize,
-        syncPanelWidth,
-        cleanupPanelLayout
-      } = usePanelLayout({ active });
-      const {
-        toastText,
-        setToast,
-        cleanupToast
-      } = useToast();
-      const {
-        recentRequests,
-        rememberRequest,
-        denoiseTextByApi
-      } = usePageRequests();
-      const overlay = /* @__PURE__ */ reactive({
-        visible: false,
-        selected: false,
-        left: "0px",
-        top: "0px",
-        width: "0px",
-        height: "0px",
-        badgeLeft: "0px",
-        badgeTop: "0px",
-        badgeText: ""
-      });
-      const pageHost = computed(() => {
-        try {
-          return new URL(currentPageHref.value).host || currentPageHref.value;
-        } catch (error) {
-          return "-";
-        }
-      });
-      const pageUrlPath = computed(() => {
-        try {
-          const url = new URL(currentPageHref.value);
-          return hashRoutePath(url.hash) || url.pathname || "/";
-        } catch (error) {
-          return "/";
-        }
-      });
-      const projectStorageKey = computed(() => `${PROJECT_STORAGE_PREFIX}${pageHost.value}`);
       const {
         fileInputRef,
-        project,
-        sourceServiceStatus,
-        sourceServiceError,
-        sourceServiceMessage,
-        chooseProject,
         onFileInputChange,
-        restoreSavedProject
-      } = useSourceProject({
-        projectStorageKey,
-        resetProjectContext,
-        setToast
-      });
-      computed(() => selectedItems.value[selectedItems.value.length - 1] || null);
-      const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
-      const selectedCandidateHits = computed(() => {
-        const selected = new Set(selectedCandidatePaths.value);
-        return candidateHits.value.filter((hit) => selected.has(hit.file));
-      });
-      const canConfirmSelection = computed(() => selectedItems.value.length > 0);
-      const routeResolverMatched = computed(() => {
-        var _a;
-        return !!((_a = routeResolverTrace.value) == null ? void 0 : _a.matched);
-      });
-      const hasReliableCandidateEvidence = computed(() => {
-        return routeResolverMatched.value || candidateHits.value.some((hit) => {
-          return hit.stage === "model-agent" || hit.preciseEvidence;
-        });
-      });
-      const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
-      const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
-      const showCandidatePicker = computed(() => {
-        return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
-      });
-      const composerEditable = computed(() => selectedItems.value.length > 0);
-      const composerPlaceholder = computed(
-        () => selectedItems.value.length ? "输入修改要求，可用 @选区 或 @选区1 引用已选区" : ""
-      );
-      const composerText = computed(() => {
-        if (!project.value) return "请选择项目源码";
-        if (!selectedItems.value.length) return "选择页面选区后，可用 @选区1 描述修改";
-        return promptIntent.value;
-      });
-      const composerInputValue = computed(() => composerEditable.value ? promptIntent.value : composerText.value);
-      const composerCanSend = computed(() => {
-        if (modelAssistLoading.value) return true;
-        if (candidateLoading.value) return false;
-        if (!project.value) return false;
-        if (!selectedItems.value.length) return false;
-        if (showCandidatePicker.value) return selectedCandidateHits.value.length > 0;
-        return promptIntent.value.trim().length > 0;
-      });
-      function hasUsableModelResult(result) {
-        return ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).some((item) => {
-          return item && item.exists !== false && (item.path || item.file);
-        });
-      }
-      function shouldAutoRunModelAssist(hits) {
-        const list = Array.isArray(hits) ? hits : [];
-        return list.length > 0;
-      }
-      function hasStrongSearchEvidence(hits) {
-        const list = Array.isArray(hits) ? hits : [];
-        return list.some((hit) => {
-          if (!hit) return false;
-          if (hit.preciseEvidence || hit.uniqueMatchText || hit.uniqueSnippet) return true;
-          if (Number(hit.exactMatchCount || 0) === 1 && Number(hit.contextScore || 0) >= 18) return true;
-          if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
-          if (Number(hit.contextScore || 0) >= 32 && (hit.contextReasons || []).length >= 2) return true;
-          return false;
-        });
-      }
-      function shouldRetryExpandedSearch(hits) {
-        const list = Array.isArray(hits) ? hits : [];
-        if (list.length < 2) return false;
-        if (hasStrongSearchEvidence(list)) return false;
-        if (list.length >= 6) return true;
-        const exactLikeHits = list.filter((hit) => (hit == null ? void 0 : hit.exactMatchText) || (hit == null ? void 0 : hit.uniqueMatchText)).length;
-        return exactLikeHits <= 1;
-      }
-      function isBetterSearchResult(nextHits, currentHits) {
-        var _a, _b;
-        const next = Array.isArray(nextHits) ? nextHits : [];
-        const current = Array.isArray(currentHits) ? currentHits : [];
-        if (!next.length) return false;
-        const nextStrong = hasStrongSearchEvidence(next);
-        const currentStrong = hasStrongSearchEvidence(current);
-        if (nextStrong !== currentStrong) return nextStrong;
-        if (next.length !== current.length) return next.length < current.length;
-        return Number(((_a = next[0]) == null ? void 0 : _a.score) || 0) > Number(((_b = current[0]) == null ? void 0 : _b.score) || 0);
-      }
-      function runSearchRequest(body, timeoutMs) {
-        return __async(this, null, function* () {
-          return yield sourceServerJson("/api/search", {
-            method: "POST",
-            body,
-            timeoutMs,
-            timeoutMessage: includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
-          });
-        });
-      }
-      const {
-        selectionChatSummary,
-        searchPayload,
-        searchLogLines,
-        generatePrompt
-      } = useSearchPrompt({
-        selectedItems,
-        selectedCandidatePaths,
-        selectedCandidateHits,
-        candidateHits,
-        routeResolverTrace,
-        apiTrace,
-        i18nTrace,
-        definitionTrace,
-        evidenceMessages,
-        customEvidence,
-        promptIntent,
-        searchKeywords,
-        includeApiEvidence,
-        searchApiRequests,
-        currentPageHref,
-        pageUrlPath,
-        project,
-        promptText,
-        denoiseTextByApi,
-        selectionPayloads,
-        setToast
-      });
-      const promptAssets = computed(() => {
-        return selectedItems.value.map((item, index) => {
-          var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
-          return {
-            uid: item.uid,
-            token: `@选区${index + 1}`,
-            index: index + 1,
-            label: `选区 ${index + 1}`,
-            summary: compactText(((_a = item.info) == null ? void 0 : _a.text) || ((_b = item.info) == null ? void 0 : _b.className) || ((_c = item.info) == null ? void 0 : _c.tag) || ((_d = item.assetInfo) == null ? void 0 : _d.text) || `选区${index + 1}`, 24),
-            thumbnailUrl: item.thumbnailUrl || "",
-            className: ((_e = item.info) == null ? void 0 : _e.className) || "",
-            text: ((_f = item.info) == null ? void 0 : _f.text) || "",
-            selector: ((_g = item.info) == null ? void 0 : _g.selector) || "",
-            innerHtml: ((_h = item.info) == null ? void 0 : _h.innerHtml) || "",
-            outerHtml: ((_i = item.info) == null ? void 0 : _i.outerHtml) || "",
-            inlineStyle: ((_j = item.info) == null ? void 0 : _j.inlineStyle) || "",
-            computedStyle: ((_k = item.info) == null ? void 0 : _k.computedStyle) || null,
-            box: ((_l = item.info) == null ? void 0 : _l.box) || null,
-            assetSelector: ((_m = item.assetInfo) == null ? void 0 : _m.selector) || "",
-            assetText: ((_n = item.assetInfo) == null ? void 0 : _n.text) || "",
-            assetInnerHtml: ((_o = item.assetInfo) == null ? void 0 : _o.innerHtml) || "",
-            assetOuterHtml: ((_p = item.assetInfo) == null ? void 0 : _p.outerHtml) || "",
-            assetInlineStyle: ((_q = item.assetInfo) == null ? void 0 : _q.inlineStyle) || "",
-            assetComputedStyle: ((_r = item.assetInfo) == null ? void 0 : _r.computedStyle) || null,
-            assetBox: ((_s = item.assetInfo) == null ? void 0 : _s.box) || null,
-            thumbnailCaptured: !!item.thumbnailUrl
-          };
-        });
-      });
-      const {
-        modelConfigs,
-        selectedModelId,
-        selectedModel,
-        useModelAssist,
-        canUseModelAssist,
-        modelEditorOpen,
-        modelForm,
-        modelAssistLoading,
-        modelAssistError,
-        modelAssistLogs,
-        modelAssistResult,
-        modelAssistStartedAt,
-        modelAssistFinishedAt,
-        openModelEditor,
-        openProviderModelEditor,
-        closeModelEditor,
-        saveModelForm,
-        removeSelectedModel,
-        setSelectedModel,
-        selectModelAndEnable,
-        disableModelAssist,
-        setUseModelAssist,
-        resetModelAssist,
-        runModelAssist,
-        stopModelAssist
-      } = useModelAdapters({
-        project,
-        candidateHits,
-        selectedCandidatePaths,
-        searchPayload,
-        routeResolverTrace,
-        apiTrace,
-        i18nTrace,
-        definitionTrace,
-        setToast
-      });
-      const { chatMessages } = useChatMessages({
-        project,
-        selectedItems,
-        selectionConfirmed,
-        evidenceMessages,
-        candidateLoading,
-        searchRunning,
-        includeApiEvidence,
-        candidateHits,
-        needsMoreEvidence,
-        filesConfirmed,
-        promptText,
-        sourceServiceStatus,
-        sourceServiceMessage,
-        modelAssistLoading,
-        modelAssistError,
-        modelAssistLogs,
-        modelAssistResult,
-        searchStartedAt,
-        searchFinishedAt,
-        modelAssistStartedAt,
-        modelAssistFinishedAt,
-        selectionChatSummary,
-        searchLogLines
-      });
-      const ctx = useCtx({
-        selectedItems,
-        layoutTick,
-        chatMessages,
-        sourceServiceStatus,
-        sourceServiceError,
-        candidateError,
-        showCandidatePicker,
-        needsMoreEvidence,
-        candidateHits,
-        routeResolverTrace,
-        selectedCandidatePaths,
-        expandedCandidatePath,
-        includeApiEvidence,
-        candidateLoading,
-        promptText,
-        promptAssets,
-        project,
-        modelConfigs,
-        selectedModelId,
-        selectedModel,
-        useModelAssist,
-        canUseModelAssist,
-        modelEditorOpen,
-        modelForm,
-        modelAssistLoading,
-        modelAssistError,
-        modelAssistLogs,
-        modelAssistResult,
-        composerInputValue,
-        composerEditable,
-        composerPlaceholder,
-        composerCanSend,
-        toastText
-      }, {
-        loading: candidateLoading,
-        back: () => __async(this, null, function* () {
-        }),
-        validate: () => __async(this, null, function* () {
-          return { valid: true };
-        }),
-        buildParams: () => searchPayload(),
-        empty: () => clearSelections(),
-        previewSelection,
-        restoreSelectionPreview,
-        expandSelection: expandRemoteSelection,
-        removeSelection,
-        chooseProject,
-        copyPrompt: () => copyTextWithToast(promptText.value),
-        copyTextWithToast,
-        openSourceFile,
-        setIncludeApiEvidence: (value) => {
-          includeApiEvidence.value = !!value;
-        },
-        onSearchOptionChange,
-        openModelEditor,
-        openProviderModelEditor,
-        closeModelEditor,
-        saveModelForm,
-        removeSelectedModel,
-        setSelectedModel,
-        selectModelAndEnable,
-        disableModelAssist,
-        setUseModelAssist,
-        resetModelAssist,
-        stopModelAssist,
-        clearSelections,
-        onComposerInput,
-        insertPromptAsset,
-        sendComposer,
-        toggleCandidateFile,
-        toggleCandidateDetail
-      });
-      ctx.setup();
-      const overlayStyle = computed(() => ({
-        display: overlay.visible ? "block" : "none",
-        left: overlay.left,
-        top: overlay.top,
-        width: overlay.width,
-        height: overlay.height
-      }));
-      const badgeStyle = computed(() => ({
-        display: overlay.visible ? "block" : "none",
-        left: overlay.badgeLeft,
-        top: overlay.badgeTop
-      }));
-      function selectionPayloads() {
-        return selectedItems.value.map((item, index) => ({
-          index: index + 1,
-          token: `@选区${index + 1}`,
-          element: item.info,
-          asset: item.assetInfo || null,
-          thumbnailCaptured: !!item.thumbnailUrl
-        }));
-      }
-      function dispatchSelected() {
-        if (isSidePanel.value) return;
-        try {
-          window.dispatchEvent(new CustomEvent("magnus:element-selected", { detail: selectionPayloads() }));
-        } catch (error) {
-        }
-      }
-      function updateInfo(element) {
-        const info = getElementInfo(element, { normalizeText: denoiseTextByApi });
-        if (!info) return;
-        displayInfo.value = info;
-      }
-      function classBadgeText(element) {
-        const classes = [];
-        if (element.classList && element.classList.length) {
-          for (let i = 0; i < element.classList.length && i < 2; i++) {
-            classes.push(`.${element.classList[i]}`);
-          }
-        }
-        return classes.join("");
-      }
-      function makeBadgeText(element) {
-        if (!element) return "";
-        const rect = element.getBoundingClientRect();
-        const classText = classBadgeText(element);
-        return `${element.tagName.toLowerCase()}${classText}  ${round(rect.width)}x${round(rect.height)}`;
-      }
-      function hideOverlay() {
-        overlay.visible = false;
-        overlay.badgeText = "";
-      }
-      function updateOverlay(element, isSelected) {
-        if (!element || !document.documentElement.contains(element)) {
-          hideOverlay();
-          return;
-        }
-        const rect = element.getBoundingClientRect();
-        if (rect.width <= 0 && rect.height <= 0) {
-          hideOverlay();
-          return;
-        }
-        const badgeTop = rect.top > 28 ? rect.top - 26 : rect.bottom + 4;
-        const badgeLeft = Math.max(8, Math.min(rect.left, window.innerWidth - 260));
-        overlay.visible = true;
-        overlay.selected = !!isSelected;
-        overlay.left = `${round(rect.left)}px`;
-        overlay.top = `${round(rect.top)}px`;
-        overlay.width = `${Math.max(1, round(rect.width))}px`;
-        overlay.height = `${Math.max(1, round(rect.height))}px`;
-        overlay.badgeLeft = `${round(badgeLeft)}px`;
-        overlay.badgeTop = `${round(Math.max(8, badgeTop))}px`;
-        overlay.badgeText = makeBadgeText(element);
-      }
-      function getEventPath(event) {
-        if (event.composedPath) return event.composedPath();
-        const path = [];
-        let node = event.target;
-        while (node) {
-          path.push(node);
-          node = node.parentNode;
-        }
-        path.push(window);
-        return path;
-      }
-      function isFromAssistantUi(event) {
-        const path = getEventPath(event);
-        return path.includes(props.api.host) || path.includes(props.api.shadowRoot) || path.includes(panelRef.value);
-      }
-      function stopAssistantEvent(event) {
-        if (isFromAssistantUi(event)) event.stopPropagation();
-      }
-      function invalidatePrompt() {
-        promptText.value = "";
-      }
-      function resetPromptComposer() {
-        promptText.value = "";
-        promptIntent.value = "";
-      }
-      function invalidateSelectionConfirm() {
-        selectionConfirmed.value = false;
-        filesConfirmed.value = false;
-        modelAssistAttempted.value = false;
-        candidateHits.value = [];
-        candidateError.value = "";
-        selectedCandidatePaths.value = [];
-        expandedCandidatePath.value = "";
-        invalidatePrompt();
-      }
-      function invalidateCandidateConfirm() {
-        filesConfirmed.value = false;
-        invalidatePrompt();
-      }
-      function clearCandidateState() {
-        candidateHits.value = [];
-        candidateError.value = "";
-        searchRunning.value = false;
-        searchStartedAt.value = 0;
-        searchFinishedAt.value = 0;
-        selectedCandidatePaths.value = [];
-        expandedCandidatePath.value = "";
-        filesConfirmed.value = false;
-        modelAssistAttempted.value = false;
-        resetModelAssist();
-        invalidatePrompt();
-      }
-      function resetProjectContext() {
-        selectionConfirmed.value = false;
-        customEvidence.value = "";
-        evidenceMessages.value = [];
-        clearCandidateState();
-        resetPromptComposer();
-      }
-      function readCurrentHref() {
-        var _a, _b, _c;
-        if ((_c = (_b = (_a = props.api.sidePanelConfig) == null ? void 0 : _a.snapshot) == null ? void 0 : _b.page) == null ? void 0 : _c.url) {
-          return props.api.sidePanelConfig.snapshot.page.url;
-        }
-        try {
-          return window.location.href || "";
-        } catch (error) {
-          return "";
-        }
-      }
-      function selectionFromRemote(raw, index) {
-        const info = (raw == null ? void 0 : raw.element) || (raw == null ? void 0 : raw.info) || raw || {};
-        const uid2 = (raw == null ? void 0 : raw.uid) || info.uid || `remote-selection-${Date.now()}-${index}`;
-        return {
-          uid: uid2,
-          element: null,
-          info,
-          assetElement: null,
-          assetInfo: (raw == null ? void 0 : raw.asset) || info,
-          thumbnailUrl: (raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail) || ""
-        };
-      }
-      function applyRemoteSnapshot(snapshot) {
-        var _a;
-        if (!snapshot) return;
-        if ((_a = snapshot.page) == null ? void 0 : _a.url) currentPageHref.value = snapshot.page.url;
-        const list = Array.isArray(snapshot.selections) ? snapshot.selections : snapshot.selection ? [snapshot.selection] : [];
-        selectedItems.value = list.map(selectionFromRemote);
-      }
-      function applyRemoteSessionEvent(message) {
-        var _a;
-        const event = (message == null ? void 0 : message.event) || {};
-        const payload = event.payload || {};
-        if (event.type === "selection.changed") {
-          const list = Array.isArray(payload.selections) ? payload.selections : payload.selection ? [payload.selection] : [];
-          selectedItems.value = list.map(selectionFromRemote);
-          invalidateSelectionConfirm();
-          setToast(`已添加选区 ${selectedItems.value.length}`);
-          return;
-        }
-        if (event.type === "page.route_changed") {
-          currentPageHref.value = payload.url || currentPageHref.value;
-          clearSelections(false);
-          scheduleRouteResolve();
-          return;
-        }
-        if (event.type === "runtime.connected" && ((_a = payload.page) == null ? void 0 : _a.url)) {
-          currentPageHref.value = payload.page.url;
-        }
-      }
-      function connectSidePanelBridge() {
-        const config = props.api.sidePanelConfig || {};
-        if (!isSidePanel.value || !config.panelTicket || !config.bridgeUrl) return;
-        try {
-          const socket = new WebSocket(config.bridgeUrl);
-          sidePanelSocket = socket;
-          socket.addEventListener("open", () => {
-            socket.send(JSON.stringify({
-              type: "sideiframe.connect",
-              panelTicket: config.panelTicket
-            }));
-          });
-          socket.addEventListener("message", (event) => {
-            let message = null;
-            try {
-              message = JSON.parse(event.data);
-            } catch (error) {
-              return;
-            }
-            if (message.type === "sideiframe.bound_session") {
-              sidePanelSessionId = message.pageSessionId || "";
-              applyRemoteSnapshot(message.snapshot);
-            } else if (message.type === "session.event") {
-              applyRemoteSessionEvent(message);
-            }
-          });
-          socket.addEventListener("close", () => {
-            if (sidePanelSocket === socket) sidePanelSocket = null;
-          });
-        } catch (error) {
-          setToast(error.message || "连接 Side Panel Bridge 失败");
-        }
-      }
-      function sendSidePanelCommand(type, payload) {
-        if (!sidePanelSocket || sidePanelSocket.readyState !== WebSocket.OPEN || !sidePanelSessionId) {
-          setToast("页面 Runtime 未连接");
-          return;
-        }
-        sidePanelSocket.send(JSON.stringify({
-          type: "session.command",
-          requestId: `cmd-${Date.now()}`,
-          pageSessionId: sidePanelSessionId,
-          command: {
-            type,
-            payload: payload || {}
-          }
-        }));
-      }
-      function startRemotePicker() {
-        sendSidePanelCommand("picker.start");
-      }
-      function hashRoutePath(hash) {
-        const value = String(hash || "").replace(/^#/, "");
-        if (!value) return "";
-        const route = value.startsWith("!/") ? value.slice(1) : value;
-        if (!route.startsWith("/")) return "";
-        return route.split("?")[0] || "/";
-      }
-      function syncCurrentUrl() {
-        const nextHref = readCurrentHref();
-        if (nextHref && nextHref !== currentPageHref.value) {
-          currentPageHref.value = nextHref;
-        }
-      }
-      function scheduleRouteResolve() {
-        if (routeResolveTimer) window.clearTimeout(routeResolveTimer);
-        routeResolveTimer = window.setTimeout(() => {
-          routeResolveTimer = 0;
-          resolveCurrentPageRoute();
-        }, 80);
-      }
-      function resolveCurrentPageRoute() {
-        return __async(this, null, function* () {
-          var _a;
-          if (!project.value || project.value.source !== "source-server") {
-            routeResolverTrace.value = null;
-            return;
-          }
-          const seq = ++routeResolveSeq;
-          try {
-            const data = yield sourceServerJson("/api/route/resolve", {
-              method: "POST",
-              body: {
-                url: currentPageHref.value,
-                pagePath: pageUrlPath.value
-              },
-              timeoutMs: 5e3,
-              timeoutMessage: "页面路由解析超过 5 秒"
-            });
-            if (seq !== routeResolveSeq) return;
-            routeResolverTrace.value = data.routeResolver || null;
-          } catch (error) {
-            if (seq !== routeResolveSeq) return;
-            routeResolverTrace.value = {
-              projectKind: ((_a = project.value) == null ? void 0 : _a.kind) || "unknown",
-              pagePath: pageUrlPath.value,
-              adapters: [],
-              matched: false,
-              hits: [],
-              errors: [error.message || String(error)]
-            };
-          }
-        });
-      }
-      function sameRouteTracePage(trace) {
-        const tracePath = String((trace == null ? void 0 : trace.pagePath) || "").trim();
-        return !tracePath || tracePath === pageUrlPath.value;
-      }
-      function applyRouteResolverTrace(nextTrace) {
-        const currentTrace = routeResolverTrace.value;
-        if (!nextTrace) return;
-        if (nextTrace.matched) {
-          routeResolverTrace.value = nextTrace;
-          return;
-        }
-        if ((currentTrace == null ? void 0 : currentTrace.matched) && sameRouteTracePage(currentTrace)) return;
-        routeResolverTrace.value = nextTrace;
-      }
-      function installLocationWatcher() {
-        const rawPushState = window.history.pushState;
-        const rawReplaceState = window.history.replaceState;
-        const onChanged = () => window.setTimeout(syncCurrentUrl, 0);
-        window.history.pushState = function pushState(...args) {
-          const result = rawPushState.apply(this, args);
-          onChanged();
-          return result;
-        };
-        window.history.replaceState = function replaceState(...args) {
-          const result = rawReplaceState.apply(this, args);
-          onChanged();
-          return result;
-        };
-        window.addEventListener("popstate", onChanged, true);
-        window.addEventListener("hashchange", onChanged, true);
-        return () => {
-          window.history.pushState = rawPushState;
-          window.history.replaceState = rawReplaceState;
-          window.removeEventListener("popstate", onChanged, true);
-          window.removeEventListener("hashchange", onChanged, true);
-        };
-      }
-      function onSearchOptionChange() {
-        clearCandidateState();
-      }
-      function onComposerInput(event) {
-        var _a;
-        setComposerValue(((_a = event == null ? void 0 : event.target) == null ? void 0 : _a.value) || "");
-      }
-      function setComposerValue(value) {
-        if (!composerEditable.value) return String(promptIntent.value || "");
-        if (promptText.value) invalidatePrompt();
-        promptIntent.value = String(value || "");
-        return promptIntent.value;
-      }
-      function insertPromptAsset(token, options = {}) {
-        if (!selectedItems.value.length || !token) {
-          return {
-            value: String(promptIntent.value || ""),
-            cursor: String(promptIntent.value || "").length
-          };
-        }
-        const nextToken = String(token).trim();
-        const currentValue = String(promptIntent.value || "");
-        if (!nextToken) {
-          return {
-            value: currentValue,
-            cursor: currentValue.length
-          };
-        }
-        const replaceMention = !!options.replaceMention;
-        const start = Number.isFinite(options.replaceStart) ? Math.max(0, Math.min(Number(options.replaceStart), currentValue.length)) : currentValue.length;
-        const end = Number.isFinite(options.replaceEnd) ? Math.max(start, Math.min(Number(options.replaceEnd), currentValue.length)) : start;
-        const before = currentValue.slice(0, start);
-        const after = currentValue.slice(end);
-        const prefix = replaceMention || !before || /\s$/.test(before) ? "" : " ";
-        const suffix = after && /^\s/.test(after) ? "" : " ";
-        const nextValue = `${before}${prefix}${nextToken}${suffix}${after}`;
-        const cursor = (before + prefix + nextToken + suffix).length;
-        setComposerValue(nextValue);
-        return {
-          value: nextValue,
-          cursor
-        };
-      }
-      function getMdWeb() {
-        try {
-          const requireFn = typeof window._require === "function" ? window._require : typeof _require === "function" ? _require : null;
-          if (!requireFn) return null;
-          const mdChrome = requireFn("mdChrome");
-          return (mdChrome == null ? void 0 : mdChrome.web) || null;
-        } catch (error) {
-          return null;
-        }
-      }
-      function resolveSelectionAssetElement(element) {
-        let resolved = element;
-        let node = (element == null ? void 0 : element.parentElement) || null;
-        let currentEvidence = getContextEvidence(element, {
-          normalizeText: denoiseTextByApi,
-          subtreeOptions: {
-            nodeLimit: 32,
-            classLimit: 20,
-            textLimit: 20,
-            attrLimit: 20,
-            styleLimit: 12
-          }
-        });
-        let usefulDepth = 0;
-        let inspected = 0;
-        while (node && node.nodeType === 1 && usefulDepth < 4 && inspected < 16) {
-          inspected++;
-          const nextEvidence = getContextEvidence(node, {
-            normalizeText: denoiseTextByApi,
-            subtreeOptions: {
-              nodeLimit: 32,
-              classLimit: 20,
-              textLimit: 20,
-              attrLimit: 20,
-              styleLimit: 12
-            }
-          });
-          if (shouldPromoteContext(currentEvidence, nextEvidence)) {
-            resolved = node;
-            currentEvidence = nextEvidence;
-            usefulDepth++;
-            break;
-          }
-          if (node === document.body || node === document.documentElement) break;
-          node = node.parentElement;
-        }
-        return resolved;
-      }
-      function clipRectToViewport(rect) {
-        const left = Math.max(0, rect.left);
-        const top = Math.max(0, rect.top);
-        const right = Math.min(window.innerWidth, rect.left + rect.width);
-        const bottom = Math.min(window.innerHeight, rect.top + rect.height);
-        return {
-          left,
-          top,
-          width: Math.max(0, right - left),
-          height: Math.max(0, bottom - top)
-        };
-      }
-      function loadImage(url) {
-        return new Promise((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = reject;
-          image.src = url;
-        });
-      }
-      function captureVisibleTabDataUrl() {
-        return __async(this, null, function* () {
-          const mdWeb = getMdWeb();
-          if (!(mdWeb == null ? void 0 : mdWeb.cmd)) return "";
-          try {
-            const result = yield mdWeb.cmd({
-              cmd: "Base.tabs.captureVisibleTab",
-              params: [{ format: "png" }]
-            });
-            return (result == null ? void 0 : result.success) ? result.result || "" : "";
-          } catch (error) {
-            return "";
-          }
-        });
-      }
-      function cropSelectionThumbnail(sourceUrl, rect) {
-        return __async(this, null, function* () {
-          if (!sourceUrl || !rect || rect.width <= 0 || rect.height <= 0) return "";
-          const image = yield loadImage(sourceUrl);
-          const scaleX = image.width / Math.max(window.innerWidth, 1);
-          const scaleY = image.height / Math.max(window.innerHeight, 1);
-          const sw = Math.max(1, Math.round(rect.width * scaleX));
-          const sh = Math.max(1, Math.round(rect.height * scaleY));
-          const sx = Math.max(0, Math.round(rect.left * scaleX));
-          const sy = Math.max(0, Math.round(rect.top * scaleY));
-          const maxOutputWidth = 1200;
-          const maxOutputHeight = 1200;
-          const preferredScale = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-          const ratio = Math.min(maxOutputWidth / sw, maxOutputHeight / sh, preferredScale);
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(sw * ratio));
-          canvas.height = Math.max(1, Math.round(sh * ratio));
-          const ctx2d = canvas.getContext("2d");
-          if (!ctx2d) return "";
-          ctx2d.imageSmoothingEnabled = true;
-          ctx2d.imageSmoothingQuality = "high";
-          ctx2d.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL("image/png");
-        });
-      }
-      function updateSelectionAssetPreview(item) {
-        return __async(this, null, function* () {
-          if (!(item == null ? void 0 : item.uid) || !item.element) return;
-          try {
-            const assetElement = resolveSelectionAssetElement(item.element);
-            const assetInfo = getElementInfo(assetElement, { normalizeText: denoiseTextByApi }) || item.info;
-            const viewportBox = clipRectToViewport(item.element.getBoundingClientRect());
-            const fullCapture = yield captureVisibleTabDataUrl();
-            const thumbnailUrl = yield cropSelectionThumbnail(fullCapture, viewportBox);
-            const current = selectedItems.value.find((selection) => selection.uid === item.uid);
-            if (!current) return;
-            current.assetElement = markRaw(assetElement);
-            current.assetInfo = assetInfo;
-            current.thumbnailUrl = thumbnailUrl || "";
-            window.__MAGNUS_SELECTIONS__ = selectionPayloads();
-            dispatchSelected();
-          } catch (error) {
-          }
-        });
-      }
-      function openSourceFile(file) {
-        return __async(this, null, function* () {
-          if (!file) return;
-          try {
-            yield sourceServerJson("/api/source/open", {
-              method: "POST",
-              body: { file },
-              timeoutMs: 5e3,
-              timeoutMessage: "打开源码文件超时，请确认本地源码服务可用"
-            });
-            setToast(`已打开 ${file}`);
-          } catch (error) {
-            setToast(error.message || "打开源码文件失败");
-          }
-        });
-      }
-      function confirmSelectionContext() {
-        if (!canConfirmSelection.value) return;
-        selectionConfirmed.value = true;
-        filesConfirmed.value = false;
-        invalidatePrompt();
-        setToast("选区已确认");
-      }
-      function toggleCandidateFile(hit) {
-        if (!hit) return;
-        const selected = new Set(selectedCandidatePaths.value);
-        if (selected.has(hit.file)) selected.delete(hit.file);
-        else selected.add(hit.file);
-        selectedCandidatePaths.value = Array.from(selected);
-        invalidateCandidateConfirm();
-      }
-      function toggleCandidateDetail(hit) {
-        if (!hit) return;
-        expandedCandidatePath.value = expandedCandidatePath.value === hit.file ? "" : hit.file;
-      }
-      function modelAssistUnavailableText() {
-        if (!selectedModel.value) return "模型定位未启用：请先在输入框模型菜单里选择或配置模型。";
-        if (!project.value || project.value.source !== "source-server") {
-          return "模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。";
-        }
-        return "模型定位不可用：请检查模型配置。";
-      }
-      function runModelAssistForCandidates(userInstruction) {
-        return __async(this, null, function* () {
-          if (!candidateHits.value.length) return false;
-          modelAssistAttempted.value = true;
-          if (!useModelAssist.value || !canUseModelAssist.value) {
-            const text = modelAssistUnavailableText();
-            candidateError.value = text;
-            setToast(text);
-            return true;
-          }
-          const modelResult = yield runModelAssist();
-          if (modelResult == null ? void 0 : modelResult.stopped) return true;
-          if (hasUsableModelResult(modelResult)) {
-            filesConfirmed.value = true;
-            generatePrompt({ userInstruction });
-            return true;
-          }
-          return false;
-        });
-      }
-      function rememberWebRequestPayload(payload) {
-        rememberRequest(normalizeRequestInfo(payload || {}, window.location.href));
-      }
-      function normalizeWebRequestCacheItem(item) {
-        if (!item) return null;
-        if (item.type === "WEB_REQUEST_RESPONSE" && item.data) return item.data;
-        return item;
-      }
-      function replayWebRequestCaches(api) {
-        if (!api || !Array.isArray(api.caches) || !api.caches.length) return;
-        const caches = api.caches.splice(0);
-        caches.forEach((item) => {
-          const payload = normalizeWebRequestCacheItem(item);
-          if (payload) rememberWebRequestPayload(payload);
-        });
-      }
-      function installWebRequestApiListener() {
-        const api = window.__WEB_REQUEST_API__;
-        if (!api || typeof api.onResponse !== "function") return false;
-        webRequestApiInstalled = true;
-        window[WEB_REQUEST_HANDLER_KEY] = rememberWebRequestPayload;
-        if (!api[WEB_REQUEST_LISTENER_KEY]) {
-          api.onResponse((payload) => {
-            const handler = window[WEB_REQUEST_HANDLER_KEY];
-            if (typeof handler === "function") handler(payload);
-          });
-          api[WEB_REQUEST_LISTENER_KEY] = true;
-        }
-        replayWebRequestCaches(api);
-        if (typeof api.ready === "function") api.ready();
-        return true;
-      }
-      function installWebRequestApiListenerWithRetry() {
-        if (installWebRequestApiListener()) return;
-        if (webRequestApiRetryCount >= 20) return;
-        webRequestApiRetryCount += 1;
-        webRequestApiRetryTimer = window.setTimeout(installWebRequestApiListenerWithRetry, 250);
-      }
-      function onPageMessage(event) {
-        if (webRequestApiInstalled) return;
-        const message = event.data || {};
-        if (message.type !== "WEB_REQUEST_RESPONSE") return;
-        rememberWebRequestPayload(message.data || {});
-      }
-      function elementFromPoint(event) {
-        const element = document.elementFromPoint(event.clientX, event.clientY);
-        if (!element || element === props.api.host || element.id === "magnus-dev-assistant-root") return null;
-        if (element.nodeType !== 1) return null;
-        return element;
-      }
-      function setActive(value) {
-        if (isSidePanel.value) return;
-        active.value = !!value;
-        document.documentElement.style.cursor = active.value ? "crosshair" : "";
-        if (!active.value) {
-          hoveredElement.value = null;
-          hideOverlay();
-        }
-      }
-      function toggleActive() {
-        setActive(!active.value);
-      }
-      function isEditableTarget(target) {
-        if (!target || target === window || target === document) return false;
-        const element = target.nodeType === 1 ? target : target.parentElement;
-        if (!element) return false;
-        const tag = element.tagName ? element.tagName.toLowerCase() : "";
-        return tag === "input" || tag === "textarea" || tag === "select" || element.isContentEditable;
-      }
-      function onMouseMove(event) {
-        if (!active.value || isFromAssistantUi(event)) return;
-        const element = elementFromPoint(event);
-        if (!element || element === hoveredElement.value) return;
-        hoveredElement.value = element;
-        updateOverlay(element, false);
-        updateInfo(element);
-      }
-      function addSelection(element) {
-        const info = getElementInfo(element, { normalizeText: denoiseTextByApi });
-        if (!info) return;
-        const item = {
-          uid: `selection-${Date.now()}-${selectionUid++}`,
-          element: markRaw(element),
-          info,
-          assetElement: null,
-          assetInfo: null,
-          thumbnailUrl: ""
-        };
-        selectedItems.value.push(item);
-        selectedElement.value = element;
-        displayInfo.value = info;
-        window.__MAGNUS_LAST_ELEMENT__ = element;
-        window.__MAGNUS_LAST_ELEMENT_INFO__ = info;
-        window.__MAGNUS_SELECTIONS__ = selectionPayloads();
-        dispatchSelected();
-        hoveredElement.value = null;
-        hideOverlay();
-        invalidateSelectionConfirm();
-        setToast(`已添加选区 ${selectedItems.value.length}`);
-        void updateSelectionAssetPreview(item);
-      }
-      function onKeyDown(event) {
-        return __async(this, null, function* () {
-          const isConfirmKey = (event.code === "Space" || event.key === " ") && !event.metaKey && !event.ctrlKey && !event.altKey;
-          if (isConfirmKey && active.value && hoveredElement.value && !isFromAssistantUi(event) && !isEditableTarget(event.target)) {
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-            addSelection(hoveredElement.value);
-          }
-        });
-      }
-      function previewSelection(item) {
-        if (isSidePanel.value) {
-          sendSidePanelCommand("selection.highlight", { uid: (item == null ? void 0 : item.uid) || "" });
-          return;
-        }
-        if (!item || !item.element) return;
-        selectedElement.value = item.element;
-        displayInfo.value = item.info;
-        updateOverlay(item.element, true);
-      }
-      function restoreSelectionPreview() {
-        if (isSidePanel.value) {
-          sendSidePanelCommand("selection.highlight", { uid: "" });
-          return;
-        }
-        hideOverlay();
-      }
-      function expandRemoteSelection(uid2) {
-        if (!isSidePanel.value || !uid2) return;
-        sendSidePanelCommand("selection.expand", { uid: uid2 });
-      }
-      function onScrollOrResize() {
-        layoutTick.value++;
-        if (!isSidePanel.value) {
-          syncPanelWidth();
-          applyPageInset();
-        }
-        if (active.value && hoveredElement.value) {
-          updateOverlay(hoveredElement.value, false);
-          return;
-        }
-        selectedElement.value = null;
-        if (!active.value) displayInfo.value = null;
-        hideOverlay();
-      }
-      function removeSelection(uid2) {
-        const index = selectedItems.value.findIndex((item) => item.uid === uid2);
-        if (index === -1) return;
-        if (isSidePanel.value) sendSidePanelCommand("selection.remove", { uid: uid2 });
-        selectedItems.value.splice(index, 1);
-        invalidateSelectionConfirm();
-        window.__MAGNUS_SELECTIONS__ = selectionPayloads();
-        dispatchSelected();
-        setToast(promptIntent.value.includes("@选区") ? "已移除选区，请检查输入框中的 @选区 引用" : "已移除选区");
-        onScrollOrResize();
-      }
-      function clearSelections(notifyRuntime = true) {
-        if (notifyRuntime && isSidePanel.value) sendSidePanelCommand("selection.clear");
-        selectedItems.value = [];
-        selectedElement.value = null;
-        hoveredElement.value = null;
-        displayInfo.value = null;
-        selectionConfirmed.value = false;
-        customEvidence.value = "";
-        evidenceMessages.value = [];
-        clearCandidateState();
-        resetPromptComposer();
-        window.__MAGNUS_LAST_ELEMENT__ = null;
-        window.__MAGNUS_LAST_ELEMENT_INFO__ = null;
-        window.__MAGNUS_SELECTIONS__ = [];
-        hideOverlay();
-        setActive(true);
-        setToast("");
-      }
-      function searchCandidateFiles() {
-        return __async(this, null, function* () {
-          var _a;
-          candidateLoading.value = true;
-          candidateError.value = "";
-          modelAssistAttempted.value = false;
-          resetModelAssist();
-          filesConfirmed.value = false;
-          try {
-            if (!sameRouteTracePage(routeResolverTrace.value)) {
-              yield resolveCurrentPageRoute();
-            }
-            searchRunning.value = true;
-            searchStartedAt.value = Date.now();
-            searchFinishedAt.value = 0;
-            const timeoutMs = includeApiEvidence.value ? 3e4 : 12e3;
-            const data = yield (() => __async(this, null, function* () {
-              try {
-                const firstPass = yield runSearchRequest(searchPayload(), timeoutMs);
-                const firstHits = Array.isArray(firstPass == null ? void 0 : firstPass.hits) ? firstPass.hits : [];
-                if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
-                const secondPass = yield runSearchRequest(searchPayload({ expandedRetry: true }), timeoutMs);
-                const secondHits = Array.isArray(secondPass == null ? void 0 : secondPass.hits) ? secondPass.hits : [];
-                return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
-              } finally {
-                searchFinishedAt.value = Date.now();
-                searchRunning.value = false;
-              }
-            }))();
-            candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
-            applyRouteResolverTrace(data.routeResolver || null);
-            apiTrace.value = data.apiTrace || null;
-            i18nTrace.value = data.i18nTrace || null;
-            definitionTrace.value = data.definitionTrace || null;
-            if (!candidateHits.value.length) {
-              selectedCandidatePaths.value = [];
-              candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
-            } else {
-              selectedCandidatePaths.value = [candidateHits.value[0].file];
-              expandedCandidatePath.value = "";
-              setToast(`找到 ${candidateHits.value.length} 个候选文件`);
-            }
-            if (shouldAutoRunModelAssist(candidateHits.value)) {
-              const modelHandled = yield runModelAssistForCandidates(promptIntent.value.trim());
-              if (modelHandled) return ((_a = modelAssistResult.value) == null ? void 0 : _a.stopped) ? [] : candidateHits.value;
-            }
-            return candidateHits.value;
-          } catch (error) {
-            selectedCandidatePaths.value = [];
-            candidateError.value = `${error.message || error}。`;
-            return [];
-          } finally {
-            candidateLoading.value = false;
-          }
-        });
-      }
-      function sendComposer() {
-        return __async(this, null, function* () {
-          if (modelAssistLoading.value) {
-            stopModelAssist();
-            return;
-          }
-          if (!project.value) return;
-          const instruction = promptIntent.value.trim();
-          if (!instruction) return;
-          if (showCandidatePicker.value) {
-            yield runModelAssistForCandidates(instruction);
-            return;
-          }
-          if (!canConfirmSelection.value) return;
-          confirmSelectionContext();
-          yield searchCandidateFiles();
-        });
-      }
-      function copyText(text) {
-        if (!text) return Promise.resolve(false);
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
-        }
-        return new Promise((resolve) => {
-          const textarea = document.createElement("textarea");
-          textarea.value = text;
-          textarea.style.cssText = "position:fixed;left:-9999px;top:-9999px";
-          document.body.appendChild(textarea);
-          textarea.focus();
-          textarea.select();
-          let ok = false;
-          try {
-            ok = document.execCommand("copy");
-          } catch (error) {
-            ok = false;
-          }
-          textarea.parentNode.removeChild(textarea);
-          resolve(ok);
-        });
-      }
-      function copyTextWithToast(text) {
-        copyText(text).then((ok) => {
-          setToast(ok ? "已复制" : "复制失败");
-        });
-      }
-      function destroy() {
-        if (isSidePanel.value) {
-          sidePanelSocket == null ? void 0 : sidePanelSocket.close();
-          sidePanelSocket = null;
-          return;
-        }
-        props.api.destroy();
-      }
-      function registerApi() {
-        props.api.start = () => setActive(true);
-        props.api.stop = () => setActive(false);
-        props.api.toggle = toggleActive;
-        props.api.clear = clearSelections;
-        props.api.getSelected = () => ({
-          element: selectedElement.value,
-          selections: selectionPayloads()
-        });
-      }
-      function cleanup() {
-        sidePanelSocket == null ? void 0 : sidePanelSocket.close();
-        sidePanelSocket = null;
-        setActive(false);
-        if (routeResolveTimer) {
-          window.clearTimeout(routeResolveTimer);
-          routeResolveTimer = 0;
-        }
-        if (webRequestApiRetryTimer) {
-          window.clearTimeout(webRequestApiRetryTimer);
-          webRequestApiRetryTimer = 0;
-        }
-        if (window[WEB_REQUEST_HANDLER_KEY] === rememberWebRequestPayload) {
-          window[WEB_REQUEST_HANDLER_KEY] = null;
-        }
-        if (cleanupLocationWatcher) {
-          cleanupLocationWatcher();
-          cleanupLocationWatcher = null;
-        }
-        cleanupToast();
-        if (!isSidePanel.value && props.api.shadowRoot) {
-          props.api.shadowRoot.removeEventListener("focusin", stopAssistantEvent);
-          props.api.shadowRoot.removeEventListener("keydown", stopAssistantEvent);
-          props.api.shadowRoot.removeEventListener("mousedown", stopAssistantEvent);
-          props.api.shadowRoot.removeEventListener("pointerdown", stopAssistantEvent);
-          props.api.shadowRoot.removeEventListener("click", stopAssistantEvent);
-          window.removeEventListener("message", onPageMessage, true);
-          window.removeEventListener("mousemove", onMouseMove, true);
-          window.removeEventListener("keydown", onKeyDown, true);
-          window.removeEventListener("scroll", onScrollOrResize, true);
-          window.removeEventListener("resize", onScrollOrResize, true);
-        }
-        cleanupPanelLayout();
-      }
-      watch(effectivePanelWidth, () => {
-        if (isSidePanel.value) return;
-        applyPageInset();
-        onScrollOrResize();
-      });
-      watch([project, currentPageHref], () => {
-        i18nTrace.value = null;
-        definitionTrace.value = null;
-        scheduleRouteResolve();
-      });
-      onMounted(() => {
-        registerApi();
-        if (!isSidePanel.value) {
-          setActive(true);
-          syncPanelWidth();
-          applyPageInset();
-        }
-        cleanupLocationWatcher = installLocationWatcher();
-        restoreSavedProject();
-        scheduleRouteResolve();
-        if (isSidePanel.value) {
-          connectSidePanelBridge();
-        } else {
-          props.api.shadowRoot.addEventListener("focusin", stopAssistantEvent);
-          props.api.shadowRoot.addEventListener("keydown", stopAssistantEvent);
-          props.api.shadowRoot.addEventListener("mousedown", stopAssistantEvent);
-          props.api.shadowRoot.addEventListener("pointerdown", stopAssistantEvent);
-          props.api.shadowRoot.addEventListener("click", stopAssistantEvent);
-          window.addEventListener("message", onPageMessage, true);
-          installWebRequestApiListenerWithRetry();
-          window.addEventListener("mousemove", onMouseMove, true);
-          window.addEventListener("keydown", onKeyDown, true);
-          window.addEventListener("scroll", onScrollOrResize, true);
-          window.addEventListener("resize", onScrollOrResize, true);
-        }
-      });
-      onBeforeUnmount(cleanup);
+        pageHost
+      } = useMagnusApp(props.api);
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock(
-          "div",
-          {
-            class: normalizeClass(["mda-root", { "is-side-panel": isSidePanel.value }])
-          },
-          [
-            !isSidePanel.value ? (openBlock(), createElementBlock(
-              "div",
-              {
-                key: 0,
-                class: normalizeClass(["mda-overlay", { "is-selected": overlay.selected }]),
-                style: normalizeStyle(overlayStyle.value)
-              },
-              null,
-              6
-              /* CLASS, STYLE */
-            )) : createCommentVNode("v-if", true),
-            !isSidePanel.value ? (openBlock(), createElementBlock(
-              "div",
-              {
-                key: 1,
-                class: "mda-badge",
-                style: normalizeStyle(badgeStyle.value)
-              },
-              toDisplayString(overlay.badgeText),
-              5
-              /* TEXT, STYLE */
-            )) : createCommentVNode("v-if", true),
-            !isSidePanel.value ? (openBlock(), createElementBlock("div", _hoisted_1, "空格键确认选区")) : createCommentVNode("v-if", true),
-            createBaseVNode(
-              "section",
-              {
-                ref_key: "panelRef",
-                ref: panelRef,
-                class: normalizeClass(["mda-panel", { "is-collapsed": !isSidePanel.value && unref(collapsed), "is-resizing": unref(resizing), "is-side-panel": isSidePanel.value }]),
-                style: normalizeStyle(isSidePanel.value ? null : unref(panelStyle)),
-                "aria-label": "Magnus"
-              },
-              [
-                !isSidePanel.value && !unref(collapsed) ? (openBlock(), createElementBlock(
-                  "div",
-                  {
-                    key: 0,
-                    class: "mda-resizer",
-                    title: "拖动调整助手宽度",
-                    onPointerdown: _cache[0] || (_cache[0] = withModifiers((...args) => unref(startPanelResize) && unref(startPanelResize)(...args), ["stop", "prevent"]))
-                  },
-                  null,
-                  32
-                  /* NEED_HYDRATION */
-                )) : createCommentVNode("v-if", true),
-                createBaseVNode("header", _hoisted_2, [
-                  createBaseVNode("div", _hoisted_3, [
-                    createBaseVNode("div", _hoisted_4, [
-                      createBaseVNode("img", {
-                        class: "mda-title-logo",
-                        src: unref(magnusLogo),
-                        alt: "Magnus"
-                      }, null, 8, _hoisted_5)
-                    ]),
-                    createBaseVNode(
-                      "div",
-                      _hoisted_6,
-                      toDisplayString(pageHost.value),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_7, [
-                    isSidePanel.value ? (openBlock(), createElementBlock("button", {
-                      key: 0,
-                      class: "mda-icon",
-                      type: "button",
-                      title: "开始页面选区",
-                      onClick: withModifiers(startRemotePicker, ["stop"])
-                    }, " ⌖ ")) : createCommentVNode("v-if", true),
-                    !isSidePanel.value ? (openBlock(), createElementBlock(
-                      "button",
-                      {
-                        key: 1,
-                        class: "mda-icon",
-                        type: "button",
-                        title: "收起/展开",
-                        onClick: _cache[1] || (_cache[1] = withModifiers(($event) => collapsed.value = !unref(collapsed), ["stop"]))
-                      },
-                      toDisplayString(unref(collapsed) ? "<" : ">"),
-                      1
-                      /* TEXT */
-                    )) : createCommentVNode("v-if", true),
-                    !isSidePanel.value ? (openBlock(), createElementBlock("button", {
-                      key: 2,
-                      class: "mda-icon",
-                      type: "button",
-                      title: "关闭",
-                      onClick: withModifiers(destroy, ["stop"])
-                    }, "x")) : createCommentVNode("v-if", true)
-                  ])
+        return openBlock(), createElementBlock("main", _hoisted_1, [
+          createBaseVNode("section", _hoisted_2, [
+            createBaseVNode("header", _hoisted_3, [
+              createBaseVNode("div", _hoisted_4, [
+                createBaseVNode("div", _hoisted_5, [
+                  createBaseVNode("img", {
+                    class: "mda-title-logo",
+                    src: unref(magnusLogo),
+                    alt: "Magnus"
+                  }, null, 8, _hoisted_6)
                 ]),
-                createBaseVNode("div", _hoisted_8, [
-                  createBaseVNode(
-                    "input",
-                    {
-                      ref_key: "fileInputRef",
-                      ref: fileInputRef,
-                      class: "mda-file-input",
-                      type: "file",
-                      webkitdirectory: "",
-                      multiple: "",
-                      onChange: _cache[2] || (_cache[2] = (...args) => unref(onFileInputChange) && unref(onFileInputChange)(...args))
-                    },
-                    null,
-                    544
-                    /* NEED_HYDRATION, NEED_PATCH */
-                  ),
-                  createVNode(_sfc_main$3),
-                  createVNode(
-                    _sfc_main$1,
-                    {
-                      ref_key: "composerPanelRef",
-                      ref: composerPanelRef
-                    },
-                    null,
-                    512
-                    /* NEED_PATCH */
-                  )
-                ])
-              ],
-              6
-              /* CLASS, STYLE */
-            )
-          ],
-          2
-          /* CLASS */
-        );
+                createBaseVNode(
+                  "div",
+                  _hoisted_7,
+                  toDisplayString(unref(pageHost)),
+                  1
+                  /* TEXT */
+                )
+              ])
+            ]),
+            createBaseVNode("div", _hoisted_8, [
+              createBaseVNode(
+                "input",
+                {
+                  ref_key: "fileInputRef",
+                  ref: fileInputRef,
+                  class: "mda-file-input",
+                  type: "file",
+                  webkitdirectory: "",
+                  multiple: "",
+                  onChange: _cache[0] || (_cache[0] = //@ts-ignore
+                  (...args) => unref(onFileInputChange) && unref(onFileInputChange)(...args))
+                },
+                null,
+                544
+                /* NEED_HYDRATION, NEED_PATCH */
+              ),
+              createVNode(_sfc_main$9),
+              createVNode(_sfc_main$2)
+            ])
+          ])
+        ]);
       };
     }
-  };
-  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  pointer-events: none;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-root.is-side-panel {\n  pointer-events: auto;\n  background: #f7f8fa;\n}\n\n.mda-panel {\n  position: fixed;\n  z-index: 2147483647;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 420px;\n  max-width: min(420px, calc(100vw - 20px));\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 1px solid #d8dee6;\n  box-shadow: -14px 0 34px rgba(17, 24, 39, 0.18);\n  pointer-events: auto;\n  overflow: hidden;\n  transition: width 180ms ease, box-shadow 180ms ease;\n  animation: mda-slide-in 180ms ease both;\n}\n\n.mda-panel.is-side-panel {\n  position: fixed;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  border-left: 0;\n  box-shadow: none;\n  animation: none;\n}\n\n.mda-resizer {\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: -4px;\n  z-index: 2;\n  width: 9px;\n  cursor: col-resize;\n  pointer-events: auto;\n}\n\n.mda-resizer::after {\n  content: "";\n  position: absolute;\n  top: 0;\n  bottom: 0;\n  left: 4px;\n  width: 1px;\n  background: transparent;\n}\n\n.mda-resizer:hover::after {\n  background: #98a2b3;\n}\n\n.mda-panel.is-resizing {\n  transition: box-shadow 180ms ease;\n}\n\n.mda-hotkey-tip {\n  position: fixed;\n  top: 10px;\n  left: 10px;\n  z-index: 2147483647;\n  height: 28px;\n  padding: 0 10px;\n  border-radius: 6px;\n  background: #05070a;\n  color: #ffffff;\n  font: 12px/28px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);\n  pointer-events: none;\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 440px;\n  max-width: min(440px, calc(100vw - 18px));\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-overlay {\n  position: fixed;\n  z-index: 2147483644;\n  box-sizing: border-box;\n  border: 2px solid #2563eb;\n  background: rgba(37, 99, 235, 0.12);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 0 99999px rgba(15, 23, 42, 0.05);\n  pointer-events: none;\n}\n\n.mda-overlay.is-selected {\n  border-color: #16a34a;\n  background: rgba(22, 163, 74, 0.14);\n}\n\n.mda-badge {\n  position: fixed;\n  z-index: 2147483646;\n  max-width: calc(100vw - 16px);\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 5px;\n  background: #111827;\n  color: #ffffff;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);\n  pointer-events: none;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.mda-panel.is-collapsed {\n  width: 54px;\n  box-shadow: -8px 0 18px rgba(17, 24, 39, 0.14);\n}\n\n.mda-panel.is-collapsed .mda-body,\n.mda-panel.is-collapsed .mda-head-main {\n  display: none;\n}\n\n.mda-panel.is-collapsed .mda-head {\n  height: 100%;\n  padding: 8px 0;\n  justify-content: flex-start;\n}\n\n.mda-panel.is-collapsed .mda-actions {\n  width: 100%;\n  flex-direction: column;\n}\n\n@keyframes mda-slide-in {\n  from {\n    transform: translateX(100%);\n  }\n\n  to {\n    transform: translateX(0);\n  }\n}\n';
-  (function bootstrapDevAssistant() {
+  });
+  const _sfc_main = /* @__PURE__ */ defineComponent({
+    __name: "App",
+    props: {
+      api: {}
+    },
+    setup(__props) {
+      return (_ctx, _cache) => {
+        return openBlock(), createBlock(_sfc_main$1, { api: __props.api }, null, 8, ["api"]);
+      };
+    }
+  });
+  const useAppUiStore = /* @__PURE__ */ defineStore("magnus.appUi", () => {
+    const runtimeConnected = /* @__PURE__ */ ref(false);
+    const toastText = /* @__PURE__ */ ref("");
+    function setRuntimeConnected(value) {
+      runtimeConnected.value = !!value;
+    }
+    function setToast(text) {
+      toastText.value = text || "";
+    }
+    return {
+      runtimeConnected,
+      toastText,
+      setRuntimeConnected,
+      setToast
+    };
+  });
+  const useRequestStore = /* @__PURE__ */ defineStore("magnus.request", () => {
+    const items = /* @__PURE__ */ ref([]);
+    const enabled = /* @__PURE__ */ ref(true);
+    const recent = computed(() => enabled.value ? items.value.slice(0, 5) : []);
+    function remember(request) {
+      if (!(request == null ? void 0 : request.url) && !(request == null ? void 0 : request.pathname)) return;
+      const key = `${request.method || "GET"} ${request.url || request.pathname}`;
+      items.value = [
+        request,
+        ...items.value.filter((item) => `${item.method || "GET"} ${item.url || item.pathname}` !== key)
+      ].slice(0, 30);
+    }
+    function clear() {
+      items.value = [];
+    }
+    function setEnabled(value) {
+      enabled.value = !!value;
+    }
+    return {
+      items,
+      enabled,
+      recent,
+      remember,
+      clear,
+      setEnabled
+    };
+  });
+  const useRouteStore = /* @__PURE__ */ defineStore("magnus.route", () => {
+    const pageUrl = /* @__PURE__ */ ref("");
+    const pagePath = /* @__PURE__ */ ref("/");
+    const resolverTrace = /* @__PURE__ */ ref(null);
+    const status = /* @__PURE__ */ ref("idle");
+    const error = /* @__PURE__ */ ref("");
+    function setPage(url, path) {
+      pageUrl.value = url;
+      pagePath.value = path || "/";
+    }
+    function applyTrace(trace) {
+      resolverTrace.value = trace;
+      status.value = (trace == null ? void 0 : trace.matched) ? "success" : "idle";
+      error.value = "";
+    }
+    function fail(reason) {
+      status.value = "error";
+      error.value = `${(reason == null ? void 0 : reason.message) || reason || ""}`;
+    }
+    return {
+      pageUrl,
+      pagePath,
+      resolverTrace,
+      status,
+      error,
+      setPage,
+      applyTrace,
+      fail
+    };
+  });
+  const useSelectionStore = /* @__PURE__ */ defineStore("magnus.selection", () => {
+    const items = /* @__PURE__ */ ref([]);
+    const activeId = /* @__PURE__ */ ref(null);
+    const confirmed = /* @__PURE__ */ ref(false);
+    const filesConfirmed = /* @__PURE__ */ ref(false);
+    const customEvidence = /* @__PURE__ */ ref("");
+    const evidenceMessages = /* @__PURE__ */ ref([]);
+    const latest = computed(() => items.value[items.value.length - 1] || null);
+    const hasSelection = computed(() => items.value.length > 0);
+    function mapRuntimeSelection(raw, index) {
+      const element = (raw == null ? void 0 : raw.element) || (raw == null ? void 0 : raw.info) || raw || {};
+      const uid2 = (raw == null ? void 0 : raw.uid) || element.uid || `remote-selection-${Date.now()}-${index}`;
+      return {
+        uid: uid2,
+        element,
+        asset: (raw == null ? void 0 : raw.asset) || element,
+        thumbnailUrl: (raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail) || "",
+        thumbnailCaptured: !!((raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail))
+      };
+    }
+    function replaceSelections(rawSelections) {
+      var _a;
+      items.value = (Array.isArray(rawSelections) ? rawSelections : []).map(mapRuntimeSelection);
+      activeId.value = ((_a = latest.value) == null ? void 0 : _a.uid) || null;
+      confirmed.value = false;
+      filesConfirmed.value = false;
+    }
+    function removeSelection(id) {
+      var _a;
+      items.value = items.value.filter((item) => item.uid !== id);
+      if (activeId.value === id) activeId.value = ((_a = latest.value) == null ? void 0 : _a.uid) || null;
+      confirmed.value = false;
+      filesConfirmed.value = false;
+    }
+    function clear() {
+      items.value = [];
+      activeId.value = null;
+      confirmed.value = false;
+      filesConfirmed.value = false;
+      customEvidence.value = "";
+      evidenceMessages.value = [];
+    }
+    function setActive(id) {
+      activeId.value = id;
+    }
+    function markConfirmed(value) {
+      confirmed.value = value;
+      if (!value) filesConfirmed.value = false;
+    }
+    return {
+      items,
+      activeId,
+      confirmed,
+      filesConfirmed,
+      customEvidence,
+      evidenceMessages,
+      latest,
+      hasSelection,
+      replaceSelections,
+      removeSelection,
+      clear,
+      setActive,
+      markConfirmed
+    };
+  });
+  function createMagnusStores(pinia) {
+    return {
+      appUiStore: useAppUiStore(pinia),
+      chatStore: useChatStore(pinia),
+      composerStore: useComposerStore(pinia),
+      modelStore: useModelStore(pinia),
+      projectStore: useProjectStore(pinia),
+      requestStore: useRequestStore(pinia),
+      routeStore: useRouteStore(pinia),
+      searchStore: useSearchStore(pinia),
+      selectionStore: useSelectionStore(pinia)
+    };
+  }
+  function createRuntimeEventHandler(stores) {
+    return function handleRuntimeEvent(event) {
+      return __async(this, null, function* () {
+        var _a;
+        switch (event.type) {
+          case "selection.changed": {
+            const payload = event.payload;
+            const selections = Array.isArray(payload == null ? void 0 : payload.selections) ? payload.selections : (payload == null ? void 0 : payload.selection) ? [payload.selection] : [];
+            stores.selectionStore.replaceSelections(selections);
+            break;
+          }
+          case "page.route_changed": {
+            const payload = event.payload;
+            stores.routeStore.setPage((payload == null ? void 0 : payload.url) || "", stores.routeStore.pagePath);
+            break;
+          }
+          case "network.request": {
+            stores.requestStore.remember(event.payload);
+            break;
+          }
+          case "runtime.connected": {
+            const payload = event.payload;
+            stores.appUiStore.setRuntimeConnected(true);
+            if ((_a = payload == null ? void 0 : payload.page) == null ? void 0 : _a.url) stores.routeStore.setPage(payload.page.url, stores.routeStore.pagePath);
+            break;
+          }
+        }
+      });
+    };
+  }
+  function createSendRequestUseCase(stores, legacySend) {
+    return function sendRequest() {
+      return __async(this, null, function* () {
+        stores.composerStore.setSending(true);
+        try {
+          yield legacySend();
+        } finally {
+          stores.composerStore.setSending(false);
+        }
+      });
+    };
+  }
+  function createMagnusBootstrap() {
+    const pinia = createPinia();
+    const stores = createMagnusStores(pinia);
+    const handleRuntimeEvent = createRuntimeEventHandler(stores);
+    return {
+      pinia,
+      stores,
+      handleRuntimeEvent,
+      createCommands(legacy) {
+        return {
+          sendRequest: createSendRequestUseCase(stores, legacy.sendRequest),
+          resolveRoute: legacy.resolveRoute,
+          selectProject: legacy.selectProject,
+          openSourceFile: legacy.openSourceFile,
+          copyPrompt: legacy.copyPrompt,
+          expandSelection: legacy.expandSelection,
+          removeSelection: legacy.removeSelection,
+          clearSelections: legacy.clearSelections
+        };
+      }
+    };
+  }
+  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  background: #f7f8fa;\n  pointer-events: auto;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  position: fixed;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 0;\n  box-shadow: none;\n  pointer-events: auto;\n  overflow: hidden;\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 440px;\n  max-width: min(440px, calc(100vw - 18px));\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n';
+  (function bootstrapMagnusSidePanel() {
     const APP_KEY = "__MAGNUS_DEV_ASSISTANT__";
-    const LEGACY_APP_KEY = "__MAGNUS_ELEMENT_INSPECTOR__";
-    const sidePanelConfig = window.__MAGNUS_SIDE_PANEL__ || null;
-    const isSidePanel = !!sidePanelConfig;
-    const HOST_ID = "magnus-dev-assistant-root";
+    const ROOT_ID = "magnus-side-panel-root";
+    const sidePanelConfig = window.__MAGNUS_SIDE_PANEL__ || {};
     const oldApp = window[APP_KEY];
-    const legacyApp = window[LEGACY_APP_KEY];
     if (oldApp && typeof oldApp.destroy === "function") {
       oldApp.destroy();
     }
-    if (legacyApp && legacyApp !== oldApp && typeof legacyApp.destroy === "function") {
-      legacyApp.destroy();
-      window[LEGACY_APP_KEY] = null;
-    }
-    const host = document.createElement("div");
-    host.id = HOST_ID;
-    host.style.cssText = isSidePanel ? [
-      "position:fixed",
-      "inset:0",
-      "z-index:1",
-      "font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif"
-    ].join(";") : [
-      "position:fixed",
-      "inset:0",
-      "z-index:2147483647",
-      "pointer-events:none",
-      "font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif"
-    ].join(";");
-    const shadowRoot = host.attachShadow({ mode: "open" });
+    const bootstrap = createMagnusBootstrap();
     const styleEl = document.createElement("style");
     styleEl.textContent = styles;
+    document.head.appendChild(styleEl);
     const mountEl = document.createElement("div");
-    shadowRoot.appendChild(styleEl);
-    shadowRoot.appendChild(mountEl);
-    (document.documentElement || document.body).appendChild(host);
+    mountEl.id = ROOT_ID;
+    document.body.appendChild(mountEl);
     const api = {
-      host,
-      shadowRoot,
+      host: mountEl,
       app: null,
+      sidePanel: true,
+      sidePanelConfig,
+      bootstrap,
       start() {
       },
       stop() {
@@ -14141,15 +12819,15 @@ ${source}` : "",
           api.app.unmount();
           api.app = null;
         }
-        if (host.parentNode) host.parentNode.removeChild(host);
+        if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
+        if (mountEl.parentNode) mountEl.parentNode.removeChild(mountEl);
         if (window[APP_KEY] === api) {
           window[APP_KEY] = null;
         }
       }
     };
-    api.sidePanel = isSidePanel;
-    api.sidePanelConfig = sidePanelConfig;
     const app = createApp(_sfc_main, { api });
+    app.use(bootstrap.pinia);
     api.app = app;
     window[APP_KEY] = api;
     app.mount(mountEl);

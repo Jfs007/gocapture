@@ -30,7 +30,7 @@
           >
             <template v-if="isCandidateLog(log)">
               <span class="mda-log-file-label">{{ candidatePrefix(log) }}</span>
-              <button class="mda-log-file-link" type="button" @click="api.openSourceFile(candidateFile(log))">
+              <button class="mda-log-file-link" type="button" @click="commands.openSourceFile(candidateFile(log))">
                 {{ candidateFile(log) }}
               </button>
             </template>
@@ -43,12 +43,12 @@
           <div v-if="message.text" class="mda-message-text">{{ message.text }}</div>
           <pre v-if="message.pre" class="mda-message-pre">{{ message.pre }}</pre>
           <div v-if="message.action === 'choose-project'" class="mda-message-actions">
-            <button class="mda-btn mda-btn-primary" type="button" :disabled="sourceServiceStatus === 'loading'" @click="api.chooseProject">
+            <button class="mda-btn mda-btn-primary" type="button" :disabled="sourceServiceStatus === 'loading'" @click="commands.selectProject">
               {{ sourceServiceStatus === 'loading' ? '选择中' : '选择源码' }}
             </button>
           </div>
           <div v-if="message.action === 'copy-prompt'" class="mda-message-actions">
-            <button class="mda-btn" type="button" @click="api.copyPrompt">复制提示词</button>
+            <button class="mda-btn" type="button" @click="commands.copyPrompt">复制提示词</button>
           </div>
         </div>
       </div>
@@ -60,14 +60,20 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useApi, useForm } from '../../core/ctx';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useMagnusCommands } from '../../app/MagnusAppProvider';
+import { useChatStore } from '../../stores/chat.store';
+import { useProjectStore } from '../../stores/project.store';
+import { useSearchStore } from '../../stores/search.store';
 
-const messages = useForm('chatMessages');
-const sourceServiceStatus = useForm('sourceServiceStatus');
-const sourceServiceError = useForm('sourceServiceError');
-const candidateError = useForm('candidateError');
-const api = useApi();
+const commands = useMagnusCommands();
+const chatStore = useChatStore();
+const projectStore = useProjectStore();
+const searchStore = useSearchStore();
+const messages = computed(() => chatStore.messages);
+const sourceServiceStatus = computed(() => projectStore.serviceStatus);
+const sourceServiceError = computed(() => projectStore.serviceError);
+const candidateError = computed(() => searchStore.error);
 const nowTick = ref(Date.now());
 const logOpenState = ref({});
 let clockTimer = 0;

@@ -1,5 +1,7 @@
-import { candidateLogLines, candidateStageLabel } from '../presenters/candidate-presenter';
+import { candidateStageLabel } from '../presenters/candidate-presenter';
+import { createSearchLogLines } from '../presenters/search-log-presenter';
 import { compactText, extractSearchTerms } from '../core/element-context';
+import { createSearchContextTools } from '../core/search-context';
 
 export function useSearchPrompt({
   selectedItems,
@@ -24,119 +26,14 @@ export function useSearchPrompt({
   selectionPayloads,
   setToast
 }) {
-  function isNoiseClassTerm(term) {
-    return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term)
-      || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
-  }
-
-  function contextTextTerms(info) {
-    return extractSearchTerms(denoiseTextByApi(info?.text || ''));
-  }
-
-  function contextClassTerms(info) {
-    return extractSearchTerms(info?.className || '').filter(term => !isNoiseClassTerm(term));
-  }
-
-  function contextAttrTerms(info) {
-    const attrs = info?.attrs || {};
-    const terms = [];
-    for (const [key, value] of Object.entries(attrs)) {
-      if (String(value || '').trim() === '[present]') continue;
-      terms.push(...extractSearchTerms(key));
-      terms.push(...extractSearchTerms(value));
-    }
-    return Array.from(new Set(terms));
-  }
-
-  function contextStyleTerms(info) {
-    const style = info?.computedStyle || {};
-    const terms = [];
-    for (const key of ['width', 'height', 'objectFit', 'fontSize', 'fontWeight', 'backgroundSize', 'backgroundPosition']) {
-      terms.push(...extractSearchTerms(style[key] || ''));
-    }
-    return Array.from(new Set(terms));
-  }
-
-  function searchContextTerms(info) {
-    return Array.from(new Set([
-      ...contextTextTerms(info),
-      ...contextClassTerms(info),
-      ...contextAttrTerms(info),
-      ...contextStyleTerms(info)
-    ]));
-  }
-
-  function hasUsefulExpandedFallback(selfInfo, expandedInfo) {
-    const selfText = String(denoiseTextByApi(selfInfo?.text || '') || '').replace(/\s+/g, ' ').trim();
-    const expandedText = String(denoiseTextByApi(expandedInfo?.text || '') || '').replace(/\s+/g, ' ').trim();
-    const selfTerms = new Set(searchContextTerms(selfInfo));
-    const expandedTerms = searchContextTerms(expandedInfo);
-    const addedTerms = expandedTerms.filter(term => !selfTerms.has(term));
-    if (addedTerms.length >= 2) return true;
-    if (contextTextTerms(expandedInfo).some(term => !selfTerms.has(term))
-      && [
-        ...contextClassTerms(expandedInfo),
-        ...contextAttrTerms(expandedInfo),
-        ...contextStyleTerms(expandedInfo)
-      ].some(term => !selfTerms.has(term))) return true;
-    if (selfText && expandedText && expandedText.length > selfText.length && expandedText.length <= 260) return true;
-    if (!selfText && expandedText && expandedText.length <= 220) return true;
-    return false;
-  }
-
-  function searchContextSpecificityScore(info) {
-    const phrase = String(denoiseTextByApi(info?.text || '') || '').trim();
-    const phraseScore = phrase.length >= 2 && phrase.length <= 32
-      ? 14
-      : phrase.length > 32
-        ? 8
-        : 0;
-    return phraseScore
-      + contextTextTerms(info).length * 6
-      + contextClassTerms(info).length * 6
-      + contextAttrTerms(info).length * 8
-      + contextStyleTerms(info).length * 4;
-  }
-
-  function searchContextBreadthScore(info) {
-    const subtree = info?.subtree || {};
-    const nodeCount = Number(subtree.nodeCount || 0);
-    const textCount = Array.isArray(subtree.texts) ? subtree.texts.length : 0;
-    const attrCount = Array.isArray(subtree.attrs) ? subtree.attrs.length : 0;
-    const styleCount = Array.isArray(subtree.styles) ? subtree.styles.length : 0;
-    const textLength = String(denoiseTextByApi(info?.text || '') || '').length;
-    const boxWidth = Number(info?.box?.width || 0);
-    const boxHeight = Number(info?.box?.height || 0);
-    const area = Math.max(0, boxWidth * boxHeight);
-    return nodeCount * 2
-      + textCount * 3
-      + attrCount
-      + styleCount
-      + Math.min(30, Math.floor(textLength / 12))
-      + Math.min(40, Math.floor(area / 50000));
-  }
-
-  function shouldKeepExpandedSearchContext(selfInfo, expandedInfo) {
-    if (!selfInfo || !expandedInfo) return false;
-    if (hasUsefulExpandedFallback(selfInfo, expandedInfo)) return true;
-    const selfSpecificity = searchContextSpecificityScore(selfInfo);
-    if (selfSpecificity < 18) return true;
-
-    const selfTerms = new Set(searchContextTerms(selfInfo));
-    const expandedTerms = searchContextTerms(expandedInfo);
-    const novelTerms = expandedTerms.filter(term => !selfTerms.has(term));
-    const breadthGap = searchContextBreadthScore(expandedInfo) - searchContextBreadthScore(selfInfo);
-
-    if (novelTerms.length >= 4 && breadthGap <= 18) return true;
-    return breadthGap <= 12;
-  }
+  const searchContext = createSearchContextTools({ denoiseTextByApi });
 
   function filteredAncestorsForSearch(info) {
-    return (info?.ancestors || []).filter(ancestor => shouldKeepExpandedSearchContext(info, ancestor));
+    return (info?.ancestors || []).filter(ancestor => searchContext.shouldKeepExpandedSearchContext(info, ancestor));
   }
 
   function filteredAssetForSearch(info, asset) {
-    return shouldKeepExpandedSearchContext(info, asset) ? asset : null;
+    return searchContext.shouldKeepExpandedSearchContext(info, asset) ? asset : null;
   }
 
   function promptAssetToken(index) {
@@ -595,114 +492,6 @@ export function useSearchPrompt({
     };
   }
 
-  function searchLogLines() {
-    const routeLines = routeResolverLogLines();
-    const lines = [
-      `1. 收集页面证据: pagePath=${pageUrlPath.value}；选区数=${selectedItems.value.length}；className=${selectedItems.value.map(item => item.info.className).filter(Boolean).join(' ') || '-'}`,
-      `   源码项目: ${project.value?.path || project.value?.name || '-'}`,
-      ...routeLines,
-      `3. 组合检索词: ${combinedSelectionText() || '-'}`,
-      `4. 用户指令: ${normalizeInstructionText(promptIntent.value) || '-'}`,
-      '5. 源码检索: 再按文案/className/url path/用户指令搜索开发源码文件，跳过 node_modules/dist/build 等非源码目录',
-      '6. 链路推断: 对页面线索或用户指令命中的文件继续沿 import 链路向下追踪，并对组件候选做引用反查'
-    ];
-    if (includeApiEvidence.value) {
-      const endpoints = searchApiRequests.value
-        .map(item => item.pathname || item.url)
-        .filter(Boolean)
-        .slice(0, 5);
-      lines.push(`7. 接口线索: ${endpoints.length ? endpoints.join('；') : '未捕获到接口端点'}`);
-      lines.push(...apiTraceLogLines());
-    }
-    lines.push(...i18nTraceLogLines());
-    lines.push(...definitionTraceLogLines());
-    for (const [index, hit] of candidateHits.value.slice(0, 8).entries()) {
-      lines.push(...candidateLogLines(hit, index));
-    }
-    return lines;
-  }
-
-  function i18nTraceLogLines() {
-    const trace = i18nTrace?.value;
-    if (!trace || !trace.active) return [];
-    const lines = [];
-    const hints = [
-      ...(trace.environment?.packageHints || []),
-      ...(trace.environment?.codeHints || []).slice(0, 3)
-    ].filter(Boolean);
-    lines.push(`9. 国际化识别: 已启用；线索=${hints.length ? hints.join('，') : '语言文件/目录命中'}`);
-    for (const item of (trace.definitions || []).slice(0, 4)) {
-      lines.push(`   国际化文案: ${item.file}；key=${item.keyPath}；text=${item.phrase}`);
-    }
-    for (const item of (trace.usages || []).slice(0, 4)) {
-      lines.push(`   国际化使用: ${item.file}；key=${item.i18nKey || item.keyPath || '-'}；来源=${item.i18nDefinitionFile || item.from || '-'}`);
-    }
-    return lines;
-  }
-
-  function definitionTraceLogLines() {
-    const trace = definitionTrace?.value;
-    if (!trace || !trace.active) return [];
-    const lines = ['10. 字面量定义链: 已启用'];
-    for (const item of (trace.definitions || []).slice(0, 4)) {
-      lines.push(`   定义文案: ${item.file}；symbol=${item.symbol || '-'}；key=${item.keyPath || '-'}；text=${item.phrase}`);
-    }
-    for (const item of (trace.usages || []).slice(0, 4)) {
-      lines.push(`   定义使用: ${item.file}；symbol=${item.definitionSymbol || '-'}；key=${item.definitionKeyPath || '-'}；来源=${item.definitionFile || item.from || '-'}`);
-    }
-    return lines;
-  }
-
-  function apiTraceLogLines() {
-    const trace = apiTrace?.value;
-    if (!trace || !Array.isArray(trace.endpoints) || !trace.endpoints.length) return [];
-    const lines = [];
-    for (const endpoint of trace.endpoints.slice(0, 4)) {
-      const endpointLabel = [endpoint.method, endpoint.path].filter(Boolean).join(' ') || endpoint.path || endpoint.url || '-';
-      const names = (endpoint.symbols || []).slice(0, 6).join(', ') || '-';
-      lines.push(`8. 接口识别: ${endpointLabel}；接口名=${names}`);
-      for (const file of endpoint.files || []) {
-        lines.push(`   接口文件: ${file.file}${file.symbols?.length ? `；符号=${file.symbols.join(', ')}` : ''}`);
-      }
-      for (const chain of endpoint.chains || []) {
-        lines.push(`   接口引用链: ${chain.chain.join(' -> ')}${chain.symbol ? `；引用=${chain.symbol}` : ''}`);
-      }
-    }
-    return lines;
-  }
-
-  function routeResolverLogLines() {
-    const trace = routeResolverTrace?.value;
-    const tracePath = String(trace?.pagePath || '').trim();
-    const isStaleTrace = !!tracePath && tracePath !== pageUrlPath.value;
-    if (!trace || isStaleTrace) {
-      return [
-        `2. 页面路由适配: ${isStaleTrace ? `旧结果已忽略(${tracePath})` : '未执行或本地服务未返回结果'}；projectKind=${project.value?.kind || 'unknown'}；pagePath=${pageUrlPath.value}`
-      ];
-    }
-
-    const adapters = trace.adapters && trace.adapters.length ? trace.adapters.join(', ') : '-';
-    const status = trace.matched ? `命中 ${trace.hits.length} 个文件` : '未命中';
-    const lines = [
-      `2. 页面路由适配: ${status}；projectKind=${trace.projectKind || project.value?.kind || 'unknown'}；pagePath=${trace.pagePath || pageUrlPath.value}；adapters=${adapters}`
-    ];
-
-    if (trace.matched) {
-      for (const [index, hit] of (trace.hits || []).slice(0, 5).entries()) {
-        lines.push(`   路由命中 ${index + 1}: ${hit.file}；adapter=${hit.adapter || '-'}；routePath=${hit.routePath || '-'}；score=${hit.score}`);
-        const reason = (hit.reasons || []).find(item => item && !item.startsWith('路由适配器'));
-        if (reason) lines.push(`   路由依据 ${index + 1}: ${reason}`);
-      }
-    } else {
-      lines.push('   路由结果: 当前页面 path 没有通过路由表或文件系统路由定位到页面文件，继续走文案/className/API 检索。');
-    }
-
-    if (trace.errors && trace.errors.length) {
-      lines.push(`   路由适配异常: ${trace.errors.slice(0, 3).join('；')}`);
-    }
-    return lines;
-  }
-
   function generatePrompt(options = {}) {
     const command = normalizeInstructionText(options.userInstruction || buildPromptIntentDraft()) || modificationCommand();
     const tasks = finalPromptTaskLines(command);
@@ -716,6 +505,22 @@ export function useSearchPrompt({
     ].filter(Boolean).join('\n\n');
     setToast('提示词已生成');
   }
+
+  const searchLogLines = createSearchLogLines({
+    selectedItems,
+    project,
+    pageUrlPath,
+    promptIntent,
+    includeApiEvidence,
+    searchApiRequests,
+    candidateHits,
+    routeResolverTrace,
+    apiTrace,
+    i18nTrace,
+    definitionTrace,
+    combinedSelectionText,
+    normalizeInstructionText
+  });
 
   return {
     selectionChatSummary,

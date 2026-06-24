@@ -11,87 +11,23 @@
 .mda-root {
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  background: #f7f8fa;
+  pointer-events: auto;
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
-.mda-root.is-side-panel {
-  pointer-events: auto;
-  background: #f7f8fa;
-}
-
 .mda-panel {
-  position: fixed;
-  z-index: 2147483647;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 420px;
-  max-width: min(420px, calc(100vw - 20px));
-  height: 100vh;
-  background: #f7f8fa;
-  color: #1f2328;
-  border-left: 1px solid #d8dee6;
-  box-shadow: -14px 0 34px rgba(17, 24, 39, 0.18);
-  pointer-events: auto;
-  overflow: hidden;
-  transition: width 180ms ease, box-shadow 180ms ease;
-  animation: mda-slide-in 180ms ease both;
-}
-
-.mda-panel.is-side-panel {
   position: fixed;
   inset: 0;
   width: 100%;
   max-width: none;
   height: 100vh;
+  background: #f7f8fa;
+  color: #1f2328;
   border-left: 0;
   box-shadow: none;
-  animation: none;
-}
-
-.mda-resizer {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -4px;
-  z-index: 2;
-  width: 9px;
-  cursor: col-resize;
   pointer-events: auto;
-}
-
-.mda-resizer::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  width: 1px;
-  background: transparent;
-}
-
-.mda-resizer:hover::after {
-  background: #98a2b3;
-}
-
-.mda-panel.is-resizing {
-  transition: box-shadow 180ms ease;
-}
-
-.mda-hotkey-tip {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  z-index: 2147483647;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  background: #05070a;
-  color: #ffffff;
-  font: 12px/28px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.26);
-  pointer-events: none;
+  overflow: hidden;
 }
 
 .mda-floating-note {
@@ -208,12 +144,6 @@
   white-space: nowrap;
   color: #6b7280;
   font-size: 12px;
-}
-
-.mda-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .mda-icon {
@@ -2256,67 +2186,4 @@
 .mda-floating-textarea:focus {
   border-color: #101828;
   box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);
-}
-
-.mda-overlay {
-  position: fixed;
-  z-index: 2147483644;
-  box-sizing: border-box;
-  border: 2px solid #2563eb;
-  background: rgba(37, 99, 235, 0.12);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 0 99999px rgba(15, 23, 42, 0.05);
-  pointer-events: none;
-}
-
-.mda-overlay.is-selected {
-  border-color: #16a34a;
-  background: rgba(22, 163, 74, 0.14);
-}
-
-.mda-badge {
-  position: fixed;
-  z-index: 2147483646;
-  max-width: calc(100vw - 16px);
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 5px;
-  background: #111827;
-  color: #ffffff;
-  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
-  pointer-events: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mda-panel.is-collapsed {
-  width: 54px;
-  box-shadow: -8px 0 18px rgba(17, 24, 39, 0.14);
-}
-
-.mda-panel.is-collapsed .mda-body,
-.mda-panel.is-collapsed .mda-head-main {
-  display: none;
-}
-
-.mda-panel.is-collapsed .mda-head {
-  height: 100%;
-  padding: 8px 0;
-  justify-content: flex-start;
-}
-
-.mda-panel.is-collapsed .mda-actions {
-  width: 100%;
-  flex-direction: column;
-}
-
-@keyframes mda-slide-in {
-  from {
-    transform: translateX(100%);
-  }
-
-  to {
-    transform: translateX(0);
-  }
 }
