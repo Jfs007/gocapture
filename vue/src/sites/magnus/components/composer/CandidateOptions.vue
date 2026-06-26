@@ -17,11 +17,11 @@
         :class="{ 'is-selected': isCandidateSelected(hit) }"
       >
         <div class="mda-choice-check">
-          <input type="checkbox" :checked="isCandidateSelected(hit)" @change="api.toggleCandidateFile(hit)">
-          <button class="mda-file-link" type="button" @click.stop="api.openSourceFile(hit.file)">{{ hit.file }}</button>
+          <input type="checkbox" :checked="isCandidateSelected(hit)" @change="commands.toggleCandidateFile(hit)">
+          <button class="mda-file-link" type="button" @click.stop="commands.openSourceFile(hit.file)">{{ hit.file }}</button>
         </div>
         <div class="mda-choice-meta">{{ candidateStageLabel(hit) }} · {{ hit.score }}</div>
-        <button class="mda-link-btn" type="button" @click="api.toggleCandidateDetail(hit)">
+        <button class="mda-link-btn" type="button" @click="commands.toggleCandidateDetail(hit)">
           {{ expandedCandidatePath === hit.file ? '收起' : candidateDetailTitle(hit) }}
         </button>
         <pre v-if="expandedCandidatePath === hit.file" class="mda-candidate-log">{{ candidateLogText(hit) }}</pre>
@@ -36,17 +36,21 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
-import { candidateDetailTitle, candidateLogText, candidateStageLabel } from '../../presenters/candidate-presenter';
-import { useApi, useForm } from '../../core/ctx';
+import { computed, ref, watch } from 'vue';
+import { candidateDetailTitle, candidateLogText, candidateStageLabel } from '../../app/presenters/candidate-presenter';
+import { useMagnusCommands } from '../../app/runtime/commands';
+import { useModelStore } from '../../stores/model.store';
+import { useSearchStore } from '../../stores/search.store';
 
-const api = useApi();
-const showCandidatePicker = useForm('showCandidatePicker');
-const needsMoreEvidence = useForm('needsMoreEvidence');
-const candidateHits = useForm('candidateHits');
-const selectedCandidatePaths = useForm('selectedCandidatePaths');
-const expandedCandidatePath = useForm('expandedCandidatePath');
-const modelAssistLoading = useForm('modelAssistLoading');
+const commands = useMagnusCommands();
+const searchStore = useSearchStore();
+const modelStore = useModelStore();
+const showCandidatePicker = computed(() => searchStore.showCandidatePicker);
+const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
+const candidateHits = computed(() => searchStore.candidates);
+const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
+const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
+const modelAssistLoading = computed(() => modelStore.status === 'running');
 const collapsed = ref(false);
 
 watch(modelAssistLoading, value => {

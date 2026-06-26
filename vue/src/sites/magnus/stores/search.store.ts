@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { CandidateFile } from '../domain/search/search.types';
+import type { CandidateFile } from '../app/types/search.types';
 
 export const useSearchStore = defineStore('magnus.search', () => {
   const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -15,6 +15,8 @@ export const useSearchStore = defineStore('magnus.search', () => {
   const error = ref('');
   const includeApiEvidence = ref(true);
   const modelAssistAttempted = ref(false);
+  const showCandidatePicker = ref(false);
+  const needsMoreEvidence = ref(false);
 
   const selectedCandidates = computed(() => {
     const selected = new Set(selectedCandidatePaths.value);
@@ -78,6 +80,8 @@ export const useSearchStore = defineStore('magnus.search', () => {
     error,
     includeApiEvidence,
     modelAssistAttempted,
+    showCandidatePicker,
+    needsMoreEvidence,
     selectedCandidates,
     start,
     applyResult,

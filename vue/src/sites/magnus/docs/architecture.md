@@ -1,34 +1,23 @@
-# Magnus Frontend Architecture
+# Magnus Side Panel Rewrite Architecture
 
-本文档描述 `vue/src/sites/magnus` 当前前端结构、模块职责和运行链路。后续改动应优先遵守这里的边界，避免把业务逻辑重新堆回 `App.vue` 或单个大 hook。
+本文档是 `vue/src/sites/magnus` 的重写边界。后续实现以这里为准，不再把旧 `ctx/useForm/useApi`、巨型 hook、长参数链作为主架构。
 
-## 1. 当前定位
+## 1. 产品功能清单
 
-Magnus 前端现在运行在 Chrome Side Panel 的 iframe 中，不再作为业务页面内的浮层 UI 注入。
+Magnus 是一个运行在 Chrome Side Panel iframe 内的本地开发辅助应用。它必须保留以下能力：
 
-业务页面侧职责由 `package/app/magnus/sfr-runtime.js` 承担：
+- 连接当前浏览器 Tab，并通过 `package/app/magnus/sfr-runtime.js` 操作真实页面。
+- 页面侧支持鼠标悬浮选区、空格确认、多选区保存、选区截图、扩区、高亮预览、删除选区。
+- Side Panel 展示选区资产卡片、缩略图、节点详情，并支持输入框 `@选区N` 引用。
+- 关联本地源码项目，恢复历史项目，展示 source-server 状态。
+- 解析当前页面路由，显示页面源码地址，支持 hash 路由和大小写宽松匹配。
+- 捕获页面请求作为接口线索，过滤 Magnus 自身本地请求。
+- 发送用户需求后，先本地检索候选源码，再调用模型做粗加工定位。
+- 模型支持不启用、API 模型、Cli 模型；DeepSeek API 配置、代理、模型选择和选择结果要持久化。
+- 模型定位要实时展示日志，支持停止；最终提示词要带页面、文件、源码方向、推测方向、需求和执行兜底准则。
+- 聊天区展示系统消息、检索日志、模型日志、工作时长和最终提示词。
 
-- 鼠标悬浮选区
-- 空格确认选区
-- 页面选区高亮
-- 选区截图
-- 选区扩区
-- 真实 DOM 引用维护
-- 页面 URL 变化监听
-- 接口请求监听
-
-Side Panel UI 职责由 `vue/src/sites/magnus` 承担：
-
-- 展示选区资产
-- 管理输入框和 `@选区`
-- 管理源码项目
-- 发起本地检索
-- 发起模型定位
-- 展示日志、候选文件和最终提示词
-
-Side Panel UI 和业务页面 runtime 通过 source-server 的 WebSocket bridge 通信。
-
-## 2. 启动链路
+## 2. 运行边界
 
 ```txt
 Chrome Side Panel
@@ -39,10 +28,9 @@ Chrome Side Panel
   -> vue/src/sites/magnus/main.ts
   -> App.vue
   -> views/MagnusPanel.vue
-  -> useMagnusApp(api)
 ```
 
-业务页面 runtime 注入链路：
+业务页面 DOM 不属于 Side Panel UI。
 
 ```txt
 package/js/sidepanel.js
@@ -51,495 +39,136 @@ package/js/sidepanel.js
   -> package/app/magnus/sfr-runtime.js
 ```
 
-## 3. 入口职责
+`sfr-runtime.js` 持有真实 DOM 引用。Side Panel 只保存结构化选区对象、选区 id 和缩略图；扩区、预览、高亮、截图都通过 bridge 命令回到 runtime 执行。
 
-### `main.ts`
-
-`main.ts` 只负责 Side Panel iframe 内的 Vue 挂载：
-
-- 读取 `window.__MAGNUS_SIDE_PANEL__`
-- 注入 `styles/style.css`
-- 创建 `magnus-side-panel-root`
-- 创建最小 `api`
-- 挂载 `App.vue`
-- 重载时销毁旧实例
-
-禁止在 `main.ts` 中恢复以下旧逻辑：
-
-- Shadow DOM 宿主
-- 业务页面 fixed 面板
-- 页面 overlay
-- 页面 DOM 事件监听
-- 旧 `element-inspector` 兼容入口
-
-### `App.vue`
-
-`App.vue` 是纯入口壳层，目标是保持极薄。
-
-当前职责：
-
-- 接收 `api`
-- 挂载 `views/MagnusPanel.vue`
-
-硬性约束：
-
-- `App.vue` 不应超过 300 行。
-- `App.vue` 不写检索、模型、选区、请求、路由等业务逻辑。
-
-### `views/MagnusPanel.vue`
-
-`MagnusPanel.vue` 是 Side Panel 主界面壳层。
-
-当前职责：
-
-- 渲染 `.mda-root`
-- 渲染 `.mda-panel`
-- 展示 logo 和当前页面 host
-- 挂载源码目录选择 input
-- 挂载 `ChatThread`
-- 挂载 `ComposerPanel`
-- 调用 `useMagnusApp(props.api)`
-
-它不应该承载检索、模型、选区、请求、路由等业务流程。
-
-## 4. 应用装配层
-
-### `hooks/use-magnus-app.js`
-
-这是应用级生命周期装配层。
-
-它负责：
-
-- 创建页面级响应式上下文
-- 调用 `createMagnusModules`
-- 调用 `createMagnusActions`
-- 调用 `provideMagnusRuntime`
-- 注册 source project 恢复
-- 注册 route resolve 触发
-- 注册生命周期
-- 连接 / 断开 side panel bridge
-
-它不应该：
-
-- 平铺大量 `ref`
-- 直接写 UI 组件细节
-- 直接承载选区状态、模型状态、检索状态
-- 直接监听业务页面 DOM 事件
-- 直接实现检索、模型定位、复制、打开文件等动作
-
-当前模块装配关系：
+## 3. 新架构分层
 
 ```txt
-useMagnusApp
-  -> createMagnusModules
-  -> syncLegacyStateToStores
-  -> createMagnusActions
-  -> provideMagnusRuntime
-  -> registerRuntimeApi
-  -> installLocationWatcher
+components
+  只渲染 UI，读取 Pinia stores，调用 commands
+
+stores
+  单一状态中心，按业务域拆分
+
+app/runtime
+  应用启动、模块装配、commands provide、store 同步、runtime API
+
+app/modules
+  源码项目、路由、请求、选区、输入、搜索、模型、消息等业务模块
+
+app/workflows
+  发送 -> 本地检索 -> 模型定位 -> 最终提示词的跨模块流程
+
+app/services
+  source-server API、项目扫描等本地服务适配
+
+app/prompt / app/model / app/presenters
+  提示词构造、模型适配、展示文本格式化
+
+app/types
+  应用类型定义
 ```
 
-### `app/create-magnus-modules.js`
+允许的依赖方向：
 
-负责创建和接线领域模块：
+```txt
+components -> stores + app/runtime/commands
+app/runtime -> app/modules + app/workflows + stores
+app/modules -> app/services + app/prompt + app/model + core
+stores -> app/types
+```
 
-- `useSourceProject`
-- `useRouteResolver`
-- `usePageRequests`
-- `useSelectionModule`
-- `useComposerModule`
-- `useSearchState`
-- `usePromptModule`
-- `useModelModule`
-- `useMessageModule`
-- `useSidePanelBridge`
+禁止方向：
 
-这里允许处理模块之间的依赖关系，但不写 UI 交互细节，也不实现发送 workflow。
+- 组件 import `core/ctx`。
+- 组件 import 旧 hook 模块。
+- 单个 hook 平铺十几个 `ref` 后再传给其他 hook。
+- workflow 通过长参数列表互相传递状态。
+- `App.vue` 或 `MagnusPanel.vue` 写检索、模型、请求、选区业务逻辑。
 
-### `app/legacy-actions.js`
+## 4. Store 职责
 
-负责把旧 ctx 组件需要的动作集中起来：
+- `project.store.ts`：源码项目、source-server 状态。
+- `route.store.ts`：当前页面 URL/path、路由解析结果。
+- `selection.store.ts`：选区资产、选区确认状态、`promptAssets`。
+- `request.store.ts`：页面请求缓存、接口线索开关。
+- `search.store.ts`：候选文件、候选选择、检索日志状态、接口/i18n/定义追踪。
+- `model.store.ts`：模型配置、当前模型、模型编辑器、运行状态、日志、结果。
+- `composer.store.ts`：输入框内容、最终提示词、发送状态。
+- `chat.store.ts`：聊天消息。
+- `app-ui.store.ts`：toast、runtime 连接态等 UI 全局状态。
 
-- 选择源码目录
-- 选区预览/删除/清空/扩区
-- 输入框 token 插入
-- 候选文件选择/展开
-- 接口线索开关
-- 模型配置动作
-- 打开源码文件
-- 复制文本
+组件只能从这些 store 读取状态，不再通过 `useForm('xxx')` 读散乱字段。
 
-这是旧组件迁移期的动作适配层。新组件优先使用更明确的 commands/store，不继续扩散 `useApi()`。
+## 5. Commands 职责
 
-### `app/workflows/composer-workflow.js`
+`app/runtime/commands.ts` 是组件唯一调用入口。
 
-负责“发送 -> 本地检索 -> 模型定位 -> 生成提示词”的跨模块流程：
+命令按用户动作命名：
 
-- `sendComposer`
-- `searchCandidateFiles`
-- `runModelAssistForCandidates`
-- 检索重试判断
-- 模型定位可用性判断
-
-该文件是 workflow 层，不应出现组件状态或 DOM 逻辑。
-
-### `app/provide-magnus-runtime.js`
-
-负责把模块和动作发布给组件：
-
-- 兼容旧 `useForm/useApi`
-- 提供新 `useMagnusCommands`
-
-## 5. Context 中心
-
-### `core/ctx.js`
-
-提供基础注入能力：
-
-- `useCtx`
-- `useForm`
-- `useApi`
-- `useParams`
-
-内部使用 `shallowRef(ctxValue || {})`，避免 Vue 深层解包 ref/computed。
-
-### `hooks/use-magnus-ctx.js`
-
-负责把领域模块映射成组件可消费的 ctx。
-
-组件不应该直接 import 领域模块。组件应该通过：
-
-- `useForm`
-- `useApi`
-
-读取状态或调用操作。
-
-### `app/MagnusAppProvider.ts`
-
-提供逐步迁移用的命令中心：
-
-- `sendRequest`
-- `resolveRoute`
 - `selectProject`
-- `openSourceFile`
+- `sendRequest`
 - `copyPrompt`
+- `copyText`
+- `openSourceFile`
+- `previewSelection`
+- `restoreSelectionPreview`
 - `expandSelection`
 - `removeSelection`
 - `clearSelections`
+- `toggleCandidateFile`
+- `toggleCandidateDetail`
+- `setIncludeApiEvidence`
+- `openModelEditor`
+- `saveModelForm`
+- `stopModelAssist`
 
-新组件优先通过 `useMagnusCommands()` 调用跨模块操作，减少对旧 `useApi()` 的依赖。
+组件不关心这些命令背后调用 API、bridge、storage 还是模型。
 
-### `stores/*`
+## 6. 迁移规则
 
-Pinia stores 是新的状态中心，用于承接逐步迁移后的状态：
+当前仍存在部分动态适配器文件，它们已经迁入 app 层，只允许作为待继续类型化的底层能力：
 
-- `chat.store.ts`
-- `composer.store.ts`
-- `project.store.ts`
-- `search.store.ts`
-- `model.store.ts`
-- `selection.store.ts`
-- `route.store.ts`
-- `request.store.ts`
-- `app-ui.store.ts`
+- `app/prompt/search-prompt.ts`
+- `app/model/model-adapters.ts`
+- `app/runtime/create-modules.ts`
+- `app/runtime/store-sync.ts`
 
-迁移期间，`app/legacy-state-sync.js` 会把旧 hook 的状态同步到 store，保证组件可以分批迁移而不丢功能。
+重写期间必须遵守：
 
-## 6. 领域模块
+- 旧模块可以被 app 层临时调用，但不得被组件直接 import。
+- 新组件必须走 Pinia stores + commands。
+- 每替换一个旧模块，都要用 store/usecase/service 承接完整功能后再移除旧文件。
+- 不允许只把 `.js` 改成 `.ts` 就算重构。
 
-### 6.1 选区模块
-
-文件：`hooks/modules/use-selection-module.js`
-
-职责：
-
-- 管理选区资产
-- 管理选区确认状态
-- 管理选区相关自定义证据
-- 生成 `selectionPayloads`
-- 接收 runtime 传来的远程选区
-- 发送选区高亮、扩区、删除、清空命令
-
-重要约束：
-
-- UI 不持有真实 DOM。
-- 真实 DOM 只存在于 `sfr-runtime.js`。
-- UI 只持有 uid、结构化信息、缩略图和证据。
-
-### 6.2 输入框模块
-
-文件：`hooks/modules/use-composer-module.js`
-
-职责：
-
-- 管理输入框内容
-- 管理最终提示词文本
-- 管理 `@选区` 插入
-- 管理输入框可编辑状态
-- 管理发送按钮可用状态
-
-发送流程不放在这里，因为发送需要串联 selection、search、model、prompt。
-
-### 6.3 检索状态模块
-
-文件：`hooks/modules/use-search-state.js`
-
-职责：
-
-- 管理候选文件状态
-- 管理检索 loading/error
-- 管理检索耗时
-- 管理 trace：
-  - api trace
-  - i18n trace
-  - definition trace
-- 管理候选文件选择
-- 管理是否需要更多证据
-- 管理是否展示候选确认
-
-它只管理状态，不直接调用 `/api/search`。
-
-### 6.4 Prompt 模块
-
-文件：`hooks/modules/use-prompt-module.js`
-
-包装 `hooks/use-search-prompt.js`。
-
-职责：
-
-- 构建 `/api/search` payload
-- 生成检索日志
-- 生成最终提示词
-- 组织选区、路由、接口、i18n、definition、候选文件和用户需求
-
-### 6.5 模型模块
-
-文件：`hooks/modules/use-model-module.js`
-
-包装 `hooks/use-model-adapters.js`。
-
-职责：
-
-- 管理模型配置
-- 管理模型选择
-- 管理模型表单
-- 管理模型运行状态
-- 管理模型日志
-- 运行模型定位
-- 停止模型定位
-
-模型定位的目标不是必须给出唯一精确源码，而是对本地预检索结果做粗加工：
-
-- 能确定具体修改点时返回 `exact`
-- 不能确定具体修改点但方向可信时返回 `direction`
-- 完全无法判断时返回空结果
-
-### 6.6 消息模块
-
-文件：`hooks/modules/use-message-module.js`
-
-包装 `hooks/use-chat-messages.js`。
-
-职责：
-
-- 生成 `ChatThread` 展示用消息
-- 汇总项目状态、选区状态、检索状态、模型状态、日志和最终提示词
-
-### 6.7 路由模块
-
-文件：`hooks/use-route-resolver.js`
-
-职责：
-
-- 维护 `routeResolverTrace`
-- 根据当前 URL 调 `/api/route/resolve`
-- 支持 hash 路由
-- 合并 route trace
-- 清理 route resolve timer
-
-它只做页面路径到源码入口的解析，不做全文检索。
-
-### 6.8 请求模块
-
-文件：`hooks/use-page-requests.js`
-
-职责：
-
-- 维护最近接口请求
-- 提供接口线索给检索
-- 提供 `denoiseTextByApi` 降噪
-
-接口请求来源：
+## 7. 当前 UI 主链路
 
 ```txt
-sfr-runtime.js
-  -> network.request
-  -> bridge
-  -> use-side-panel-bridge.js
-  -> usePageRequests.rememberRequest
+main.ts
+  -> createMagnusBootstrap()
+  -> Pinia stores
+  -> App.vue
+  -> MagnusPanel.vue
+  -> createMagnusRuntime(api)
+       -> app runtime lifecycle
+       -> bridge connect
+       -> source project restore
+       -> route resolve
+       -> commands provide
+
+components/*
+  -> Pinia stores
+  -> useMagnusCommands()
 ```
 
-UI 不再直接监听 `window.__WEB_REQUEST_API__`。
+旧 `core/ctx.js` 和 `hooks/use-magnus-ctx.ts` 已移除。组件不得恢复 `useForm/useApi` 模式。
 
-### 6.9 源码项目模块
+## 8. 重写完成标准
 
-文件：`hooks/use-source-project.js`
-
-职责：
-
-- 管理源码项目选择
-- 管理源码服务状态
-- 保存和恢复 host 对应的项目路径
-- 处理目录选择 input
-
-## 7. Side Panel Bridge
-
-文件：`hooks/use-side-panel-bridge.js`
-
-职责：
-
-- 连接 source-server bridge WebSocket
-- 绑定当前 page session
-- 接收 runtime 事件
-- 发送 runtime command
-
-接收事件：
-
-- `selection.changed`
-- `page.route_changed`
-- `runtime.connected`
-- `network.request`
-
-发送命令：
-
-- `picker.start`
-- `picker.stop`
-- `selection.highlight`
-- `selection.expand`
-- `selection.remove`
-- `selection.clear`
-
-## 8. 组件层
-
-### `components/chat/ChatThread.vue`
-
-职责：
-
-- 展示系统消息
-- 展示模型消息
-- 展示候选文件
-- 展示检索日志
-- 展示模型日志
-- 展示最终提示词
-- 支持候选文件选择、展开、复制、打开源码
-
-数据来源：
-
-- Pinia stores
-- `useMagnusCommands`
-
-### `components/composer/ComposerPanel.vue`
-
-职责：
-
-- 组合 Composer 区域子组件
-- 发送 / 停止
-- 源码项目展示
-
-数据来源：
-
-- `useForm`
-- `useApi`
-
-子组件边界：
-
-- `CandidateOptions.vue`：候选文件确认、候选详情展开、线索不足提示。
-- `ComposerInput.vue`：textarea、自适应高度、`@选区` 快捷菜单、键盘选择、按光标插入 token。
-- `ComposerPrebar.vue`：接口线索开关、选区资产缩略图、资产删除、资产详情 popover、页面选区预览。
-- `ModelEditorPanel.vue`：模型适配器表单、DeepSeek/API/Cli 配置。
-- `ModelMenu.vue`：模型选择菜单、禁用模型、新增/编辑模型入口。
-
-`ComposerPanel.vue` 应保持编排职责，不再承载子组件内部交互状态。
-
-## 9. 主流程
-
-```txt
-1. 用户打开 Side Panel
-2. sidepanel.js 绑定当前 Tab
-3. service-worker 注入 sfr-runtime.js
-4. /ui 加载 Magnus Vue UI
-5. UI 连接 bridge
-6. runtime 连接 bridge
-7. bridge 绑定 side iframe 和 page runtime
-8. 用户在业务页面选择节点
-9. runtime 生成选区对象和缩略图
-10. runtime 发送 selection.changed
-11. UI 保存选区资产
-12. 用户输入 @选区 + 修改要求
-13. UI 发起 /api/search
-14. source-server 本地检索候选文件
-15. UI 自动触发模型定位
-16. 模型返回 exact 或 direction
-17. UI 生成最终提示词
-18. ChatThread 展示结果和日志
-```
-
-## 10. 已删除的旧逻辑
-
-以下逻辑已经从 `vue/src/sites/magnus` 删除，禁止恢复到 UI 前端：
-
-- 页面内 Shadow DOM 面板
-- 页面内 overlay 高亮
-- 页面内 badge
-- 页面内鼠标移动选区
-- 页面内键盘空格确认
-- 页面内截图裁剪
-- 页面内 `window.__WEB_REQUEST_API__` 监听
-- 拖拽调整助手宽度
-- 折叠面板
-- 关闭浮层按钮
-- `isSidePanel` 分支
-- `.mda-root.is-side-panel`
-- `.mda-panel.is-side-panel`
-- `.mda-resizer`
-- `.mda-overlay`
-- `.mda-badge`
-- `.mda-hotkey-tip`
-- `.is-collapsed`
-- `.is-resizing`
-
-这些能力属于 `sfr-runtime.js` 或 Chrome Side Panel，不属于 UI iframe。
-
-## 11. 后续重构约束
-
-1. `App.vue` 不超过 300 行。
-2. `main.ts` 只做挂载，不写业务逻辑。
-3. `useMagnusApp` 只做生命周期装配，不写 workflow。
-4. 单个领域模块只管理自己的状态和行为。
-5. 旧组件可通过 ctx 消费状态和操作；新组件优先通过 Pinia store 和 `useMagnusCommands`。
-6. 不为了单一业务页面写死规则。
-7. runtime 负责真实 DOM；UI 只处理结构化选区资产。
-8. 新增能力优先判断属于：
-   - runtime
-   - source-server
-   - UI module
-   - UI component
-9. 新增状态优先进入对应 module，不要直接堆到 `useMagnusApp`。
-10. 新增组件交互优先进入组件自己的子组件或 commands，不跨层互相 import。
-
-## 12. TypeScript 迁移建议
-
-当前代码仍为 JS，但模块边界已经适合逐步迁移 TS。
-
-建议顺序：
-
-1. 定义 bridge event 类型。
-2. 定义 selection asset 类型。
-3. 迁移 `use-selection-module`。
-4. 迁移 `use-composer-module`。
-5. 迁移 `use-search-state`。
-6. 迁移 `use-side-panel-bridge`。
-7. 迁移 `use-model-adapters`。
-8. 迁移 `use-search-prompt`。
-
-不要先整体改 TS；先从边界清晰的小模块开始。
+- `App.vue` 保持入口壳层，不超过 300 行。
+- `MagnusPanel.vue` 只负责页面布局和挂载应用生命周期。
+- `components` 下没有 `useForm/useApi/core/ctx`。
+- 选区、项目、路由、请求、搜索、模型、聊天、输入框分别有清晰 store。
+- 跨模块行为放在 usecase/service，不通过长参数链拼接。
+- 构建产物仍输出到 `package/app/magnus/index.js`。
+- `npm run app:inspector:build` 必须通过。

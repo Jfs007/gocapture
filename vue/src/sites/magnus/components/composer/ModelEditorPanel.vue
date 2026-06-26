@@ -2,7 +2,7 @@
   <div v-if="modelEditorOpen" class="mda-model-editor">
     <div class="mda-model-editor-head">
       <strong>模型适配器</strong>
-      <button class="mda-mini-btn" type="button" @click="api.closeModelEditor">关闭</button>
+      <button class="mda-mini-btn" type="button" @click="commands.closeModelEditor">关闭</button>
     </div>
     <div class="mda-model-grid">
       <label v-if="modelConfigs.length" class="is-wide">
@@ -66,24 +66,33 @@
     </div>
     <p class="mda-model-hint">{{ modelTypeHint }}</p>
     <div class="mda-model-actions">
-      <button v-if="selectedModel" class="mda-mini-btn" type="button" :disabled="candidateLoading || modelAssistLoading" @click="api.removeSelectedModel">删除模型</button>
-      <button class="mda-btn mda-btn-primary" type="button" @click="api.saveModelForm">保存模型</button>
+      <button v-if="selectedModel" class="mda-mini-btn" type="button" :disabled="candidateLoading || modelAssistLoading" @click="commands.removeSelectedModel">删除模型</button>
+      <button class="mda-btn mda-btn-primary" type="button" @click="commands.saveModelForm">保存模型</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { useApi, useForm } from '../../core/ctx';
+import { useMagnusCommands } from '../../app/runtime/commands';
+import { useModelStore } from '../../stores/model.store';
+import { useSearchStore } from '../../stores/search.store';
 
-const api = useApi();
-const modelConfigs = useForm('modelConfigs');
-const selectedModelId = useForm('selectedModelId');
-const selectedModel = useForm('selectedModel');
-const modelEditorOpen = useForm('modelEditorOpen');
-const modelForm = useForm('modelForm');
-const modelAssistLoading = useForm('modelAssistLoading');
-const candidateLoading = useForm('candidateLoading');
+const commands = useMagnusCommands();
+const modelStore = useModelStore();
+const searchStore = useSearchStore();
+const modelConfigs = computed(() => modelStore.configs);
+const selectedModelId = computed(() => modelStore.selectedModelId);
+const selectedModel = computed(() => modelStore.selectedModel);
+const modelEditorOpen = computed(() => modelStore.editorOpen);
+const modelForm = computed({
+  get: () => modelStore.form,
+  set: value => {
+    modelStore.form = value || {};
+  }
+});
+const modelAssistLoading = computed(() => modelStore.status === 'running');
+const candidateLoading = computed(() => searchStore.status === 'loading');
 
 const modelTypeHint = computed(() => {
   return modelForm.value.type === 'exec'
@@ -94,13 +103,13 @@ const modelTypeHint = computed(() => {
 function onModelEditorSelect(event) {
   const id = event.target.value || '';
   if (!id) {
-    api.setSelectedModel('');
-    api.openModelEditor();
+    commands.setSelectedModel('');
+    commands.openModelEditor();
     return;
   }
   const model = modelConfigs.value.find(item => item.id === id);
-  api.setSelectedModel(id);
-  api.openModelEditor(model);
+  commands.setSelectedModel(id);
+  commands.openModelEditor(model);
 }
 
 function onModelProviderChange(event) {

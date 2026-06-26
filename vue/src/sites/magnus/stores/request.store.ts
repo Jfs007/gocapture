@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { PageRequest } from '../domain/request/page-request.types';
+import type { PageRequest } from '../app/types/page-request.types';
 
 export const useRequestStore = defineStore('magnus.request', () => {
   const items = ref<PageRequest[]>([]);

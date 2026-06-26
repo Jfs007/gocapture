@@ -69,16 +69,20 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useApi, useForm } from '../../core/ctx';
+import { useMagnusCommands } from '../../app/runtime/commands';
+import { useModelStore } from '../../stores/model.store';
+import { useSearchStore } from '../../stores/search.store';
 
-const api = useApi();
+const commands = useMagnusCommands();
+const modelStore = useModelStore();
+const searchStore = useSearchStore();
 const menuRef = ref(null);
 const open = ref(false);
-const modelConfigs = useForm('modelConfigs');
-const selectedModelId = useForm('selectedModelId');
-const selectedModel = useForm('selectedModel');
-const modelAssistLoading = useForm('modelAssistLoading');
-const candidateLoading = useForm('candidateLoading');
+const modelConfigs = computed(() => modelStore.configs);
+const selectedModelId = computed(() => modelStore.selectedModelId);
+const selectedModel = computed(() => modelStore.selectedModel);
+const modelAssistLoading = computed(() => modelStore.status === 'running');
+const candidateLoading = computed(() => searchStore.status === 'loading');
 
 const activeModelLabel = computed(() => {
   return selectedModel.value?.name || '不启用';
@@ -128,29 +132,29 @@ function formatModelType(type) {
 }
 
 function selectDisabledModel() {
-  api.disableModelAssist();
+  commands.disableModelAssist();
   closeMenu();
 }
 
 function selectSavedModel(model) {
   if (!model) return;
-  api.selectModelAndEnable(model.id);
+  commands.selectModelAndEnable(model.id);
   closeMenu();
 }
 
 function editSelectedModel() {
   closeMenu();
-  api.openModelEditor(selectedModel.value);
+  commands.openModelEditor(selectedModel.value);
 }
 
 function createDeepSeekModel() {
   closeMenu();
-  api.openProviderModelEditor('deepseek');
+  commands.openProviderModelEditor('deepseek');
 }
 
 function createCustomApiModel() {
   closeMenu();
-  api.openModelEditor({
+  commands.openModelEditor({
     id: '',
     name: '',
     provider: 'custom',
@@ -166,6 +170,6 @@ function createCustomApiModel() {
 
 function createExecModel() {
   closeMenu();
-  api.openModelEditor();
+  commands.openModelEditor();
 }
 </script>

@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import ChatThread from '../components/chat/ChatThread.vue';
 import ComposerPanel from '../components/composer/ComposerPanel.vue';
-import { useMagnusApp } from '../hooks/use-magnus-app';
+import { createMagnusRuntime } from '../app/runtime/create-runtime';
 import magnusLogo from '../resources/logo.jpg';
 
 const props = defineProps<{
@@ -43,5 +43,5 @@ const {
   fileInputRef,
   onFileInputChange,
   pageHost
-} = useMagnusApp(props.api);
+} = createMagnusRuntime(props.api);
 </script>

@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { RuntimeSelectionPayload, SelectionAsset, SelectionId } from '../domain/selection/selection.types';
+import type { RuntimeSelectionPayload, SelectionAsset, SelectionId } from '../app/types/selection.types';
+import { compactText } from '../core/element-context';
 
 export const useSelectionStore = defineStore('magnus.selection', () => {
   const items = ref<SelectionAsset[]>([]);
@@ -12,6 +13,36 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
 
   const latest = computed(() => items.value[items.value.length - 1] || null);
   const hasSelection = computed(() => items.value.length > 0);
+  const promptAssets = computed(() => {
+    return items.value.map((item: any, index) => {
+      const info = item.info || item.element || {};
+      const assetInfo = item.assetInfo || item.asset || info;
+      return {
+        uid: item.uid,
+        token: `@选区${index + 1}`,
+        index: index + 1,
+        label: `选区 ${index + 1}`,
+        summary: compactText(info.text || info.className || info.tag || assetInfo.text || `选区${index + 1}`, 24),
+        thumbnailUrl: item.thumbnailUrl || '',
+        className: info.className || '',
+        text: info.text || '',
+        selector: info.selector || '',
+        innerHtml: info.innerHtml || '',
+        outerHtml: info.outerHtml || '',
+        inlineStyle: info.inlineStyle || '',
+        computedStyle: info.computedStyle || null,
+        box: info.box || null,
+        assetSelector: assetInfo.selector || '',
+        assetText: assetInfo.text || '',
+        assetInnerHtml: assetInfo.innerHtml || '',
+        assetOuterHtml: assetInfo.outerHtml || '',
+        assetInlineStyle: assetInfo.inlineStyle || '',
+        assetComputedStyle: assetInfo.computedStyle || null,
+        assetBox: assetInfo.box || null,
+        thumbnailCaptured: !!item.thumbnailUrl
+      };
+    });
+  });
 
   function mapRuntimeSelection(raw: RuntimeSelectionPayload, index: number): SelectionAsset {
     const element = raw?.element || raw?.info || raw || {};
@@ -30,6 +61,11 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     activeId.value = latest.value?.uid || null;
     confirmed.value = false;
     filesConfirmed.value = false;
+  }
+
+  function setItems(nextItems: any[]) {
+    items.value = Array.isArray(nextItems) ? nextItems : [];
+    activeId.value = latest.value?.uid || null;
   }
 
   function removeSelection(id: SelectionId) {
@@ -66,7 +102,9 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     evidenceMessages,
     latest,
     hasSelection,
+    promptAssets,
     replaceSelections,
+    setItems,
     removeSelection,
     clear,
     setActive,

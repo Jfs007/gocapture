@@ -424,8 +424,6 @@ async function setupCodeLister(message, sender, sendResponse) {
 }
 
 async function installCodeLister(message, sender, sendResponse) {
-  console.log('install', sender, message);
-
   try {
     // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
     const config = await GetConfig(message, sender);
@@ -491,7 +489,6 @@ async function installCodeLister(message, sender, sendResponse) {
 }
 
 async function hotCodeLister(message, sender, sendResponse) {
-  console.log('start', sender, message);
   await setupCodeLister(message, sender);
   return installCodeLister(message, sender, sendResponse);
 }

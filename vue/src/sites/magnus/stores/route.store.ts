@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { RouteResolverTrace } from '../domain/route/route.types';
+import type { RouteResolverTrace } from '../app/types/route.types';
 
 export const useRouteStore = defineStore('magnus.route', () => {
   const pageUrl = ref('');

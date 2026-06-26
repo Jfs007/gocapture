@@ -40,9 +40,19 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useApi, useForm } from '../../core/ctx';
+import { useMagnusCommands } from '../../app/runtime/commands';
+import { useComposerStore } from '../../stores/composer.store';
+import { useModelStore } from '../../stores/model.store';
+import { useProjectStore } from '../../stores/project.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSelectionStore } from '../../stores/selection.store';
 
-const api = useApi();
+const commands = useMagnusCommands();
+const composerStore = useComposerStore();
+const modelStore = useModelStore();
+const projectStore = useProjectStore();
+const searchStore = useSearchStore();
+const selectionStore = useSelectionStore();
 const inputRef = ref(null);
 const shortcutMenuRef = ref(null);
 const shortcutMenuOpen = ref(false);
@@ -54,10 +64,16 @@ const selectionStart = ref(0);
 const selectionEnd = ref(0);
 let shortcutMenuTimer = 0;
 
-const promptAssets = useForm('promptAssets');
-const composerInputValue = useForm('composerInputValue');
-const composerEditable = useForm('composerEditable');
-const composerPlaceholder = useForm('composerPlaceholder');
+const composerEditable = computed(() => selectionStore.items.length > 0);
+const composerPlaceholder = computed(() => {
+  if (!projectStore.current) return '请选择项目源码';
+  if (!selectionStore.items.length) return '移动鼠标高亮页面区域，按空格键添加选区';
+  if (modelStore.status === 'running') return '模型定位中，可点击停止';
+  if (searchStore.showCandidatePicker) return '请选择候选文件后继续';
+  return '输入修改要求，可用 @选区 或 @选区1 引用已选区';
+});
+const promptAssets = computed(() => selectionStore.promptAssets);
+const composerInputValue = computed(() => composerEditable.value ? composerStore.content : composerPlaceholder.value);
 
 const shortcutAssets = computed(() => {
   const query = shortcutMenuQuery.value.trim().toLowerCase();
@@ -201,7 +217,7 @@ function updateShortcutMenu(target) {
 }
 
 function handleComposerInput(event) {
-  api.onComposerInput(event);
+  composerStore.setContent(event?.target?.value || '');
   updateComposerSelection(event.target);
   updateShortcutMenu(event.target);
   syncComposerHeight(event.target);
@@ -258,13 +274,15 @@ function insertAssetToken(asset, options = {}) {
   const replaceEnd = replaceMention && shortcutRangeEnd.value >= replaceStart
     ? shortcutRangeEnd.value
     : Math.min(selectionEnd.value, currentValue.length);
-  const result = api.insertPromptAsset(asset.token, {
-    replaceStart,
-    replaceEnd,
-    replaceMention
-  });
+  const before = currentValue.slice(0, replaceStart);
+  const after = currentValue.slice(replaceEnd);
+  const prefix = replaceMention || !before || /\s$/.test(before) ? '' : ' ';
+  const suffix = after && /^\s/.test(after) ? '' : ' ';
+  const nextValue = `${before}${prefix}${asset.token}${suffix}${after}`;
+  const cursor = (before + prefix + asset.token + suffix).length;
+  composerStore.setContent(nextValue);
   closeShortcutMenu();
-  focusComposer(result?.cursor ?? replaceStart + String(asset.token || '').length + 1);
+  focusComposer(cursor);
 }
 
 function selectShortcutAsset(asset) {

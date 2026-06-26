@@ -30,7 +30,7 @@
           >
             <span v-if="asset.thumbnailUrl" class="mda-asset-thumb" :style="assetThumbStyle(asset)" />
             <span v-else class="mda-asset-thumb is-empty">{{ asset.index }}</span>
-            <button class="mda-asset-remove" type="button" title="移除这个选区" @click.stop="api.removeSelection(asset.uid)">×</button>
+            <button class="mda-asset-remove" type="button" title="移除这个选区" @click.stop="commands.removeSelection(asset.uid)">×</button>
           </div>
         </article>
       </div>
@@ -99,16 +99,22 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useApi, useForm } from '../../core/ctx';
+import { useMagnusCommands } from '../../app/runtime/commands';
+import { useComposerStore } from '../../stores/composer.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSelectionStore } from '../../stores/selection.store';
 import PopoverPanel from '../common/PopoverPanel.vue';
 
 defineEmits(['insert-asset']);
 
-const api = useApi();
-const promptAssets = useForm('promptAssets');
-const includeApiEvidence = useForm('includeApiEvidence');
-const candidateLoading = useForm('candidateLoading');
-const promptText = useForm('promptText');
+const commands = useMagnusCommands();
+const composerStore = useComposerStore();
+const searchStore = useSearchStore();
+const selectionStore = useSelectionStore();
+const promptAssets = computed(() => selectionStore.promptAssets);
+const includeApiEvidence = computed(() => searchStore.includeApiEvidence);
+const candidateLoading = computed(() => searchStore.status === 'loading');
+const promptText = computed(() => composerStore.finalPrompt);
 const activeAssetPopoverUid = ref('');
 const activeAssetPopoverRect = ref(null);
 let activeAssetPopoverAnchor = null;
@@ -130,8 +136,8 @@ onBeforeUnmount(() => {
 });
 
 function toggleApiEvidence() {
-  api.setIncludeApiEvidence(!includeApiEvidence.value);
-  api.onSearchOptionChange();
+  commands.setIncludeApiEvidence(!includeApiEvidence.value);
+  commands.onSearchOptionChange();
 }
 
 function assetTooltip(asset) {
@@ -191,7 +197,7 @@ function closeAssetPopover() {
   activeAssetPopoverUid.value = '';
   activeAssetPopoverRect.value = null;
   activeAssetPopoverAnchor = null;
-  api.restoreSelectionPreview?.();
+  commands.restoreSelectionPreview();
 }
 
 function scheduleAssetPopoverHide(uid = '') {
@@ -204,7 +210,7 @@ function scheduleAssetPopoverHide(uid = '') {
 function openAssetPopover(asset, event) {
   if (!asset) return;
   clearAssetPopoverTimer();
-  api.previewSelection?.(asset);
+  commands.previewSelection(asset);
   activeAssetPopoverUid.value = asset.uid;
   activeAssetPopoverAnchor = event?.currentTarget || null;
   updateAssetPopoverRect();

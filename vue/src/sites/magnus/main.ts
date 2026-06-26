@@ -1,6 +1,6 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import { createMagnusBootstrap } from './app/bootstrap';
+import { createMagnusBootstrap } from './app/runtime/bootstrap';
 import styles from './styles/style.css?inline';
 
 (function bootstrapMagnusSidePanel() {

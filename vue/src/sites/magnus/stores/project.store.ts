@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { SourceProject, SourceServiceStatus } from '../domain/project/source-project.types';
+import type { SourceProject, SourceServiceStatus } from '../app/types/source-project.types';
 
 export const useProjectStore = defineStore('magnus.project', () => {
   const current = ref<SourceProject | null>(null);

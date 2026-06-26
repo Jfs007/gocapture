@@ -14,13 +14,6 @@ export const useComposerStore = defineStore('magnus.composer', () => {
     if (finalPrompt.value) finalPrompt.value = '';
   }
 
-  function insertSelectionMention(token: string) {
-    const normalized = String(token || '').trim();
-    if (!normalized) return;
-    const prefix = !content.value || /\s$/.test(content.value) ? '' : ' ';
-    content.value = `${content.value}${prefix}${normalized} `;
-  }
-
   function setSending(value: boolean) {
     isSending.value = !!value;
   }
@@ -40,7 +33,6 @@ export const useComposerStore = defineStore('magnus.composer', () => {
     mentionMenuVisible,
     trimmedContent,
     setContent,
-    insertSelectionMention,
     setSending,
     setFinalPrompt,
     clearContent

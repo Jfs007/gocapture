@@ -4,8 +4,8 @@ import type {
   RuntimeConnectedPayload,
   RuntimeEvent,
   SelectionChangedPayload
-} from '../../domain/bridge/bridge-event.types';
-import type { MagnusStores } from '../dependencies';
+} from '../types/bridge-event.types';
+import type { MagnusStores } from '../runtime/stores';
 
 export function createRuntimeEventHandler(stores: MagnusStores) {
   return async function handleRuntimeEvent(event: RuntimeEvent) {

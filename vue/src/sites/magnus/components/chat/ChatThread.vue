@@ -61,7 +61,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useMagnusCommands } from '../../app/MagnusAppProvider';
+import { useMagnusCommands } from '../../app/runtime/commands';
 import { useChatStore } from '../../stores/chat.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useSearchStore } from '../../stores/search.store';
