@@ -1,17 +1,22 @@
-
 const localConfig = {
   jsUrls: ['chrome/cli.js', 'chrome/web.js', "chrome/web-hook.js", "chrome/auth.js"]
 }
 let _VERSION_ = '';
 // 全局缓存对象
 let ExeCodeMap = {};
+const MAGNUS_SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
+const MAGNUS_RUNTIME_APP = 'magnus/sfr-runtime.js';
+const MAGNUS_WORKSPACE_PREFIX = 'magnus:workspace:tab:';
+const MAGNUS_OPEN_REQUEST_KEY = 'magnus:sidepanel:open-request';
+const MAGNUS_TAB_GROUP_TITLE = 'Magnus';
+const MAGNUS_TAB_GROUP_COLOR = 'black';
 
 function setupSidePanel() {
   if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) {
     console.warn('Magnus sidePanel API is not available in this Chrome runtime.');
     return;
   }
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(error => {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(error => {
     console.warn('Magnus sidePanel setup failed:', error);
   });
 }
@@ -19,11 +24,35 @@ function setupSidePanel() {
 setupSidePanel();
 
 chrome.action.onClicked.addListener(tab => {
-  if (!chrome.sidePanel || !chrome.sidePanel.open || !tab?.id) return;
-  chrome.sidePanel.open({ tabId: tab.id }).catch(error => {
+  try {
+    assertMagnusInjectableTab(tab);
+    void rememberMagnusOpenRequest(tab);
+    chrome.sidePanel.setOptions({
+      tabId: tab.id,
+      path: magnusPendingPanelPath(tab),
+      enabled: true,
+    }).catch(error => {
+      console.warn('Magnus sidePanel options failed:', error);
+    });
+    chrome.sidePanel.open({ tabId: tab.id }).catch(error => {
+      console.warn('Magnus sidePanel open failed:', error);
+    });
+    void ensureMagnusTabGroup(tab).then(groupId => {
+      if (groupId != null) {
+        void updateMagnusWorkspace(tab.id, { groupId });
+      }
+    });
+  } catch (error) {
     console.warn('Magnus sidePanel open failed:', error);
+  }
+});
+
+chrome.tabs.onRemoved.addListener(tabId => {
+  removeMagnusWorkspace(tabId).catch(error => {
+    console.warn('Magnus workspace cleanup failed:', error);
   });
 });
+
 /**
  * 获取远程数据
  */
@@ -178,6 +207,327 @@ function normalizeHostPattern(host) {
 async function getCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
+}
+
+function workspaceStorageKey(tabId) {
+  return `${MAGNUS_WORKSPACE_PREFIX}${tabId}`;
+}
+
+function createMagnusWorkspaceId(tabId) {
+  return `workspace_${tabId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function magnusPendingPanelPath(tab) {
+  return 'sidepanel.html'
+    + `?tabId=${encodeURIComponent(tab.id)}`
+    + '&pending=1';
+}
+
+function normalizeMagnusPage(tab) {
+  return {
+    url: tab?.url || '',
+    title: tab?.title || '',
+  };
+}
+
+async function ensureMagnusTabGroup(tab) {
+  if (!tab?.id || !chrome.tabs?.group || !chrome.tabGroups?.update) return null;
+  try {
+    const groupId = typeof tab.groupId === 'number' && tab.groupId >= 0
+      ? tab.groupId
+      : await chrome.tabs.group({ tabIds: [tab.id] });
+    await chrome.tabGroups.update(groupId, {
+      title: MAGNUS_TAB_GROUP_TITLE,
+      color: MAGNUS_TAB_GROUP_COLOR,
+    });
+    return groupId;
+  } catch (error) {
+    console.warn('Magnus tab group setup failed:', error);
+    return null;
+  }
+}
+
+async function getMagnusWorkspace(tabId) {
+  if (!tabId || !chrome.storage?.session) return null;
+  const data = await chrome.storage.session.get(workspaceStorageKey(tabId));
+  return data[workspaceStorageKey(tabId)] || null;
+}
+
+async function updateMagnusWorkspace(tabId, patch) {
+  if (!tabId || !chrome.storage?.session) return null;
+  const current = await getMagnusWorkspace(tabId);
+  if (!current) return null;
+  const next = {
+    ...current,
+    ...patch,
+    page: {
+      ...(current.page || {}),
+      ...(patch?.page || {}),
+    },
+    updatedAt: Date.now(),
+  };
+  await chrome.storage.session.set({ [workspaceStorageKey(tabId)]: next });
+  return next;
+}
+
+async function ensureMagnusWorkspace(tab) {
+  if (!tab?.id) throw new Error('Missing tab id.');
+  const current = await getMagnusWorkspace(tab.id);
+  if (current) {
+    return updateMagnusWorkspace(tab.id, {
+      windowId: tab.windowId,
+      groupId: tab.groupId,
+      page: normalizeMagnusPage(tab),
+    });
+  }
+  const now = Date.now();
+  const workspace = {
+    workspaceId: createMagnusWorkspaceId(tab.id),
+    tabId: tab.id,
+    windowId: tab.windowId,
+    groupId: tab.groupId,
+    page: normalizeMagnusPage(tab),
+    createdAt: now,
+    updatedAt: now,
+  };
+  await chrome.storage.session.set({ [workspaceStorageKey(tab.id)]: workspace });
+  return workspace;
+}
+
+async function removeMagnusWorkspace(tabId) {
+  if (!tabId || !chrome.storage?.session) return;
+  await chrome.storage.session.remove(workspaceStorageKey(tabId));
+}
+
+async function rememberMagnusOpenRequest(tab) {
+  if (!tab?.id || !chrome.storage?.session) return;
+  await chrome.storage.session.set({
+    [MAGNUS_OPEN_REQUEST_KEY]: {
+      tabId: tab.id,
+      windowId: tab.windowId,
+      page: normalizeMagnusPage(tab),
+      createdAt: Date.now(),
+    },
+  });
+}
+
+async function consumeMagnusOpenRequest() {
+  if (!chrome.storage?.session) return null;
+  const data = await chrome.storage.session.get(MAGNUS_OPEN_REQUEST_KEY);
+  const request = data[MAGNUS_OPEN_REQUEST_KEY] || null;
+  await chrome.storage.session.remove(MAGNUS_OPEN_REQUEST_KEY);
+  if (!request || !request.tabId || Date.now() - Number(request.createdAt || 0) > 15000) return null;
+  return request;
+}
+
+async function getTabById(tabId) {
+  if (!tabId) return null;
+  try {
+    return await chrome.tabs.get(tabId);
+  } catch (error) {
+    return null;
+  }
+}
+
+function assertMagnusInjectableTab(tab) {
+  if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) {
+    throw new Error(`当前页面不支持注入 Magnus runtime：${tab?.url || ''}`);
+  }
+}
+
+async function postMagnusSourceJson(pathname, body) {
+  const response = await fetch(`${MAGNUS_SOURCE_SERVER_URL}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Magnus-Internal': 'chrome-extension',
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.success === false) {
+    throw new Error(data.error || `Source server request failed: ${response.status}`);
+  }
+  return data;
+}
+
+async function injectMagnusBoot(message, sender, boot) {
+  let execData = {
+    world: 'MAIN',
+    function: value => {
+      window.__MAGNUS_SFR_BOOT__ = value;
+    },
+    args: [boot],
+  };
+  execData = fillIframeIdToData(message, sender, execData);
+  return chrome.scripting.executeScript(execData);
+}
+
+function createMagnusBoot(tab, workspace) {
+  return {
+    browserTabId: tab.id,
+    windowId: tab.windowId,
+    workspaceId: workspace.workspaceId,
+    sourceServerUrl: MAGNUS_SOURCE_SERVER_URL,
+    bridgeUrl: MAGNUS_SOURCE_SERVER_URL.replace(/^http/, 'ws') + '/bridge',
+    autoStartPicker: false,
+  };
+}
+
+function installResultHasMagnusRuntime(result) {
+  const jsUrls = Array.isArray(result?.config?.jsUrls) ? result.config.jsUrls : [];
+  return jsUrls.some(url => String(url || '').includes(MAGNUS_RUNTIME_APP));
+}
+
+async function injectMagnusRuntimeFallback(message, sender) {
+  let execData = {
+    world: 'MAIN',
+    files: [`app/${MAGNUS_RUNTIME_APP}`],
+  };
+  execData = fillIframeIdToData(message, sender, execData);
+  return chrome.scripting.executeScript(execData);
+}
+
+async function installMagnusRuntime(message, sender, sendResponse) {
+  try {
+    const tab = await getTabById(message.tabId);
+    assertMagnusInjectableTab(tab);
+    const workspace = await getMagnusWorkspace(tab.id);
+    if (!workspace || workspace.workspaceId !== message.workspaceId) {
+      throw new Error('Magnus workspace not found or mismatched.');
+    }
+    const boot = createMagnusBoot(tab, workspace);
+    await injectMagnusBoot({
+      ...message,
+      tabId: tab.id,
+      windowId: tab.windowId,
+      url: tab.url,
+      page: normalizeMagnusPage(tab),
+    }, sender, boot);
+
+    const installResponse = await new Promise(resolve => {
+      installCodeLister({
+        ...message,
+        cmd: 'install',
+        tabId: tab.id,
+        windowId: tab.windowId,
+        url: tab.url || '',
+        page: normalizeMagnusPage(tab),
+      }, sender, resolve);
+    });
+    let fallbackInjected = false;
+    if (!installResultHasMagnusRuntime(installResponse)) {
+      await injectMagnusRuntimeFallback({
+        ...message,
+        tabId: tab.id,
+        windowId: tab.windowId,
+        url: tab.url || '',
+        page: normalizeMagnusPage(tab),
+      }, sender);
+      fallbackInjected = true;
+    }
+    const response = {
+      success: true,
+      type: 'magnus.installRuntime',
+      workspace,
+      boot,
+      install: installResponse,
+      fallbackInjected,
+    };
+    sendResponse && sendResponse(response);
+    return response;
+  } catch (error) {
+    const response = {
+      success: false,
+      type: 'magnus.installRuntime',
+      error: error.message || String(error),
+    };
+    sendResponse && sendResponse(response);
+    return response;
+  }
+}
+
+async function bindMagnusPanel(tab, workspace) {
+  return postMagnusSourceJson('/api/panel/bind', {
+    tabId: tab.id,
+    windowId: tab.windowId,
+    workspaceId: workspace.workspaceId,
+    page: normalizeMagnusPage(tab),
+  });
+}
+
+async function prepareMagnusPanelForTab(tab) {
+  const workspace = await ensureMagnusWorkspace(tab);
+  const installResult = await installMagnusRuntime({
+    tabId: tab.id,
+    windowId: tab.windowId,
+    workspaceId: workspace.workspaceId,
+    page: normalizeMagnusPage(tab),
+  }, {}, null);
+  if (!installResult?.success) throw new Error(installResult?.error || 'Magnus runtime 安装失败。');
+  const bindResult = await bindMagnusPanel(tab, workspace);
+  const panelTicket = bindResult.panelTicket;
+  return {
+    success: true,
+    workspace,
+    panelTicket,
+    pageSessionId: bindResult.pageSessionId,
+  };
+}
+
+async function openMagnusPanelCommand(message, sender, sendResponse) {
+  try {
+    const tab = message.tabId ? await getTabById(message.tabId) : await getCurrentTab();
+    assertMagnusInjectableTab(tab);
+    const result = await prepareMagnusPanelForTab(tab);
+    sendResponse && sendResponse(result);
+  } catch (error) {
+    sendResponse && sendResponse({ success: false, type: 'magnus.openPanel', error: error.message || String(error) });
+  }
+}
+
+async function rebindMagnusPanel(message, sender, sendResponse) {
+  try {
+    const tab = await getTabById(message.tabId);
+    assertMagnusInjectableTab(tab);
+    const workspace = await getMagnusWorkspace(tab.id);
+    if (!workspace || workspace.workspaceId !== message.workspaceId) {
+      throw new Error('Magnus workspace not found or mismatched.');
+    }
+    const installResult = await installMagnusRuntime({
+      tabId: tab.id,
+      windowId: tab.windowId,
+      workspaceId: workspace.workspaceId,
+      page: normalizeMagnusPage(tab),
+    }, sender, null);
+    if (!installResult?.success) throw new Error(installResult?.error || 'Magnus runtime 安装失败。');
+    const bindResult = await bindMagnusPanel(tab, workspace);
+    sendResponse && sendResponse({
+      success: true,
+      type: 'magnus.rebindPanel',
+      workspace,
+      panelTicket: bindResult.panelTicket,
+      pageSessionId: bindResult.pageSessionId,
+    });
+  } catch (error) {
+    sendResponse && sendResponse({ success: false, type: 'magnus.rebindPanel', error: error.message || String(error) });
+  }
+}
+
+async function consumeMagnusOpenRequestCommand(message, sender, sendResponse) {
+  try {
+    const request = await consumeMagnusOpenRequest();
+    sendResponse && sendResponse({
+      success: true,
+      request,
+    });
+  } catch (error) {
+    sendResponse && sendResponse({
+      success: false,
+      type: 'magnus.consumeOpenRequest',
+      error: error.message || String(error),
+    });
+  }
 }
 /**
  * 填充iframe target信息
@@ -427,34 +777,17 @@ async function installCodeLister(message, sender, sendResponse) {
   try {
     // 1️⃣ 获取当前页面/iframe配置，包括要加载的 JS/CSS URL
     const config = await GetConfig(message, sender);
-    let jsUrls = Array.isArray(config?.jsUrls) ? config.jsUrls : [];
+    const jsUrls = Array.isArray(config?.jsUrls) ? config.jsUrls : [];
     const cssUrls = Array.isArray(config?.cssUrls) ? config.cssUrls : [];
-    let fallbackReason = '';
 
     if (!config || (!jsUrls.length && !cssUrls.length)) {
-      if (!message.magnusBoot) {
-        sendResponse && sendResponse({
-          success: false,
-          type: 'install',
-          config: config || null,
-          error: `当前页面未匹配任何 app 注入规则：${message.url || message.page?.url || sender.url || ''}`,
-        });
-        return;
-      }
-      fallbackReason = `当前页面未匹配任何 app 注入规则，Side Panel 显式安装兜底注入 magnus/sfr-runtime.js：${message.url || message.page?.url || sender.url || ''}`;
-      jsUrls = [chrome.runtime.getURL('app/magnus/sfr-runtime.js')];
-    }
-
-    if (message.magnusBoot) {
-      let bootExecData = {
-        world: 'MAIN',
-        function: value => {
-          window.__MAGNUS_SFR_BOOT__ = value;
-        },
-        args: [message.magnusBoot],
-      };
-      bootExecData = fillIframeIdToData(message, sender, bootExecData);
-      await chrome.scripting.executeScript(bootExecData);
+      sendResponse && sendResponse({
+        success: false,
+        type: 'install',
+        config: config || null,
+        error: `当前页面未匹配任何 app 注入规则：${message.url || message.page?.url || sender.url || ''}`,
+      });
+      return;
     }
 
     // 3️⃣ 注入本地通用 CSS 文件
@@ -476,8 +809,7 @@ async function installCodeLister(message, sender, sendResponse) {
         ...(config || {}),
         jsUrls,
         cssUrls,
-      },
-      warning: fallbackReason,
+      }
     });
   } catch (error) {
     sendResponse && sendResponse({
@@ -1214,6 +1546,17 @@ const BaseChromeApiCmd = {
 }
 
 function onMessageLister(message, sender, sendResponse) {
+  if ("magnus.getConfig" === message?.cmd) {
+    sendResponse && sendResponse({
+      success: true,
+      sourceServerUrl: MAGNUS_SOURCE_SERVER_URL,
+    });
+    return;
+  }
+  if ("magnus.consumeOpenRequest" === message?.cmd) {
+    consumeMagnusOpenRequestCommand(message, sender, sendResponse);
+    return true;
+  }
   const tabId = message?.tabId || sender?.tab?.id;
   if(!tabId) return;
   if ("downFile" === message.cmd) return DownFileCmd.Lister(message, sender, sendResponse);
@@ -1226,6 +1569,18 @@ function onMessageLister(message, sender, sendResponse) {
     return;
   }
   if ("changeAccount" === message.cmd) return ChangeAccountCmd.Lister(message, sender, sendResponse);
+  if ("magnus.installRuntime" === message.cmd) {
+    installMagnusRuntime(message, sender, sendResponse);
+    return true;
+  }
+  if ("magnus.openPanel" === message.cmd) {
+    openMagnusPanelCommand(message, sender, sendResponse);
+    return true;
+  }
+  if ("magnus.rebindPanel" === message.cmd) {
+    rebindMagnusPanel(message, sender, sendResponse);
+    return true;
+  }
   if ("setup" === message.cmd) return setupCodeLister(message, sender, sendResponse);
   if ("install" === message.cmd) return installCodeLister(message, sender, sendResponse);
   if ("start" === message.cmd) return HotCodeCmd.Lister(message, sender, sendResponse);
@@ -1280,10 +1635,6 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
 })
 
 
-let INSTALLER_RELOAD = false;
-chrome.runtime.onInstalled.addListener((details) => {
-  INSTALLER_RELOAD = true;
-});
 
 
 

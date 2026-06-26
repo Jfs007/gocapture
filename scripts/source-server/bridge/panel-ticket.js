@@ -3,11 +3,14 @@ const { createId } = require('./id');
 function createPanelTicketService({ ttlMs = 30 * 1000 } = {}) {
   const tickets = new Map();
 
-  function createTicket(pageSessionId) {
+  function createTicket(input) {
+    const pageSessionId = typeof input === 'string' ? input : input?.pageSessionId;
+    const workspaceId = typeof input === 'string' ? '' : (input?.workspaceId || '');
     const value = createId('ticket');
     const ticket = {
       value,
       pageSessionId,
+      workspaceId,
       expiresAt: Date.now() + ttlMs,
       consumed: false,
     };
@@ -27,7 +30,10 @@ function createPanelTicketService({ ttlMs = 30 * 1000 } = {}) {
       throw new Error('Panel ticket expired.');
     }
     ticket.consumed = true;
-    return ticket.pageSessionId;
+    return {
+      pageSessionId: ticket.pageSessionId,
+      workspaceId: ticket.workspaceId,
+    };
   }
 
   return {

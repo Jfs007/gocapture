@@ -7,6 +7,7 @@ export const useProjectStore = defineStore('magnus.project', () => {
   const serviceStatus = ref<SourceServiceStatus>('idle');
   const serviceError = ref('');
   const serviceMessage = ref('');
+  const pageContext = ref<unknown>(null);
 
   function setProject(project: SourceProject | null) {
     current.value = project;
@@ -18,12 +19,18 @@ export const useProjectStore = defineStore('magnus.project', () => {
     serviceError.value = error;
   }
 
+  function setPageContext(value: unknown) {
+    pageContext.value = value || null;
+  }
+
   return {
     current,
+    pageContext,
     serviceStatus,
     serviceError,
     serviceMessage,
     setProject,
-    setServiceStatus
+    setServiceStatus,
+    setPageContext
   };
 });

@@ -31,10 +31,16 @@ function createBridge() {
     const snapshot = sessions.createPendingForTab({
       browserTabId: input.tabId ?? input.browserTabId,
       windowId: input.windowId,
+      workspaceId: input.workspaceId,
       page: input.page,
     });
     return {
-      ...tickets.createTicket(snapshot.pageSessionId),
+      ...tickets.createTicket({
+        pageSessionId: snapshot.pageSessionId,
+        workspaceId: snapshot.workspaceId,
+      }),
+      success: true,
+      workspaceId: snapshot.workspaceId,
       pageSessionId: snapshot.pageSessionId,
       snapshot,
     };
@@ -45,6 +51,7 @@ function createBridge() {
       runtimeId: message.runtimeId,
       browserTabId: message.browserTabId,
       windowId: message.windowId,
+      workspaceId: message.workspaceId,
       page: message.page,
     });
     client.kind = 'runtime';
@@ -71,9 +78,13 @@ function createBridge() {
   }
 
   function handlePanelConnect(client, message) {
-    const pageSessionId = tickets.consumeTicket(message.panelTicket);
+    const ticket = tickets.consumeTicket(message.panelTicket);
+    const pageSessionId = ticket.pageSessionId;
     const snapshot = sessions.getById(pageSessionId);
     if (!snapshot) throw new Error('Page session not found.');
+    if (ticket.workspaceId && snapshot.workspaceId && ticket.workspaceId !== snapshot.workspaceId) {
+      throw new Error('Workspace mismatch.');
+    }
     client.kind = 'sideiframe';
     client.pageSessionId = pageSessionId;
     if (!panelClientsBySessionId.has(pageSessionId)) {

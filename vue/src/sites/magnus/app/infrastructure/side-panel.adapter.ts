@@ -34,6 +34,9 @@ export function useSidePanelBridge({
       currentPageHref.value = snapshot.page.url;
       onRuntimeEvent?.({ type: 'runtime.connected', payload: { page: snapshot.page } });
     }
+    if (snapshot.pageContext) {
+      onRuntimeEvent?.({ type: 'page.context', payload: snapshot.pageContext });
+    }
     onRuntimeEvent?.({ type: 'selection.changed', payload: { selections: selectionList(snapshot) } });
   }
 
@@ -82,6 +85,8 @@ export function useSidePanelBridge({
         if (message.type === 'sideiframe.bound_session') {
           pageSessionId = message.pageSessionId || '';
           applyRemoteSnapshot(message.snapshot);
+          sendSidePanelCommand('context.get');
+          sendSidePanelCommand('picker.start');
         } else if (message.type === 'session.event') {
           applyRemoteSessionEvent(message);
         }

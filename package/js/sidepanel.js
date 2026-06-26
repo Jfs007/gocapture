@@ -1,7 +1,5 @@
-const SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
+let sourceServerUrl = '';
 const IFRAME_ID = 'magnus-sidepanel-frame';
-
-let bindSeq = 0;
 
 function getFrame() {
   return document.getElementById(IFRAME_ID);
@@ -12,33 +10,29 @@ function setStatus(text) {
   if (status) status.textContent = text || '';
 }
 
-async function postJson(pathname, body) {
-  const response = await fetch(`${SOURCE_SERVER_URL}${pathname}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Magnus-Internal': 'source-server',
-    },
-    body: JSON.stringify(body || {}),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.success === false) {
-    throw new Error(data.error || `Request failed: ${response.status}`);
-  }
-  return data;
+function parsePanelContext() {
+  const params = new URLSearchParams(location.search);
+  return {
+    tabId: Number(params.get('tabId') || 0),
+    workspaceId: params.get('workspaceId') || '',
+    panelTicket: params.get('panelTicket') || '',
+  };
 }
 
-function queryActiveTab() {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      const error = chrome.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-        return;
-      }
-      resolve(tabs && tabs[0] ? tabs[0] : null);
-    });
-  });
+function panelUrl(panelTicket) {
+  return `${sourceServerUrl}/ui/?panelTicket=${encodeURIComponent(panelTicket)}`;
+}
+
+function loadIframe(panelTicket) {
+  const frame = getFrame();
+  if (!frame) return;
+  if (!panelTicket) {
+    frame.removeAttribute('src');
+    setStatus('缺少 panelTicket，无法加载 Magnus UI。');
+    return;
+  }
+  frame.src = panelUrl(panelTicket);
+  setStatus('');
 }
 
 function sendRuntimeMessage(message) {
@@ -54,77 +48,80 @@ function sendRuntimeMessage(message) {
   });
 }
 
-async function installRuntime(tab) {
-  if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) {
-    throw new Error(`当前页面不支持注入 Magnus runtime：${tab?.url || ''}`);
+async function loadMagnusConfig() {
+  const response = await sendRuntimeMessage({ cmd: 'magnus.getConfig' });
+  if (!response || response.success === false || !response.sourceServerUrl) {
+    throw new Error(response?.error || '读取 Magnus 配置失败。');
   }
-  const response = await sendRuntimeMessage({
-    cmd: 'install',
-    tabId: tab.id,
-    windowId: tab.windowId,
-    url: tab.url || '',
-    page: {
-      url: tab.url || '',
-      title: tab.title || '',
-    },
-    magnusBoot: {
-      browserTabId: tab.id,
-      windowId: tab.windowId,
-      sourceServerUrl: SOURCE_SERVER_URL,
-      bridgeUrl: SOURCE_SERVER_URL.replace(/^http/, 'ws') + '/bridge',
-      autoStartPicker: true,
-    },
-  });
-  if (!response || response.success === false) {
-    throw new Error(response?.error || 'Install runtime failed.');
-  }
-  const jsUrls = Array.isArray(response.config?.jsUrls) ? response.config.jsUrls : [];
-  const hasRuntime = jsUrls.some(url => String(url || '').includes('/app/magnus/sfr-runtime.js'));
-  if (!hasRuntime) {
-    throw new Error(`当前页面未匹配 Magnus runtime 注入规则：${tab.url || ''}`);
-  }
+  sourceServerUrl = response.sourceServerUrl;
 }
 
-async function bindCurrentTab() {
-  const seq = ++bindSeq;
-  const frame = getFrame();
-  try {
-    setStatus('绑定当前页面...');
-    const tab = await queryActiveTab();
-    if (!tab?.id) throw new Error('No active tab.');
-    await installRuntime(tab);
-    const result = await postJson('/api/panel/bind', {
-      tabId: tab.id,
-      windowId: tab.windowId,
-      page: {
-        url: tab.url || '',
-        title: tab.title || '',
-      },
-    });
-    if (seq !== bindSeq) return;
-    const nextUrl = `${SOURCE_SERVER_URL}/ui/?panelTicket=${encodeURIComponent(result.panelTicket)}`;
-    if (frame) frame.src = nextUrl;
-    setStatus('');
-  } catch (error) {
-    if (seq !== bindSeq) return;
-    console.error('[Magnus] side panel bind failed:', error);
-    setStatus(`绑定失败：${error.message || error}`);
-    if (frame) frame.removeAttribute('src');
+async function rebindPanel(context) {
+  if (!context.tabId || !context.workspaceId) {
+    throw new Error('缺少 tabId 或 workspaceId，无法重新绑定。');
   }
+  const response = await sendRuntimeMessage({
+    cmd: 'magnus.rebindPanel',
+    tabId: context.tabId,
+    workspaceId: context.workspaceId,
+  });
+  if (!response || response.success === false) {
+    throw new Error(response?.error || '重新绑定失败。');
+  }
+  return response.panelTicket;
+}
+
+async function preparePanel(context) {
+  if (!context.tabId) {
+    const consumed = await sendRuntimeMessage({ cmd: 'magnus.consumeOpenRequest' });
+    const request = consumed?.request || null;
+    if (request?.tabId) context.tabId = Number(request.tabId);
+  }
+  if (!context.tabId) {
+    throw new Error('当前 SidePanel 未绑定页面，请点击 Magnus 插件图标打开当前页面的工作区。');
+  }
+  const response = await sendRuntimeMessage({
+    cmd: 'magnus.openPanel',
+    tabId: context.tabId,
+    openPanel: false,
+  });
+  if (!response || response.success === false) {
+    throw new Error(response?.error || '初始化 Magnus 失败。');
+  }
+  context.workspaceId = response.workspace?.workspaceId || context.workspaceId || '';
+  context.tabId = Number(response.workspace?.tabId || context.tabId || 0);
+  context.panelTicket = response.panelTicket || '';
+  return context.panelTicket;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  bindCurrentTab();
+  const context = parsePanelContext();
+  loadMagnusConfig().then(() => {
+    if (context.panelTicket) {
+      loadIframe(context.panelTicket);
+      return;
+    }
+    setStatus('正在初始化 Magnus...');
+    return preparePanel(context).then(panelTicket => {
+      loadIframe(panelTicket);
+    });
+  }).catch(error => {
+    console.error('[Magnus] side panel init failed:', error);
+    setStatus(`初始化失败：${error.message || error}`);
+  });
+
   const rebindButton = document.getElementById('magnus-sidepanel-rebind');
-  if (rebindButton) rebindButton.addEventListener('click', bindCurrentTab);
-});
-
-chrome.tabs.onActivated.addListener(() => {
-  bindCurrentTab();
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.active) {
-    bindCurrentTab();
+  if (rebindButton) {
+    rebindButton.addEventListener('click', async () => {
+      try {
+        setStatus('重新绑定页面...');
+        const panelTicket = await rebindPanel(context);
+        context.panelTicket = panelTicket;
+        loadIframe(panelTicket);
+      } catch (error) {
+        console.error('[Magnus] side panel rebind failed:', error);
+        setStatus(`绑定失败：${error.message || error}`);
+      }
+    });
   }
 });

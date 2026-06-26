@@ -7103,6 +7103,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const serviceStatus = /* @__PURE__ */ ref("idle");
     const serviceError = /* @__PURE__ */ ref("");
     const serviceMessage = /* @__PURE__ */ ref("");
+    const pageContext = /* @__PURE__ */ ref(null);
     function setProject(project) {
       current.value = project;
     }
@@ -7111,13 +7112,18 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       serviceMessage.value = message;
       serviceError.value = error;
     }
+    function setPageContext(value) {
+      pageContext.value = value || null;
+    }
     return {
       current,
+      pageContext,
       serviceStatus,
       serviceError,
       serviceMessage,
       setProject,
-      setServiceStatus
+      setServiceStatus,
+      setPageContext
     };
   });
   const useSearchStore = /* @__PURE__ */ defineStore("magnus.search", () => {
@@ -10051,6 +10057,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         currentPageHref.value = snapshot.page.url;
         onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "runtime.connected", payload: { page: snapshot.page } });
       }
+      if (snapshot.pageContext) {
+        onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "page.context", payload: snapshot.pageContext });
+      }
       onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "selection.changed", payload: { selections: selectionList(snapshot) } });
     }
     function applyRemoteSessionEvent(message) {
@@ -10098,6 +10107,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           if (message.type === "sideiframe.bound_session") {
             pageSessionId = message.pageSessionId || "";
             applyRemoteSnapshot(message.snapshot);
+            sendSidePanelCommand("context.get");
+            sendSidePanelCommand("picker.start");
           } else if (message.type === "session.event") {
             applyRemoteSessionEvent(message);
           }
@@ -12526,6 +12537,10 @@ ${result.rawText}` : ""
           case "page.route_changed": {
             const payload = event.payload;
             stores.routeStore.setPage((payload == null ? void 0 : payload.url) || "", stores.routeStore.pagePath);
+            break;
+          }
+          case "page.context": {
+            stores.projectStore.setPageContext(event.payload);
             break;
           }
           case "network.request": {

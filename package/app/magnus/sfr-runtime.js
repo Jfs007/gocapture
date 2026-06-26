@@ -768,6 +768,7 @@
           runtimeId: this.runtimeId,
           browserTabId: BOOT.browserTabId,
           windowId: BOOT.windowId,
+          workspaceId: BOOT.workspaceId,
           page: {
             url: location.href,
             title: document.title,
@@ -820,7 +821,9 @@
       }
       if (message.type === 'runtime.bound_session') {
         this.pageSessionId = message.pageSessionId || '';
-        this.startPicker();
+        if (BOOT.autoStartPicker) {
+          this.startPicker();
+        }
       } else if (message.type === 'page.command.START_PICKER' || message.type === 'page.command.picker.start') {
         this.startPicker();
       } else if (message.type === 'page.command.STOP_PICKER' || message.type === 'page.command.picker.stop') {
@@ -833,7 +836,30 @@
         this.removeSelectionByUid(message.command?.payload?.uid || '');
       } else if (message.type === 'page.command.selection.clear') {
         this.clearSelections();
+      } else if (message.type === 'page.command.context.get') {
+        this.emitPageContext();
       }
+    }
+
+    readStorageValue(key) {
+      try {
+        return localStorage.getItem(key) || '';
+      } catch (error) {
+        return '';
+      }
+    }
+
+    emitPageContext() {
+      this.emit('page.context', {
+        url: location.href,
+        title: document.title,
+        route: `${location.pathname}${location.search}`,
+        project: {
+          projectId: this.readStorageValue('projectId'),
+          tenantId: this.readStorageValue('tenantId'),
+          appId: this.readStorageValue('appId'),
+        },
+      });
     }
 
     patchHistory() {

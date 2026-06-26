@@ -4,6 +4,7 @@ import type { PageRequest } from './page-request.types';
 export type RuntimeEventType =
   | 'selection.changed'
   | 'page.route_changed'
+  | 'page.context'
   | 'network.request'
   | 'runtime.connected';
 
@@ -19,6 +20,17 @@ export interface SelectionChangedPayload {
 
 export interface PageRouteChangedPayload {
   url?: string;
+}
+
+export interface PageContextPayload {
+  url?: string;
+  title?: string;
+  route?: string;
+  project?: {
+    projectId?: string;
+    tenantId?: string;
+    appId?: string;
+  };
 }
 
 export interface RuntimeConnectedPayload {

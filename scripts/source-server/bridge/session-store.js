@@ -15,6 +15,7 @@ function normalizePage(page) {
 function createSessionStore() {
   const sessions = new Map();
   const sessionIdByTabKey = new Map();
+  const sessionIdByWorkspaceId = new Map();
   const sessionIdByRuntimeId = new Map();
 
   function tabKey(input) {
@@ -27,6 +28,7 @@ function createSessionStore() {
     return {
       pageSessionId: session.pageSessionId,
       runtimeId: session.runtimeId,
+      workspaceId: session.workspaceId || '',
       browserTabId: session.browserTabId,
       windowId: session.windowId,
       page: session.page,
@@ -34,6 +36,7 @@ function createSessionStore() {
       selections: session.selections || [],
       pickerEnabled: !!session.pickerEnabled,
       networkEvents: session.networkEvents || [],
+      pageContext: session.pageContext || null,
       taskIds: session.taskIds || [],
       status: session.status,
       createdAt: session.createdAt,
@@ -43,14 +46,18 @@ function createSessionStore() {
 
   function createOrResumeRuntime(input) {
     const page = normalizePage(input.page);
+    const workspaceId = input.workspaceId || '';
     const key = tabKey(input);
-    const existingId = key ? sessionIdByTabKey.get(key) : '';
+    const existingId = workspaceId
+      ? sessionIdByWorkspaceId.get(workspaceId)
+      : (key ? sessionIdByTabKey.get(key) : '');
     let session = existingId ? sessions.get(existingId) : null;
 
     if (!session) {
       session = {
         pageSessionId: createId('page'),
         runtimeId: input.runtimeId,
+        workspaceId,
         browserTabId: input.browserTabId,
         windowId: input.windowId,
         page,
@@ -58,6 +65,7 @@ function createSessionStore() {
         selections: [],
         pickerEnabled: false,
         networkEvents: [],
+        pageContext: null,
         taskIds: [],
         status: 'connected',
         createdAt: now(),
@@ -66,6 +74,7 @@ function createSessionStore() {
       sessions.set(session.pageSessionId, session);
     } else {
       session.runtimeId = input.runtimeId;
+      session.workspaceId = workspaceId || session.workspaceId || '';
       session.browserTabId = input.browserTabId ?? session.browserTabId;
       session.windowId = input.windowId ?? session.windowId;
       session.page = page;
@@ -73,24 +82,30 @@ function createSessionStore() {
       session.selections = [];
       session.pickerEnabled = false;
       session.networkEvents = [];
+      session.pageContext = null;
       session.status = 'connected';
       session.updatedAt = now();
     }
 
+    if (workspaceId) sessionIdByWorkspaceId.set(workspaceId, session.pageSessionId);
     if (key) sessionIdByTabKey.set(key, session.pageSessionId);
     if (input.runtimeId) sessionIdByRuntimeId.set(input.runtimeId, session.pageSessionId);
     return snapshot(session);
   }
 
   function createPendingForTab(input) {
+    const workspaceId = input.workspaceId || '';
     const key = tabKey(input);
-    const existingId = key ? sessionIdByTabKey.get(key) : '';
+    const existingId = workspaceId
+      ? sessionIdByWorkspaceId.get(workspaceId)
+      : (key ? sessionIdByTabKey.get(key) : '');
     const existing = existingId ? sessions.get(existingId) : null;
     if (existing) return snapshot(existing);
 
     const session = {
       pageSessionId: createId('page'),
       runtimeId: '',
+      workspaceId,
       browserTabId: input.browserTabId,
       windowId: input.windowId,
       page: normalizePage(input.page),
@@ -98,12 +113,14 @@ function createSessionStore() {
       selections: [],
       pickerEnabled: false,
       networkEvents: [],
+      pageContext: null,
       taskIds: [],
       status: 'disconnected',
       createdAt: now(),
       updatedAt: now(),
     };
     sessions.set(session.pageSessionId, session);
+    if (workspaceId) sessionIdByWorkspaceId.set(workspaceId, session.pageSessionId);
     if (key) sessionIdByTabKey.set(key, session.pageSessionId);
     return snapshot(session);
   }
@@ -123,6 +140,11 @@ function createSessionStore() {
 
   function getByTab(input) {
     const pageSessionId = sessionIdByTabKey.get(tabKey(input));
+    return pageSessionId ? snapshot(sessions.get(pageSessionId)) : null;
+  }
+
+  function getByWorkspaceId(workspaceId) {
+    const pageSessionId = sessionIdByWorkspaceId.get(workspaceId);
     return pageSessionId ? snapshot(sessions.get(pageSessionId)) : null;
   }
 
@@ -149,6 +171,8 @@ function createSessionStore() {
       session.networkEvents = [payload, ...session.networkEvents].slice(0, 80);
     } else if (type === 'picker.state') {
       session.pickerEnabled = !!payload.enabled;
+    } else if (type === 'page.context') {
+      session.pageContext = payload || null;
     }
     session.updatedAt = now();
     return snapshot(session);
@@ -170,6 +194,7 @@ function createSessionStore() {
     getById,
     getByRuntimeId,
     getByTab,
+    getByWorkspaceId,
     getMutableById,
     markRuntimeDisconnected,
     snapshot,

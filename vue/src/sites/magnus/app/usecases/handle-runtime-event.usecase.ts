@@ -1,5 +1,6 @@
 import type {
   NetworkRequestPayload,
+  PageContextPayload,
   PageRouteChangedPayload,
   RuntimeConnectedPayload,
   RuntimeEvent,
@@ -21,6 +22,10 @@ export function createRuntimeEventHandler(stores: MagnusStores) {
       case 'page.route_changed': {
         const payload = event.payload as PageRouteChangedPayload;
         stores.routeStore.setPage(payload?.url || '', stores.routeStore.pagePath);
+        break;
+      }
+      case 'page.context': {
+        stores.projectStore.setPageContext(event.payload as PageContextPayload);
         break;
       }
       case 'network.request': {
