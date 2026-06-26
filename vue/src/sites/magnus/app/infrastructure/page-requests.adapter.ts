@@ -1,15 +1,17 @@
-import { ref } from 'vue';
-import { compactText, escapeRegExp } from '../../core/element-context';
+import { storeToRefs } from 'pinia';
+import { compactText, escapeRegExp } from '../utils/text';
 import {
   MAGNUS_INTERNAL_REQUEST_HEADER,
   MAGNUS_INTERNAL_REQUEST_VALUE,
   SOURCE_SERVER_URL
 } from '../services/source-service';
+import { useRequestStore } from '../../stores/request.store';
 
 type HeaderInput = Headers | Array<[string, string]> | Record<string, string> | undefined;
 
 export function usePageRequests() {
-  const recentRequests = ref<any[]>([]);
+  const requestStore = useRequestStore();
+  const { items: recentRequests } = storeToRefs(requestStore);
 
   function getHeaderValue(headers: HeaderInput, name: string) {
     if (!headers || !name) return '';
@@ -49,10 +51,7 @@ export function usePageRequests() {
   function rememberRequest(info: any) {
     if (!info.url) return;
     if (isInternalMagnusRequest(info)) return;
-    recentRequests.value = [
-      info,
-      ...recentRequests.value.filter(item => !(item.url === info.url && item.method === info.method))
-    ].slice(0, 40);
+    requestStore.remember(info);
   }
 
   function apiResponseValues() {

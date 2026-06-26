@@ -1,10 +1,11 @@
 import { sourceServerJson } from '../services/source-service';
 import { createComposerWorkflow } from '../workflows/composer-workflow';
-import type { MagnusActions, MagnusModules } from './context';
+import { useAppUiStore } from '../../stores/app-ui.store';
+import type { MagnusActions, MagnusRuntimeState } from './context';
 
-export function createMagnusActions(modules: MagnusModules): MagnusActions {
-  const { source, search, selection, composer, model, toast } = modules;
-  const workflow = createComposerWorkflow(modules);
+export function createMagnusActions(state: MagnusRuntimeState): MagnusActions {
+  const { source, search, selection, composer, model } = state;
+  const workflow = createComposerWorkflow(state);
 
   return {
     chooseProject: source.chooseProject,
@@ -14,17 +15,15 @@ export function createMagnusActions(modules: MagnusModules): MagnusActions {
     expandSelection: selection.expandSelection,
     removeSelection: selection.removeSelection,
     clearSelections: selection.clearSelections,
-    onComposerInput: composer.onComposerInput,
-    insertPromptAsset: composer.insertPromptAsset,
     sendComposer: workflow.sendComposer,
-    openSourceFile: (file: string) => openSourceFile(file, toast),
-    copyTextWithToast: (text: string) => copyTextWithToast(text, toast),
+    openSourceFile,
+    copyTextWithToast,
     toggleCandidateFile: (hit: any) => toggleCandidateFile(hit, search, selection),
     toggleCandidateDetail: (hit: any) => toggleCandidateDetail(hit, search),
     setIncludeApiEvidence: (value: boolean) => {
       search.includeApiEvidence.value = !!value;
     },
-    onSearchOptionChange: () => search.clearCandidateState(selection.filesConfirmed),
+    onSearchOptionChange: () => search.clearCandidateState(),
     openModelEditor: model.openModelEditor,
     openProviderModelEditor: model.openProviderModelEditor,
     closeModelEditor: model.closeModelEditor,
@@ -39,8 +38,9 @@ export function createMagnusActions(modules: MagnusModules): MagnusActions {
   };
 }
 
-async function openSourceFile(file: string, toast: any) {
+async function openSourceFile(file: string) {
   if (!file) return;
+  const appUiStore = useAppUiStore();
   try {
     await sourceServerJson('/api/source/open', {
       method: 'POST',
@@ -48,9 +48,9 @@ async function openSourceFile(file: string, toast: any) {
       timeoutMs: 5000,
       timeoutMessage: '打开源码文件超时，请确认本地源码服务可用'
     });
-    toast.setToast(`已打开 ${file}`);
+    appUiStore.setToast(`已打开 ${file}`);
   } catch (error: any) {
-    toast.setToast(error.message || '打开源码文件失败');
+    appUiStore.setToast(error.message || '打开源码文件失败');
   }
 }
 
@@ -60,7 +60,7 @@ function toggleCandidateFile(hit: any, search: any, selection: any) {
   if (selected.has(hit.file)) selected.delete(hit.file);
   else selected.add(hit.file);
   search.selectedCandidatePaths.value = Array.from(selected);
-  search.invalidateCandidateConfirm(selection.filesConfirmed);
+  search.invalidateCandidateConfirm();
 }
 
 function toggleCandidateDetail(hit: any, search: any) {
@@ -68,9 +68,10 @@ function toggleCandidateDetail(hit: any, search: any) {
   search.expandedCandidatePath.value = search.expandedCandidatePath.value === hit.file ? '' : hit.file;
 }
 
-function copyTextWithToast(text: string, toast: any) {
+function copyTextWithToast(text: string) {
+  const appUiStore = useAppUiStore();
   copyText(text).then(ok => {
-    toast.setToast(ok ? '已复制' : '复制失败');
+    appUiStore.setToast(ok ? '已复制' : '复制失败');
   });
 }
 

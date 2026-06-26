@@ -1,7 +1,7 @@
-import type { MagnusModules } from './context';
+import type { MagnusRuntimeState } from './context';
 
-export function registerRuntimeApi(api: Record<string, any>, modules: Pick<MagnusModules, 'bridge' | 'selection'>) {
-  const { bridge, selection } = modules;
+export function registerRuntimeApi(api: Record<string, any>, state: Pick<MagnusRuntimeState, 'bridge' | 'selection'>) {
+  const { bridge, selection } = state;
   api.start = () => bridge.sendSidePanelCommand('picker.start');
   api.stop = () => bridge.sendSidePanelCommand('picker.stop');
   api.toggle = () => bridge.sendSidePanelCommand('picker.start');

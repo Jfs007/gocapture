@@ -1,6 +1,13 @@
 // @ts-nocheck
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { sourceServerNdjson } from '../services/source-service';
+import { useModelStore } from '../../stores/model.store';
+import { useAppUiStore } from '../../stores/app-ui.store';
+import { useProjectStore } from '../../stores/project.store';
+import { useRouteStore } from '../../stores/route.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSearchPrompt } from '../prompt/search-prompt';
 
 const MODEL_STORAGE_KEY = 'magnus:model-adapters';
 const MODEL_SELECTED_KEY = 'magnus:model-adapters:selected';
@@ -150,18 +157,38 @@ function normalizeModel(raw) {
   };
 }
 
-export function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, definitionTrace, setToast }) {
-  const modelConfigs = ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
-  const selectedModelId = ref(loadText(MODEL_SELECTED_KEY, ''));
-  const useModelAssist = ref(!!selectedModelId.value);
-  const modelEditorOpen = ref(false);
-  const modelForm = ref(defaultModelForm());
-  const modelAssistLoading = ref(false);
-  const modelAssistError = ref('');
-  const modelAssistLogs = ref([]);
-  const modelAssistResult = ref(null);
-  const modelAssistStartedAt = ref(0);
-  const modelAssistFinishedAt = ref(0);
+export function useModelAdapters() {
+  const modelStore = useModelStore();
+  const appUiStore = useAppUiStore();
+  const projectStore = useProjectStore();
+  const routeStore = useRouteStore();
+  const searchStore = useSearchStore();
+  const prompt = useSearchPrompt();
+  const { current: project } = storeToRefs(projectStore);
+  const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
+  const {
+    candidates: candidateHits,
+    selectedCandidatePaths,
+    apiTrace,
+    i18nTrace,
+    definitionTrace
+  } = storeToRefs(searchStore);
+  const { searchPayload } = prompt;
+  if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel);
+  if (!modelStore.selectedModelId) modelStore.selectedModelId = loadText(MODEL_SELECTED_KEY, '');
+  modelStore.useModelAssist = !!modelStore.selectedModelId;
+  const {
+    configs: modelConfigs,
+    selectedModelId,
+    useModelAssist,
+    editorOpen: modelEditorOpen,
+    form: modelForm,
+    error: modelAssistError,
+    logs: modelAssistLogs,
+    result: modelAssistResult,
+    startedAt: modelAssistStartedAt,
+    finishedAt: modelAssistFinishedAt
+  } = storeToRefs(modelStore);
   let modelAssistController = null;
 
   const selectedModel = computed(() => {
@@ -171,6 +198,24 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
   const canUseModelAssist = computed(() => {
     return !!selectedModel.value && !!project.value && project.value.source === 'source-server';
   });
+  const modelAssistLoading = computed({
+    get: () => modelStore.status === 'running',
+    set: value => {
+      if (value) {
+        modelStore.status = 'running';
+        return;
+      }
+      if (modelStore.status !== 'running') return;
+      if (modelAssistError.value) modelStore.status = 'error';
+      else if (modelAssistResult.value?.stopped) modelStore.status = 'stopped';
+      else if (modelAssistResult.value) modelStore.status = 'success';
+      else modelStore.status = 'idle';
+    }
+  });
+
+  watch(canUseModelAssist, value => {
+    modelStore.canUseModelAssist = !!value;
+  }, { immediate: true });
 
   function persistModels() {
     void persistModelState(modelConfigs.value, selectedModelId.value);
@@ -211,7 +256,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     useModelAssist.value = true;
     persistModels();
     modelEditorOpen.value = false;
-    setToast('模型已保存');
+    appUiStore.setToast('模型已保存');
   }
 
   function removeSelectedModel() {
@@ -220,7 +265,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     selectedModelId.value = modelConfigs.value[0]?.id || '';
     persistModels();
     if (!selectedModelId.value) useModelAssist.value = false;
-    setToast('模型已移除');
+    appUiStore.setToast('模型已移除');
   }
 
   function setSelectedModel(id) {
@@ -233,14 +278,14 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     selectedModelId.value = id || '';
     useModelAssist.value = !!selectedModelId.value;
     persistModels();
-    if (selectedModelId.value) setToast('模型已启用');
+    if (selectedModelId.value) appUiStore.setToast('模型已启用');
   }
 
   function disableModelAssist() {
     selectedModelId.value = '';
     useModelAssist.value = false;
     persistModels();
-    setToast('模型已停用');
+    appUiStore.setToast('模型已停用');
   }
 
   function setUseModelAssist(value) {
@@ -256,6 +301,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
     modelAssistResult.value = null;
     modelAssistStartedAt.value = 0;
     modelAssistFinishedAt.value = 0;
+    modelStore.status = 'idle';
   }
 
   function mergeModelTargets(result) {
@@ -348,7 +394,7 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
       modelAssistResult.value = result || modelAssistResult.value || null;
       modelAssistLogs.value = modelAssistResult.value?.logs || [];
       mergeModelTargets(modelAssistResult.value);
-      setToast('模型定位已完成');
+      appUiStore.setToast('模型定位已完成');
       return modelAssistResult.value;
     } catch (error) {
       if (error?.name === 'AbortError') {
@@ -366,12 +412,12 @@ export function useModelAdapters({ project, candidateHits, selectedCandidatePath
           logs: stoppedLogs
         };
         modelAssistError.value = '';
-        setToast('已手动停止');
+        appUiStore.setToast('已手动停止');
         return modelAssistResult.value;
       }
       modelAssistError.value = error.message || String(error);
       modelAssistLogs.value = error.payload?.logs || modelAssistLogs.value;
-      setToast('模型定位失败');
+      appUiStore.setToast('模型定位失败');
       return null;
     } finally {
       modelAssistFinishedAt.value = Date.now();

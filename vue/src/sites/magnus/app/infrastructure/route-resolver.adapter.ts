@@ -1,4 +1,6 @@
-import { ref, type ComputedRef, type Ref } from 'vue';
+import { type ComputedRef, type Ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useRouteStore } from '../../stores/route.store';
 
 export function hashRoutePath(hash: string) {
   const value = String(hash || '').replace(/^#/, '');
@@ -21,7 +23,8 @@ export function useRouteResolver({
   pageUrlPath,
   sourceServerJson
 }: RouteResolverOptions) {
-  const routeResolverTrace = ref<any>(null);
+  const routeStore = useRouteStore();
+  const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
   let routeResolveSeq = 0;
   let routeResolveTimer = 0;
 
@@ -34,11 +37,11 @@ export function useRouteResolver({
     const currentTrace = routeResolverTrace.value;
     if (!nextTrace) return;
     if (nextTrace.matched) {
-      routeResolverTrace.value = nextTrace;
+      routeStore.applyTrace(nextTrace);
       return;
     }
     if (currentTrace?.matched && sameRouteTracePage(currentTrace)) return;
-    routeResolverTrace.value = nextTrace;
+    routeStore.applyTrace(nextTrace);
   }
 
   function scheduleRouteResolve() {
@@ -51,11 +54,13 @@ export function useRouteResolver({
 
   async function resolveCurrentPageRoute() {
     if (!project.value || project.value.source !== 'source-server') {
-      routeResolverTrace.value = null;
+      routeStore.applyTrace(null);
       return;
     }
 
     const seq = ++routeResolveSeq;
+    routeStore.status = 'loading';
+    routeStore.error = '';
     try {
       const data = await sourceServerJson('/api/route/resolve', {
         method: 'POST',
@@ -67,17 +72,18 @@ export function useRouteResolver({
         timeoutMessage: '页面路由解析超过 5 秒'
       });
       if (seq !== routeResolveSeq) return;
-      routeResolverTrace.value = data.routeResolver || null;
+      routeStore.applyTrace(data.routeResolver || null);
     } catch (error: any) {
       if (seq !== routeResolveSeq) return;
-      routeResolverTrace.value = {
+      routeStore.applyTrace({
         projectKind: project.value?.kind || 'unknown',
         pagePath: pageUrlPath.value,
         adapters: [],
         matched: false,
         hits: [],
         errors: [error.message || String(error)]
-      };
+      });
+      routeStore.fail(error);
     }
   }
 

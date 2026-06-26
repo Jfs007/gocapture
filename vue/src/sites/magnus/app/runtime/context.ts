@@ -8,8 +8,7 @@ export interface MagnusRuntimeContext {
   pageHost: ComputedRef<string>;
 }
 
-export interface MagnusModules {
-  toast: any;
+export interface MagnusRuntimeState {
   requests: any;
   source: any;
   route: any;

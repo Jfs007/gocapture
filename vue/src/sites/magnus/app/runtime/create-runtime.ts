@@ -1,10 +1,11 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { createMagnusModules } from './create-modules';
+import { createMagnusRuntimeState } from './create-runtime-state';
 import { createMagnusActions } from './actions';
-import { syncRuntimeStateToStores } from './store-sync';
 import { provideMagnusRuntime } from './provide';
 import { registerRuntimeApi } from './api';
-import { installLocationWatcher, pageHostText, pageUrlPath, readCurrentHref } from '../modules/page-location';
+import { installLocationWatcher, pageHostText, pageUrlPath, readCurrentHref } from '../infrastructure/page-location';
+import { useRouteStore } from '../../stores/route.store';
+import { useAppUiStore } from '../../stores/app-ui.store';
 import type { MagnusRuntimeContext } from './context';
 
 export function createMagnusRuntime(api: Record<string, any>) {
@@ -12,6 +13,8 @@ export function createMagnusRuntime(api: Record<string, any>) {
   const sidePanelConfig = computed(() => api.sidePanelConfig || {});
   const routePagePath = computed(() => pageUrlPath(currentPageHref.value));
   const pageHost = computed(() => pageHostText(currentPageHref.value));
+  const routeStore = useRouteStore();
+  const appUiStore = useAppUiStore();
   let cleanupLocationWatcher: null | (() => void) = null;
 
   const runtime: MagnusRuntimeContext = {
@@ -21,21 +24,21 @@ export function createMagnusRuntime(api: Record<string, any>) {
     routePagePath,
     pageHost
   };
-  const modules = createMagnusModules(runtime);
-  const { source, route, search, bridge } = modules;
+  const state = createMagnusRuntimeState(runtime);
+  const { source, route, search, bridge } = state;
 
-  syncRuntimeStateToStores(modules);
-  const actions = createMagnusActions(modules);
-  provideMagnusRuntime(api, modules, actions);
+  const actions = createMagnusActions(state);
+  provideMagnusRuntime(api, state, actions);
 
   watch([source.project, currentPageHref], () => {
+    routeStore.setPage(currentPageHref.value, routePagePath.value);
     search.i18nTrace.value = null;
     search.definitionTrace.value = null;
     route.scheduleRouteResolve();
-  });
+  }, { immediate: true });
 
   onMounted(() => {
-    registerRuntimeApi(api, modules);
+    registerRuntimeApi(api, state);
     cleanupLocationWatcher = installLocationWatcher(currentPageHref);
     source.restoreSavedProject();
     route.scheduleRouteResolve();
@@ -47,7 +50,7 @@ export function createMagnusRuntime(api: Record<string, any>) {
     route.cleanupRouteResolver();
     cleanupLocationWatcher?.();
     cleanupLocationWatcher = null;
-    modules.toast.cleanupToast();
+    appUiStore.cleanupToast();
   });
 
   return {

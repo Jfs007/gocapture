@@ -1583,10 +1583,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function ref(value) {
     return createRef(value, false);
   }
-  // @__NO_SIDE_EFFECTS__
-  function shallowRef(value) {
-    return createRef(value, true);
-  }
   function createRef(rawValue, shallow) {
     if (/* @__PURE__ */ isRef(rawValue)) {
       return rawValue;
@@ -1683,6 +1679,29 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     get dep() {
       return getDepFromReactive(this._raw, this._key);
+    }
+  }
+  class GetterRefImpl {
+    constructor(_getter) {
+      this._getter = _getter;
+      this["__v_isRef"] = true;
+      this["__v_isReadonly"] = true;
+      this._value = void 0;
+    }
+    get value() {
+      return this._value = this._getter();
+    }
+  }
+  // @__NO_SIDE_EFFECTS__
+  function toRef(source, key, defaultValue) {
+    if (/* @__PURE__ */ isRef(source)) {
+      return source;
+    } else if (isFunction(source)) {
+      return new GetterRefImpl(source);
+    } else if (isObject(source) && arguments.length > 1) {
+      return propertyToRef(source, key, defaultValue);
+    } else {
+      return /* @__PURE__ */ ref(source);
     }
   }
   function propertyToRef(source, key, defaultValue) {
@@ -7041,6 +7060,26 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     useStore.$id = id;
     return useStore;
   }
+  function storeToRefs(store) {
+    const rawStore = /* @__PURE__ */ toRaw(store);
+    const refs = {};
+    for (const key in rawStore) {
+      const value = rawStore[key];
+      if (value.effect) {
+        refs[key] = // ...
+        computed({
+          get: () => store[key],
+          set(value2) {
+            store[key] = value2;
+          }
+        });
+      } else if (/* @__PURE__ */ isRef(value) || /* @__PURE__ */ isReactive(value)) {
+        refs[key] = // ---
+        /* @__PURE__ */ toRef(store, key);
+      }
+    }
+    return refs;
+  }
   const useChatStore = /* @__PURE__ */ defineStore("magnus.chat", () => {
     const messages = /* @__PURE__ */ ref([]);
     function setMessages(nextMessages) {
@@ -7061,7 +7100,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   });
   const useProjectStore = /* @__PURE__ */ defineStore("magnus.project", () => {
     const current = /* @__PURE__ */ ref(null);
-    const serviceStatus = /* @__PURE__ */ ref("unknown");
+    const serviceStatus = /* @__PURE__ */ ref("idle");
     const serviceError = /* @__PURE__ */ ref("");
     const serviceMessage = /* @__PURE__ */ ref("");
     function setProject(project) {
@@ -7084,6 +7123,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const useSearchStore = /* @__PURE__ */ defineStore("magnus.search", () => {
     const status = /* @__PURE__ */ ref("idle");
     const candidates = /* @__PURE__ */ ref([]);
+    const candidateLoading = /* @__PURE__ */ ref(false);
+    const searchRunning = /* @__PURE__ */ ref(false);
     const selectedCandidatePaths = /* @__PURE__ */ ref([]);
     const expandedCandidatePath = /* @__PURE__ */ ref("");
     const apiTrace = /* @__PURE__ */ ref(null);
@@ -7092,6 +7133,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const startedAt = /* @__PURE__ */ ref(0);
     const finishedAt = /* @__PURE__ */ ref(0);
     const error = /* @__PURE__ */ ref("");
+    const keywords = /* @__PURE__ */ ref("");
     const includeApiEvidence = /* @__PURE__ */ ref(true);
     const modelAssistAttempted = /* @__PURE__ */ ref(false);
     const showCandidatePicker = /* @__PURE__ */ ref(false);
@@ -7102,7 +7144,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     });
     function start() {
       status.value = "loading";
+      candidateLoading.value = true;
+      searchRunning.value = true;
       error.value = "";
+      keywords.value = "";
       startedAt.value = Date.now();
       finishedAt.value = 0;
       modelAssistAttempted.value = false;
@@ -7116,15 +7161,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       i18nTrace.value = (result == null ? void 0 : result.i18nTrace) || null;
       definitionTrace.value = (result == null ? void 0 : result.definitionTrace) || null;
       status.value = candidates.value.length ? "success" : "idle";
+      candidateLoading.value = false;
+      searchRunning.value = false;
       finishedAt.value = Date.now();
     }
     function fail(reason) {
       status.value = "error";
+      candidateLoading.value = false;
+      searchRunning.value = false;
       error.value = `${(reason == null ? void 0 : reason.message) || reason || ""}`;
       finishedAt.value = Date.now();
     }
     function reset() {
       status.value = "idle";
+      candidateLoading.value = false;
+      searchRunning.value = false;
       candidates.value = [];
       selectedCandidatePaths.value = [];
       expandedCandidatePath.value = "";
@@ -7139,6 +7190,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return {
       status,
       candidates,
+      candidateLoading,
+      searchRunning,
       selectedCandidatePaths,
       expandedCandidatePath,
       apiTrace,
@@ -7147,6 +7200,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       startedAt,
       finishedAt,
       error,
+      keywords,
       includeApiEvidence,
       modelAssistAttempted,
       showCandidatePicker,
@@ -7484,17 +7538,35 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const useAppUiStore = /* @__PURE__ */ defineStore("magnus.appUi", () => {
     const runtimeConnected = /* @__PURE__ */ ref(false);
     const toastText = /* @__PURE__ */ ref("");
+    const toastTimer = /* @__PURE__ */ ref(null);
     function setRuntimeConnected(value) {
       runtimeConnected.value = !!value;
     }
     function setToast(text) {
       toastText.value = text || "";
+      cleanupToastTimer();
+      if (text) {
+        toastTimer.value = window.setTimeout(() => {
+          toastText.value = "";
+          toastTimer.value = null;
+        }, 1800);
+      }
+    }
+    function cleanupToastTimer() {
+      if (!toastTimer.value) return;
+      clearTimeout(toastTimer.value);
+      toastTimer.value = null;
+    }
+    function cleanupToast() {
+      cleanupToastTimer();
+      toastText.value = "";
     }
     return {
       runtimeConnected,
       toastText,
       setRuntimeConnected,
-      setToast
+      setToast,
+      cleanupToast
     };
   });
   const useComposerStore = /* @__PURE__ */ defineStore("magnus.composer", () => {
@@ -7632,78 +7704,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function escapeRegExp(value) {
     return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
-  function flattenKeys(value, prefix = "", result = [], depth = 0, limit = 36) {
-    if (!value || typeof value !== "object" || depth > 2 || result.length >= limit) return result;
-    const entries = Array.isArray(value) ? value.slice(0, 1).map((item, index) => [String(index), item]) : Object.entries(value).slice(0, 18);
-    for (const [key, child] of entries) {
-      if (result.length >= limit) break;
-      const fullKey = prefix ? `${prefix}.${key}` : key;
-      result.push(fullKey);
-      if (child && typeof child === "object") flattenKeys(child, fullKey, result, depth + 1, limit);
-    }
-    return result;
-  }
-  function flattenPrimitiveValues(value, result = [], depth = 0, limit = 80) {
-    if (result.length >= limit || depth > 3 || value == null) return result;
-    if (typeof value === "string" || typeof value === "number") {
-      const text = String(value).replace(/\s+/g, " ").trim();
-      if (text.length >= 2 && text.length <= 80 && !/^(true|false|null|undefined)$/i.test(text)) {
-        result.push(text);
-      }
-      return result;
-    }
-    if (typeof value !== "object") return result;
-    const entries = Array.isArray(value) ? value.slice(0, 8).map((item, index) => [String(index), item]) : Object.entries(value).slice(0, 28);
-    for (const [, child] of entries) {
-      if (result.length >= limit) break;
-      flattenPrimitiveValues(child, result, depth + 1, limit);
-    }
-    return result;
-  }
-  function normalizeHeaders(value) {
-    if (!value) return {};
-    if (typeof Headers !== "undefined" && value instanceof Headers) {
-      const result = {};
-      value.forEach((headerValue, headerKey) => {
-        result[String(headerKey).toLowerCase()] = String(headerValue || "");
-      });
-      return result;
-    }
-    if (Array.isArray(value)) {
-      return value.reduce((result, item) => {
-        if (Array.isArray(item) && item.length >= 2) {
-          result[String(item[0]).toLowerCase()] = String(item[1] || "");
-        }
-        return result;
-      }, {});
-    }
-    if (typeof value === "object") {
-      return Object.entries(value).reduce((result, [key, headerValue]) => {
-        result[String(key).toLowerCase()] = String(headerValue || "");
-        return result;
-      }, {});
-    }
-    return {};
-  }
-  function normalizeRequestInfo(raw, baseUrl) {
-    var _a, _b;
-    const data = raw || {};
-    let pathname = data.url || "";
-    try {
-      pathname = new URL(data.url, baseUrl).pathname;
-    } catch (error) {
-    }
-    return {
-      url: data.url || "",
-      pathname,
-      method: data.method || "GET",
-      headers: normalizeHeaders(((_a = data.request) == null ? void 0 : _a.headers) || data.headers),
-      requestKeys: flattenKeys(((_b = data.request) == null ? void 0 : _b.body) || {}, "", [], 0, 28),
-      responseKeys: flattenKeys(data.result || {}, "", [], 0, 36),
-      responseValues: flattenPrimitiveValues(data.result || {}, [], 0, 80),
-      capturedAt: Date.now()
-    };
-  }
   function extractSearchTerms(text) {
     const value = String(text || "").replace(/\s+/g, " ").trim();
     const pieces = value.split(/[\n\r\t,，。；;|/\\()[\]{}<>:：]+|\s{2,}/).map((item) => item.trim()).filter(Boolean);
@@ -7728,8 +7728,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const hasSelection = computed(() => items.value.length > 0);
     const promptAssets = computed(() => {
       return items.value.map((item, index) => {
-        const info = item.info || item.element || {};
-        const assetInfo = item.assetInfo || item.asset || info;
+        const info = item.element || {};
+        const assetInfo = item.asset || info;
         return {
           uid: item.uid,
           token: `@选区${index + 1}`,
@@ -7774,11 +7774,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       confirmed.value = false;
       filesConfirmed.value = false;
     }
-    function setItems(nextItems) {
-      var _a;
-      items.value = Array.isArray(nextItems) ? nextItems : [];
-      activeId.value = ((_a = latest.value) == null ? void 0 : _a.uid) || null;
-    }
     function removeSelection(id) {
       var _a;
       items.value = items.value.filter((item) => item.uid !== id);
@@ -7812,7 +7807,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       hasSelection,
       promptAssets,
       replaceSelections,
-      setItems,
       removeSelection,
       clear,
       setActive,
@@ -9777,8 +9771,123 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       limited: !!raw.limited
     };
   }
+  function flattenKeys(value, prefix = "", result = [], depth = 0, limit = 36) {
+    if (!value || typeof value !== "object" || depth > 2 || result.length >= limit) return result;
+    const entries = Array.isArray(value) ? value.slice(0, 1).map((item, index) => [String(index), item]) : Object.entries(value).slice(0, 18);
+    for (const [key, child] of entries) {
+      if (result.length >= limit) break;
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      result.push(fullKey);
+      if (child && typeof child === "object") flattenKeys(child, fullKey, result, depth + 1, limit);
+    }
+    return result;
+  }
+  function flattenPrimitiveValues(value, result = [], depth = 0, limit = 80) {
+    if (result.length >= limit || depth > 3 || value == null) return result;
+    if (typeof value === "string" || typeof value === "number") {
+      const text = String(value).replace(/\s+/g, " ").trim();
+      if (text.length >= 2 && text.length <= 80 && !/^(true|false|null|undefined)$/i.test(text)) {
+        result.push(text);
+      }
+      return result;
+    }
+    if (typeof value !== "object") return result;
+    const entries = Array.isArray(value) ? value.slice(0, 8).map((item, index) => [String(index), item]) : Object.entries(value).slice(0, 28);
+    for (const [, child] of entries) {
+      if (result.length >= limit) break;
+      flattenPrimitiveValues(child, result, depth + 1, limit);
+    }
+    return result;
+  }
+  function normalizeHeaders(value) {
+    if (!value) return {};
+    if (typeof Headers !== "undefined" && value instanceof Headers) {
+      const result = {};
+      value.forEach((headerValue, headerKey) => {
+        result[String(headerKey).toLowerCase()] = String(headerValue || "");
+      });
+      return result;
+    }
+    if (Array.isArray(value)) {
+      return value.reduce((result, item) => {
+        if (Array.isArray(item) && item.length >= 2) {
+          result[String(item[0]).toLowerCase()] = String(item[1] || "");
+        }
+        return result;
+      }, {});
+    }
+    if (typeof value === "object") {
+      return Object.entries(value).reduce((result, [key, headerValue]) => {
+        result[String(key).toLowerCase()] = String(headerValue || "");
+        return result;
+      }, {});
+    }
+    return {};
+  }
+  function normalizeRequestInfo(raw, baseUrl) {
+    var _a, _b;
+    const data = raw || {};
+    let pathname = data.url || "";
+    try {
+      pathname = new URL(data.url, baseUrl).pathname;
+    } catch (error) {
+    }
+    return {
+      url: data.url || "",
+      pathname,
+      method: data.method || "GET",
+      headers: normalizeHeaders(((_a = data.request) == null ? void 0 : _a.headers) || data.headers),
+      requestKeys: flattenKeys(((_b = data.request) == null ? void 0 : _b.body) || {}, "", [], 0, 28),
+      responseKeys: flattenKeys(data.result || {}, "", [], 0, 36),
+      responseValues: flattenPrimitiveValues(data.result || {}, [], 0, 80),
+      capturedAt: Date.now()
+    };
+  }
+  const useRequestStore = /* @__PURE__ */ defineStore("magnus.request", () => {
+    const items = /* @__PURE__ */ ref([]);
+    const enabled = /* @__PURE__ */ ref(true);
+    const recent = computed(() => enabled.value ? items.value.slice(0, 5) : []);
+    function apiResponseValues() {
+      const values = items.value.slice(0, 8).flatMap((item) => item.responseValues || []).map((value) => String(value || "").replace(/\s+/g, " ").trim()).filter((value) => value.length >= 2 && value.length <= 80);
+      return Array.from(new Set(values)).sort((a, b) => b.length - a.length).slice(0, 180);
+    }
+    function denoiseTextByApi(text, limit = 140) {
+      let value = String(text || "").replace(/\s+/g, " ").trim();
+      if (!value) return "";
+      for (const dynamicValue of apiResponseValues()) {
+        if (!dynamicValue || dynamicValue.length < 2) continue;
+        value = value.replace(new RegExp(escapeRegExp(dynamicValue), "g"), " ");
+      }
+      value = value.replace(/\bY\d{4}M\d{2}\b/g, " ").replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ").replace(/\b\d{2}-\d{2}\b/g, " ").replace(/\b\d{2}:\d{2}(?::\d{2})?\b/g, " ").replace(/\s+/g, " ").trim();
+      return compactText(value, limit);
+    }
+    function remember(request) {
+      if (!(request == null ? void 0 : request.url) && !(request == null ? void 0 : request.pathname)) return;
+      const key = `${request.method || "GET"} ${request.url || request.pathname}`;
+      items.value = [
+        request,
+        ...items.value.filter((item) => `${item.method || "GET"} ${item.url || item.pathname}` !== key)
+      ].slice(0, 40);
+    }
+    function clear() {
+      items.value = [];
+    }
+    function setEnabled(value) {
+      enabled.value = !!value;
+    }
+    return {
+      items,
+      enabled,
+      recent,
+      denoiseTextByApi,
+      remember,
+      clear,
+      setEnabled
+    };
+  });
   function usePageRequests() {
-    const recentRequests = /* @__PURE__ */ ref([]);
+    const requestStore = useRequestStore();
+    const { items: recentRequests } = storeToRefs(requestStore);
     function getHeaderValue(headers, name) {
       if (!headers || !name) return "";
       const target = String(name).toLowerCase();
@@ -9810,10 +9919,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function rememberRequest(info) {
       if (!info.url) return;
       if (isInternalMagnusRequest(info)) return;
-      recentRequests.value = [
-        info,
-        ...recentRequests.value.filter((item) => !(item.url === info.url && item.method === info.method))
-      ].slice(0, 40);
+      requestStore.remember(info);
     }
     function apiResponseValues() {
       const values = recentRequests.value.slice(0, 8).flatMap((item) => item.responseValues || []).map((value) => String(value || "").replace(/\s+/g, " ").trim()).filter((value) => value.length >= 2 && value.length <= 80);
@@ -9848,7 +9954,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     pageUrlPath: pageUrlPath2,
     sourceServerJson: sourceServerJson2
   }) {
-    const routeResolverTrace = /* @__PURE__ */ ref(null);
+    const routeStore = useRouteStore();
+    const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
     let routeResolveSeq = 0;
     let routeResolveTimer = 0;
     function sameRouteTracePage(trace) {
@@ -9859,11 +9966,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const currentTrace = routeResolverTrace.value;
       if (!nextTrace) return;
       if (nextTrace.matched) {
-        routeResolverTrace.value = nextTrace;
+        routeStore.applyTrace(nextTrace);
         return;
       }
       if ((currentTrace == null ? void 0 : currentTrace.matched) && sameRouteTracePage(currentTrace)) return;
-      routeResolverTrace.value = nextTrace;
+      routeStore.applyTrace(nextTrace);
     }
     function scheduleRouteResolve() {
       if (routeResolveTimer) window.clearTimeout(routeResolveTimer);
@@ -9876,10 +9983,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       return __async(this, null, function* () {
         var _a;
         if (!project.value || project.value.source !== "source-server") {
-          routeResolverTrace.value = null;
+          routeStore.applyTrace(null);
           return;
         }
         const seq = ++routeResolveSeq;
+        routeStore.status = "loading";
+        routeStore.error = "";
         try {
           const data = yield sourceServerJson2("/api/route/resolve", {
             method: "POST",
@@ -9891,17 +10000,18 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             timeoutMessage: "页面路由解析超过 5 秒"
           });
           if (seq !== routeResolveSeq) return;
-          routeResolverTrace.value = data.routeResolver || null;
+          routeStore.applyTrace(data.routeResolver || null);
         } catch (error) {
           if (seq !== routeResolveSeq) return;
-          routeResolverTrace.value = {
+          routeStore.applyTrace({
             projectKind: ((_a = project.value) == null ? void 0 : _a.kind) || "unknown",
             pagePath: pageUrlPath2.value,
             adapters: [],
             matched: false,
             hits: [],
             errors: [error.message || String(error)]
-          };
+          });
+          routeStore.fail(error);
         }
       });
     }
@@ -9923,23 +10033,25 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   function useSidePanelBridge({
     sidePanelConfig,
     currentPageHref,
-    selectedItems,
-    selectionFromRemote,
     onNetworkRequest,
     onRuntimeEvent,
-    invalidateSelectionConfirm,
     clearSelections,
-    scheduleRouteResolve,
-    setToast
+    scheduleRouteResolve
   }) {
+    const appUiStore = useAppUiStore();
     let socket = null;
     let pageSessionId = "";
+    function selectionList(source) {
+      return Array.isArray(source == null ? void 0 : source.selections) ? source.selections : (source == null ? void 0 : source.selection) ? [source.selection] : [];
+    }
     function applyRemoteSnapshot(snapshot) {
       var _a;
       if (!snapshot) return;
-      if ((_a = snapshot.page) == null ? void 0 : _a.url) currentPageHref.value = snapshot.page.url;
-      const list = Array.isArray(snapshot.selections) ? snapshot.selections : snapshot.selection ? [snapshot.selection] : [];
-      selectedItems.value = list.map(selectionFromRemote);
+      if ((_a = snapshot.page) == null ? void 0 : _a.url) {
+        currentPageHref.value = snapshot.page.url;
+        onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "runtime.connected", payload: { page: snapshot.page } });
+      }
+      onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "selection.changed", payload: { selections: selectionList(snapshot) } });
     }
     function applyRemoteSessionEvent(message) {
       var _a;
@@ -9947,10 +10059,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const payload = event.payload || {};
       if (event.type) onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: event.type, payload });
       if (event.type === "selection.changed") {
-        const list = Array.isArray(payload.selections) ? payload.selections : payload.selection ? [payload.selection] : [];
-        selectedItems.value = list.map(selectionFromRemote);
-        invalidateSelectionConfirm();
-        setToast(`已添加选区 ${selectedItems.value.length}`);
+        appUiStore.setToast(`已添加选区 ${selectionList(payload).length}`);
         return;
       }
       if (event.type === "page.route_changed") {
@@ -9997,7 +10106,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           if (socket === nextSocket) socket = null;
         });
       } catch (error) {
-        setToast(error.message || "连接 Side Panel Bridge 失败");
+        appUiStore.setToast(error.message || "连接 Side Panel Bridge 失败");
       }
     }
     function disconnectSidePanelBridge() {
@@ -10007,7 +10116,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     }
     function sendSidePanelCommand(type, payload) {
       if (!socket || socket.readyState !== WebSocket.OPEN || !pageSessionId) {
-        setToast("页面 Runtime 未连接");
+        appUiStore.setToast("页面 Runtime 未连接");
         return;
       }
       socket.send(JSON.stringify({
@@ -10190,12 +10299,20 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     });
   }
-  function useSourceProject({ projectStorageKey, resetProjectContext, setToast }) {
+  function useSourceProject({ projectStorageKey }) {
+    const projectStore = useProjectStore();
+    const appUiStore = useAppUiStore();
+    const composerStore = useComposerStore();
+    const modelStore = useModelStore();
+    const searchStore = useSearchStore();
+    const selectionStore = useSelectionStore();
+    const {
+      current: project,
+      serviceStatus: sourceServiceStatus,
+      serviceError: sourceServiceError,
+      serviceMessage: sourceServiceMessage
+    } = storeToRefs(projectStore);
     const fileInputRef = /* @__PURE__ */ ref(null);
-    const project = /* @__PURE__ */ shallowRef(null);
-    const sourceServiceStatus = /* @__PURE__ */ ref("idle");
-    const sourceServiceError = /* @__PURE__ */ ref("");
-    const sourceServiceMessage = /* @__PURE__ */ ref("");
     function rememberProjectPath(projectValue) {
       if (!projectValue || projectValue.source !== "source-server" || !projectValue.path) return;
       try {
@@ -10218,7 +10335,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       }
     }
     function resetAfterProjectChange() {
-      if (typeof resetProjectContext === "function") resetProjectContext();
+      selectionStore.confirmed = false;
+      selectionStore.filesConfirmed = false;
+      selectionStore.customEvidence = "";
+      selectionStore.evidenceMessages = [];
+      searchStore.reset();
+      modelStore.reset();
+      composerStore.setFinalPrompt("");
+      composerStore.clearContent();
     }
     function restoreSavedProject() {
       return __async(this, null, function* () {
@@ -10238,16 +10362,13 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             timeoutMs: 2e4,
             timeoutMessage: "恢复源码路径超时，请重新选择项目源码"
           });
-          project.value = normalizeSourceServerProject(data.project || {});
-          sourceServiceStatus.value = "connected";
-          sourceServiceMessage.value = "";
+          projectStore.setProject(normalizeSourceServerProject(data.project || {}));
+          projectStore.setServiceStatus("connected");
           resetAfterProjectChange();
-          setToast(`已恢复 ${project.value.name}`);
+          appUiStore.setToast(`已恢复 ${project.value.name}`);
           return true;
         } catch (error) {
-          sourceServiceStatus.value = "idle";
-          sourceServiceMessage.value = "";
-          sourceServiceError.value = `恢复已保存源码路径失败：${error.message || error}`;
+          projectStore.setServiceStatus("idle", "", `恢复已保存源码路径失败：${error.message || error}`);
           return false;
         }
       });
@@ -10268,39 +10389,36 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           timeoutMs: 9e4,
           timeoutMessage: "等待目录选择器超时，请确认系统弹窗是否被遮挡"
         });
-        project.value = normalizeSourceServerProject(data.project || {});
+        projectStore.setProject(normalizeSourceServerProject(data.project || {}));
         rememberProjectPath(project.value);
         resetAfterProjectChange();
-        sourceServiceStatus.value = "connected";
-        sourceServiceMessage.value = "";
-        setToast(`已关联 ${project.value.name}`);
+        projectStore.setServiceStatus("connected");
+        appUiStore.setToast(`已关联 ${project.value.name}`);
       });
     }
     function chooseProject() {
       return __async(this, null, function* () {
-        setToast("正在选择项目...");
+        appUiStore.setToast("正在选择项目...");
         try {
           yield chooseProjectFromSourceServer();
           return;
         } catch (error) {
-          sourceServiceStatus.value = "fallback";
-          sourceServiceMessage.value = "";
-          sourceServiceError.value = `${error.message || error}。请先运行 npm run source:server；当前将使用浏览器目录选择兜底，无法拿到真实路径。`;
+          projectStore.setServiceStatus("fallback", "", `${error.message || error}。请先运行 npm run source:server；当前将使用浏览器目录选择兜底，无法拿到真实路径。`);
         }
         if (window.showDirectoryPicker && window.isSecureContext) {
           try {
             const handle = yield window.showDirectoryPicker({ mode: "read" });
-            project.value = yield scanDirectoryHandle(handle);
+            projectStore.setProject(yield scanDirectoryHandle(handle));
             resetAfterProjectChange();
-            sourceServiceError.value = "";
-            setToast(`已关联 ${project.value.name}`);
+            projectStore.setServiceStatus(sourceServiceStatus.value, sourceServiceMessage.value, "");
+            appUiStore.setToast(`已关联 ${project.value.name}`);
             return;
           } catch (error) {
             if (error && error.name === "AbortError") {
-              setToast("已取消选择");
+              appUiStore.setToast("已取消选择");
               return;
             }
-            setToast("目录选择器不可用，改用文件夹输入");
+            appUiStore.setToast("目录选择器不可用，改用文件夹输入");
           }
         }
         if (fileInputRef.value) {
@@ -10313,10 +10431,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       return __async(this, null, function* () {
         const files = event.target.files;
         if (!files || !files.length) return;
-        project.value = yield buildProjectFromFileList(files);
+        projectStore.setProject(yield buildProjectFromFileList(files));
         resetAfterProjectChange();
-        sourceServiceError.value = "";
-        setToast(`已关联 ${project.value.name}`);
+        projectStore.setServiceStatus(sourceServiceStatus.value, sourceServiceMessage.value, "");
+        appUiStore.setToast(`已关联 ${project.value.name}`);
       });
     }
     return {
@@ -10330,773 +10448,289 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       restoreSavedProject
     };
   }
-  function useToast() {
-    const toastText = /* @__PURE__ */ ref("");
-    const toastTimer = /* @__PURE__ */ ref(0);
-    function setToast(message) {
-      toastText.value = message || "";
-      if (toastTimer.value) clearTimeout(toastTimer.value);
-      if (message) {
-        toastTimer.value = window.setTimeout(() => {
-          toastText.value = "";
-        }, 1800);
-      }
+  function useSearchFacade() {
+    const composerStore = useComposerStore();
+    const modelStore = useModelStore();
+    const requestStore = useRequestStore();
+    const routeStore = useRouteStore();
+    const searchStore = useSearchStore();
+    const selectionStore = useSelectionStore();
+    const {
+      candidates: candidateHits,
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      candidateLoading,
+      searchRunning,
+      error: candidateError,
+      startedAt: searchStartedAt,
+      finishedAt: searchFinishedAt,
+      includeApiEvidence,
+      selectedCandidatePaths,
+      expandedCandidatePath,
+      modelAssistAttempted,
+      keywords: searchKeywords
+    } = storeToRefs(searchStore);
+    const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
+    const { recent: recentRequests } = storeToRefs(requestStore);
+    const { filesConfirmed } = storeToRefs(selectionStore);
+    const modelAssistLoading = computed(() => modelStore.status === "running");
+    const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
+    const selectedCandidateHits = computed(() => {
+      const selected = new Set(selectedCandidatePaths.value);
+      return candidateHits.value.filter((hit) => selected.has(hit.file));
+    });
+    const routeResolverMatched = computed(() => {
+      var _a;
+      return !!((_a = routeResolverTrace.value) == null ? void 0 : _a.matched);
+    });
+    const hasReliableCandidateEvidence = computed(() => {
+      return routeResolverMatched.value || candidateHits.value.some((hit) => {
+        return hit.stage === "model-agent" || hit.preciseEvidence;
+      });
+    });
+    const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+    const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
+    const showCandidatePicker = computed(() => {
+      return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
+    });
+    watch([candidateLoading, searchRunning, candidateError, candidateHits], ([loading, running, error]) => {
+      if (error) searchStore.status = "error";
+      else if (loading || running) searchStore.status = "loading";
+      else if (candidateHits.value.length) searchStore.status = "success";
+      else searchStore.status = "idle";
+    }, { immediate: true, deep: true });
+    watch([showCandidatePicker, needsMoreEvidence], ([showPicker, needsEvidence]) => {
+      searchStore.showCandidatePicker = !!showPicker;
+      searchStore.needsMoreEvidence = !!needsEvidence;
+    }, { immediate: true });
+    function invalidateCandidateConfirm() {
+      selectionStore.filesConfirmed = false;
+      composerStore.setFinalPrompt("");
     }
-    function cleanupToast() {
-      if (toastTimer.value) clearTimeout(toastTimer.value);
-      toastTimer.value = 0;
+    function clearCandidateState() {
+      candidateHits.value = [];
+      candidateError.value = "";
+      searchRunning.value = false;
+      candidateLoading.value = false;
+      searchStartedAt.value = 0;
+      searchFinishedAt.value = 0;
+      selectedCandidatePaths.value = [];
+      expandedCandidatePath.value = "";
+      selectionStore.filesConfirmed = false;
+      modelAssistAttempted.value = false;
+      modelStore.reset();
+      composerStore.setFinalPrompt("");
     }
     return {
-      toastText,
-      setToast,
-      cleanupToast
+      candidateHits,
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      candidateLoading,
+      searchRunning,
+      candidateError,
+      searchStartedAt,
+      searchFinishedAt,
+      searchKeywords,
+      includeApiEvidence,
+      selectedCandidatePaths,
+      expandedCandidatePath,
+      modelAssistAttempted,
+      searchApiRequests,
+      selectedCandidateHits,
+      needsMoreEvidence,
+      showCandidatePicker,
+      invalidateCandidateConfirm,
+      clearCandidateState
     };
   }
-  function useComposerModule({
-    project,
-    selectedItems,
-    candidateLoading,
-    modelAssistLoading,
-    showCandidatePicker,
-    selectedCandidateHits
-  }) {
-    const promptText = /* @__PURE__ */ ref("");
-    const promptIntent = /* @__PURE__ */ ref("");
-    const composerEditable = computed(() => selectedItems.value.length > 0);
-    const composerPlaceholder = computed(
-      () => selectedItems.value.length ? "输入修改要求，可用 @选区 或 @选区1 引用已选区" : ""
-    );
-    const composerText = computed(() => {
-      if (!project.value) return "请选择项目源码";
-      if (!selectedItems.value.length) return "选择页面选区后，可用 @选区1 描述修改";
-      return promptIntent.value;
+  function createComposerFacade(store) {
+    const promptIntent = computed({
+      get: () => store.content,
+      set: (value) => store.setContent(String(value || ""))
     });
-    const composerInputValue = computed(() => composerEditable.value ? promptIntent.value : composerText.value);
-    const composerCanSend = computed(() => {
-      if (modelAssistLoading.value) return true;
-      if (candidateLoading.value) return false;
-      if (!project.value) return false;
-      if (!selectedItems.value.length) return false;
-      if (showCandidatePicker.value) return selectedCandidateHits.value.length > 0;
-      return promptIntent.value.trim().length > 0;
+    const promptText = computed({
+      get: () => store.finalPrompt,
+      set: (value) => store.setFinalPrompt(String(value || ""))
     });
     function invalidatePrompt() {
-      promptText.value = "";
+      store.setFinalPrompt("");
     }
     function resetPromptComposer() {
-      promptText.value = "";
-      promptIntent.value = "";
-    }
-    function setComposerValue(value) {
-      if (!composerEditable.value) return String(promptIntent.value || "");
-      if (promptText.value) invalidatePrompt();
-      promptIntent.value = String(value || "");
-      return promptIntent.value;
-    }
-    function onComposerInput(event) {
-      var _a;
-      setComposerValue(((_a = event == null ? void 0 : event.target) == null ? void 0 : _a.value) || "");
-    }
-    function insertPromptAsset(token, options = {}) {
-      if (!selectedItems.value.length || !token) {
-        return {
-          value: String(promptIntent.value || ""),
-          cursor: String(promptIntent.value || "").length
-        };
-      }
-      const nextToken = String(token).trim();
-      const currentValue = String(promptIntent.value || "");
-      if (!nextToken) {
-        return {
-          value: currentValue,
-          cursor: currentValue.length
-        };
-      }
-      const replaceMention = !!options.replaceMention;
-      const start = Number.isFinite(options.replaceStart) ? Math.max(0, Math.min(Number(options.replaceStart), currentValue.length)) : currentValue.length;
-      const end = Number.isFinite(options.replaceEnd) ? Math.max(start, Math.min(Number(options.replaceEnd), currentValue.length)) : start;
-      const before = currentValue.slice(0, start);
-      const after = currentValue.slice(end);
-      const prefix = replaceMention || !before || /\s$/.test(before) ? "" : " ";
-      const suffix = after && /^\s/.test(after) ? "" : " ";
-      const nextValue = `${before}${prefix}${nextToken}${suffix}${after}`;
-      const cursor = (before + prefix + nextToken + suffix).length;
-      setComposerValue(nextValue);
-      return {
-        value: nextValue,
-        cursor
-      };
+      store.setFinalPrompt("");
+      store.clearContent();
     }
     return {
-      promptText,
       promptIntent,
-      composerEditable,
-      composerPlaceholder,
-      composerInputValue,
-      composerCanSend,
+      promptText,
       invalidatePrompt,
-      resetPromptComposer,
-      onComposerInput,
-      insertPromptAsset
+      resetPromptComposer
     };
   }
-  function useChatMessages({
-    project,
-    selectedItems,
-    selectionConfirmed,
-    evidenceMessages,
-    candidateLoading,
-    searchRunning,
-    includeApiEvidence,
-    candidateHits,
-    needsMoreEvidence,
-    filesConfirmed,
-    promptText,
-    sourceServiceStatus,
-    sourceServiceMessage,
-    modelAssistLoading,
-    modelAssistError,
-    modelAssistLogs,
-    modelAssistResult,
-    searchStartedAt,
-    searchFinishedAt,
-    modelAssistStartedAt,
-    modelAssistFinishedAt,
-    selectionChatSummary,
-    searchLogLines
-  }) {
-    const sourceServiceText = computed(() => {
-      if (sourceServiceStatus.value === "loading") return sourceServiceMessage.value || "正在连接本地源码服务...";
-      if (sourceServiceStatus.value === "connected") return "已连接本地源码服务，可读取真实源码路径";
-      if (sourceServiceStatus.value === "fallback") return "本地源码服务不可用，已退回浏览器目录选择";
-      return "本地源码服务用于选择源码路径和扫描文件";
-    });
-    const chatMessages = computed(() => {
-      var _a;
-      const messages = [];
-      if (!project.value) {
-        messages.push({
-          id: "need-project",
-          role: "system",
-          title: "请选择项目源码",
-          text: "项目源码是必须信息。选择后才能把页面选区映射到候选文件。",
-          action: "choose-project"
-        });
-        if (sourceServiceText.value) {
-          messages.push({
-            id: "source-status",
-            role: "system",
-            text: sourceServiceText.value
-          });
-        }
-        return messages;
-      }
-      messages.push({
-        id: "project-ready",
-        role: "system",
-        title: "项目已连接",
-        text: [
-          `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || "未识别技术栈"}`,
-          project.value.path ? `源码目录：${project.value.path}` : ""
-        ].filter(Boolean).join("\n")
-      });
-      if (!selectedItems.value.length) {
-        messages.push({
-          id: "need-selection",
-          role: "system",
-          title: "等待页面选区",
-          text: "移动鼠标高亮页面区域，按空格键添加选区。选区会保存下来，可在输入框里用 @选区1 引用并描述修改要求。"
-        });
-        return messages;
-      }
-      messages.push({
-        id: "selection-context",
-        role: "system",
-        title: "已捕获选区",
-        text: selectionChatSummary()
-      });
-      if (selectionConfirmed.value) {
-        messages.push({
-          id: "selection-confirmed",
-          role: "user",
-          text: "选区已确认"
-        });
-      }
-      for (const [index, text] of evidenceMessages.value.entries()) {
-        messages.push({
-          id: `custom-evidence-${index}`,
-          role: "user",
-          text
-        });
-      }
-      if (searchRunning == null ? void 0 : searchRunning.value) {
-        messages.push({
-          id: "searching",
-          role: "system",
-          text: includeApiEvidence.value ? "正在基于选区和接口端点追踪候选文件。" : "正在基于选区文案、className 和页面路径检索候选文件。",
-          durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
-          durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
-          durationActive: true,
-          logExpanded: true
-        });
-      } else if (((searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0) > 0) {
-        messages.push({
-          id: "search-log",
-          role: "system",
-          title: "源码检索",
-          text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : "未命中候选文件。",
-          logs: searchLogLines(),
-          durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
-          durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
-          durationActive: false,
-          logExpanded: false
-        });
-      }
-      if (modelAssistLoading == null ? void 0 : modelAssistLoading.value) {
-        messages.push({
-          id: "model-locating",
-          role: "agent",
-          title: "模型定位",
-          text: "正在让模型阅读本地预检索结果和候选文件内容，进一步判断应修改的源码文件。",
-          logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
-          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
-          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
-          durationActive: true,
-          logExpanded: true
-        });
-      } else if (modelAssistResult == null ? void 0 : modelAssistResult.value) {
-        const result = modelAssistResult.value;
-        const targets = result.modelItems || result.targetFiles || [];
-        const targetLogs = targets.slice(0, 5).flatMap((item, index) => {
-          const locateLevel = item.locateLevel || item.modelLocateLevel || "exact";
-          const snippetVerified = item.snippetVerified !== false && item.modelSnippetVerified !== false;
-          return [
-            `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ""}${item.exists === false ? " · 文件不存在" : ""}`,
-            `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}`,
-            item.codeSnippet ? `${snippetVerified ? "code片段" : "源码方向片段"}: ${item.codeSnippet}` : "",
-            item.directionGuess ? `推测方向: ${item.directionGuess}` : "",
-            item.prompt ? `提示词: ${item.prompt}` : item.reason || "-"
-          ].filter(Boolean);
-        });
-        messages.push({
-          id: "model-result",
-          role: "agent",
-          title: `模型定位 · ${((_a = result.adapter) == null ? void 0 : _a.name) || "模型"}`,
-          text: result.stopped ? "模型定位已手动停止。" : targets.length ? "模型已定位到修改点，可继续生成最终提示词。" : "模型未定位到可用修改点。",
-          logs: [
-            ...result.logs || [],
-            ...targetLogs,
-            !targetLogs.length && result.rawText ? `模型原始返回:
-${result.rawText}` : ""
-          ].filter(Boolean),
-          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
-          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
-          durationActive: false,
-          logExpanded: true
-        });
-      } else if (modelAssistError == null ? void 0 : modelAssistError.value) {
-        messages.push({
-          id: "model-error",
-          role: "agent",
-          title: "模型定位失败",
-          text: modelAssistError.value,
-          logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
-          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
-          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
-          durationActive: false,
-          logExpanded: true
-        });
-      }
-      if (!candidateLoading.value && needsMoreEvidence.value) {
-        messages.push({
-          id: "need-more-evidence",
-          role: "system",
-          title: "线索不足，需要补充页面证据",
-          text: [
-            "当前选区命中了多个候选文件，但没有任何文件同时命中文案和当前页面上下文。",
-            "这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只命中了通用子组件里的重复字段。",
-            "请继续选择更外层、更独特的页面区域，或在输入框补充业务位置/交互目标后重新检索。"
-          ].join("\n")
-        });
-      } else if (!candidateLoading.value && candidateHits.value.length > 1 && !filesConfirmed.value) {
-        messages.push({
-          id: "multi-candidates",
-          role: "system",
-          title: "存在多个命中文件，请确认",
-          text: `默认选择最高命中：${candidateHits.value[0].file}`
-        });
-      } else if (!candidateLoading.value && candidateHits.value.length === 1 && !filesConfirmed.value) {
-        messages.push({
-          id: "single-candidate",
-          role: "system",
-          text: `本地检索命中 ${candidateHits.value[0].file}，等待模型定位确认。`
-        });
-      }
-      if (filesConfirmed.value) {
-        messages.push({
-          id: "files-confirmed",
-          role: "user",
-          text: "确认文件"
-        });
-      }
-      if (promptText.value) {
-        messages.push({
-          id: "final-prompt",
-          role: "system",
-          title: "最终提示词",
-          pre: promptText.value,
-          action: "copy-prompt"
-        });
-      }
-      return messages;
-    });
-    return {
-      sourceServiceText,
-      chatMessages
-    };
-  }
-  function useMessageModule(modules) {
-    const { source, search, selection, composer, model, prompt } = modules;
-    return useChatMessages({
-      project: source.project,
-      selectedItems: selection.selectedItems,
-      selectionConfirmed: selection.selectionConfirmed,
-      evidenceMessages: selection.evidenceMessages,
-      candidateLoading: search.candidateLoading,
-      searchRunning: search.searchRunning,
-      includeApiEvidence: search.includeApiEvidence,
-      candidateHits: search.candidateHits,
-      needsMoreEvidence: search.needsMoreEvidence,
-      filesConfirmed: selection.filesConfirmed,
-      promptText: composer.promptText,
-      sourceServiceStatus: source.sourceServiceStatus,
-      sourceServiceMessage: source.sourceServiceMessage,
-      modelAssistLoading: model.modelAssistLoading,
-      modelAssistError: model.modelAssistError,
-      modelAssistLogs: model.modelAssistLogs,
-      modelAssistResult: model.modelAssistResult,
-      searchStartedAt: search.searchStartedAt,
-      searchFinishedAt: search.searchFinishedAt,
-      modelAssistStartedAt: model.modelAssistStartedAt,
-      modelAssistFinishedAt: model.modelAssistFinishedAt,
-      selectionChatSummary: prompt.selectionChatSummary,
-      searchLogLines: prompt.searchLogLines
-    });
-  }
-  const MODEL_STORAGE_KEY = "magnus:model-adapters";
-  const MODEL_SELECTED_KEY = "magnus:model-adapters:selected";
-  function loadJson(key, fallback) {
-    try {
-      const raw = window.localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (error) {
-      return fallback;
-    }
-  }
-  function saveJson(key, value) {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-    }
-  }
-  function loadText(key, fallback = "") {
-    try {
-      const raw = window.localStorage.getItem(key);
-      return typeof raw === "string" ? raw : fallback;
-    } catch (error) {
-      return fallback;
-    }
-  }
-  function saveText(key, value) {
-    try {
-      if (value) window.localStorage.setItem(key, value);
-      else window.localStorage.removeItem(key);
-    } catch (error) {
-    }
-  }
-  function extensionStorage() {
-    try {
-      const requireFn = typeof window._require === "function" ? window._require : typeof _require === "function" ? _require : null;
-      if (!requireFn) return null;
-      const storage = requireFn("md.storage");
-      return storage && storage.local ? storage.local : null;
-    } catch (error) {
-      return null;
-    }
-  }
-  function loadPersistedModelState() {
-    return __async(this, null, function* () {
-      const localModels = loadJson(MODEL_STORAGE_KEY, []);
-      const localSelectedId = loadText(MODEL_SELECTED_KEY, "");
-      const storage = extensionStorage();
-      if (!storage) {
-        return {
-          models: localModels,
-          selectedId: localSelectedId,
-          migrated: false
-        };
-      }
-      try {
-        const data = yield storage.get([MODEL_STORAGE_KEY, MODEL_SELECTED_KEY]);
-        const hasModels = Array.isArray(data == null ? void 0 : data[MODEL_STORAGE_KEY]);
-        const hasSelectedId = typeof (data == null ? void 0 : data[MODEL_SELECTED_KEY]) === "string";
-        if (hasModels || hasSelectedId) {
-          return {
-            models: hasModels ? data[MODEL_STORAGE_KEY] : [],
-            selectedId: hasSelectedId ? data[MODEL_SELECTED_KEY] : "",
-            migrated: false
-          };
-        }
-      } catch (error) {
-      }
-      return {
-        models: localModels,
-        selectedId: localSelectedId,
-        migrated: !!(localModels.length || localSelectedId)
-      };
-    });
-  }
-  function persistModelState(models, selectedId) {
-    return __async(this, null, function* () {
-      saveJson(MODEL_STORAGE_KEY, models);
-      saveText(MODEL_SELECTED_KEY, selectedId);
-      const storage = extensionStorage();
-      if (!storage) return;
-      try {
-        yield storage.set({
-          [MODEL_STORAGE_KEY]: models,
-          [MODEL_SELECTED_KEY]: selectedId || ""
-        });
-      } catch (error) {
-      }
-    });
-  }
-  function defaultModelForm() {
-    return {
-      id: "",
-      name: "",
-      provider: "custom",
-      type: "exec",
-      command: "codex exec",
-      endpoint: "",
-      apiKey: "",
-      model: "",
-      proxyUrl: "",
-      timeoutMs: 12e4
-    };
-  }
-  function providerModelForm(provider) {
-    if (provider === "deepseek") {
-      return __spreadProps(__spreadValues({}, defaultModelForm()), {
-        name: "DeepSeek",
-        provider: "deepseek",
-        type: "api",
-        command: "",
-        endpoint: "https://api.deepseek.com/chat/completions",
-        model: "deepseek-v4-pro"
-      });
-    }
-    return defaultModelForm();
-  }
-  function normalizeModel(raw) {
-    const item = raw || {};
-    const type = item.type === "api" ? "api" : "exec";
-    const provider = item.provider === "deepseek" ? "deepseek" : "custom";
-    const defaultName = provider === "deepseek" ? "DeepSeek" : type === "api" ? "API 模型" : "Cli 模型";
-    const normalizedName = item.name === "Exec 模型" ? "Cli 模型" : item.name;
-    return {
-      id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: normalizedName || defaultName,
-      provider,
-      type,
-      command: item.command || "",
-      endpoint: item.endpoint || (provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : ""),
-      apiKey: item.apiKey || "",
-      model: item.model || (provider === "deepseek" ? "deepseek-v4-pro" : ""),
-      proxyUrl: item.proxyUrl || "",
-      timeoutMs: Number(item.timeoutMs || 12e4)
-    };
-  }
-  function useModelAdapters({ project, candidateHits, selectedCandidatePaths, searchPayload, routeResolverTrace, apiTrace, i18nTrace, definitionTrace, setToast }) {
-    const modelConfigs = /* @__PURE__ */ ref(loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel));
-    const selectedModelId = /* @__PURE__ */ ref(loadText(MODEL_SELECTED_KEY, ""));
-    const useModelAssist = /* @__PURE__ */ ref(!!selectedModelId.value);
-    const modelEditorOpen = /* @__PURE__ */ ref(false);
-    const modelForm = /* @__PURE__ */ ref(defaultModelForm());
-    const modelAssistLoading = /* @__PURE__ */ ref(false);
-    const modelAssistError = /* @__PURE__ */ ref("");
-    const modelAssistLogs = /* @__PURE__ */ ref([]);
-    const modelAssistResult = /* @__PURE__ */ ref(null);
-    const modelAssistStartedAt = /* @__PURE__ */ ref(0);
-    const modelAssistFinishedAt = /* @__PURE__ */ ref(0);
-    let modelAssistController = null;
-    const selectedModel = computed(() => {
-      return modelConfigs.value.find((item) => item.id === selectedModelId.value) || null;
-    });
-    const canUseModelAssist = computed(() => {
-      return !!selectedModel.value && !!project.value && project.value.source === "source-server";
-    });
-    function persistModels() {
-      void persistModelState(modelConfigs.value, selectedModelId.value);
-    }
-    function hydratePersistedModels() {
+  function createClearSelectionsUseCase(deps) {
+    const appUiStore = useAppUiStore();
+    return function clearSelections(notifyRuntime = true) {
       return __async(this, null, function* () {
-        const state = yield loadPersistedModelState();
-        const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel);
-        const validSelectedId = nextModels.some((item) => item.id === state.selectedId) ? state.selectedId : "";
-        modelConfigs.value = nextModels;
-        selectedModelId.value = validSelectedId;
-        useModelAssist.value = !!validSelectedId;
-        if (state.migrated || state.selectedId && state.selectedId !== validSelectedId) {
-          void persistModelState(nextModels, validSelectedId);
-        }
+        if (notifyRuntime) deps.bridge.sendCommand("selection.clear");
+        deps.selectionStore.clear();
+        deps.context.resetCandidateState();
+        deps.context.resetComposer();
+        appUiStore.setToast("");
       });
-    }
-    function openModelEditor(model) {
-      modelForm.value = model ? __spreadValues({}, model) : defaultModelForm();
-      modelEditorOpen.value = true;
-    }
-    function openProviderModelEditor(provider) {
-      modelForm.value = providerModelForm(provider);
-      modelEditorOpen.value = true;
-    }
-    function closeModelEditor() {
-      modelEditorOpen.value = false;
-    }
-    function saveModelForm() {
-      const normalized = normalizeModel(modelForm.value);
-      const index = modelConfigs.value.findIndex((item) => item.id === normalized.id);
-      if (index === -1) modelConfigs.value.push(normalized);
-      else modelConfigs.value.splice(index, 1, normalized);
-      selectedModelId.value = normalized.id;
-      useModelAssist.value = true;
-      persistModels();
-      modelEditorOpen.value = false;
-      setToast("模型已保存");
-    }
-    function removeSelectedModel() {
-      var _a;
-      if (!selectedModelId.value) return;
-      modelConfigs.value = modelConfigs.value.filter((item) => item.id !== selectedModelId.value);
-      selectedModelId.value = ((_a = modelConfigs.value[0]) == null ? void 0 : _a.id) || "";
-      persistModels();
-      if (!selectedModelId.value) useModelAssist.value = false;
-      setToast("模型已移除");
-    }
-    function setSelectedModel(id) {
-      selectedModelId.value = id || "";
-      useModelAssist.value = !!selectedModelId.value;
-      persistModels();
-    }
-    function selectModelAndEnable(id) {
-      selectedModelId.value = id || "";
-      useModelAssist.value = !!selectedModelId.value;
-      persistModels();
-      if (selectedModelId.value) setToast("模型已启用");
-    }
-    function disableModelAssist() {
-      selectedModelId.value = "";
-      useModelAssist.value = false;
-      persistModels();
-      setToast("模型已停用");
-    }
-    function setUseModelAssist(value) {
-      useModelAssist.value = !!value;
-      if (useModelAssist.value && !selectedModel.value) {
-        openModelEditor();
-      }
-    }
-    function resetModelAssist() {
-      modelAssistError.value = "";
-      modelAssistLogs.value = [];
-      modelAssistResult.value = null;
-      modelAssistStartedAt.value = 0;
-      modelAssistFinishedAt.value = 0;
-    }
-    function mergeModelTargets(result) {
-      const targets = ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).filter((item) => item.exists);
-      if (!targets.length) return;
-      const oldHits = candidateHits.value.slice();
-      const byFile = new Map(oldHits.map((hit) => [hit.file, hit]));
-      const promoted = targets.map((target, index) => {
-        var _a, _b;
-        const old = byFile.get(target.file);
-        const score = Math.max((old == null ? void 0 : old.score) || 0, 980 - index * 40 + Math.round((target.confidence || 0) * 0.2));
-        return __spreadProps(__spreadValues({}, old || {
-          file: target.file,
-          from: "",
-          snippet: "",
-          uniqueSnippet: "",
-          uniqueMatchLabel: "",
-          uniqueMatchText: "",
-          uniqueMatchCount: 0
-        }), {
-          score,
-          stage: "model-agent",
-          reasons: [
-            `模型定位：${target.prompt || target.reason || ((_a = result.parsed) == null ? void 0 : _a.summary) || result.rawText || "-"}`,
-            target.directionGuess ? `推测方向：${target.directionGuess}` : "",
-            target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : "",
-            ...(old == null ? void 0 : old.reasons) || []
-          ].filter(Boolean).slice(0, 10),
-          modelPrompt: target.prompt || target.reason || "",
-          modelCodeSnippet: target.codeSnippet || "",
-          modelLocateLevel: target.locateLevel || "exact",
-          modelDirectionGuess: target.directionGuess || "",
-          modelSnippetVerified: target.snippetVerified !== false,
-          modelDowngradedToDirection: !!target.downgradedToDirection,
-          modelConfidence: target.confidence,
-          modelAdapter: ((_b = result.adapter) == null ? void 0 : _b.name) || ""
-        });
-      });
-      const promotedFiles = new Set(promoted.map((hit) => hit.file));
-      candidateHits.value = [
-        ...promoted,
-        ...oldHits.filter((hit) => !promotedFiles.has(hit.file))
-      ].sort((a, b) => b.score - a.score);
-      selectedCandidatePaths.value = promoted.map((hit) => hit.file);
-    }
-    function runModelAssist() {
-      return __async(this, null, function* () {
-        var _a, _b, _c, _d, _e, _f;
-        if (!useModelAssist.value || !canUseModelAssist.value) return null;
-        if (modelAssistLoading.value) return null;
-        const controller = new AbortController();
-        modelAssistController = controller;
-        modelAssistStartedAt.value = Date.now();
-        modelAssistFinishedAt.value = 0;
-        modelAssistLoading.value = true;
-        modelAssistError.value = "";
-        modelAssistLogs.value = ["模型定位请求已发起"];
-        modelAssistResult.value = null;
-        try {
-          const result = yield sourceServerNdjson("/api/model/locate/stream", {
-            method: "POST",
-            controller,
-            body: {
-              adapter: selectedModel.value,
-              searchPayload: searchPayload(),
-              pagePath: ((_a = routeResolverTrace.value) == null ? void 0 : _a.pagePath) || "",
-              routeResolver: routeResolverTrace.value,
-              apiTrace: (apiTrace == null ? void 0 : apiTrace.value) || null,
-              i18nTrace: (i18nTrace == null ? void 0 : i18nTrace.value) || null,
-              definitionTrace: (definitionTrace == null ? void 0 : definitionTrace.value) || null,
-              candidateHits: candidateHits.value.slice(0, 4),
-              selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
-            },
-            timeoutMs: Number(selectedModel.value.timeoutMs || 12e4) + 5e3,
-            timeoutMessage: "模型定位超时",
-            abortMessage: "模型定位已停止",
-            onEvent(event) {
-              if (event.type === "log" && event.log) {
-                modelAssistLogs.value = [...modelAssistLogs.value, event.log];
-              }
-              if (event.type === "result") {
-                modelAssistResult.value = event.result || null;
-              }
-              if (event.type === "error" && Array.isArray(event.logs)) {
-                modelAssistLogs.value = event.logs;
-              }
-            }
-          });
-          modelAssistResult.value = result || modelAssistResult.value || null;
-          modelAssistLogs.value = ((_b = modelAssistResult.value) == null ? void 0 : _b.logs) || [];
-          mergeModelTargets(modelAssistResult.value);
-          setToast("模型定位已完成");
-          return modelAssistResult.value;
-        } catch (error) {
-          if ((error == null ? void 0 : error.name) === "AbortError") {
-            const stoppedLogs = [...modelAssistLogs.value, "已手动停止"];
-            modelAssistLogs.value = stoppedLogs;
-            modelAssistResult.value = {
-              adapter: {
-                id: ((_c = selectedModel.value) == null ? void 0 : _c.id) || "",
-                name: ((_d = selectedModel.value) == null ? void 0 : _d.name) || "模型",
-                type: ((_e = selectedModel.value) == null ? void 0 : _e.type) || ""
-              },
-              stopped: true,
-              modelItems: [],
-              targetFiles: [],
-              logs: stoppedLogs
-            };
-            modelAssistError.value = "";
-            setToast("已手动停止");
-            return modelAssistResult.value;
-          }
-          modelAssistError.value = error.message || String(error);
-          modelAssistLogs.value = ((_f = error.payload) == null ? void 0 : _f.logs) || modelAssistLogs.value;
-          setToast("模型定位失败");
-          return null;
-        } finally {
-          modelAssistFinishedAt.value = Date.now();
-          modelAssistLoading.value = false;
-          if (modelAssistController === controller) modelAssistController = null;
-        }
-      });
-    }
-    function stopModelAssist() {
-      if (!modelAssistLoading.value || !modelAssistController) return;
-      modelAssistLogs.value = [...modelAssistLogs.value, "正在停止模型定位..."];
-      modelAssistController.abort();
-    }
-    void hydratePersistedModels();
-    return {
-      modelConfigs,
-      selectedModelId,
-      selectedModel,
-      useModelAssist,
-      canUseModelAssist,
-      modelEditorOpen,
-      modelForm,
-      modelAssistLoading,
-      modelAssistError,
-      modelAssistLogs,
-      modelAssistResult,
-      modelAssistStartedAt,
-      modelAssistFinishedAt,
-      openModelEditor,
-      openProviderModelEditor,
-      closeModelEditor,
-      saveModelForm,
-      removeSelectedModel,
-      setSelectedModel,
-      selectModelAndEnable,
-      disableModelAssist,
-      setUseModelAssist,
-      resetModelAssist,
-      runModelAssist,
-      stopModelAssist
     };
   }
-  function useModelModule(modules) {
-    const { source, route, search, prompt, toast } = modules;
-    return useModelAdapters({
-      project: source.project,
-      candidateHits: search.candidateHits,
-      selectedCandidatePaths: search.selectedCandidatePaths,
-      searchPayload: prompt.searchPayload,
-      routeResolverTrace: route.routeResolverTrace,
-      apiTrace: search.apiTrace,
-      i18nTrace: search.i18nTrace,
-      definitionTrace: search.definitionTrace,
-      setToast: toast.setToast
+  function createExpandSelectionUseCase(deps) {
+    return function expandSelection(uid2) {
+      return __async(this, null, function* () {
+        if (!uid2) return;
+        deps.bridge.sendCommand("selection.expand", { uid: uid2 });
+      });
+    };
+  }
+  function createPreviewSelectionUseCase(deps) {
+    function previewSelection(asset) {
+      deps.bridge.sendCommand("selection.highlight", { uid: (asset == null ? void 0 : asset.uid) || "" });
+    }
+    function restoreSelectionPreview() {
+      deps.bridge.sendCommand("selection.highlight", { uid: "" });
+    }
+    return { previewSelection, restoreSelectionPreview };
+  }
+  function createRemoveSelectionUseCase(deps) {
+    const appUiStore = useAppUiStore();
+    return function removeSelection(uid2) {
+      return __async(this, null, function* () {
+        if (!uid2) return;
+        const exists = deps.selectionStore.items.some((item) => item.uid === uid2);
+        if (!exists) return;
+        deps.bridge.sendCommand("selection.remove", { uid: uid2 });
+        deps.selectionStore.removeSelection(uid2);
+        deps.context.resetCandidateState();
+        const mentionsSelection = deps.context.getComposerContent().includes("@选区");
+        appUiStore.setToast(mentionsSelection ? "已移除选区，请检查输入框中的 @选区 引用" : "已移除选区");
+      });
+    };
+  }
+  function createSelectionFacade(store) {
+    const appUiStore = useAppUiStore();
+    const selectedItems = computed(() => {
+      return store.items.map((item) => ({
+        uid: item.uid,
+        element: null,
+        info: item.element || {},
+        assetElement: null,
+        assetInfo: item.asset || item.element || {},
+        thumbnailUrl: item.thumbnailUrl || ""
+      }));
     });
+    const filesConfirmed = computed({
+      get: () => store.filesConfirmed,
+      set: (value) => {
+        store.filesConfirmed = value;
+      }
+    });
+    const selectionConfirmed = computed({
+      get: () => store.confirmed,
+      set: (value) => store.markConfirmed(value)
+    });
+    const customEvidence = computed({
+      get: () => store.customEvidence,
+      set: (value) => {
+        store.customEvidence = value;
+      }
+    });
+    const evidenceMessages = computed({
+      get: () => store.evidenceMessages,
+      set: (value) => {
+        store.evidenceMessages = value;
+      }
+    });
+    function selectionPayloads() {
+      return store.items.map((item, index) => ({
+        index: index + 1,
+        token: `@选区${index + 1}`,
+        element: item.element,
+        asset: item.asset || null,
+        thumbnailCaptured: !!item.thumbnailUrl
+      }));
+    }
+    function confirmSelectionContext(invalidatePrompt) {
+      if (!store.hasSelection) return false;
+      store.markConfirmed(true);
+      store.filesConfirmed = false;
+      invalidatePrompt == null ? void 0 : invalidatePrompt();
+      appUiStore.setToast("选区已确认");
+      return true;
+    }
+    return {
+      selectedItems,
+      filesConfirmed,
+      selectionConfirmed,
+      customEvidence,
+      evidenceMessages,
+      selectionPayloads,
+      confirmSelectionContext
+    };
+  }
+  function setupSelectionRuntime(options) {
+    const selectionStore = useSelectionStore();
+    const composerStore = useComposerStore();
+    const searchStore = useSearchStore();
+    const modelStore = useModelStore();
+    const selection = createSelectionFacade(selectionStore);
+    const deps = {
+      bridge: { sendCommand: options.sendCommand },
+      selectionStore,
+      context: {
+        resetComposer: () => {
+          composerStore.setFinalPrompt("");
+          composerStore.clearContent();
+        },
+        resetCandidateState: () => {
+          selectionStore.filesConfirmed = false;
+          searchStore.reset();
+          modelStore.reset();
+          composerStore.setFinalPrompt("");
+        },
+        getComposerContent: () => composerStore.content || ""
+      }
+    };
+    const preview = createPreviewSelectionUseCase(deps);
+    Object.assign(selection, {
+      expandSelection: createExpandSelectionUseCase(deps),
+      removeSelection: createRemoveSelectionUseCase(deps),
+      clearSelections: createClearSelectionsUseCase(deps),
+      previewSelection: preview.previewSelection,
+      restoreSelectionPreview: preview.restoreSelectionPreview
+    });
+    return selection;
   }
   function createSearchLogLines({
-    selectedItems,
-    project,
-    pageUrlPath: pageUrlPath2,
-    promptIntent,
-    includeApiEvidence,
-    searchApiRequests,
-    candidateHits,
-    routeResolverTrace,
-    apiTrace,
-    i18nTrace,
-    definitionTrace,
     combinedSelectionText,
     normalizeInstructionText
   }) {
+    const composerStore = useComposerStore();
+    const projectStore = useProjectStore();
+    const requestStore = useRequestStore();
+    const routeStore = useRouteStore();
+    const searchStore = useSearchStore();
+    const selectionStore = useSelectionStore();
+    const { content: promptIntent } = storeToRefs(composerStore);
+    const { current: project } = storeToRefs(projectStore);
+    const { recent: recentRequests } = storeToRefs(requestStore);
+    const { pagePath: pageUrlPath2, resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
+    const {
+      candidates: candidateHits,
+      includeApiEvidence,
+      apiTrace,
+      i18nTrace,
+      definitionTrace
+    } = storeToRefs(searchStore);
+    const selectedItems = computed(() => selectionStore.items.map((item) => ({
+      info: item.element || {}
+    })));
+    const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
     return function searchLogLines() {
       var _a, _b;
       const routeLines = routeResolverLogLines({ routeResolverTrace, pageUrlPath: pageUrlPath2, project });
@@ -11285,29 +10919,55 @@ ${result.rawText}` : ""
       shouldKeepExpandedSearchContext
     };
   }
-  function useSearchPrompt({
-    selectedItems,
-    selectedCandidatePaths,
-    selectedCandidateHits,
-    candidateHits,
-    routeResolverTrace,
-    apiTrace,
-    i18nTrace,
-    definitionTrace,
-    evidenceMessages,
-    customEvidence,
-    promptIntent,
-    searchKeywords,
-    includeApiEvidence,
-    searchApiRequests,
-    currentPageHref,
-    pageUrlPath: pageUrlPath2,
-    project,
-    promptText,
-    denoiseTextByApi,
-    selectionPayloads,
-    setToast
-  }) {
+  function useSearchPrompt() {
+    const appUiStore = useAppUiStore();
+    const composerStore = useComposerStore();
+    const projectStore = useProjectStore();
+    const requestStore = useRequestStore();
+    const routeStore = useRouteStore();
+    const searchStore = useSearchStore();
+    const selectionStore = useSelectionStore();
+    const {
+      content: promptIntent,
+      finalPrompt: promptText
+    } = storeToRefs(composerStore);
+    const { current: project } = storeToRefs(projectStore);
+    const { recent: searchApiRequests } = storeToRefs(requestStore);
+    const {
+      pageUrl: currentPageHref,
+      pagePath: pageUrlPath2,
+      resolverTrace: routeResolverTrace
+    } = storeToRefs(routeStore);
+    const {
+      candidates: candidateHits,
+      selectedCandidatePaths,
+      selectedCandidates: selectedCandidateHits,
+      apiTrace,
+      i18nTrace,
+      definitionTrace,
+      keywords: searchKeywords,
+      includeApiEvidence
+    } = storeToRefs(searchStore);
+    const {
+      customEvidence,
+      evidenceMessages
+    } = storeToRefs(selectionStore);
+    const selectedItems = computed(() => selectionStore.items.map((item) => ({
+      uid: item.uid,
+      element: null,
+      info: item.element || {},
+      assetElement: null,
+      assetInfo: item.asset || item.element || {},
+      thumbnailUrl: item.thumbnailUrl || ""
+    })));
+    const selectionPayloads = () => selectionStore.items.map((item, index) => ({
+      index: index + 1,
+      token: `@选区${index + 1}`,
+      element: item.element,
+      asset: item.asset || null,
+      thumbnailCaptured: !!item.thumbnailUrl
+    }));
+    const denoiseTextByApi = requestStore.denoiseTextByApi;
     const searchContext = createSearchContextTools({ denoiseTextByApi });
     function filteredAncestorsForSearch(info) {
       return ((info == null ? void 0 : info.ancestors) || []).filter((ancestor) => searchContext.shouldKeepExpandedSearchContext(info, ancestor));
@@ -11626,20 +11286,9 @@ ${source}` : "",
         selectionReference ? `选区文本参考: ${selectionReference}` : "",
         agentSafetyGuardLines()
       ].filter(Boolean).join("\n\n");
-      setToast("提示词已生成");
+      appUiStore.setToast("提示词已生成");
     }
     const searchLogLines = createSearchLogLines({
-      selectedItems,
-      project,
-      pageUrlPath: pageUrlPath2,
-      promptIntent,
-      includeApiEvidence,
-      searchApiRequests,
-      candidateHits,
-      routeResolverTrace,
-      apiTrace,
-      i18nTrace,
-      definitionTrace,
       combinedSelectionText,
       normalizeInstructionText
     });
@@ -11655,351 +11304,714 @@ ${source}` : "",
       buildPromptIntentDraft
     };
   }
-  function usePromptModule(modules, runtime) {
-    const { source, route, search, selection, composer, requests, toast } = modules;
-    return useSearchPrompt({
-      selectedItems: selection.selectedItems,
-      selectedCandidatePaths: search.selectedCandidatePaths,
-      selectedCandidateHits: search.selectedCandidateHits,
-      candidateHits: search.candidateHits,
-      routeResolverTrace: route.routeResolverTrace,
-      apiTrace: search.apiTrace,
-      i18nTrace: search.i18nTrace,
-      definitionTrace: search.definitionTrace,
-      evidenceMessages: selection.evidenceMessages,
-      customEvidence: selection.customEvidence,
-      promptIntent: composer.promptIntent,
-      searchKeywords: search.searchKeywords,
-      includeApiEvidence: search.includeApiEvidence,
-      searchApiRequests: search.searchApiRequests,
-      currentPageHref: runtime.currentPageHref,
-      pageUrlPath: runtime.routePagePath,
-      project: source.project,
-      promptText: composer.promptText,
-      denoiseTextByApi: requests.denoiseTextByApi,
-      selectionPayloads: selection.selectionPayloads,
-      setToast: toast.setToast
+  function setupPromptRuntime() {
+    return useSearchPrompt();
+  }
+  const MODEL_STORAGE_KEY = "magnus:model-adapters";
+  const MODEL_SELECTED_KEY = "magnus:model-adapters:selected";
+  function loadJson(key, fallback) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+  function saveJson(key, value) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+    }
+  }
+  function loadText(key, fallback = "") {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return typeof raw === "string" ? raw : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+  function saveText(key, value) {
+    try {
+      if (value) window.localStorage.setItem(key, value);
+      else window.localStorage.removeItem(key);
+    } catch (error) {
+    }
+  }
+  function extensionStorage() {
+    try {
+      const requireFn = typeof window._require === "function" ? window._require : typeof _require === "function" ? _require : null;
+      if (!requireFn) return null;
+      const storage = requireFn("md.storage");
+      return storage && storage.local ? storage.local : null;
+    } catch (error) {
+      return null;
+    }
+  }
+  function loadPersistedModelState() {
+    return __async(this, null, function* () {
+      const localModels = loadJson(MODEL_STORAGE_KEY, []);
+      const localSelectedId = loadText(MODEL_SELECTED_KEY, "");
+      const storage = extensionStorage();
+      if (!storage) {
+        return {
+          models: localModels,
+          selectedId: localSelectedId,
+          migrated: false
+        };
+      }
+      try {
+        const data = yield storage.get([MODEL_STORAGE_KEY, MODEL_SELECTED_KEY]);
+        const hasModels = Array.isArray(data == null ? void 0 : data[MODEL_STORAGE_KEY]);
+        const hasSelectedId = typeof (data == null ? void 0 : data[MODEL_SELECTED_KEY]) === "string";
+        if (hasModels || hasSelectedId) {
+          return {
+            models: hasModels ? data[MODEL_STORAGE_KEY] : [],
+            selectedId: hasSelectedId ? data[MODEL_SELECTED_KEY] : "",
+            migrated: false
+          };
+        }
+      } catch (error) {
+      }
+      return {
+        models: localModels,
+        selectedId: localSelectedId,
+        migrated: !!(localModels.length || localSelectedId)
+      };
     });
   }
-  function useSearchState({
-    routeResolverTrace,
-    recentRequests,
-    modelAssistLoading,
-    filesConfirmed,
-    resetModelAssist,
-    invalidatePrompt
-  }) {
-    const candidateHits = /* @__PURE__ */ ref([]);
-    const apiTrace = /* @__PURE__ */ ref(null);
-    const i18nTrace = /* @__PURE__ */ ref(null);
-    const definitionTrace = /* @__PURE__ */ ref(null);
-    const candidateLoading = /* @__PURE__ */ ref(false);
-    const searchRunning = /* @__PURE__ */ ref(false);
-    const candidateError = /* @__PURE__ */ ref("");
-    const searchStartedAt = /* @__PURE__ */ ref(0);
-    const searchFinishedAt = /* @__PURE__ */ ref(0);
-    const searchKeywords = /* @__PURE__ */ ref("");
-    const includeApiEvidence = /* @__PURE__ */ ref(true);
-    const selectedCandidatePaths = /* @__PURE__ */ ref([]);
-    const expandedCandidatePath = /* @__PURE__ */ ref("");
-    const modelAssistAttempted = /* @__PURE__ */ ref(false);
-    const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
-    const selectedCandidateHits = computed(() => {
-      const selected = new Set(selectedCandidatePaths.value);
-      return candidateHits.value.filter((hit) => selected.has(hit.file));
+  function persistModelState(models, selectedId) {
+    return __async(this, null, function* () {
+      saveJson(MODEL_STORAGE_KEY, models);
+      saveText(MODEL_SELECTED_KEY, selectedId);
+      const storage = extensionStorage();
+      if (!storage) return;
+      try {
+        yield storage.set({
+          [MODEL_STORAGE_KEY]: models,
+          [MODEL_SELECTED_KEY]: selectedId || ""
+        });
+      } catch (error) {
+      }
     });
-    const routeResolverMatched = computed(() => {
-      var _a;
-      return !!((_a = routeResolverTrace.value) == null ? void 0 : _a.matched);
-    });
-    const hasReliableCandidateEvidence = computed(() => {
-      return routeResolverMatched.value || candidateHits.value.some((hit) => {
-        return hit.stage === "model-agent" || hit.preciseEvidence;
-      });
-    });
-    const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
-    const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
-    const showCandidatePicker = computed(() => {
-      return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
-    });
-    function invalidateCandidateConfirm(targetFilesConfirmed) {
-      targetFilesConfirmed.value = false;
-      invalidatePrompt();
-    }
-    function clearCandidateState(targetFilesConfirmed) {
-      candidateHits.value = [];
-      candidateError.value = "";
-      searchRunning.value = false;
-      searchStartedAt.value = 0;
-      searchFinishedAt.value = 0;
-      selectedCandidatePaths.value = [];
-      expandedCandidatePath.value = "";
-      if (targetFilesConfirmed) targetFilesConfirmed.value = false;
-      modelAssistAttempted.value = false;
-      resetModelAssist();
-      invalidatePrompt();
-    }
-    function resetProjectContext(selection, composer) {
-      selection.selectionConfirmed.value = false;
-      selection.customEvidence.value = "";
-      selection.evidenceMessages.value = [];
-      clearCandidateState(selection.filesConfirmed);
-      composer.resetPromptComposer();
-    }
+  }
+  function defaultModelForm() {
     return {
-      candidateHits,
+      id: "",
+      name: "",
+      provider: "custom",
+      type: "exec",
+      command: "codex exec",
+      endpoint: "",
+      apiKey: "",
+      model: "",
+      proxyUrl: "",
+      timeoutMs: 12e4
+    };
+  }
+  function providerModelForm(provider) {
+    if (provider === "deepseek") {
+      return __spreadProps(__spreadValues({}, defaultModelForm()), {
+        name: "DeepSeek",
+        provider: "deepseek",
+        type: "api",
+        command: "",
+        endpoint: "https://api.deepseek.com/chat/completions",
+        model: "deepseek-v4-pro"
+      });
+    }
+    return defaultModelForm();
+  }
+  function normalizeModel(raw) {
+    const item = raw || {};
+    const type = item.type === "api" ? "api" : "exec";
+    const provider = item.provider === "deepseek" ? "deepseek" : "custom";
+    const defaultName = provider === "deepseek" ? "DeepSeek" : type === "api" ? "API 模型" : "Cli 模型";
+    const normalizedName = item.name === "Exec 模型" ? "Cli 模型" : item.name;
+    return {
+      id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: normalizedName || defaultName,
+      provider,
+      type,
+      command: item.command || "",
+      endpoint: item.endpoint || (provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : ""),
+      apiKey: item.apiKey || "",
+      model: item.model || (provider === "deepseek" ? "deepseek-v4-pro" : ""),
+      proxyUrl: item.proxyUrl || "",
+      timeoutMs: Number(item.timeoutMs || 12e4)
+    };
+  }
+  function useModelAdapters() {
+    const modelStore = useModelStore();
+    const appUiStore = useAppUiStore();
+    const projectStore = useProjectStore();
+    const routeStore = useRouteStore();
+    const searchStore = useSearchStore();
+    const prompt = useSearchPrompt();
+    const { current: project } = storeToRefs(projectStore);
+    const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
+    const {
+      candidates: candidateHits,
+      selectedCandidatePaths,
       apiTrace,
       i18nTrace,
-      definitionTrace,
+      definitionTrace
+    } = storeToRefs(searchStore);
+    const { searchPayload } = prompt;
+    if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel);
+    if (!modelStore.selectedModelId) modelStore.selectedModelId = loadText(MODEL_SELECTED_KEY, "");
+    modelStore.useModelAssist = !!modelStore.selectedModelId;
+    const {
+      configs: modelConfigs,
+      selectedModelId,
+      useModelAssist,
+      editorOpen: modelEditorOpen,
+      form: modelForm,
+      error: modelAssistError,
+      logs: modelAssistLogs,
+      result: modelAssistResult,
+      startedAt: modelAssistStartedAt,
+      finishedAt: modelAssistFinishedAt
+    } = storeToRefs(modelStore);
+    let modelAssistController = null;
+    const selectedModel = computed(() => {
+      return modelConfigs.value.find((item) => item.id === selectedModelId.value) || null;
+    });
+    const canUseModelAssist = computed(() => {
+      return !!selectedModel.value && !!project.value && project.value.source === "source-server";
+    });
+    const modelAssistLoading = computed({
+      get: () => modelStore.status === "running",
+      set: (value) => {
+        var _a;
+        if (value) {
+          modelStore.status = "running";
+          return;
+        }
+        if (modelStore.status !== "running") return;
+        if (modelAssistError.value) modelStore.status = "error";
+        else if ((_a = modelAssistResult.value) == null ? void 0 : _a.stopped) modelStore.status = "stopped";
+        else if (modelAssistResult.value) modelStore.status = "success";
+        else modelStore.status = "idle";
+      }
+    });
+    watch(canUseModelAssist, (value) => {
+      modelStore.canUseModelAssist = !!value;
+    }, { immediate: true });
+    function persistModels() {
+      void persistModelState(modelConfigs.value, selectedModelId.value);
+    }
+    function hydratePersistedModels() {
+      return __async(this, null, function* () {
+        const state = yield loadPersistedModelState();
+        const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel);
+        const validSelectedId = nextModels.some((item) => item.id === state.selectedId) ? state.selectedId : "";
+        modelConfigs.value = nextModels;
+        selectedModelId.value = validSelectedId;
+        useModelAssist.value = !!validSelectedId;
+        if (state.migrated || state.selectedId && state.selectedId !== validSelectedId) {
+          void persistModelState(nextModels, validSelectedId);
+        }
+      });
+    }
+    function openModelEditor(model) {
+      modelForm.value = model ? __spreadValues({}, model) : defaultModelForm();
+      modelEditorOpen.value = true;
+    }
+    function openProviderModelEditor(provider) {
+      modelForm.value = providerModelForm(provider);
+      modelEditorOpen.value = true;
+    }
+    function closeModelEditor() {
+      modelEditorOpen.value = false;
+    }
+    function saveModelForm() {
+      const normalized = normalizeModel(modelForm.value);
+      const index = modelConfigs.value.findIndex((item) => item.id === normalized.id);
+      if (index === -1) modelConfigs.value.push(normalized);
+      else modelConfigs.value.splice(index, 1, normalized);
+      selectedModelId.value = normalized.id;
+      useModelAssist.value = true;
+      persistModels();
+      modelEditorOpen.value = false;
+      appUiStore.setToast("模型已保存");
+    }
+    function removeSelectedModel() {
+      var _a;
+      if (!selectedModelId.value) return;
+      modelConfigs.value = modelConfigs.value.filter((item) => item.id !== selectedModelId.value);
+      selectedModelId.value = ((_a = modelConfigs.value[0]) == null ? void 0 : _a.id) || "";
+      persistModels();
+      if (!selectedModelId.value) useModelAssist.value = false;
+      appUiStore.setToast("模型已移除");
+    }
+    function setSelectedModel(id) {
+      selectedModelId.value = id || "";
+      useModelAssist.value = !!selectedModelId.value;
+      persistModels();
+    }
+    function selectModelAndEnable(id) {
+      selectedModelId.value = id || "";
+      useModelAssist.value = !!selectedModelId.value;
+      persistModels();
+      if (selectedModelId.value) appUiStore.setToast("模型已启用");
+    }
+    function disableModelAssist() {
+      selectedModelId.value = "";
+      useModelAssist.value = false;
+      persistModels();
+      appUiStore.setToast("模型已停用");
+    }
+    function setUseModelAssist(value) {
+      useModelAssist.value = !!value;
+      if (useModelAssist.value && !selectedModel.value) {
+        openModelEditor();
+      }
+    }
+    function resetModelAssist() {
+      modelAssistError.value = "";
+      modelAssistLogs.value = [];
+      modelAssistResult.value = null;
+      modelAssistStartedAt.value = 0;
+      modelAssistFinishedAt.value = 0;
+      modelStore.status = "idle";
+    }
+    function mergeModelTargets(result) {
+      const targets = ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).filter((item) => item.exists);
+      if (!targets.length) return;
+      const oldHits = candidateHits.value.slice();
+      const byFile = new Map(oldHits.map((hit) => [hit.file, hit]));
+      const promoted = targets.map((target, index) => {
+        var _a, _b;
+        const old = byFile.get(target.file);
+        const score = Math.max((old == null ? void 0 : old.score) || 0, 980 - index * 40 + Math.round((target.confidence || 0) * 0.2));
+        return __spreadProps(__spreadValues({}, old || {
+          file: target.file,
+          from: "",
+          snippet: "",
+          uniqueSnippet: "",
+          uniqueMatchLabel: "",
+          uniqueMatchText: "",
+          uniqueMatchCount: 0
+        }), {
+          score,
+          stage: "model-agent",
+          reasons: [
+            `模型定位：${target.prompt || target.reason || ((_a = result.parsed) == null ? void 0 : _a.summary) || result.rawText || "-"}`,
+            target.directionGuess ? `推测方向：${target.directionGuess}` : "",
+            target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : "",
+            ...(old == null ? void 0 : old.reasons) || []
+          ].filter(Boolean).slice(0, 10),
+          modelPrompt: target.prompt || target.reason || "",
+          modelCodeSnippet: target.codeSnippet || "",
+          modelLocateLevel: target.locateLevel || "exact",
+          modelDirectionGuess: target.directionGuess || "",
+          modelSnippetVerified: target.snippetVerified !== false,
+          modelDowngradedToDirection: !!target.downgradedToDirection,
+          modelConfidence: target.confidence,
+          modelAdapter: ((_b = result.adapter) == null ? void 0 : _b.name) || ""
+        });
+      });
+      const promotedFiles = new Set(promoted.map((hit) => hit.file));
+      candidateHits.value = [
+        ...promoted,
+        ...oldHits.filter((hit) => !promotedFiles.has(hit.file))
+      ].sort((a, b) => b.score - a.score);
+      selectedCandidatePaths.value = promoted.map((hit) => hit.file);
+    }
+    function runModelAssist() {
+      return __async(this, null, function* () {
+        var _a, _b, _c, _d, _e, _f;
+        if (!useModelAssist.value || !canUseModelAssist.value) return null;
+        if (modelAssistLoading.value) return null;
+        const controller = new AbortController();
+        modelAssistController = controller;
+        modelAssistStartedAt.value = Date.now();
+        modelAssistFinishedAt.value = 0;
+        modelAssistLoading.value = true;
+        modelAssistError.value = "";
+        modelAssistLogs.value = ["模型定位请求已发起"];
+        modelAssistResult.value = null;
+        try {
+          const result = yield sourceServerNdjson("/api/model/locate/stream", {
+            method: "POST",
+            controller,
+            body: {
+              adapter: selectedModel.value,
+              searchPayload: searchPayload(),
+              pagePath: ((_a = routeResolverTrace.value) == null ? void 0 : _a.pagePath) || "",
+              routeResolver: routeResolverTrace.value,
+              apiTrace: (apiTrace == null ? void 0 : apiTrace.value) || null,
+              i18nTrace: (i18nTrace == null ? void 0 : i18nTrace.value) || null,
+              definitionTrace: (definitionTrace == null ? void 0 : definitionTrace.value) || null,
+              candidateHits: candidateHits.value.slice(0, 4),
+              selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
+            },
+            timeoutMs: Number(selectedModel.value.timeoutMs || 12e4) + 5e3,
+            timeoutMessage: "模型定位超时",
+            abortMessage: "模型定位已停止",
+            onEvent(event) {
+              if (event.type === "log" && event.log) {
+                modelAssistLogs.value = [...modelAssistLogs.value, event.log];
+              }
+              if (event.type === "result") {
+                modelAssistResult.value = event.result || null;
+              }
+              if (event.type === "error" && Array.isArray(event.logs)) {
+                modelAssistLogs.value = event.logs;
+              }
+            }
+          });
+          modelAssistResult.value = result || modelAssistResult.value || null;
+          modelAssistLogs.value = ((_b = modelAssistResult.value) == null ? void 0 : _b.logs) || [];
+          mergeModelTargets(modelAssistResult.value);
+          appUiStore.setToast("模型定位已完成");
+          return modelAssistResult.value;
+        } catch (error) {
+          if ((error == null ? void 0 : error.name) === "AbortError") {
+            const stoppedLogs = [...modelAssistLogs.value, "已手动停止"];
+            modelAssistLogs.value = stoppedLogs;
+            modelAssistResult.value = {
+              adapter: {
+                id: ((_c = selectedModel.value) == null ? void 0 : _c.id) || "",
+                name: ((_d = selectedModel.value) == null ? void 0 : _d.name) || "模型",
+                type: ((_e = selectedModel.value) == null ? void 0 : _e.type) || ""
+              },
+              stopped: true,
+              modelItems: [],
+              targetFiles: [],
+              logs: stoppedLogs
+            };
+            modelAssistError.value = "";
+            appUiStore.setToast("已手动停止");
+            return modelAssistResult.value;
+          }
+          modelAssistError.value = error.message || String(error);
+          modelAssistLogs.value = ((_f = error.payload) == null ? void 0 : _f.logs) || modelAssistLogs.value;
+          appUiStore.setToast("模型定位失败");
+          return null;
+        } finally {
+          modelAssistFinishedAt.value = Date.now();
+          modelAssistLoading.value = false;
+          if (modelAssistController === controller) modelAssistController = null;
+        }
+      });
+    }
+    function stopModelAssist() {
+      if (!modelAssistLoading.value || !modelAssistController) return;
+      modelAssistLogs.value = [...modelAssistLogs.value, "正在停止模型定位..."];
+      modelAssistController.abort();
+    }
+    void hydratePersistedModels();
+    return {
+      modelConfigs,
+      selectedModelId,
+      selectedModel,
+      useModelAssist,
+      canUseModelAssist,
+      modelEditorOpen,
+      modelForm,
+      modelAssistLoading,
+      modelAssistError,
+      modelAssistLogs,
+      modelAssistResult,
+      modelAssistStartedAt,
+      modelAssistFinishedAt,
+      openModelEditor,
+      openProviderModelEditor,
+      closeModelEditor,
+      saveModelForm,
+      removeSelectedModel,
+      setSelectedModel,
+      selectModelAndEnable,
+      disableModelAssist,
+      setUseModelAssist,
+      resetModelAssist,
+      runModelAssist,
+      stopModelAssist
+    };
+  }
+  function setupModelRuntime() {
+    return useModelAdapters();
+  }
+  function useChatMessages() {
+    const composerStore = useComposerStore();
+    const modelStore = useModelStore();
+    const projectStore = useProjectStore();
+    const searchStore = useSearchStore();
+    const selectionStore = useSelectionStore();
+    const prompt = useSearchPrompt();
+    const { finalPrompt: promptText } = storeToRefs(composerStore);
+    const {
+      error: modelAssistError,
+      logs: modelAssistLogs,
+      result: modelAssistResult,
+      startedAt: modelAssistStartedAt,
+      finishedAt: modelAssistFinishedAt
+    } = storeToRefs(modelStore);
+    const {
+      current: project,
+      serviceStatus: sourceServiceStatus,
+      serviceMessage: sourceServiceMessage
+    } = storeToRefs(projectStore);
+    const {
+      candidates: candidateHits,
       candidateLoading,
       searchRunning,
-      candidateError,
-      searchStartedAt,
-      searchFinishedAt,
-      searchKeywords,
       includeApiEvidence,
-      selectedCandidatePaths,
-      expandedCandidatePath,
-      modelAssistAttempted,
-      searchApiRequests,
-      selectedCandidateHits,
       needsMoreEvidence,
-      showCandidatePicker,
-      invalidateCandidateConfirm,
-      clearCandidateState,
-      resetProjectContext
+      startedAt: searchStartedAt,
+      finishedAt: searchFinishedAt
+    } = storeToRefs(searchStore);
+    const {
+      confirmed: selectionConfirmed,
+      evidenceMessages,
+      filesConfirmed
+    } = storeToRefs(selectionStore);
+    const selectedItems = computed(() => selectionStore.items.map((item) => ({
+      uid: item.uid,
+      element: null,
+      info: item.element || {},
+      assetElement: null,
+      assetInfo: item.asset || item.element || {},
+      thumbnailUrl: item.thumbnailUrl || ""
+    })));
+    const modelAssistLoading = computed(() => modelStore.status === "running");
+    const { selectionChatSummary, searchLogLines } = prompt;
+    const sourceServiceText = computed(() => {
+      if (sourceServiceStatus.value === "loading") return sourceServiceMessage.value || "正在连接本地源码服务...";
+      if (sourceServiceStatus.value === "connected") return "已连接本地源码服务，可读取真实源码路径";
+      if (sourceServiceStatus.value === "fallback") return "本地源码服务不可用，已退回浏览器目录选择";
+      return "本地源码服务用于选择源码路径和扫描文件";
+    });
+    const chatMessages = computed(() => {
+      var _a;
+      const messages = [];
+      if (!project.value) {
+        messages.push({
+          id: "need-project",
+          role: "system",
+          title: "请选择项目源码",
+          text: "项目源码是必须信息。选择后才能把页面选区映射到候选文件。",
+          action: "choose-project"
+        });
+        if (sourceServiceText.value) {
+          messages.push({
+            id: "source-status",
+            role: "system",
+            text: sourceServiceText.value
+          });
+        }
+        return messages;
+      }
+      messages.push({
+        id: "project-ready",
+        role: "system",
+        title: "项目已连接",
+        text: [
+          `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || "未识别技术栈"}`,
+          project.value.path ? `源码目录：${project.value.path}` : ""
+        ].filter(Boolean).join("\n")
+      });
+      if (!selectedItems.value.length) {
+        messages.push({
+          id: "need-selection",
+          role: "system",
+          title: "等待页面选区",
+          text: "移动鼠标高亮页面区域，按空格键添加选区。选区会保存下来，可在输入框里用 @选区1 引用并描述修改要求。"
+        });
+        return messages;
+      }
+      messages.push({
+        id: "selection-context",
+        role: "system",
+        title: "已捕获选区",
+        text: selectionChatSummary()
+      });
+      if (selectionConfirmed.value) {
+        messages.push({
+          id: "selection-confirmed",
+          role: "user",
+          text: "选区已确认"
+        });
+      }
+      for (const [index, text] of evidenceMessages.value.entries()) {
+        messages.push({
+          id: `custom-evidence-${index}`,
+          role: "user",
+          text
+        });
+      }
+      if (searchRunning == null ? void 0 : searchRunning.value) {
+        messages.push({
+          id: "searching",
+          role: "system",
+          text: includeApiEvidence.value ? "正在基于选区和接口端点追踪候选文件。" : "正在基于选区文案、className 和页面路径检索候选文件。",
+          durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
+          durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
+          durationActive: true,
+          logExpanded: true
+        });
+      } else if (((searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0) > 0) {
+        messages.push({
+          id: "search-log",
+          role: "system",
+          title: "源码检索",
+          text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : "未命中候选文件。",
+          logs: searchLogLines(),
+          durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
+          durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
+          durationActive: false,
+          logExpanded: false
+        });
+      }
+      if (modelAssistLoading == null ? void 0 : modelAssistLoading.value) {
+        messages.push({
+          id: "model-locating",
+          role: "agent",
+          title: "模型定位",
+          text: "正在让模型阅读本地预检索结果和候选文件内容，进一步判断应修改的源码文件。",
+          logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
+          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
+          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
+          durationActive: true,
+          logExpanded: true
+        });
+      } else if (modelAssistResult == null ? void 0 : modelAssistResult.value) {
+        const result = modelAssistResult.value;
+        const targets = result.modelItems || result.targetFiles || [];
+        const targetLogs = targets.slice(0, 5).flatMap((item, index) => {
+          const locateLevel = item.locateLevel || item.modelLocateLevel || "exact";
+          const snippetVerified = item.snippetVerified !== false && item.modelSnippetVerified !== false;
+          return [
+            `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ""}${item.exists === false ? " · 文件不存在" : ""}`,
+            `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}`,
+            item.codeSnippet ? `${snippetVerified ? "code片段" : "源码方向片段"}: ${item.codeSnippet}` : "",
+            item.directionGuess ? `推测方向: ${item.directionGuess}` : "",
+            item.prompt ? `提示词: ${item.prompt}` : item.reason || "-"
+          ].filter(Boolean);
+        });
+        messages.push({
+          id: "model-result",
+          role: "agent",
+          title: `模型定位 · ${((_a = result.adapter) == null ? void 0 : _a.name) || "模型"}`,
+          text: result.stopped ? "模型定位已手动停止。" : targets.length ? "模型已定位到修改点，可继续生成最终提示词。" : "模型未定位到可用修改点。",
+          logs: [
+            ...result.logs || [],
+            ...targetLogs,
+            !targetLogs.length && result.rawText ? `模型原始返回:
+${result.rawText}` : ""
+          ].filter(Boolean),
+          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
+          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
+          durationActive: false,
+          logExpanded: true
+        });
+      } else if (modelAssistError == null ? void 0 : modelAssistError.value) {
+        messages.push({
+          id: "model-error",
+          role: "agent",
+          title: "模型定位失败",
+          text: modelAssistError.value,
+          logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
+          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
+          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
+          durationActive: false,
+          logExpanded: true
+        });
+      }
+      if (!candidateLoading.value && needsMoreEvidence.value) {
+        messages.push({
+          id: "need-more-evidence",
+          role: "system",
+          title: "线索不足，需要补充页面证据",
+          text: [
+            "当前选区命中了多个候选文件，但没有任何文件同时命中文案和当前页面上下文。",
+            "这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只命中了通用子组件里的重复字段。",
+            "请继续选择更外层、更独特的页面区域，或在输入框补充业务位置/交互目标后重新检索。"
+          ].join("\n")
+        });
+      } else if (!candidateLoading.value && candidateHits.value.length > 1 && !filesConfirmed.value) {
+        messages.push({
+          id: "multi-candidates",
+          role: "system",
+          title: "存在多个命中文件，请确认",
+          text: `默认选择最高命中：${candidateHits.value[0].file}`
+        });
+      } else if (!candidateLoading.value && candidateHits.value.length === 1 && !filesConfirmed.value) {
+        messages.push({
+          id: "single-candidate",
+          role: "system",
+          text: `本地检索命中 ${candidateHits.value[0].file}，等待模型定位确认。`
+        });
+      }
+      if (filesConfirmed.value) {
+        messages.push({
+          id: "files-confirmed",
+          role: "user",
+          text: "确认文件"
+        });
+      }
+      if (promptText.value) {
+        messages.push({
+          id: "final-prompt",
+          role: "system",
+          title: "最终提示词",
+          pre: promptText.value,
+          action: "copy-prompt"
+        });
+      }
+      return messages;
+    });
+    return {
+      sourceServiceText,
+      chatMessages
     };
   }
-  function useSelectionModule({
-    sendCommand,
-    getPromptIntent,
-    resetCandidateState,
-    resetComposer,
-    setToast
-  }) {
-    const selectedItems = /* @__PURE__ */ ref([]);
-    const layoutTick = /* @__PURE__ */ ref(0);
-    const selectionConfirmed = /* @__PURE__ */ ref(false);
-    const filesConfirmed = /* @__PURE__ */ ref(false);
-    const customEvidence = /* @__PURE__ */ ref("");
-    const evidenceMessages = /* @__PURE__ */ ref([]);
-    const latestSelection = computed(() => selectedItems.value[selectedItems.value.length - 1] || null);
-    const canConfirmSelection = computed(() => selectedItems.value.length > 0);
-    const promptAssets = computed(() => {
-      return selectedItems.value.map((item, index) => {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
-        return {
-          uid: item.uid,
-          token: `@选区${index + 1}`,
-          index: index + 1,
-          label: `选区 ${index + 1}`,
-          summary: compactText(((_a = item.info) == null ? void 0 : _a.text) || ((_b = item.info) == null ? void 0 : _b.className) || ((_c = item.info) == null ? void 0 : _c.tag) || ((_d = item.assetInfo) == null ? void 0 : _d.text) || `选区${index + 1}`, 24),
-          thumbnailUrl: item.thumbnailUrl || "",
-          className: ((_e = item.info) == null ? void 0 : _e.className) || "",
-          text: ((_f = item.info) == null ? void 0 : _f.text) || "",
-          selector: ((_g = item.info) == null ? void 0 : _g.selector) || "",
-          innerHtml: ((_h = item.info) == null ? void 0 : _h.innerHtml) || "",
-          outerHtml: ((_i = item.info) == null ? void 0 : _i.outerHtml) || "",
-          inlineStyle: ((_j = item.info) == null ? void 0 : _j.inlineStyle) || "",
-          computedStyle: ((_k = item.info) == null ? void 0 : _k.computedStyle) || null,
-          box: ((_l = item.info) == null ? void 0 : _l.box) || null,
-          assetSelector: ((_m = item.assetInfo) == null ? void 0 : _m.selector) || "",
-          assetText: ((_n = item.assetInfo) == null ? void 0 : _n.text) || "",
-          assetInnerHtml: ((_o = item.assetInfo) == null ? void 0 : _o.innerHtml) || "",
-          assetOuterHtml: ((_p = item.assetInfo) == null ? void 0 : _p.outerHtml) || "",
-          assetInlineStyle: ((_q = item.assetInfo) == null ? void 0 : _q.inlineStyle) || "",
-          assetComputedStyle: ((_r = item.assetInfo) == null ? void 0 : _r.computedStyle) || null,
-          assetBox: ((_s = item.assetInfo) == null ? void 0 : _s.box) || null,
-          thumbnailCaptured: !!item.thumbnailUrl
-        };
-      });
-    });
-    function selectionPayloads() {
-      return selectedItems.value.map((item, index) => ({
-        index: index + 1,
-        token: `@选区${index + 1}`,
-        element: item.info,
-        asset: item.assetInfo || null,
-        thumbnailCaptured: !!item.thumbnailUrl
-      }));
-    }
-    function selectionFromRemote(raw, index) {
-      const info = (raw == null ? void 0 : raw.element) || (raw == null ? void 0 : raw.info) || raw || {};
-      const uid2 = (raw == null ? void 0 : raw.uid) || info.uid || `remote-selection-${Date.now()}-${index}`;
-      return {
-        uid: uid2,
-        element: null,
-        info,
-        assetElement: null,
-        assetInfo: (raw == null ? void 0 : raw.asset) || info,
-        thumbnailUrl: (raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail) || ""
-      };
-    }
-    function applyRemoteSelections(rawSelections) {
-      const list = Array.isArray(rawSelections) ? rawSelections : [];
-      selectedItems.value = list.map(selectionFromRemote);
-    }
-    function invalidateSelectionConfirm() {
-      selectionConfirmed.value = false;
-      filesConfirmed.value = false;
-      resetCandidateState == null ? void 0 : resetCandidateState();
-    }
-    function confirmSelectionContext(invalidatePrompt) {
-      if (!canConfirmSelection.value) return false;
-      selectionConfirmed.value = true;
-      filesConfirmed.value = false;
-      invalidatePrompt == null ? void 0 : invalidatePrompt();
-      setToast("选区已确认");
-      return true;
-    }
-    function previewSelection(item) {
-      sendCommand("selection.highlight", { uid: (item == null ? void 0 : item.uid) || "" });
-    }
-    function restoreSelectionPreview() {
-      sendCommand("selection.highlight", { uid: "" });
-    }
-    function expandSelection(uid2) {
-      if (!uid2) return;
-      sendCommand("selection.expand", { uid: uid2 });
-    }
-    function removeSelection(uid2) {
-      const index = selectedItems.value.findIndex((item) => item.uid === uid2);
-      if (index === -1) return;
-      sendCommand("selection.remove", { uid: uid2 });
-      selectedItems.value.splice(index, 1);
-      invalidateSelectionConfirm();
-      window.__MAGNUS_SELECTIONS__ = selectionPayloads();
-      setToast(String((getPromptIntent == null ? void 0 : getPromptIntent()) || "").includes("@选区") ? "已移除选区，请检查输入框中的 @选区 引用" : "已移除选区");
-      layoutTick.value++;
-    }
-    function clearSelections(notifyRuntime = true) {
-      if (notifyRuntime) sendCommand("selection.clear");
-      selectedItems.value = [];
-      selectionConfirmed.value = false;
-      customEvidence.value = "";
-      evidenceMessages.value = [];
-      resetCandidateState == null ? void 0 : resetCandidateState();
-      resetComposer == null ? void 0 : resetComposer();
-      window.__MAGNUS_LAST_ELEMENT__ = null;
-      window.__MAGNUS_LAST_ELEMENT_INFO__ = null;
-      window.__MAGNUS_SELECTIONS__ = [];
-      setToast("");
-    }
-    return {
-      selectedItems,
-      layoutTick,
-      selectionConfirmed,
-      filesConfirmed,
-      customEvidence,
-      evidenceMessages,
-      latestSelection,
-      canConfirmSelection,
-      promptAssets,
-      selectionPayloads,
-      selectionFromRemote,
-      applyRemoteSelections,
-      invalidateSelectionConfirm,
-      confirmSelectionContext,
-      previewSelection,
-      restoreSelectionPreview,
-      expandSelection,
-      removeSelection,
-      clearSelections
-    };
+  function setupChatRuntime() {
+    const chatStore = useChatStore();
+    const message = useChatMessages();
+    watch(message.chatMessages, (value) => {
+      chatStore.setMessages(value || []);
+    }, { immediate: true });
+    return message;
   }
   const PROJECT_STORAGE_PREFIX = "magnus:source-project:";
-  function createMagnusModules(runtime) {
+  function createMagnusRuntimeState(runtime) {
     var _a;
     const { api, currentPageHref, sidePanelConfig, routePagePath, pageHost } = runtime;
     const projectStorageKey = computed(() => `${PROJECT_STORAGE_PREFIX}${pageHost.value}`);
-    const modelAssistLoading = computed(() => (model == null ? void 0 : model.modelAssistLoading.value) || false);
+    const composerStore = useComposerStore();
+    const composer = createComposerFacade(composerStore);
+    const requests = usePageRequests();
     let search = null;
-    let selection = null;
-    let composer = null;
     let bridge = null;
     let model = null;
-    const toast = useToast();
-    const requests = usePageRequests();
-    const source = useSourceProject({
-      projectStorageKey,
-      resetProjectContext: () => search == null ? void 0 : search.resetProjectContext(selection, composer),
-      setToast: toast.setToast
+    const selection = setupSelectionRuntime({
+      sendCommand: (type, payload) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload)
     });
+    const source = useSourceProject({ projectStorageKey });
     const route = useRouteResolver({
       project: source.project,
       currentPageHref,
       pageUrlPath: routePagePath,
       sourceServerJson
     });
-    search = useSearchState({
-      routeResolverTrace: route.routeResolverTrace,
-      recentRequests: requests.recentRequests,
-      modelAssistLoading,
-      filesConfirmed: computed(() => (selection == null ? void 0 : selection.filesConfirmed.value) || false),
-      resetModelAssist: () => {
-        var _a2;
-        return (_a2 = model == null ? void 0 : model.resetModelAssist) == null ? void 0 : _a2.call(model);
-      },
-      invalidatePrompt: () => {
-        var _a2;
-        return (_a2 = composer == null ? void 0 : composer.invalidatePrompt) == null ? void 0 : _a2.call(composer);
-      }
-    });
-    selection = useSelectionModule({
-      sendCommand: (type, payload) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload),
-      getPromptIntent: () => (composer == null ? void 0 : composer.promptIntent.value) || "",
-      resetCandidateState: () => search.clearCandidateState(selection.filesConfirmed),
-      resetComposer: () => composer.resetPromptComposer(),
-      setToast: toast.setToast
-    });
-    composer = useComposerModule({
-      project: source.project,
-      selectedItems: selection.selectedItems,
-      candidateLoading: search.candidateLoading,
-      modelAssistLoading,
-      showCandidatePicker: search.showCandidatePicker,
-      selectedCandidateHits: search.selectedCandidateHits
-    });
+    search = useSearchFacade();
     bridge = useSidePanelBridge({
       sidePanelConfig,
       currentPageHref,
-      selectedItems: selection.selectedItems,
-      selectionFromRemote: selection.selectionFromRemote,
       onRuntimeEvent: (_a = api.bootstrap) == null ? void 0 : _a.handleRuntimeEvent,
       onNetworkRequest: (payload) => {
         requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
       },
-      invalidateSelectionConfirm: selection.invalidateSelectionConfirm,
-      clearSelections: selection.clearSelections,
-      scheduleRouteResolve: route.scheduleRouteResolve,
-      setToast: toast.setToast
+      clearSelections: (notifyRuntime) => selection.clearSelections(notifyRuntime),
+      scheduleRouteResolve: route.scheduleRouteResolve
     });
-    const prompt = usePromptModule({
-      source,
-      route,
-      search,
-      selection,
-      composer,
-      requests,
-      toast
-    }, runtime);
-    model = useModelModule({
-      source,
-      route,
-      search,
-      prompt,
-      toast
-    });
-    const message = useMessageModule({
-      source,
-      search,
-      selection,
-      composer,
-      model,
-      prompt
-    });
+    const prompt = setupPromptRuntime();
+    model = setupModelRuntime();
+    const message = setupChatRuntime();
     return {
-      toast,
       requests,
       source,
       route,
@@ -12012,11 +12024,11 @@ ${source}` : "",
       message
     };
   }
-  function createComposerWorkflow(modules) {
-    const { source, route, search, selection, composer, model, prompt, toast } = modules;
+  function createComposerWorkflow(state) {
+    const { source, route, search, selection, composer, model, prompt } = state;
+    const appUiStore = useAppUiStore();
     function sendComposer() {
       return __async(this, null, function* () {
-        console.log("[Magnus] send:]", model.modelAssistLoading.value, source.project.value, composer.promptIntent);
         if (model.modelAssistLoading.value) {
           model.stopModelAssist();
           return;
@@ -12024,12 +12036,10 @@ ${source}` : "",
         if (!source.project.value) return;
         const instruction = composer.promptIntent.value.trim();
         if (!instruction) return;
-        console.log("[Magnus] sendComposer:]", instruction, search.showCandidatePicker.value);
         if (search.showCandidatePicker.value) {
           yield runModelAssistForCandidates(instruction);
           return;
         }
-        console.log("[Magnus] invalidatePrompt:]", composer.invalidatePrompt);
         if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
         yield searchCandidateFiles();
       });
@@ -12062,7 +12072,7 @@ ${source}` : "",
           } else {
             search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
             search.expandedCandidatePath.value = "";
-            toast.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
+            appUiStore.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
           }
           if (shouldAutoRunModelAssist(search.candidateHits.value)) {
             const modelHandled = yield runModelAssistForCandidates(composer.promptIntent.value.trim());
@@ -12110,7 +12120,7 @@ ${source}` : "",
         if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
           const text = modelAssistUnavailableText();
           search.candidateError.value = text;
-          toast.setToast(text);
+          appUiStore.setToast(text);
           return true;
         }
         const modelResult = yield model.runModelAssist();
@@ -12175,9 +12185,9 @@ ${source}` : "",
     if (next.length !== current.length) return next.length < current.length;
     return Number(((_a = next[0]) == null ? void 0 : _a.score) || 0) > Number(((_b = current[0]) == null ? void 0 : _b.score) || 0);
   }
-  function createMagnusActions(modules) {
-    const { source, search, selection, composer, model, toast } = modules;
-    const workflow = createComposerWorkflow(modules);
+  function createMagnusActions(state) {
+    const { source, search, selection, model } = state;
+    const workflow = createComposerWorkflow(state);
     return {
       chooseProject: source.chooseProject,
       onFileInputChange: source.onFileInputChange,
@@ -12186,17 +12196,15 @@ ${source}` : "",
       expandSelection: selection.expandSelection,
       removeSelection: selection.removeSelection,
       clearSelections: selection.clearSelections,
-      onComposerInput: composer.onComposerInput,
-      insertPromptAsset: composer.insertPromptAsset,
       sendComposer: workflow.sendComposer,
-      openSourceFile: (file) => openSourceFile(file, toast),
-      copyTextWithToast: (text) => copyTextWithToast(text, toast),
-      toggleCandidateFile: (hit) => toggleCandidateFile(hit, search, selection),
+      openSourceFile,
+      copyTextWithToast,
+      toggleCandidateFile: (hit) => toggleCandidateFile(hit, search),
       toggleCandidateDetail: (hit) => toggleCandidateDetail(hit, search),
       setIncludeApiEvidence: (value) => {
         search.includeApiEvidence.value = !!value;
       },
-      onSearchOptionChange: () => search.clearCandidateState(selection.filesConfirmed),
+      onSearchOptionChange: () => search.clearCandidateState(),
       openModelEditor: model.openModelEditor,
       openProviderModelEditor: model.openProviderModelEditor,
       closeModelEditor: model.closeModelEditor,
@@ -12210,9 +12218,10 @@ ${source}` : "",
       stopModelAssist: model.stopModelAssist
     };
   }
-  function openSourceFile(file, toast) {
+  function openSourceFile(file) {
     return __async(this, null, function* () {
       if (!file) return;
+      const appUiStore = useAppUiStore();
       try {
         yield sourceServerJson("/api/source/open", {
           method: "POST",
@@ -12220,9 +12229,9 @@ ${source}` : "",
           timeoutMs: 5e3,
           timeoutMessage: "打开源码文件超时，请确认本地源码服务可用"
         });
-        toast.setToast(`已打开 ${file}`);
+        appUiStore.setToast(`已打开 ${file}`);
       } catch (error) {
-        toast.setToast(error.message || "打开源码文件失败");
+        appUiStore.setToast(error.message || "打开源码文件失败");
       }
     });
   }
@@ -12232,15 +12241,16 @@ ${source}` : "",
     if (selected.has(hit.file)) selected.delete(hit.file);
     else selected.add(hit.file);
     search.selectedCandidatePaths.value = Array.from(selected);
-    search.invalidateCandidateConfirm(selection.filesConfirmed);
+    search.invalidateCandidateConfirm();
   }
   function toggleCandidateDetail(hit, search) {
     if (!hit) return;
     search.expandedCandidatePath.value = search.expandedCandidatePath.value === hit.file ? "" : hit.file;
   }
-  function copyTextWithToast(text, toast) {
+  function copyTextWithToast(text) {
+    const appUiStore = useAppUiStore();
     copyText(text).then((ok) => {
-      toast.setToast(ok ? "已复制" : "复制失败");
+      appUiStore.setToast(ok ? "已复制" : "复制失败");
     });
   }
   function copyText(text) {
@@ -12266,154 +12276,9 @@ ${source}` : "",
       resolve(ok);
     });
   }
-  function syncRuntimeStateToStores(modules) {
-    const { source, search, selection, composer, model, message, toast } = modules;
-    const projectStore = useProjectStore();
-    const searchStore = useSearchStore();
-    const chatStore = useChatStore();
-    const composerStore = useComposerStore();
-    const modelStore = useModelStore();
-    const selectionStore = useSelectionStore();
-    const appUiStore = useAppUiStore();
-    watch(source.project, (value) => {
-      projectStore.setProject(value || null);
-    }, { immediate: true });
-    watch([
-      source.sourceServiceStatus,
-      source.sourceServiceMessage,
-      source.sourceServiceError
-    ], ([status, serviceMessage, serviceError]) => {
-      projectStore.setServiceStatus(status || "idle", serviceMessage || "", serviceError || "");
-    }, { immediate: true });
-    watch(message.chatMessages, (value) => {
-      chatStore.setMessages(value || []);
-    }, { immediate: true });
-    watch(toast.toastText, (value) => {
-      appUiStore.setToast(value || "");
-    }, { immediate: true });
-    watch(selection.selectedItems, (value) => {
-      selectionStore.setItems(Array.isArray(value) ? value : []);
-    }, { immediate: true, deep: true });
-    watch([
-      selection.selectionConfirmed,
-      selection.filesConfirmed,
-      selection.customEvidence,
-      selection.evidenceMessages
-    ], ([confirmed, filesConfirmed, customEvidence, evidenceMessages]) => {
-      selectionStore.confirmed = !!confirmed;
-      selectionStore.filesConfirmed = !!filesConfirmed;
-      selectionStore.customEvidence = customEvidence || "";
-      selectionStore.evidenceMessages = Array.isArray(evidenceMessages) ? evidenceMessages : [];
-    }, { immediate: true });
-    watch(search.candidateHits, (value) => {
-      searchStore.candidates = Array.isArray(value) ? value : [];
-    }, { immediate: true });
-    watch(search.selectedCandidatePaths, (value) => {
-      searchStore.selectedCandidatePaths = Array.isArray(value) ? value : [];
-    }, { immediate: true });
-    watch(search.expandedCandidatePath, (value) => {
-      searchStore.expandedCandidatePath = value || "";
-    }, { immediate: true });
-    watch([
-      search.candidateLoading,
-      search.searchRunning,
-      search.candidateError
-    ], ([candidateLoading, searchRunning, candidateError]) => {
-      searchStore.error = candidateError || "";
-      if (candidateError) searchStore.status = "error";
-      else if (candidateLoading || searchRunning) searchStore.status = "loading";
-      else if (searchStore.candidates.length) searchStore.status = "success";
-      else searchStore.status = "idle";
-    }, { immediate: true });
-    watch([
-      search.apiTrace,
-      search.i18nTrace,
-      search.definitionTrace,
-      search.searchStartedAt,
-      search.searchFinishedAt,
-      search.includeApiEvidence,
-      search.modelAssistAttempted
-    ], ([
-      apiTrace,
-      i18nTrace,
-      definitionTrace,
-      startedAt,
-      finishedAt,
-      includeApiEvidence,
-      modelAssistAttempted
-    ]) => {
-      searchStore.apiTrace = apiTrace || null;
-      searchStore.i18nTrace = i18nTrace || null;
-      searchStore.definitionTrace = definitionTrace || null;
-      searchStore.startedAt = Number(startedAt || 0);
-      searchStore.finishedAt = Number(finishedAt || 0);
-      searchStore.includeApiEvidence = !!includeApiEvidence;
-      searchStore.modelAssistAttempted = !!modelAssistAttempted;
-    }, { immediate: true });
-    watch([
-      search.showCandidatePicker,
-      search.needsMoreEvidence
-    ], ([showCandidatePicker, needsMoreEvidence]) => {
-      searchStore.showCandidatePicker = !!showCandidatePicker;
-      searchStore.needsMoreEvidence = !!needsMoreEvidence;
-    }, { immediate: true });
-    watch(composer.promptText, (value) => {
-      composerStore.setFinalPrompt(value || "");
-    }, { immediate: true });
-    watch(composer.promptIntent, (value) => {
-      const nextValue = value || "";
-      if (composerStore.content !== nextValue) composerStore.content = nextValue;
-    }, { immediate: true });
-    watch([
-      model.selectedModelId,
-      model.selectedModel,
-      model.useModelAssist,
-      model.canUseModelAssist,
-      model.modelConfigs,
-      model.modelEditorOpen,
-      model.modelForm,
-      model.modelAssistLoading,
-      model.modelAssistError,
-      model.modelAssistLogs,
-      model.modelAssistResult,
-      model.modelAssistStartedAt,
-      model.modelAssistFinishedAt
-    ], ([
-      selectedModelId,
-      selectedModel,
-      useModelAssist,
-      canUseModelAssist,
-      modelConfigs,
-      modelEditorOpen,
-      modelForm,
-      modelAssistLoading,
-      modelAssistError,
-      modelAssistLogs,
-      modelAssistResult,
-      modelAssistStartedAt,
-      modelAssistFinishedAt
-    ]) => {
-      modelStore.selectedModelId = selectedModelId || null;
-      modelStore.configs = Array.isArray(modelConfigs) ? modelConfigs : [];
-      modelStore.useModelAssist = !!useModelAssist;
-      modelStore.canUseModelAssist = !!canUseModelAssist;
-      modelStore.editorOpen = !!modelEditorOpen;
-      modelStore.form = modelForm || {};
-      modelStore.logs = Array.isArray(modelAssistLogs) ? modelAssistLogs : [];
-      modelStore.result = modelAssistResult || null;
-      modelStore.error = modelAssistError || "";
-      modelStore.startedAt = Number(modelAssistStartedAt || 0);
-      modelStore.finishedAt = Number(modelAssistFinishedAt || 0);
-      if (modelAssistLoading) modelStore.status = "running";
-      else if (modelAssistError) modelStore.status = "error";
-      else if (modelAssistResult == null ? void 0 : modelAssistResult.stopped) modelStore.status = "stopped";
-      else if (modelAssistResult) modelStore.status = "success";
-      else modelStore.status = "idle";
-    }, { immediate: true });
-  }
-  function provideMagnusRuntime(api, modules, actions) {
+  function provideMagnusRuntime(api, state, actions) {
     var _a, _b;
-    const { source, route, composer } = modules;
+    const { source, route, composer } = state;
     const commands = {
       sendRequest: actions.sendComposer,
       resolveRoute: route.resolveCurrentPageRoute,
@@ -12444,8 +12309,8 @@ ${source}` : "",
     };
     provideMagnusCommands(((_b = (_a = api.bootstrap) == null ? void 0 : _a.createCommands) == null ? void 0 : _b.call(_a, commands)) || commands);
   }
-  function registerRuntimeApi(api, modules) {
-    const { bridge, selection } = modules;
+  function registerRuntimeApi(api, state) {
+    const { bridge, selection } = state;
     api.start = () => bridge.sendSidePanelCommand("picker.start");
     api.stop = () => bridge.sendSidePanelCommand("picker.stop");
     api.toggle = () => bridge.sendSidePanelCommand("picker.start");
@@ -12513,6 +12378,8 @@ ${source}` : "",
     const sidePanelConfig = computed(() => api.sidePanelConfig || {});
     const routePagePath = computed(() => pageUrlPath(currentPageHref.value));
     const pageHost = computed(() => pageHostText(currentPageHref.value));
+    const routeStore = useRouteStore();
+    const appUiStore = useAppUiStore();
     let cleanupLocationWatcher = null;
     const runtime = {
       api,
@@ -12521,18 +12388,18 @@ ${source}` : "",
       routePagePath,
       pageHost
     };
-    const modules = createMagnusModules(runtime);
-    const { source, route, search, bridge } = modules;
-    syncRuntimeStateToStores(modules);
-    const actions = createMagnusActions(modules);
-    provideMagnusRuntime(api, modules, actions);
+    const state = createMagnusRuntimeState(runtime);
+    const { source, route, search, bridge } = state;
+    const actions = createMagnusActions(state);
+    provideMagnusRuntime(api, state, actions);
     watch([source.project, currentPageHref], () => {
+      routeStore.setPage(currentPageHref.value, routePagePath.value);
       search.i18nTrace.value = null;
       search.definitionTrace.value = null;
       route.scheduleRouteResolve();
-    });
+    }, { immediate: true });
     onMounted(() => {
-      registerRuntimeApi(api, modules);
+      registerRuntimeApi(api, state);
       cleanupLocationWatcher = installLocationWatcher(currentPageHref);
       source.restoreSavedProject();
       route.scheduleRouteResolve();
@@ -12543,7 +12410,7 @@ ${source}` : "",
       route.cleanupRouteResolver();
       cleanupLocationWatcher == null ? void 0 : cleanupLocationWatcher();
       cleanupLocationWatcher = null;
-      modules.toast.cleanupToast();
+      appUiStore.cleanupToast();
     });
     return {
       fileInputRef: source.fileInputRef,
@@ -12631,33 +12498,6 @@ ${source}` : "",
         return openBlock(), createBlock(_sfc_main$1, { api: __props.api }, null, 8, ["api"]);
       };
     }
-  });
-  const useRequestStore = /* @__PURE__ */ defineStore("magnus.request", () => {
-    const items = /* @__PURE__ */ ref([]);
-    const enabled = /* @__PURE__ */ ref(true);
-    const recent = computed(() => enabled.value ? items.value.slice(0, 5) : []);
-    function remember(request) {
-      if (!(request == null ? void 0 : request.url) && !(request == null ? void 0 : request.pathname)) return;
-      const key = `${request.method || "GET"} ${request.url || request.pathname}`;
-      items.value = [
-        request,
-        ...items.value.filter((item) => `${item.method || "GET"} ${item.url || item.pathname}` !== key)
-      ].slice(0, 30);
-    }
-    function clear() {
-      items.value = [];
-    }
-    function setEnabled(value) {
-      enabled.value = !!value;
-    }
-    return {
-      items,
-      enabled,
-      recent,
-      remember,
-      clear,
-      setEnabled
-    };
   });
   function createMagnusStores(pinia) {
     return {

@@ -1,5 +1,5 @@
 import type { Ref } from 'vue';
-import { hashRoutePath } from './route-resolver';
+import { hashRoutePath } from './route-resolver.adapter';
 
 export function readCurrentHref(api: Record<string, any>) {
   if (api.sidePanelConfig?.snapshot?.page?.url) {

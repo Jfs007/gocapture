@@ -1,8 +1,10 @@
 import { sourceServerJson } from '../services/source-service';
-import type { MagnusModules } from '../runtime/context';
+import { useAppUiStore } from '../../stores/app-ui.store';
+import type { MagnusRuntimeState } from '../runtime/context';
 
-export function createComposerWorkflow(modules: MagnusModules) {
-  const { source, route, search, selection, composer, model, prompt, toast } = modules;
+export function createComposerWorkflow(state: MagnusRuntimeState) {
+  const { source, route, search, selection, composer, model, prompt } = state;
+  const appUiStore = useAppUiStore();
 
   async function sendComposer() {
     if (model.modelAssistLoading.value) {
@@ -12,12 +14,10 @@ export function createComposerWorkflow(modules: MagnusModules) {
     if (!source.project.value) return;
     const instruction = composer.promptIntent.value.trim();
     if (!instruction) return;
-    console.log('[Magnus] sendComposer:]', instruction, search.showCandidatePicker.value);
     if (search.showCandidatePicker.value) {
       await runModelAssistForCandidates(instruction);
       return;
     }
-    console.log('[Magnus] invalidatePrompt:]', composer.invalidatePrompt);
     if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
     await searchCandidateFiles();
   }
@@ -51,7 +51,7 @@ export function createComposerWorkflow(modules: MagnusModules) {
       } else {
         search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
         search.expandedCandidatePath.value = '';
-        toast.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
+        appUiStore.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
       }
 
       if (shouldAutoRunModelAssist(search.candidateHits.value)) {
@@ -99,7 +99,7 @@ export function createComposerWorkflow(modules: MagnusModules) {
     if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
       const text = modelAssistUnavailableText();
       search.candidateError.value = text;
-      toast.setToast(text);
+      appUiStore.setToast(text);
       return true;
     }
     const modelResult = await model.runModelAssist();

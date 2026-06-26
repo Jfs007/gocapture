@@ -51,10 +51,7 @@ stores
   单一状态中心，按业务域拆分
 
 app/runtime
-  应用启动、模块装配、commands provide、store 同步、runtime API
-
-app/modules
-  源码项目、路由、请求、选区、输入、搜索、模型、消息等业务模块
+  应用启动、命令装配、Side Panel bridge、runtime API、store-backed runtime bridge
 
 app/workflows
   发送 -> 本地检索 -> 模型定位 -> 最终提示词的跨模块流程
@@ -73,14 +70,13 @@ app/types
 
 ```txt
 components -> stores + app/runtime/commands
-app/runtime -> app/modules + app/workflows + stores
-app/modules -> app/services + app/prompt + app/model + core
+app/runtime -> app/workflows + stores + app/services + app/prompt + app/model + app/presenters
 stores -> app/types
 ```
 
 禁止方向：
 
-- 组件 import `core/ctx`。
+- 组件 import 旧 `ctx/useForm/useApi`。
 - 组件 import 旧 hook 模块。
 - 单个 hook 平铺十几个 `ref` 后再传给其他 hook。
 - workflow 通过长参数列表互相传递状态。
@@ -90,15 +86,59 @@ stores -> app/types
 
 - `project.store.ts`：源码项目、source-server 状态。
 - `route.store.ts`：当前页面 URL/path、路由解析结果。
-- `selection.store.ts`：选区资产、选区确认状态、`promptAssets`。
+- `selection.store.ts`：选区资产、选区确认状态、`promptAssets`。这是选区唯一真状态源。
 - `request.store.ts`：页面请求缓存、接口线索开关。
 - `search.store.ts`：候选文件、候选选择、检索日志状态、接口/i18n/定义追踪。
 - `model.store.ts`：模型配置、当前模型、模型编辑器、运行状态、日志、结果。
 - `composer.store.ts`：输入框内容、最终提示词、发送状态。
 - `chat.store.ts`：聊天消息。
-- `app-ui.store.ts`：toast、runtime 连接态等 UI 全局状态。
+- `app-ui.store.ts`：toast、runtime 连接态等 UI 全局状态。这是 toast 唯一真状态源。
 
 组件只能从这些 store 读取状态，不再通过 `useForm('xxx')` 读散乱字段。
+
+### Selection 边界
+
+选区状态只允许由 `selection.store.ts` 保存。页面 runtime 事件进入 `handle-runtime-event.usecase.ts` 后写入 store。
+
+选区副作用命令放在 usecase：
+
+- `expand-selection.usecase.ts`
+- `remove-selection.usecase.ts`
+- `clear-selections.usecase.ts`
+- `preview-selection.usecase.ts`
+
+`runtime/selection-state.bridge.ts` 只是临时 facade，用来把 store 暴露成旧 prompt/message/search 模块需要的 ref 形态。它不拥有状态，也不写 runtime。
+
+禁止恢复：
+
+- `app/modules/selection-module.ts`
+- `store-sync` 镜像 selection 的 watch
+- `window.__MAGNUS_LAST_ELEMENT__`
+- `window.__MAGNUS_LAST_ELEMENT_INFO__`
+- `window.__MAGNUS_SELECTIONS__`
+
+### Composer 边界
+
+输入框内容和最终提示词只允许由 `composer.store.ts` 保存。组件直接写 store，不允许再通过 commands 暴露 `setComposerValue`、`insertSelectionMention` 这类局部输入框 mutator。
+
+发送流程由 `workflows/composer-workflow.ts` 编排，读取 store-backed composer facade 后进入本地检索和模型定位。
+
+`runtime/composer-state.bridge.ts` 只是临时 facade，用来把 store 暴露成旧 prompt/search/model/message 模块需要的 ref 形态。它不拥有状态，不做业务副作用。
+
+禁止恢复：
+
+- `app/modules/composer-module.ts`
+- `store-sync` 镜像 composer 的 watch
+- commands 直接修改输入框局部状态
+
+### App UI 边界
+
+toast 和 runtime 连接态归 `app-ui.store.ts`。toast 的自动清理定时器也在 store 内闭合，runtime 只在卸载时调用 `cleanupToast()`。
+
+禁止恢复：
+
+- `app/modules/toast.ts`
+- `store-sync` 镜像 toast 的 watch
 
 ## 5. Commands 职责
 
@@ -131,14 +171,17 @@ stores -> app/types
 
 - `app/prompt/search-prompt.ts`
 - `app/model/model-adapters.ts`
-- `app/runtime/create-modules.ts`
+- `app/runtime/create-runtime-state.ts`
+
+已经删除的旧迁移层禁止恢复：
+
+- `app/modules/*`
 - `app/runtime/store-sync.ts`
 
-重写期间必须遵守：
+后续维护必须遵守：
 
-- 旧模块可以被 app 层临时调用，但不得被组件直接 import。
 - 新组件必须走 Pinia stores + commands。
-- 每替换一个旧模块，都要用 store/usecase/service 承接完整功能后再移除旧文件。
+- 运行时状态只能通过 stores、runtime bridge、usecase、workflow 组织。
 - 不允许只把 `.js` 改成 `.ts` 就算重构。
 
 ## 7. 当前 UI 主链路
@@ -161,13 +204,13 @@ components/*
   -> useMagnusCommands()
 ```
 
-旧 `core/ctx.js` 和 `hooks/use-magnus-ctx.ts` 已移除。组件不得恢复 `useForm/useApi` 模式。
+旧 ctx 和 `hooks/use-magnus-ctx.ts` 已移除。组件不得恢复 `useForm/useApi` 模式。
 
 ## 8. 重写完成标准
 
 - `App.vue` 保持入口壳层，不超过 300 行。
 - `MagnusPanel.vue` 只负责页面布局和挂载应用生命周期。
-- `components` 下没有 `useForm/useApi/core/ctx`。
+- `components` 下没有 `useForm/useApi/ctx`。
 - 选区、项目、路由、请求、搜索、模型、聊天、输入框分别有清晰 store。
 - 跨模块行为放在 usecase/service，不通过长参数链拼接。
 - 构建产物仍输出到 `package/app/magnus/index.js`。

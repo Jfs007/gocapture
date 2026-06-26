@@ -1,16 +1,31 @@
-import { ref, shallowRef } from 'vue';
+import { ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import {
   buildProjectFromFileList,
   scanDirectoryHandle
 } from '../services/project-scanner';
 import { normalizeSourceServerProject, sourceServerJson } from '../services/source-service';
+import { useProjectStore } from '../../stores/project.store';
+import { useAppUiStore } from '../../stores/app-ui.store';
+import { useComposerStore } from '../../stores/composer.store';
+import { useModelStore } from '../../stores/model.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSelectionStore } from '../../stores/selection.store';
 
-export function useSourceProject({ projectStorageKey, resetProjectContext, setToast }) {
+export function useSourceProject({ projectStorageKey }) {
+  const projectStore = useProjectStore();
+  const appUiStore = useAppUiStore();
+  const composerStore = useComposerStore();
+  const modelStore = useModelStore();
+  const searchStore = useSearchStore();
+  const selectionStore = useSelectionStore();
+  const {
+    current: project,
+    serviceStatus: sourceServiceStatus,
+    serviceError: sourceServiceError,
+    serviceMessage: sourceServiceMessage
+  } = storeToRefs(projectStore);
   const fileInputRef = ref(null);
-  const project = shallowRef(null);
-  const sourceServiceStatus = ref('idle');
-  const sourceServiceError = ref('');
-  const sourceServiceMessage = ref('');
 
   function rememberProjectPath(projectValue) {
     if (!projectValue || projectValue.source !== 'source-server' || !projectValue.path) return;
@@ -36,7 +51,14 @@ export function useSourceProject({ projectStorageKey, resetProjectContext, setTo
   }
 
   function resetAfterProjectChange() {
-    if (typeof resetProjectContext === 'function') resetProjectContext();
+    selectionStore.confirmed = false;
+    selectionStore.filesConfirmed = false;
+    selectionStore.customEvidence = '';
+    selectionStore.evidenceMessages = [];
+    searchStore.reset();
+    modelStore.reset();
+    composerStore.setFinalPrompt('');
+    composerStore.clearContent();
   }
 
   async function restoreSavedProject() {
@@ -56,16 +78,13 @@ export function useSourceProject({ projectStorageKey, resetProjectContext, setTo
         timeoutMs: 20000,
         timeoutMessage: '恢复源码路径超时，请重新选择项目源码'
       });
-      project.value = normalizeSourceServerProject(data.project || {});
-      sourceServiceStatus.value = 'connected';
-      sourceServiceMessage.value = '';
+      projectStore.setProject(normalizeSourceServerProject(data.project || {}));
+      projectStore.setServiceStatus('connected');
       resetAfterProjectChange();
-      setToast(`已恢复 ${project.value.name}`);
+      appUiStore.setToast(`已恢复 ${project.value.name}`);
       return true;
     } catch (error) {
-      sourceServiceStatus.value = 'idle';
-      sourceServiceMessage.value = '';
-      sourceServiceError.value = `恢复已保存源码路径失败：${error.message || error}`;
+      projectStore.setServiceStatus('idle', '', `恢复已保存源码路径失败：${error.message || error}`);
       return false;
     }
   }
@@ -85,39 +104,36 @@ export function useSourceProject({ projectStorageKey, resetProjectContext, setTo
       timeoutMs: 90000,
       timeoutMessage: '等待目录选择器超时，请确认系统弹窗是否被遮挡'
     });
-    project.value = normalizeSourceServerProject(data.project || {});
+    projectStore.setProject(normalizeSourceServerProject(data.project || {}));
     rememberProjectPath(project.value);
     resetAfterProjectChange();
-    sourceServiceStatus.value = 'connected';
-    sourceServiceMessage.value = '';
-    setToast(`已关联 ${project.value.name}`);
+    projectStore.setServiceStatus('connected');
+    appUiStore.setToast(`已关联 ${project.value.name}`);
   }
 
   async function chooseProject() {
-    setToast('正在选择项目...');
+    appUiStore.setToast('正在选择项目...');
     try {
       await chooseProjectFromSourceServer();
       return;
     } catch (error) {
-      sourceServiceStatus.value = 'fallback';
-      sourceServiceMessage.value = '';
-      sourceServiceError.value = `${error.message || error}。请先运行 npm run source:server；当前将使用浏览器目录选择兜底，无法拿到真实路径。`;
+      projectStore.setServiceStatus('fallback', '', `${error.message || error}。请先运行 npm run source:server；当前将使用浏览器目录选择兜底，无法拿到真实路径。`);
     }
 
     if (window.showDirectoryPicker && window.isSecureContext) {
       try {
         const handle = await window.showDirectoryPicker({ mode: 'read' });
-        project.value = await scanDirectoryHandle(handle);
+        projectStore.setProject(await scanDirectoryHandle(handle));
         resetAfterProjectChange();
-        sourceServiceError.value = '';
-        setToast(`已关联 ${project.value.name}`);
+        projectStore.setServiceStatus(sourceServiceStatus.value, sourceServiceMessage.value, '');
+        appUiStore.setToast(`已关联 ${project.value.name}`);
         return;
       } catch (error) {
         if (error && error.name === 'AbortError') {
-          setToast('已取消选择');
+          appUiStore.setToast('已取消选择');
           return;
         }
-        setToast('目录选择器不可用，改用文件夹输入');
+        appUiStore.setToast('目录选择器不可用，改用文件夹输入');
       }
     }
     if (fileInputRef.value) {
@@ -129,10 +145,10 @@ export function useSourceProject({ projectStorageKey, resetProjectContext, setTo
   async function onFileInputChange(event) {
     const files = event.target.files;
     if (!files || !files.length) return;
-    project.value = await buildProjectFromFileList(files);
+    projectStore.setProject(await buildProjectFromFileList(files));
     resetAfterProjectChange();
-    sourceServiceError.value = '';
-    setToast(`已关联 ${project.value.name}`);
+    projectStore.setServiceStatus(sourceServiceStatus.value, sourceServiceMessage.value, '');
+    appUiStore.setToast(`已关联 ${project.value.name}`);
   }
 
   return {

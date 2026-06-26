@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import type { RuntimeSelectionPayload, SelectionAsset, SelectionId } from '../app/types/selection.types';
-import { compactText } from '../core/element-context';
+import { compactText } from '../app/utils/text';
 
 export const useSelectionStore = defineStore('magnus.selection', () => {
   const items = ref<SelectionAsset[]>([]);
@@ -15,8 +15,8 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
   const hasSelection = computed(() => items.value.length > 0);
   const promptAssets = computed(() => {
     return items.value.map((item: any, index) => {
-      const info = item.info || item.element || {};
-      const assetInfo = item.assetInfo || item.asset || info;
+      const info = item.element || {};
+      const assetInfo = item.asset || info;
       return {
         uid: item.uid,
         token: `@选区${index + 1}`,
@@ -63,11 +63,6 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     filesConfirmed.value = false;
   }
 
-  function setItems(nextItems: any[]) {
-    items.value = Array.isArray(nextItems) ? nextItems : [];
-    activeId.value = latest.value?.uid || null;
-  }
-
   function removeSelection(id: SelectionId) {
     items.value = items.value.filter(item => item.uid !== id);
     if (activeId.value === id) activeId.value = latest.value?.uid || null;
@@ -104,7 +99,6 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     hasSelection,
     promptAssets,
     replaceSelections,
-    setItems,
     removeSelection,
     clear,
     setActive,

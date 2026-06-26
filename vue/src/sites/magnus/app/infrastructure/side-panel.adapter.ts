@@ -1,40 +1,40 @@
 import type { ComputedRef, Ref } from 'vue';
+import { useAppUiStore } from '../../stores/app-ui.store';
 
 interface SidePanelBridgeOptions {
   sidePanelConfig: ComputedRef<Record<string, any>>;
   currentPageHref: Ref<string>;
-  selectedItems: Ref<any[]>;
-  selectionFromRemote: (raw: any, index: number) => any;
   onNetworkRequest?: (payload: any) => void;
   onRuntimeEvent?: (event: any) => void;
-  invalidateSelectionConfirm: () => void;
   clearSelections: (notifyRuntime?: boolean) => void;
   scheduleRouteResolve: () => void;
-  setToast: (message: string) => void;
 }
 
 export function useSidePanelBridge({
   sidePanelConfig,
   currentPageHref,
-  selectedItems,
-  selectionFromRemote,
   onNetworkRequest,
   onRuntimeEvent,
-  invalidateSelectionConfirm,
   clearSelections,
-  scheduleRouteResolve,
-  setToast
+  scheduleRouteResolve
 }: SidePanelBridgeOptions) {
+  const appUiStore = useAppUiStore();
   let socket: WebSocket | null = null;
   let pageSessionId = '';
 
+  function selectionList(source: any) {
+    return Array.isArray(source?.selections)
+      ? source.selections
+      : (source?.selection ? [source.selection] : []);
+  }
+
   function applyRemoteSnapshot(snapshot: any) {
     if (!snapshot) return;
-    if (snapshot.page?.url) currentPageHref.value = snapshot.page.url;
-    const list = Array.isArray(snapshot.selections)
-      ? snapshot.selections
-      : (snapshot.selection ? [snapshot.selection] : []);
-    selectedItems.value = list.map(selectionFromRemote);
+    if (snapshot.page?.url) {
+      currentPageHref.value = snapshot.page.url;
+      onRuntimeEvent?.({ type: 'runtime.connected', payload: { page: snapshot.page } });
+    }
+    onRuntimeEvent?.({ type: 'selection.changed', payload: { selections: selectionList(snapshot) } });
   }
 
   function applyRemoteSessionEvent(message: any) {
@@ -42,12 +42,7 @@ export function useSidePanelBridge({
     const payload = event.payload || {};
     if (event.type) onRuntimeEvent?.({ type: event.type, payload });
     if (event.type === 'selection.changed') {
-      const list = Array.isArray(payload.selections)
-        ? payload.selections
-        : (payload.selection ? [payload.selection] : []);
-      selectedItems.value = list.map(selectionFromRemote);
-      invalidateSelectionConfirm();
-      setToast(`已添加选区 ${selectedItems.value.length}`);
+      appUiStore.setToast(`已添加选区 ${selectionList(payload).length}`);
       return;
     }
     if (event.type === 'page.route_changed') {
@@ -95,7 +90,7 @@ export function useSidePanelBridge({
         if (socket === nextSocket) socket = null;
       });
     } catch (error: any) {
-      setToast(error.message || '连接 Side Panel Bridge 失败');
+      appUiStore.setToast(error.message || '连接 Side Panel Bridge 失败');
     }
   }
 
@@ -107,7 +102,7 @@ export function useSidePanelBridge({
 
   function sendSidePanelCommand(type: string, payload?: unknown) {
     if (!socket || socket.readyState !== WebSocket.OPEN || !pageSessionId) {
-      setToast('页面 Runtime 未连接');
+      appUiStore.setToast('页面 Runtime 未连接');
       return;
     }
     socket.send(JSON.stringify({

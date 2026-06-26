@@ -1,8 +1,8 @@
 import { provideMagnusCommands } from './commands';
-import type { MagnusActions, MagnusModules } from './context';
+import type { MagnusActions, MagnusRuntimeState } from './context';
 
-export function provideMagnusRuntime(api: Record<string, any>, modules: MagnusModules, actions: MagnusActions) {
-  const { source, route, composer } = modules;
+export function provideMagnusRuntime(api: Record<string, any>, state: MagnusRuntimeState, actions: MagnusActions) {
+  const { source, route, composer } = state;
 
   const commands = {
     sendRequest: actions.sendComposer,

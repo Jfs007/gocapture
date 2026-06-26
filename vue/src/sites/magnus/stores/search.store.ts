@@ -5,6 +5,8 @@ import type { CandidateFile } from '../app/types/search.types';
 export const useSearchStore = defineStore('magnus.search', () => {
   const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle');
   const candidates = ref<CandidateFile[]>([]);
+  const candidateLoading = ref(false);
+  const searchRunning = ref(false);
   const selectedCandidatePaths = ref<string[]>([]);
   const expandedCandidatePath = ref('');
   const apiTrace = ref<unknown>(null);
@@ -13,6 +15,7 @@ export const useSearchStore = defineStore('magnus.search', () => {
   const startedAt = ref(0);
   const finishedAt = ref(0);
   const error = ref('');
+  const keywords = ref('');
   const includeApiEvidence = ref(true);
   const modelAssistAttempted = ref(false);
   const showCandidatePicker = ref(false);
@@ -25,7 +28,10 @@ export const useSearchStore = defineStore('magnus.search', () => {
 
   function start() {
     status.value = 'loading';
+    candidateLoading.value = true;
+    searchRunning.value = true;
     error.value = '';
+    keywords.value = '';
     startedAt.value = Date.now();
     finishedAt.value = 0;
     modelAssistAttempted.value = false;
@@ -44,17 +50,23 @@ export const useSearchStore = defineStore('magnus.search', () => {
     i18nTrace.value = result?.i18nTrace || null;
     definitionTrace.value = result?.definitionTrace || null;
     status.value = candidates.value.length ? 'success' : 'idle';
+    candidateLoading.value = false;
+    searchRunning.value = false;
     finishedAt.value = Date.now();
   }
 
   function fail(reason: unknown) {
     status.value = 'error';
+    candidateLoading.value = false;
+    searchRunning.value = false;
     error.value = `${(reason as Error)?.message || reason || ''}`;
     finishedAt.value = Date.now();
   }
 
   function reset() {
     status.value = 'idle';
+    candidateLoading.value = false;
+    searchRunning.value = false;
     candidates.value = [];
     selectedCandidatePaths.value = [];
     expandedCandidatePath.value = '';
@@ -70,6 +82,8 @@ export const useSearchStore = defineStore('magnus.search', () => {
   return {
     status,
     candidates,
+    candidateLoading,
+    searchRunning,
     selectedCandidatePaths,
     expandedCandidatePath,
     apiTrace,
@@ -78,6 +92,7 @@ export const useSearchStore = defineStore('magnus.search', () => {
     startedAt,
     finishedAt,
     error,
+    keywords,
     includeApiEvidence,
     modelAssistAttempted,
     showCandidatePicker,

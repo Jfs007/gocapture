@@ -1,22 +1,22 @@
-import { extractSearchTerms } from './element-context';
+import { extractSearchTerms } from '../utils/text';
 
-export function createSearchContextTools({ denoiseTextByApi }) {
-  function isNoiseClassTerm(term) {
+export function createSearchContextTools({ denoiseTextByApi }: { denoiseTextByApi: (text: string, limit?: number) => string }) {
+  function isNoiseClassTerm(term: string) {
     return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term)
       || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
   }
 
-  function contextTextTerms(info) {
+  function contextTextTerms(info: any) {
     return extractSearchTerms(denoiseTextByApi(info?.text || ''));
   }
 
-  function contextClassTerms(info) {
+  function contextClassTerms(info: any) {
     return extractSearchTerms(info?.className || '').filter(term => !isNoiseClassTerm(term));
   }
 
-  function contextAttrTerms(info) {
+  function contextAttrTerms(info: any) {
     const attrs = info?.attrs || {};
-    const terms = [];
+    const terms: string[] = [];
     for (const [key, value] of Object.entries(attrs)) {
       if (String(value || '').trim() === '[present]') continue;
       terms.push(...extractSearchTerms(key));
@@ -25,16 +25,16 @@ export function createSearchContextTools({ denoiseTextByApi }) {
     return Array.from(new Set(terms));
   }
 
-  function contextStyleTerms(info) {
+  function contextStyleTerms(info: any) {
     const style = info?.computedStyle || {};
-    const terms = [];
+    const terms: string[] = [];
     for (const key of ['width', 'height', 'objectFit', 'fontSize', 'fontWeight', 'backgroundSize', 'backgroundPosition']) {
       terms.push(...extractSearchTerms(style[key] || ''));
     }
     return Array.from(new Set(terms));
   }
 
-  function searchContextTerms(info) {
+  function searchContextTerms(info: any) {
     return Array.from(new Set([
       ...contextTextTerms(info),
       ...contextClassTerms(info),
@@ -43,7 +43,7 @@ export function createSearchContextTools({ denoiseTextByApi }) {
     ]));
   }
 
-  function hasUsefulExpandedFallback(selfInfo, expandedInfo) {
+  function hasUsefulExpandedFallback(selfInfo: any, expandedInfo: any) {
     const selfText = String(denoiseTextByApi(selfInfo?.text || '') || '').replace(/\s+/g, ' ').trim();
     const expandedText = String(denoiseTextByApi(expandedInfo?.text || '') || '').replace(/\s+/g, ' ').trim();
     const selfTerms = new Set(searchContextTerms(selfInfo));
@@ -61,7 +61,7 @@ export function createSearchContextTools({ denoiseTextByApi }) {
     return false;
   }
 
-  function searchContextSpecificityScore(info) {
+  function searchContextSpecificityScore(info: any) {
     const phrase = String(denoiseTextByApi(info?.text || '') || '').trim();
     const phraseScore = phrase.length >= 2 && phrase.length <= 32
       ? 14
@@ -75,7 +75,7 @@ export function createSearchContextTools({ denoiseTextByApi }) {
       + contextStyleTerms(info).length * 4;
   }
 
-  function searchContextBreadthScore(info) {
+  function searchContextBreadthScore(info: any) {
     const subtree = info?.subtree || {};
     const nodeCount = Number(subtree.nodeCount || 0);
     const textCount = Array.isArray(subtree.texts) ? subtree.texts.length : 0;
@@ -93,7 +93,7 @@ export function createSearchContextTools({ denoiseTextByApi }) {
       + Math.min(40, Math.floor(area / 50000));
   }
 
-  function shouldKeepExpandedSearchContext(selfInfo, expandedInfo) {
+  function shouldKeepExpandedSearchContext(selfInfo: any, expandedInfo: any) {
     if (!selfInfo || !expandedInfo) return false;
     if (hasUsefulExpandedFallback(selfInfo, expandedInfo)) return true;
     const selfSpecificity = searchContextSpecificityScore(selfInfo);

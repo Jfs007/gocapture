@@ -4,7 +4,7 @@ import type { SourceProject, SourceServiceStatus } from '../app/types/source-pro
 
 export const useProjectStore = defineStore('magnus.project', () => {
   const current = ref<SourceProject | null>(null);
-  const serviceStatus = ref<SourceServiceStatus>('unknown');
+  const serviceStatus = ref<SourceServiceStatus>('idle');
   const serviceError = ref('');
   const serviceMessage = ref('');
 

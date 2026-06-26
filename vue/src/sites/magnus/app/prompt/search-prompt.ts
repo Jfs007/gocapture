@@ -1,32 +1,67 @@
 // @ts-nocheck
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
 import { candidateStageLabel } from '../presenters/candidate-presenter';
 import { createSearchLogLines } from '../presenters/search-log-presenter';
-import { compactText, extractSearchTerms } from '../../core/element-context';
-import { createSearchContextTools } from '../../core/search-context';
+import { compactText, extractSearchTerms } from '../utils/text';
+import { createSearchContextTools } from './search-context';
+import { useAppUiStore } from '../../stores/app-ui.store';
+import { useComposerStore } from '../../stores/composer.store';
+import { useProjectStore } from '../../stores/project.store';
+import { useRequestStore } from '../../stores/request.store';
+import { useRouteStore } from '../../stores/route.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSelectionStore } from '../../stores/selection.store';
 
-export function useSearchPrompt({
-  selectedItems,
-  selectedCandidatePaths,
-  selectedCandidateHits,
-  candidateHits,
-  routeResolverTrace,
-  apiTrace,
-  i18nTrace,
-  definitionTrace,
-  evidenceMessages,
-  customEvidence,
-  promptIntent,
-  searchKeywords,
-  includeApiEvidence,
-  searchApiRequests,
-  currentPageHref,
-  pageUrlPath,
-  project,
-  promptText,
-  denoiseTextByApi,
-  selectionPayloads,
-  setToast
-}) {
+export function useSearchPrompt() {
+  const appUiStore = useAppUiStore();
+  const composerStore = useComposerStore();
+  const projectStore = useProjectStore();
+  const requestStore = useRequestStore();
+  const routeStore = useRouteStore();
+  const searchStore = useSearchStore();
+  const selectionStore = useSelectionStore();
+  const {
+    content: promptIntent,
+    finalPrompt: promptText
+  } = storeToRefs(composerStore);
+  const { current: project } = storeToRefs(projectStore);
+  const { recent: searchApiRequests } = storeToRefs(requestStore);
+  const {
+    pageUrl: currentPageHref,
+    pagePath: pageUrlPath,
+    resolverTrace: routeResolverTrace
+  } = storeToRefs(routeStore);
+  const {
+    candidates: candidateHits,
+    selectedCandidatePaths,
+    selectedCandidates: selectedCandidateHits,
+    apiTrace,
+    i18nTrace,
+    definitionTrace,
+    keywords: searchKeywords,
+    includeApiEvidence
+  } = storeToRefs(searchStore);
+  const {
+    customEvidence,
+    evidenceMessages
+  } = storeToRefs(selectionStore);
+  const selectedItems = computed(() => selectionStore.items.map(item => ({
+    uid: item.uid,
+    element: null,
+    info: item.element || {},
+    assetElement: null,
+    assetInfo: item.asset || item.element || {},
+    thumbnailUrl: item.thumbnailUrl || ''
+  })));
+  const selectionPayloads = () => selectionStore.items.map((item, index) => ({
+    index: index + 1,
+    token: `@选区${index + 1}`,
+    element: item.element,
+    asset: item.asset || null,
+    thumbnailCaptured: !!item.thumbnailUrl
+  }));
+  const denoiseTextByApi = requestStore.denoiseTextByApi;
   const searchContext = createSearchContextTools({ denoiseTextByApi });
 
   function filteredAncestorsForSearch(info) {
@@ -504,21 +539,10 @@ export function useSearchPrompt({
       selectionReference ? `选区文本参考: ${selectionReference}` : '',
       agentSafetyGuardLines()
     ].filter(Boolean).join('\n\n');
-    setToast('提示词已生成');
+    appUiStore.setToast('提示词已生成');
   }
 
   const searchLogLines = createSearchLogLines({
-    selectedItems,
-    project,
-    pageUrlPath,
-    promptIntent,
-    includeApiEvidence,
-    searchApiRequests,
-    candidateHits,
-    routeResolverTrace,
-    apiTrace,
-    i18nTrace,
-    definitionTrace,
     combinedSelectionText,
     normalizeInstructionText
   });

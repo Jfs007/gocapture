@@ -14,8 +14,5 @@ interface Window {
     destroy?: () => void;
     [key: string]: unknown;
   } | null;
-  __MAGNUS_SELECTIONS__?: unknown[];
-  __MAGNUS_LAST_ELEMENT__?: unknown;
-  __MAGNUS_LAST_ELEMENT_INFO__?: unknown;
   showDirectoryPicker?: (options?: Record<string, unknown>) => Promise<any>;
 }

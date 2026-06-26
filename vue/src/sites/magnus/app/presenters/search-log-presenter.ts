@@ -1,20 +1,39 @@
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useComposerStore } from '../../stores/composer.store';
+import { useProjectStore } from '../../stores/project.store';
+import { useRequestStore } from '../../stores/request.store';
+import { useRouteStore } from '../../stores/route.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSelectionStore } from '../../stores/selection.store';
 import { candidateLogLines } from './candidate-presenter';
 
 export function createSearchLogLines({
-  selectedItems,
-  project,
-  pageUrlPath,
-  promptIntent,
-  includeApiEvidence,
-  searchApiRequests,
-  candidateHits,
-  routeResolverTrace,
-  apiTrace,
-  i18nTrace,
-  definitionTrace,
   combinedSelectionText,
   normalizeInstructionText
 }) {
+  const composerStore = useComposerStore();
+  const projectStore = useProjectStore();
+  const requestStore = useRequestStore();
+  const routeStore = useRouteStore();
+  const searchStore = useSearchStore();
+  const selectionStore = useSelectionStore();
+  const { content: promptIntent } = storeToRefs(composerStore);
+  const { current: project } = storeToRefs(projectStore);
+  const { recent: recentRequests } = storeToRefs(requestStore);
+  const { pagePath: pageUrlPath, resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
+  const {
+    candidates: candidateHits,
+    includeApiEvidence,
+    apiTrace,
+    i18nTrace,
+    definitionTrace
+  } = storeToRefs(searchStore);
+  const selectedItems = computed(() => selectionStore.items.map(item => ({
+    info: item.element || {}
+  })));
+  const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
+
   return function searchLogLines() {
     const routeLines = routeResolverLogLines({ routeResolverTrace, pageUrlPath, project });
     const lines = [

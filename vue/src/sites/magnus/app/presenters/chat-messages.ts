@@ -1,32 +1,56 @@
-import { computed, type Ref } from 'vue';
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useComposerStore } from '../../stores/composer.store';
+import { useModelStore } from '../../stores/model.store';
+import { useProjectStore } from '../../stores/project.store';
+import { useSearchStore } from '../../stores/search.store';
+import { useSelectionStore } from '../../stores/selection.store';
+import { useSearchPrompt } from '../prompt/search-prompt';
 
-type ChatMessageInput = Record<string, Ref<any> | any>;
-
-export function useChatMessages({
-  project,
-  selectedItems,
-  selectionConfirmed,
-  evidenceMessages,
-  candidateLoading,
-  searchRunning,
-  includeApiEvidence,
-  candidateHits,
-  needsMoreEvidence,
-  filesConfirmed,
-  promptText,
-  sourceServiceStatus,
-  sourceServiceMessage,
-  modelAssistLoading,
-  modelAssistError,
-  modelAssistLogs,
-  modelAssistResult,
-  searchStartedAt,
-  searchFinishedAt,
-  modelAssistStartedAt,
-  modelAssistFinishedAt,
-  selectionChatSummary,
-  searchLogLines
-}: ChatMessageInput) {
+export function useChatMessages() {
+  const composerStore = useComposerStore();
+  const modelStore = useModelStore();
+  const projectStore = useProjectStore();
+  const searchStore = useSearchStore();
+  const selectionStore = useSelectionStore();
+  const prompt = useSearchPrompt();
+  const { finalPrompt: promptText } = storeToRefs(composerStore);
+  const {
+    error: modelAssistError,
+    logs: modelAssistLogs,
+    result: modelAssistResult,
+    startedAt: modelAssistStartedAt,
+    finishedAt: modelAssistFinishedAt
+  } = storeToRefs(modelStore);
+  const {
+    current: project,
+    serviceStatus: sourceServiceStatus,
+    serviceMessage: sourceServiceMessage
+  } = storeToRefs(projectStore);
+  const {
+    candidates: candidateHits,
+    candidateLoading,
+    searchRunning,
+    includeApiEvidence,
+    needsMoreEvidence,
+    startedAt: searchStartedAt,
+    finishedAt: searchFinishedAt
+  } = storeToRefs(searchStore);
+  const {
+    confirmed: selectionConfirmed,
+    evidenceMessages,
+    filesConfirmed
+  } = storeToRefs(selectionStore);
+  const selectedItems = computed(() => selectionStore.items.map(item => ({
+    uid: item.uid,
+    element: null,
+    info: item.element || {},
+    assetElement: null,
+    assetInfo: item.asset || item.element || {},
+    thumbnailUrl: item.thumbnailUrl || ''
+  })));
+  const modelAssistLoading = computed(() => modelStore.status === 'running');
+  const { selectionChatSummary, searchLogLines } = prompt;
   const sourceServiceText = computed(() => {
     if (sourceServiceStatus.value === 'loading') return sourceServiceMessage.value || '正在连接本地源码服务...';
     if (sourceServiceStatus.value === 'connected') return '已连接本地源码服务，可读取真实源码路径';
@@ -134,7 +158,7 @@ export function useChatMessages({
         logExpanded: true
       });
     } else if (modelAssistResult?.value) {
-      const result = modelAssistResult.value;
+      const result: any = modelAssistResult.value;
       const targets = (result.modelItems || result.targetFiles || []);
       const targetLogs = targets
         .slice(0, 5)

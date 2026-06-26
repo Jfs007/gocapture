@@ -7,4 +7,4 @@ export interface SourceProject {
   [key: string]: unknown;
 }
 
-export type SourceServiceStatus = 'unknown' | 'ready' | 'loading' | 'error';
+export type SourceServiceStatus = 'unknown' | 'idle' | 'ready' | 'loading' | 'connected' | 'fallback' | 'error';
