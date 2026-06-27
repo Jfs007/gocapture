@@ -3,6 +3,7 @@
   const RUNTIME_KEY = '__MAGNUS_SFR__';
   const OVERLAY_ID = 'magnus-sfr-picker-overlay';
   const BADGE_ID = 'magnus-sfr-picker-badge';
+  const SELECTION_NODE_LIMIT = 80;
 
   if (window[RUNTIME_KEY] && typeof window[RUNTIME_KEY].destroy === 'function') {
     window[RUNTIME_KEY].destroy();
@@ -251,6 +252,7 @@
       style: subtree.styles,
       nodes: subtree.nodes,
       nodeCount: subtree.nodeCount,
+      truncated: subtree.truncated,
     };
   }
 
@@ -558,10 +560,11 @@
         styles: [],
         nodes: [],
         nodeCount: 0,
+        truncated: false,
       };
     }
 
-    const nodeLimit = options.nodeLimit || 80;
+    const nodeLimit = options.nodeLimit || SELECTION_NODE_LIMIT;
     const queue = [element];
     const classNames = [];
     const texts = [];
@@ -569,6 +572,7 @@
     const styles = [];
     const nodes = [];
     let inspected = 0;
+    let truncated = false;
 
     const addUnique = (list, value, limit) => {
       const text = compactText(value, 240);
@@ -623,10 +627,14 @@
       }
 
       for (const child of Array.from(node.children || [])) {
-        if (queue.length + inspected >= nodeLimit) break;
+        if (queue.length + inspected >= nodeLimit) {
+          truncated = true;
+          break;
+        }
         queue.push(child);
       }
     }
+    if (queue.length > 0) truncated = true;
 
     return {
       classNames,
@@ -635,6 +643,7 @@
       styles,
       nodes,
       nodeCount: inspected,
+      truncated,
     };
   }
 
@@ -677,6 +686,48 @@
       attrTerms,
       styleTerms,
     };
+  }
+
+  function isVisibleSelectionElement(element, pointer) {
+    if (!element || !document.documentElement.contains(element)) return false;
+    if (element.hidden || element.getAttribute?.('aria-hidden') === 'true') return false;
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0 || element.getClientRects().length === 0) return false;
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none'
+      || style.visibility === 'hidden'
+      || style.visibility === 'collapse'
+      || style.contentVisibility === 'hidden'
+      || style.pointerEvents === 'none'
+      || Number(style.opacity) <= 0) {
+      return false;
+    }
+    if (!pointer || !Number.isFinite(pointer.x) || !Number.isFinite(pointer.y)) return true;
+    const hit = document.elementFromPoint(pointer.x, pointer.y);
+    return !!hit && (hit === element || element.contains(hit));
+  }
+
+  function findNextSizedAncestor(element, pointer, maxDepth = 24) {
+    if (!element) return null;
+    const baseRect = element.getBoundingClientRect();
+    const baseWidth = Math.round(baseRect.width);
+    const baseHeight = Math.round(baseRect.height);
+    let node = element.parentElement;
+    let depth = 0;
+
+    while (node && node !== document.documentElement && depth < maxDepth) {
+      depth++;
+      if (!isVisibleSelectionElement(node, pointer)) {
+        node = node.parentElement;
+        continue;
+      }
+      const rect = node.getBoundingClientRect();
+      if (Math.round(rect.width) !== baseWidth || Math.round(rect.height) !== baseHeight) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
   }
 
   function scoreContextPromotion(baseEvidence, nextEvidence) {
@@ -857,7 +908,7 @@
     ].join(';');
     const badge = document.createElement('div');
     badge.id = BADGE_ID;
-    badge.textContent = '空格键确认选区';
+    badge.textContent = '空格确认 · W 扩大 · S 缩小';
     badge.style.cssText = [
       'position:fixed',
       'z-index:2147483647',
@@ -873,13 +924,6 @@
     document.documentElement.appendChild(overlay);
     document.documentElement.appendChild(badge);
     return { overlay, badge };
-  }
-
-  function isEditableTarget(target) {
-    const element = target && target.nodeType === 1 ? target : target?.parentElement;
-    if (!element) return false;
-    const tag = element.tagName ? element.tagName.toLowerCase() : '';
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || element.isContentEditable;
   }
 
   function getMdWeb() {
@@ -1025,8 +1069,10 @@
       this.socket = null;
       this.pickerEnabled = false;
       this.hoveredElement = null;
+      this.selectionLevelPath = [];
       this.lastPointer = null;
       this.lastConfirmAt = 0;
+      this.lastPointerActivityAt = 0;
       this.pendingMessages = [];
       this.selectionRefs = new Map();
       this.selections = [];
@@ -1133,6 +1179,8 @@
         this.clearSelections();
       } else if (message.type === 'page.command.context.get') {
         this.emitPageContext();
+      } else if (message.type === 'page.command.picker.key') {
+        this.handleRemotePickerKey(message.command?.payload || {});
       }
     }
 
@@ -1274,16 +1322,87 @@
     handlePointerMove(event) {
       if (!this.pickerEnabled) return;
       if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return;
-      this.lastPointer = { x: event.clientX, y: event.clientY };
       const element = document.elementFromPoint(event.clientX, event.clientY);
       if (!element || element.nodeType !== 1) return;
-      this.hoveredElement = element;
-      this.showOverlay(element);
+      this.lastPointer = { x: event.clientX, y: event.clientY };
+      if (this.selectionLevelPath[0] !== element) {
+        this.selectionLevelPath = [element];
+      }
+      const target = this.selectionLevelPath[this.selectionLevelPath.length - 1] || element;
+      this.hoveredElement = target;
+      this.showOverlay(target);
+      this.emitPointerActivity();
     }
 
     handleClick(event) {
       if (!this.pickerEnabled) return;
       this.lastPointer = { x: event.clientX, y: event.clientY };
+    }
+
+    emitPointerActivity() {
+      if (document.hasFocus()) return;
+      const now = Date.now();
+      if (now - this.lastPointerActivityAt < 250) return;
+      this.lastPointerActivityAt = now;
+      this.emit('picker.pointer_active', { active: true });
+    }
+
+    handleRemotePickerKey(payload) {
+      const key = String(payload.key || '').toLowerCase();
+      const code = String(payload.code || '');
+      const event = {
+        key,
+        code,
+        repeat: false,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        preventDefault() {},
+        stopPropagation() {},
+        stopImmediatePropagation() {},
+      };
+      if (this.isSelectionLevelKey(event)) {
+        this.adjustSelectionLevel(event);
+        return;
+      }
+      if (this.isConfirmKey(event)) {
+        this.confirmHoveredSelection(event);
+      }
+    }
+
+    isSelectionLevelKey(event) {
+      return (event.code === 'KeyW' || event.code === 'KeyS'
+        || String(event.key || '').toLowerCase() === 'w'
+        || String(event.key || '').toLowerCase() === 's')
+        && !event.metaKey
+        && !event.ctrlKey
+        && !event.altKey;
+    }
+
+    adjustSelectionLevel(event) {
+      if (!this.pickerEnabled || !this.isSelectionLevelKey(event) || event.repeat) return false;
+      const current = this.resolveCurrentElement();
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      if (!current) return true;
+
+      const isExpand = event.code === 'KeyW' || String(event.key || '').toLowerCase() === 'w';
+      let next = current;
+      if (isExpand) {
+        next = findNextSizedAncestor(current, this.lastPointer) || current;
+        if (next !== current) {
+          if (!this.selectionLevelPath.length) this.selectionLevelPath = [current];
+          this.selectionLevelPath.push(next);
+        }
+      } else if (this.selectionLevelPath.length > 1) {
+        this.selectionLevelPath.pop();
+        next = this.selectionLevelPath[this.selectionLevelPath.length - 1];
+      }
+
+      this.hoveredElement = next;
+      this.showOverlay(next);
+      return true;
     }
 
     isConfirmKey(event) {
@@ -1319,14 +1438,27 @@
     }
 
     handleKeyDown(event) {
+      if (this.adjustSelectionLevel(event)) return;
       this.confirmHoveredSelection(event);
     }
 
     handleKeyPress(event) {
+      if (this.pickerEnabled && this.isSelectionLevelKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       this.confirmHoveredSelection(event);
     }
 
     handleKeyUp(event) {
+      if (this.pickerEnabled && this.isSelectionLevelKey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (!this.pickerEnabled || !this.isConfirmKey(event)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1455,8 +1587,8 @@
     }
 
     addSelection(element) {
-      const info = getElementInfo(element);
       const sourceLocate = inspectSourceLocate(element);
+      const info = getElementInfo(element);
       info.sourceLocate = sourceLocate;
       const selection = {
         uid: info.uid,

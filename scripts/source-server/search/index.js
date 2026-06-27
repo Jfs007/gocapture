@@ -1585,6 +1585,55 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
   }).sort((a, b) => b.score - a.score);
 }
 
+function promoteImportingCandidateScores(hits, routeEntry, graph) {
+  const candidates = mergeHits(hits || []);
+  const sourceScores = new Map(candidates.map(hit => [hit.file, Number(hit.score || 0)]));
+  return candidates.map(parentHit => {
+    let best = null;
+    for (const childHit of candidates) {
+      if (!childHit?.file || childHit.file === parentHit.file) continue;
+      if (!(childHit.domGroupCoverage > 0
+        || childHit.preciseEvidence
+        || childHit.exactMatchText
+        || childHit.uniqueMatchText
+        || childHit.contextStrongMatchCount > 0)) {
+        continue;
+      }
+      const chain = findImportPath(graph, parentHit.file, childHit.file, 12);
+      if (chain.length < 2) continue;
+      const isRouteOwner = parentHit.file === routeEntry;
+      if (!isRouteOwner && chain.length !== 2) continue;
+      if (isRouteOwner && chain.length > 8) continue;
+      const ownershipBonus = isRouteOwner ? 28 : 16;
+      const inheritedScore = (sourceScores.get(childHit.file) || 0) + ownershipBonus;
+      if (!best || inheritedScore > best.score) {
+        best = {
+          file: childHit.file,
+          score: inheritedScore,
+          chain,
+        };
+      }
+    }
+    if (!best || best.score <= Number(parentHit.score || 0)) return parentHit;
+    return {
+      ...parentHit,
+      score: best.score,
+      stage: parentHit.stage || 'import-parent-promoted',
+      stages: mergeList(parentHit.stages || parentHit.stage, 'import-parent-promoted'),
+      importChain: best.chain,
+      relationshipPromoted: true,
+      relationshipEvidenceFile: best.file,
+      reasons: uniq([
+        parentHit.file === routeEntry
+          ? `页面所有权提分：当前路由入口通过引用链使用候选 ${best.file}`
+          : `父级引用提分：该文件通过引用链使用候选 ${best.file}`,
+        `引用关系：${best.chain.join(' -> ')}`,
+        ...(parentHit.reasons || []),
+      ]).slice(0, 12),
+    };
+  }).sort((a, b) => b.score - a.score);
+}
+
 function firstLayerSnippetSource(text, layer) {
   const textSource = firstMatchedValueInText(text, [
     ...(layer.ownTextPhrases || []),
@@ -2278,7 +2327,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
   const scopePlan = buildLayeredScopePlan(project, routeHits, evidence, textCache, scopes);
   const selfEvidence = selfOnlyEvidence(evidence);
 
-  let last = { hits: [], activeScope: allScope, layer: 'L3' };
+  let last = { hits: [], activeScope: allScope, layer: 'L3', graph };
   for (const scope of scopePlan) {
     const initialHits = searchInitialSelectionHits(
       project,
@@ -2330,6 +2379,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         hits: localStructuredHits,
         activeScope: scope,
         layer: scope.name.replace(/：.*$/, ''),
+        graph,
       };
     }
     const recalledHits = recallByStructuredEvidence(project, routeHits, selfEvidence, textCache, {
@@ -2362,6 +2412,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         hits: refinedHits,
         activeScope: scope,
         layer: scope.name.replace(/：.*$/, ''),
+        graph,
       };
       if (stableLocalHits(refinedHits)) return last;
       if (exactTextIsUniqueEnough(refinedHits)) return last;
@@ -2414,6 +2465,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
       hits: fallbackMergedHits,
       activeScope: scope,
       layer: scope.name.replace(/：.*$/, ''),
+      graph,
     };
     if (meaningfulFallbackHits.length && stableLocalHits(fallbackMergedHits)) return last;
     if (meaningfulFallbackHits.length && exactTextIsUniqueEnough(fallbackMergedHits)) return last;
@@ -2435,14 +2487,18 @@ function searchProjectWithMeta(project, body) {
 
   const scopes = buildSearchScopes(project, routeHits, textCache);
   const layered = layeredSelectionHits(project, routeHits, evidence, textCache, scopes);
-  const localHits = (layered.hits || [])
+  const localHits = promoteImportingCandidateScores(
+    (layered.hits || [])
     .map(hit => ({
       ...hit,
       reasons: uniq([
         `检索层级：${layered.layer}`,
         ...(hit.reasons || []),
       ]).slice(0, 12),
-    }));
+    })),
+    routeHits?.[0]?.file || '',
+    layered.graph
+  );
   const sortedKeywordHits = localHits
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);

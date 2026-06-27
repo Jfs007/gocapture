@@ -19,6 +19,8 @@ export function useSidePanelBridge({
   const appUiStore = useAppUiStore();
   let socket: WebSocket | null = null;
   let pageSessionId = '';
+  let relayPageKeyboard = false;
+  let keyboardRelayInstalled = false;
 
   function selectionList(source: any) {
     return Array.isArray(source?.selections)
@@ -44,6 +46,10 @@ export function useSidePanelBridge({
   function applyRemoteSessionEvent(message: any) {
     const event = message?.event || {};
     const payload = event.payload || {};
+    if (event.type === 'picker.pointer_active') {
+      relayPageKeyboard = payload.active !== false;
+      return;
+    }
     if (event.type) onRuntimeEvent?.({ type: event.type, payload });
     if (event.type === 'selection.changed') {
       appUiStore.setToast(`已添加选区 ${selectionList(payload).length}`);
@@ -66,6 +72,7 @@ export function useSidePanelBridge({
   function connectSidePanelBridge() {
     const config = sidePanelConfig.value || {};
     if (!config.panelTicket || !config.bridgeUrl) return;
+    installKeyboardRelay();
     try {
       const nextSocket = new WebSocket(config.bridgeUrl);
       socket = nextSocket;
@@ -103,6 +110,46 @@ export function useSidePanelBridge({
     socket?.close();
     socket = null;
     pageSessionId = '';
+    relayPageKeyboard = false;
+    uninstallKeyboardRelay();
+  }
+
+  function isPickerShortcut(event: KeyboardEvent) {
+    if (event.metaKey || event.ctrlKey || event.altKey) return false;
+    return event.code === 'KeyW'
+      || event.code === 'KeyS'
+      || event.code === 'Space'
+      || event.key === ' '
+      || event.key === 'Spacebar';
+  }
+
+  function handleKeyboardRelay(event: KeyboardEvent) {
+    if (!relayPageKeyboard || event.repeat || !isPickerShortcut(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    sendSidePanelCommand('picker.key', {
+      code: event.code,
+      key: event.key
+    });
+  }
+
+  function disableKeyboardRelay() {
+    relayPageKeyboard = false;
+  }
+
+  function installKeyboardRelay() {
+    if (keyboardRelayInstalled) return;
+    keyboardRelayInstalled = true;
+    window.addEventListener('keydown', handleKeyboardRelay, true);
+    window.addEventListener('pointermove', disableKeyboardRelay, true);
+  }
+
+  function uninstallKeyboardRelay() {
+    if (!keyboardRelayInstalled) return;
+    keyboardRelayInstalled = false;
+    window.removeEventListener('keydown', handleKeyboardRelay, true);
+    window.removeEventListener('pointermove', disableKeyboardRelay, true);
   }
 
   function sendSidePanelCommand(type: string, payload?: unknown) {

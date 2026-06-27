@@ -1181,6 +1181,7 @@ function stableLocalModelCandidate(body) {
   const top = sorted[0];
   const second = sorted[1];
   if (!top) return null;
+  if (top.relationshipPromoted) return null;
   if (top.i18nEvidence || top.i18nDefinitionFile || hitStages(top).some(stage => /^i18n-/.test(stage))) return null;
   const hasPreciseLocalEvidence = top.preciseEvidence
     || top.exactMatchText
