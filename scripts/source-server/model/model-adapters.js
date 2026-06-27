@@ -5,6 +5,10 @@ const path = require('path');
 const { spawn } = require('child_process');
 const tls = require('tls');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
+const {
+  enhanceLocatedPrompt,
+  fallbackEnhancedPrompt,
+} = require('../experience/prompt-enhancer');
 const { findClassTokenIndex } = require('../search/evidence');
 const { escapeRegExp, tokenize, uniq } = require('../utils');
 
@@ -3021,7 +3025,22 @@ function buildCliLocatePrompt(prompt) {
   ].join('\n');
 }
 
-function runExecAdapter(adapter, prompt, cwd, logs, signal) {
+function buildCliStructuredPrompt(prompt) {
+  return [
+    '你当前只承担 Magnus 的结构化分析子任务。',
+    '',
+    '严格约束：',
+    '- 不要执行命令。',
+    '- 不要修改文件。',
+    '- 不要读取本提示词以外的文件。',
+    '- 不要联网。',
+    '- 只根据提示词中提供的项目上下文返回要求的 JSON。',
+    '',
+    prompt,
+  ].join('\n');
+}
+
+function runExecAdapter(adapter, prompt, cwd, logs, signal, runtimeOptions = {}) {
   const parts = splitCommandLine(adapter.command);
   if (!parts.length) throw new Error('Cli 模型缺少 command，例如：codex exec');
   throwIfAborted(signal);
@@ -3035,8 +3054,15 @@ function runExecAdapter(adapter, prompt, cwd, logs, signal) {
   appendLog(logs, `Cli 模型启动：${command}${args.length ? ` ${args.join(' ')}` : ''}`);
   appendLog(logs, `执行目录：${cwd}`);
   appendLog(logs, adapter.proxyUrl ? `代理：已写入环境变量 ${safeUrlLabel(adapter.proxyUrl)}` : '代理：未启用');
-  appendLog(logs, 'Cli 轻量定位约束：已启用；仅允许基于提示词内容输出 JSON，不执行命令/改文件/额外读文件');
-  const execPrompt = buildCliLocatePrompt(prompt);
+  appendLog(
+    logs,
+    runtimeOptions.rawPrompt
+      ? `Cli 结构化任务：${runtimeOptions.stage || 'experience'}；仅允许基于提示词内容输出 JSON`
+      : 'Cli 轻量定位约束：已启用；仅允许基于提示词内容输出 JSON，不执行命令/改文件/额外读文件'
+  );
+  const execPrompt = runtimeOptions.rawPrompt
+    ? buildCliStructuredPrompt(prompt)
+    : buildCliLocatePrompt(prompt);
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -3257,7 +3283,7 @@ function requestApiText(endpoint, options) {
   return requestTextHttpProxy(endpoint, proxyUrl, options);
 }
 
-async function runApiAdapter(adapter, prompt, logs, signal) {
+async function runApiAdapter(adapter, prompt, logs, signal, runtimeOptions = {}) {
   if (!adapter.endpoint) throw new Error('API 模型缺少 endpoint');
   throwIfAborted(signal);
   const headers = {
@@ -3268,7 +3294,10 @@ async function runApiAdapter(adapter, prompt, logs, signal) {
     model: adapter.model || undefined,
     temperature: 0,
     messages: [
-      { role: 'system', content: '你是严谨的本地源码定位 agent，只返回 JSON。' },
+      {
+        role: 'system',
+        content: runtimeOptions.systemPrompt || '你是严谨的本地源码定位 agent，只返回 JSON。',
+      },
       { role: 'user', content: prompt },
     ],
   };
@@ -3359,6 +3388,54 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     if (multiFileMatches.length > 1) {
       appendLog(logs, `多文件复核：本地与模型同时支持 ${multiFileMatches.length} 个文件，需保留多文件结果`);
     }
+    let experience = {
+      enhancedPrompt: fallbackEnhancedPrompt({
+        pageUrl: body.searchPayload?.url || body.url || '',
+        pagePath: body.pagePath || body.routeResolver?.pagePath || '',
+        userRequirement: body.searchPayload?.userPrompt || '',
+        targets: modelItems.map(item => ({
+          file: item.file,
+          locateLevel: item.locateLevel,
+          codeSnippet: item.codeSnippet || item.rawCodeSnippet || '',
+          directionGuess: item.directionGuess || '',
+        })),
+      }),
+      mode: 'fallback',
+      usedSkillIds: [],
+    };
+    if (modelItems.length) {
+      try {
+        experience = await enhanceLocatedPrompt({
+          project,
+          body,
+          modelItems,
+          textCache,
+          log: message => appendLog(logs, message),
+          invoke: (stage, prompt) => {
+            throwIfAborted(options.signal);
+            if (adapter.type === 'api') {
+              return runApiAdapter(adapter, prompt, logs, options.signal, {
+                stage,
+                systemPrompt: '你是 Magnus 项目经验发现与需求增强 agent。严格按用户提示的 JSON 协议返回，不执行代码修改。',
+              });
+            }
+            return runExecAdapter(adapter, prompt, project.path, logs, options.signal, {
+              stage,
+              rawPrompt: true,
+            });
+          },
+        });
+        appendLog(logs, `需求提示词增强完成：mode=${experience.mode}；Skill ${experience.usedSkillIds?.length || 0} 个`);
+      } catch (error) {
+        appendLog(logs, `需求提示词增强失败，已回退粗定位提示词：${error.message || error}`);
+      }
+    }
+    const enhancedModelItems = modelItems.map(item => ({
+      ...item,
+      enhancedPrompt: experience.enhancedPrompt,
+      experienceMode: experience.mode,
+      usedSkillIds: experience.usedSkillIds || [],
+    }));
     return {
       adapter: {
         id: adapter.id,
@@ -3368,8 +3445,8 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
       rawText: rawTexts.join('\n\n'),
       parsed: parsedList[0] || null,
       parsedBatches: parsedList,
-      modelItems,
-      targetFiles: modelItems.map(item => ({
+      modelItems: enhancedModelItems,
+      targetFiles: enhancedModelItems.map(item => ({
         file: item.file,
         confidence: item.confidence,
         reason: item.reason,
@@ -3377,6 +3454,9 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         snippetVerified: item.snippetVerified,
         downgradedToDirection: !!item.downgradedToDirection,
         prompt: item.prompt,
+        enhancedPrompt: item.enhancedPrompt,
+        experienceMode: item.experienceMode,
+        usedSkillIds: item.usedSkillIds,
         locateLevel: item.locateLevel || 'exact',
         directionGuess: item.directionGuess || '',
         selectionEvidenceScore: item.selectionEvidenceScore,
@@ -3386,6 +3466,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         localPreciseEvidence: item.localPreciseEvidence,
         exists: item.exists,
       })),
+      experience,
       logs,
     };
   } catch (error) {

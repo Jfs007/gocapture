@@ -329,12 +329,15 @@ export function useModelAdapters() {
         preModelStageLabel: old?.stage ? old.stage : '',
         preModelReasons: old?.reasons || [],
         reasons: [
-          `模型定位：${target.prompt || target.reason || result.parsed?.summary || result.rawText || '-'}`,
+          `模型定位：${target.enhancedPrompt || target.prompt || target.reason || result.parsed?.summary || result.rawText || '-'}`,
           target.directionGuess ? `推测方向：${target.directionGuess}` : '',
           target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : '',
           ...(old?.reasons || [])
         ].filter(Boolean).slice(0, 10),
-        modelPrompt: target.prompt || target.reason || '',
+        modelPrompt: target.enhancedPrompt || target.prompt || target.reason || '',
+        modelEnhancedPrompt: target.enhancedPrompt || '',
+        modelExperienceMode: target.experienceMode || '',
+        modelUsedSkillIds: target.usedSkillIds || [],
         modelCodeSnippet: target.codeSnippet || '',
         modelLocateLevel: target.locateLevel || 'exact',
         modelDirectionGuess: target.directionGuess || '',
@@ -379,7 +382,7 @@ export function useModelAdapters() {
           candidateHits: candidateHits.value.slice(0, 4),
           selectedCandidateHits: candidateHits.value.filter(hit => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4),
         },
-        timeoutMs: Number(selectedModel.value.timeoutMs || 120000) + 5000,
+        timeoutMs: Number(selectedModel.value.timeoutMs || 120000) * 3 + 5000,
         timeoutMessage: '模型定位超时',
         abortMessage: '模型定位已停止',
         onEvent(event) {

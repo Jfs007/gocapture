@@ -11520,6 +11520,14 @@ ${source}` : "",
     }
     function generatePrompt(options = {}) {
       const command = normalizeInstructionText(options.userInstruction || buildPromptIntentDraft()) || modificationCommand();
+      const enhancedPrompts = Array.from(new Set(
+        selectedPromptHits().map((hit) => String(hit.modelEnhancedPrompt || "").trim()).filter(Boolean)
+      ));
+      if (enhancedPrompts.length) {
+        promptText.value = enhancedPrompts.join("\n\n");
+        appUiStore.setToast("提示词已生成");
+        return;
+      }
       const tasks = finalPromptTaskLines(command);
       const selectionReference = selectionTextReferenceLines(command);
       promptText.value = [
@@ -11843,12 +11851,15 @@ ${source}` : "",
           preModelStageLabel: (old == null ? void 0 : old.stage) ? old.stage : "",
           preModelReasons: (old == null ? void 0 : old.reasons) || [],
           reasons: [
-            `模型定位：${target.prompt || target.reason || ((_a = result.parsed) == null ? void 0 : _a.summary) || result.rawText || "-"}`,
+            `模型定位：${target.enhancedPrompt || target.prompt || target.reason || ((_a = result.parsed) == null ? void 0 : _a.summary) || result.rawText || "-"}`,
             target.directionGuess ? `推测方向：${target.directionGuess}` : "",
             target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : "",
             ...(old == null ? void 0 : old.reasons) || []
           ].filter(Boolean).slice(0, 10),
-          modelPrompt: target.prompt || target.reason || "",
+          modelPrompt: target.enhancedPrompt || target.prompt || target.reason || "",
+          modelEnhancedPrompt: target.enhancedPrompt || "",
+          modelExperienceMode: target.experienceMode || "",
+          modelUsedSkillIds: target.usedSkillIds || [],
           modelCodeSnippet: target.codeSnippet || "",
           modelLocateLevel: target.locateLevel || "exact",
           modelDirectionGuess: target.directionGuess || "",
@@ -11893,7 +11904,7 @@ ${source}` : "",
               candidateHits: candidateHits.value.slice(0, 4),
               selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
             },
-            timeoutMs: Number(selectedModel.value.timeoutMs || 12e4) + 5e3,
+            timeoutMs: Number(selectedModel.value.timeoutMs || 12e4) * 3 + 5e3,
             timeoutMessage: "模型定位超时",
             abortMessage: "模型定位已停止",
             onEvent(event) {

@@ -17,6 +17,10 @@ const SKIP_DIRS = new Set([
   '.nuxt',
   '.output',
   '.cache',
+  '.claude',
+  '.codex',
+  '.DS_Store',
+  '.magnus-project',
   'target',
   'vendor',
 ]);

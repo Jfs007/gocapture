@@ -531,6 +531,16 @@ export function useSearchPrompt() {
 
   function generatePrompt(options = {}) {
     const command = normalizeInstructionText(options.userInstruction || buildPromptIntentDraft()) || modificationCommand();
+    const enhancedPrompts = Array.from(new Set(
+      selectedPromptHits()
+        .map(hit => String(hit.modelEnhancedPrompt || '').trim())
+        .filter(Boolean)
+    ));
+    if (enhancedPrompts.length) {
+      promptText.value = enhancedPrompts.join('\n\n');
+      appUiStore.setToast('提示词已生成');
+      return;
+    }
     const tasks = finalPromptTaskLines(command);
     const selectionReference = selectionTextReferenceLines(command);
     promptText.value = [
