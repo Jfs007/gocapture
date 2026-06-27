@@ -1,5 +1,6 @@
 let sourceServerUrl = '';
 const IFRAME_ID = 'magnus-sidepanel-frame';
+let loadedPanelTicket = '';
 
 function getFrame() {
   return document.getElementById(IFRAME_ID);
@@ -23,15 +24,22 @@ function panelUrl(panelTicket) {
   return `${sourceServerUrl}/ui/?panelTicket=${encodeURIComponent(panelTicket)}`;
 }
 
-function loadIframe(panelTicket) {
+function loadIframe(panelTicket, options = {}) {
   const frame = getFrame();
   if (!frame) return;
   if (!panelTicket) {
     frame.removeAttribute('src');
+    loadedPanelTicket = '';
     setStatus('缺少 panelTicket，无法加载 Magnus UI。');
     return;
   }
+  if (!options.force && loadedPanelTicket === panelTicket && frame.getAttribute('src')) {
+    setStatus('');
+    return;
+  }
+  frame.setAttribute('allow', 'clipboard-write');
   frame.src = panelUrl(panelTicket);
+  loadedPanelTicket = panelTicket;
   setStatus('');
 }
 
@@ -94,6 +102,45 @@ async function preparePanel(context) {
   return context.panelTicket;
 }
 
+async function writeClipboardText(text) {
+  if (!text) return false;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+    }
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch (error) {
+    ok = false;
+  }
+  textarea.parentNode?.removeChild(textarea);
+  return ok;
+}
+
+window.addEventListener('message', event => {
+  const message = event.data || {};
+  if (message.type !== 'magnus.clipboard.write') return;
+  const frame = getFrame();
+  if (frame && event.source !== frame.contentWindow) return;
+  writeClipboardText(String(message.text || '')).then(ok => {
+    event.source?.postMessage({
+      type: 'magnus.clipboard.result',
+      requestId: message.requestId || '',
+      ok,
+    }, event.origin || '*');
+  });
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   const context = parsePanelContext();
   loadMagnusConfig().then(() => {
@@ -117,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setStatus('重新绑定页面...');
         const panelTicket = await rebindPanel(context);
         context.panelTicket = panelTicket;
-        loadIframe(panelTicket);
+        loadIframe(panelTicket, { force: panelTicket !== loadedPanelTicket });
       } catch (error) {
         console.error('[Magnus] side panel rebind failed:', error);
         setStatus(`绑定失败：${error.message || error}`);

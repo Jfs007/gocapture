@@ -6,7 +6,6 @@ interface SidePanelBridgeOptions {
   currentPageHref: Ref<string>;
   onNetworkRequest?: (payload: any) => void;
   onRuntimeEvent?: (event: any) => void;
-  clearSelections: (notifyRuntime?: boolean) => void;
   scheduleRouteResolve: () => void;
 }
 
@@ -15,7 +14,6 @@ export function useSidePanelBridge({
   currentPageHref,
   onNetworkRequest,
   onRuntimeEvent,
-  clearSelections,
   scheduleRouteResolve
 }: SidePanelBridgeOptions) {
   const appUiStore = useAppUiStore();
@@ -37,7 +35,10 @@ export function useSidePanelBridge({
     if (snapshot.pageContext) {
       onRuntimeEvent?.({ type: 'page.context', payload: snapshot.pageContext });
     }
-    onRuntimeEvent?.({ type: 'selection.changed', payload: { selections: selectionList(snapshot) } });
+    const selections = selectionList(snapshot);
+    if (selections.length) {
+      onRuntimeEvent?.({ type: 'selection.changed', payload: { selections } });
+    }
   }
 
   function applyRemoteSessionEvent(message: any) {
@@ -50,7 +51,6 @@ export function useSidePanelBridge({
     }
     if (event.type === 'page.route_changed') {
       currentPageHref.value = payload.url || currentPageHref.value;
-      clearSelections(false);
       scheduleRouteResolve();
       return;
     }

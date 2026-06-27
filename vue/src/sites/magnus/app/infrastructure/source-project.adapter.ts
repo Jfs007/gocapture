@@ -12,7 +12,7 @@ import { useModelStore } from '../../stores/model.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 
-export function useSourceProject({ projectStorageKey }) {
+export function useSourceProject({ projectStorageKey, legacyProjectStorageKey }) {
   const projectStore = useProjectStore();
   const appUiStore = useAppUiStore();
   const composerStore = useComposerStore();
@@ -30,11 +30,15 @@ export function useSourceProject({ projectStorageKey }) {
   function rememberProjectPath(projectValue) {
     if (!projectValue || projectValue.source !== 'source-server' || !projectValue.path) return;
     try {
-      window.localStorage.setItem(projectStorageKey.value, JSON.stringify({
+      const value = JSON.stringify({
         path: projectValue.path,
         name: projectValue.name || '',
         savedAt: Date.now()
-      }));
+      });
+      window.localStorage.setItem(projectStorageKey.value, value);
+      if (legacyProjectStorageKey?.value) {
+        window.localStorage.setItem(legacyProjectStorageKey.value, value);
+      }
     } catch (error) {
     }
   }
@@ -42,23 +46,59 @@ export function useSourceProject({ projectStorageKey }) {
   function savedProjectPath() {
     try {
       const raw = window.localStorage.getItem(projectStorageKey.value);
-      if (!raw) return '';
-      const data = JSON.parse(raw);
+      const legacyRaw = legacyProjectStorageKey?.value
+        ? window.localStorage.getItem(legacyProjectStorageKey.value)
+        : '';
+      const scannedRaw = !raw && !legacyRaw ? latestLegacyProjectRaw() : '';
+      if (!raw && !legacyRaw && !scannedRaw) return '';
+      const source = raw || legacyRaw || scannedRaw;
+      if (!raw && legacyRaw) {
+        window.localStorage.setItem(projectStorageKey.value, legacyRaw);
+      } else if (!raw && scannedRaw) {
+        window.localStorage.setItem(projectStorageKey.value, scannedRaw);
+      }
+      const data = JSON.parse(source);
       return data && typeof data.path === 'string' ? data.path : '';
     } catch (error) {
       return '';
     }
   }
 
-  function resetAfterProjectChange() {
-    selectionStore.confirmed = false;
-    selectionStore.filesConfirmed = false;
-    selectionStore.customEvidence = '';
-    selectionStore.evidenceMessages = [];
+  function latestLegacyProjectRaw() {
+    let latest = '';
+    let latestSavedAt = 0;
+    try {
+      for (let i = 0; i < window.localStorage.length; i += 1) {
+        const key = window.localStorage.key(i) || '';
+        if (!key.startsWith('magnus:source-project:') || key === projectStorageKey.value) continue;
+        const raw = window.localStorage.getItem(key) || '';
+        if (!raw) continue;
+        const data = JSON.parse(raw);
+        if (!data || typeof data.path !== 'string') continue;
+        const savedAt = Number(data.savedAt || 0);
+        if (!latest || savedAt >= latestSavedAt) {
+          latest = raw;
+          latestSavedAt = savedAt;
+        }
+      }
+    } catch (error) {
+      return '';
+    }
+    return latest;
+  }
+
+  function resetAfterProjectChange(options = {}) {
+    const preserveUi = !!options.preserveUi;
+    if (!preserveUi) {
+      selectionStore.confirmed = false;
+      selectionStore.filesConfirmed = false;
+      selectionStore.customEvidence = '';
+      selectionStore.evidenceMessages = [];
+      composerStore.setFinalPrompt('');
+      composerStore.clearContent();
+    }
     searchStore.reset();
     modelStore.reset();
-    composerStore.setFinalPrompt('');
-    composerStore.clearContent();
   }
 
   async function restoreSavedProject() {
@@ -66,7 +106,7 @@ export function useSourceProject({ projectStorageKey }) {
     if (!path || project.value || sourceServiceStatus.value === 'loading') return false;
     sourceServiceStatus.value = 'loading';
     sourceServiceError.value = '';
-    sourceServiceMessage.value = '正在恢复当前域名的本地源码路径...';
+    sourceServiceMessage.value = '正在恢复已保存的本地源码路径...';
     try {
       await sourceServerJson('/health', {
         timeoutMs: 3000,
@@ -80,7 +120,7 @@ export function useSourceProject({ projectStorageKey }) {
       });
       projectStore.setProject(normalizeSourceServerProject(data.project || {}));
       projectStore.setServiceStatus('connected');
-      resetAfterProjectChange();
+      resetAfterProjectChange({ preserveUi: true });
       appUiStore.setToast(`已恢复 ${project.value.name}`);
       return true;
     } catch (error) {

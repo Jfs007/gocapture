@@ -10058,7 +10058,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     currentPageHref,
     onNetworkRequest,
     onRuntimeEvent,
-    clearSelections,
     scheduleRouteResolve
   }) {
     const appUiStore = useAppUiStore();
@@ -10077,7 +10076,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       if (snapshot.pageContext) {
         onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "page.context", payload: snapshot.pageContext });
       }
-      onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "selection.changed", payload: { selections: selectionList(snapshot) } });
+      const selections = selectionList(snapshot);
+      if (selections.length) {
+        onRuntimeEvent == null ? void 0 : onRuntimeEvent({ type: "selection.changed", payload: { selections } });
+      }
     }
     function applyRemoteSessionEvent(message) {
       var _a;
@@ -10090,7 +10092,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       }
       if (event.type === "page.route_changed") {
         currentPageHref.value = payload.url || currentPageHref.value;
-        clearSelections(false);
         scheduleRouteResolve();
         return;
       }
@@ -10327,7 +10328,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     });
   }
-  function useSourceProject({ projectStorageKey }) {
+  function useSourceProject({ projectStorageKey, legacyProjectStorageKey }) {
     const projectStore = useProjectStore();
     const appUiStore = useAppUiStore();
     const composerStore = useComposerStore();
@@ -10344,33 +10345,70 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function rememberProjectPath(projectValue) {
       if (!projectValue || projectValue.source !== "source-server" || !projectValue.path) return;
       try {
-        window.localStorage.setItem(projectStorageKey.value, JSON.stringify({
+        const value = JSON.stringify({
           path: projectValue.path,
           name: projectValue.name || "",
           savedAt: Date.now()
-        }));
+        });
+        window.localStorage.setItem(projectStorageKey.value, value);
+        if (legacyProjectStorageKey == null ? void 0 : legacyProjectStorageKey.value) {
+          window.localStorage.setItem(legacyProjectStorageKey.value, value);
+        }
       } catch (error) {
       }
     }
     function savedProjectPath() {
       try {
         const raw = window.localStorage.getItem(projectStorageKey.value);
-        if (!raw) return "";
-        const data = JSON.parse(raw);
+        const legacyRaw = (legacyProjectStorageKey == null ? void 0 : legacyProjectStorageKey.value) ? window.localStorage.getItem(legacyProjectStorageKey.value) : "";
+        const scannedRaw = !raw && !legacyRaw ? latestLegacyProjectRaw() : "";
+        if (!raw && !legacyRaw && !scannedRaw) return "";
+        const source = raw || legacyRaw || scannedRaw;
+        if (!raw && legacyRaw) {
+          window.localStorage.setItem(projectStorageKey.value, legacyRaw);
+        } else if (!raw && scannedRaw) {
+          window.localStorage.setItem(projectStorageKey.value, scannedRaw);
+        }
+        const data = JSON.parse(source);
         return data && typeof data.path === "string" ? data.path : "";
       } catch (error) {
         return "";
       }
     }
-    function resetAfterProjectChange() {
-      selectionStore.confirmed = false;
-      selectionStore.filesConfirmed = false;
-      selectionStore.customEvidence = "";
-      selectionStore.evidenceMessages = [];
+    function latestLegacyProjectRaw() {
+      let latest = "";
+      let latestSavedAt = 0;
+      try {
+        for (let i = 0; i < window.localStorage.length; i += 1) {
+          const key = window.localStorage.key(i) || "";
+          if (!key.startsWith("magnus:source-project:") || key === projectStorageKey.value) continue;
+          const raw = window.localStorage.getItem(key) || "";
+          if (!raw) continue;
+          const data = JSON.parse(raw);
+          if (!data || typeof data.path !== "string") continue;
+          const savedAt = Number(data.savedAt || 0);
+          if (!latest || savedAt >= latestSavedAt) {
+            latest = raw;
+            latestSavedAt = savedAt;
+          }
+        }
+      } catch (error) {
+        return "";
+      }
+      return latest;
+    }
+    function resetAfterProjectChange(options = {}) {
+      const preserveUi = !!options.preserveUi;
+      if (!preserveUi) {
+        selectionStore.confirmed = false;
+        selectionStore.filesConfirmed = false;
+        selectionStore.customEvidence = "";
+        selectionStore.evidenceMessages = [];
+        composerStore.setFinalPrompt("");
+        composerStore.clearContent();
+      }
       searchStore.reset();
       modelStore.reset();
-      composerStore.setFinalPrompt("");
-      composerStore.clearContent();
     }
     function restoreSavedProject() {
       return __async(this, null, function* () {
@@ -10378,7 +10416,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         if (!path || project.value || sourceServiceStatus.value === "loading") return false;
         sourceServiceStatus.value = "loading";
         sourceServiceError.value = "";
-        sourceServiceMessage.value = "正在恢复当前域名的本地源码路径...";
+        sourceServiceMessage.value = "正在恢复已保存的本地源码路径...";
         try {
           yield sourceServerJson("/health", {
             timeoutMs: 3e3,
@@ -10392,7 +10430,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           });
           projectStore.setProject(normalizeSourceServerProject(data.project || {}));
           projectStore.setServiceStatus("connected");
-          resetAfterProjectChange();
+          resetAfterProjectChange({ preserveUi: true });
           appUiStore.setToast(`已恢复 ${project.value.name}`);
           return true;
         } catch (error) {
@@ -10475,6 +10513,70 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       onFileInputChange,
       restoreSavedProject
     };
+  }
+  const CURRENT_KEY = "magnus:sidepanel-ui:current";
+  const PAGE_KEY_PREFIX = "magnus:sidepanel-ui:page:";
+  const MAX_SELECTIONS = 12;
+  function storageKey(href) {
+    const value = String(href || "").trim();
+    return value ? `${PAGE_KEY_PREFIX}${value}` : CURRENT_KEY;
+  }
+  function readState(key) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      return data && typeof data === "object" ? data : null;
+    } catch (error) {
+      return null;
+    }
+  }
+  function writeState(key, state) {
+    try {
+      const payload = JSON.stringify(__spreadProps(__spreadValues({}, state), {
+        savedAt: Date.now()
+      }));
+      window.localStorage.setItem(key, payload);
+      window.localStorage.setItem(CURRENT_KEY, payload);
+    } catch (error) {
+    }
+  }
+  function restoreState(state) {
+    if (!state) return;
+    const composerStore = useComposerStore();
+    const selectionStore = useSelectionStore();
+    if (!composerStore.content && state.content) {
+      composerStore.setContent(state.content);
+    }
+    if (!composerStore.finalPrompt && state.finalPrompt) {
+      composerStore.setFinalPrompt(state.finalPrompt);
+    }
+    if (!selectionStore.items.length && Array.isArray(state.selections) && state.selections.length) {
+      selectionStore.replaceSelections(state.selections);
+    }
+  }
+  function currentState() {
+    const composerStore = useComposerStore();
+    const selectionStore = useSelectionStore();
+    return {
+      content: composerStore.content,
+      finalPrompt: composerStore.finalPrompt,
+      selections: selectionStore.items.slice(0, MAX_SELECTIONS)
+    };
+  }
+  function useSidePanelUiPersistence(currentPageHref) {
+    let restoredKey = "";
+    function restoreForCurrentPage() {
+      const key = storageKey(currentPageHref.value);
+      if (restoredKey === key) return;
+      restoredKey = key;
+      restoreState(readState(key) || readState(CURRENT_KEY));
+    }
+    restoreForCurrentPage();
+    watch(currentPageHref, restoreForCurrentPage);
+    watch(currentState, (state) => {
+      writeState(storageKey(currentPageHref.value), state);
+    }, { deep: true });
   }
   function useSearchFacade() {
     const composerStore = useComposerStore();
@@ -12012,21 +12114,24 @@ ${result.rawText}` : ""
     }, { immediate: true });
     return message;
   }
-  const PROJECT_STORAGE_PREFIX = "magnus:source-project:";
+  const PROJECT_STORAGE_KEY = "magnus:source-project:current";
+  const LEGACY_PROJECT_STORAGE_PREFIX = "magnus:source-project:";
   function createMagnusRuntimeState(runtime) {
     var _a;
     const { api, currentPageHref, sidePanelConfig, routePagePath, pageHost } = runtime;
-    const projectStorageKey = computed(() => `${PROJECT_STORAGE_PREFIX}${pageHost.value}`);
+    const projectStorageKey = computed(() => PROJECT_STORAGE_KEY);
+    const legacyProjectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
     const composerStore = useComposerStore();
     const composer = createComposerFacade(composerStore);
     const requests = usePageRequests();
+    useSidePanelUiPersistence(currentPageHref);
     let search = null;
     let bridge = null;
     let model = null;
     const selection = setupSelectionRuntime({
       sendCommand: (type, payload) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload)
     });
-    const source = useSourceProject({ projectStorageKey });
+    const source = useSourceProject({ projectStorageKey, legacyProjectStorageKey });
     const route = useRouteResolver({
       project: source.project,
       currentPageHref,
@@ -12041,7 +12146,6 @@ ${result.rawText}` : ""
       onNetworkRequest: (payload) => {
         requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
       },
-      clearSelections: (notifyRuntime) => selection.clearSelections(notifyRuntime),
       scheduleRouteResolve: route.scheduleRouteResolve
     });
     const prompt = setupPromptRuntime();
@@ -12291,6 +12395,38 @@ ${result.rawText}` : ""
   }
   function copyText(text) {
     if (!text) return Promise.resolve(false);
+    return copyTextByHost(text).catch(() => false).then((ok) => ok || copyTextInFrame(text));
+  }
+  function copyTextByHost(text) {
+    if (!window.parent || window.parent === window) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const requestId = `magnus-clipboard-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      let settled = false;
+      const cleanup = () => {
+        window.removeEventListener("message", handleMessage);
+        window.clearTimeout(timer);
+      };
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(ok);
+      };
+      const handleMessage = (event) => {
+        const message = event.data || {};
+        if ((message == null ? void 0 : message.type) !== "magnus.clipboard.result" || message.requestId !== requestId) return;
+        done(!!message.ok);
+      };
+      const timer = window.setTimeout(() => done(false), 3e3);
+      window.addEventListener("message", handleMessage);
+      window.parent.postMessage({
+        type: "magnus.clipboard.write",
+        requestId,
+        text
+      }, "*");
+    });
+  }
+  function copyTextInFrame(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
     }

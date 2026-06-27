@@ -77,6 +77,42 @@ function copyTextWithToast(text: string) {
 
 function copyText(text: string) {
   if (!text) return Promise.resolve(false);
+  return copyTextByHost(text)
+    .catch(() => false)
+    .then(ok => ok || copyTextInFrame(text));
+}
+
+function copyTextByHost(text: string) {
+  if (!window.parent || window.parent === window) return Promise.resolve(false);
+  return new Promise<boolean>(resolve => {
+    const requestId = `magnus-clipboard-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let settled = false;
+    const cleanup = () => {
+      window.removeEventListener('message', handleMessage);
+      window.clearTimeout(timer);
+    };
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(ok);
+    };
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data || {};
+      if (message?.type !== 'magnus.clipboard.result' || message.requestId !== requestId) return;
+      done(!!message.ok);
+    };
+    const timer = window.setTimeout(() => done(false), 3000);
+    window.addEventListener('message', handleMessage);
+    window.parent.postMessage({
+      type: 'magnus.clipboard.write',
+      requestId,
+      text
+    }, '*');
+  });
+}
+
+function copyTextInFrame(text: string) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
   }
