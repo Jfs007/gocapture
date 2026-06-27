@@ -173,27 +173,6 @@ function numericStyleValue(value) {
 }
 
 const MEDIA_ATTR_KEYS = new Set(['src', 'srcset', 'poster', 'data-src', 'data-original', 'data-lazy-src']);
-const NOISE_CLASS_PREFIXES = ['n-', 'el-', 'ant-', 'ivu-', 'van-', 'arco-', 'semi-', 'q-', 'v-', 'router-link-'];
-const RUNTIME_CLASS_PARTS = [
-  '--active',
-  '--selected',
-  '--disabled',
-  '--focus',
-  '--focused',
-  '--hover',
-  '--open',
-  '--checked',
-  '--expanded',
-  'is-active',
-  'is-selected',
-  'is-disabled',
-  'is-focus',
-  'is-hover',
-  'active',
-  'selected',
-  'disabled',
-  'checked',
-];
 const GENERIC_STYLE_VALUES = new Set([
   'auto',
   'none',
@@ -317,18 +296,10 @@ function looksHashedClass(value) {
   return false;
 }
 
-function isRuntimeClass(value) {
-  const text = String(value || '').trim();
-  if (!text) return false;
-  return RUNTIME_CLASS_PARTS.some(part => text === part || text.includes(part));
-}
-
-function isNoiseClass(value) {
+function isWeakGeneratedClass(value) {
   const text = String(value || '').trim();
   if (!text) return true;
-  if (looksHashedClass(text)) return true;
-  if (isRuntimeClass(text)) return true;
-  return NOISE_CLASS_PREFIXES.some(prefix => text.startsWith(prefix));
+  return looksHashedClass(text);
 }
 
 function isIconClass(value) {
@@ -511,7 +482,7 @@ function selectorTailValues(selector, limit = 3) {
     .flatMap(part => {
       const values = [];
       const classMatches = Array.from(part.matchAll(/\.([a-zA-Z0-9_-]+)/g)).map(match => match[1]);
-      values.push(...classMatches.filter(item => !isNoiseClass(item)).slice(0, 2));
+      values.push(...classMatches.filter(item => !isWeakGeneratedClass(item)).slice(0, 2));
       const idMatch = part.match(/#([a-zA-Z0-9_-]+)/);
       if (idMatch) values.push(idMatch[1]);
       return values;
@@ -586,36 +557,38 @@ function addNodeStructuredEvidences(result, info, options = {}) {
     });
   }
 
-  for (const cls of orderedClassTokens(info.className, 16)) {
+  for (const cls of infoClassTokens(info, 16)) {
     const icon = isIconClass(cls);
-    const noise = isNoiseClass(cls);
+    const weakGenerated = isWeakGeneratedClass(cls);
     addStructuredEvidence(result, {
       kind: icon ? 'icon' : 'class',
       value: cls,
-      weight: Math.round((icon ? 92 : noise ? 12 : noTextNode ? 86 : 72) * factor),
-      strong: icon || !noise,
-      label: noise ? `${options.label || '选区'}组件库/状态 class` : `${options.label || '选区'}业务 class`,
+      weight: Math.round((icon ? 92 : weakGenerated ? 12 : noTextNode ? 86 : 72) * factor),
+      strong: icon || !weakGenerated,
+      label: weakGenerated ? `${options.label || '选区'}生成类名` : `${options.label || '选区'}class`,
       scope,
       selectionIndex,
     });
   }
 
   const subtree = subtreeInfo(info);
-  for (const cls of (Array.isArray(subtree.classNames) ? subtree.classNames : []).slice(0, 24)) {
+  const classValues = Array.isArray(subtree.classNames) ? subtree.classNames : subtree.class;
+  for (const cls of (Array.isArray(classValues) ? classValues : []).slice(0, 24)) {
     if (!cls) continue;
     const icon = isIconClass(cls);
-    const noise = isNoiseClass(cls);
+    const weakGenerated = isWeakGeneratedClass(cls);
     addStructuredEvidence(result, {
       kind: icon ? 'icon' : 'class',
       value: cls,
-      weight: Math.round((icon ? 76 : noise ? 8 : 58) * factor),
-      strong: icon || !noise,
+      weight: Math.round((icon ? 76 : weakGenerated ? 8 : 58) * factor),
+      strong: icon || !weakGenerated,
       label: `${options.label || '选区'}向下 class`,
       scope,
       selectionIndex,
     });
   }
-  for (const text of (Array.isArray(subtree.texts) ? subtree.texts : []).flatMap(item => textEvidenceValues(item, 3)).slice(0, 16)) {
+  const textValues = Array.isArray(subtree.texts) ? subtree.texts : subtree.text;
+  for (const text of (Array.isArray(textValues) ? textValues : []).flatMap(item => textEvidenceValues(item, 3)).slice(0, 16)) {
     addStructuredEvidence(result, {
       kind: 'text',
       value: text,
@@ -799,14 +772,16 @@ function subtreeInfo(info) {
 
 function subtreeClassTokens(info, limit = 32) {
   const subtree = subtreeInfo(info);
-  return uniq((Array.isArray(subtree.classNames) ? subtree.classNames : [])
+  const classValues = Array.isArray(subtree.classNames) ? subtree.classNames : subtree.class;
+  return uniq((Array.isArray(classValues) ? classValues : [])
     .flatMap(value => orderedClassTokens(value, 4)))
     .slice(0, limit);
 }
 
 function subtreeTextPhrases(info, limit = 12) {
   const subtree = subtreeInfo(info);
-  return uniq((Array.isArray(subtree.texts) ? subtree.texts : [])
+  const textValues = Array.isArray(subtree.texts) ? subtree.texts : subtree.text;
+  return uniq((Array.isArray(textValues) ? textValues : [])
     .map(value => normalizePhrase(value, 3))
     .filter(Boolean))
     .slice(0, limit);
@@ -814,7 +789,8 @@ function subtreeTextPhrases(info, limit = 12) {
 
 function subtreeTextTokens(info, limit = 32) {
   const subtree = subtreeInfo(info);
-  return uniq((Array.isArray(subtree.texts) ? subtree.texts : [])
+  const textValues = Array.isArray(subtree.texts) ? subtree.texts : subtree.text;
+  return uniq((Array.isArray(textValues) ? textValues : [])
     .flatMap(value => tokenize(value)))
     .slice(0, limit);
 }
@@ -854,7 +830,8 @@ function subtreeAttrTokens(info, limit = 28) {
 
 function subtreeStyleTokens(info, limit = 28) {
   const subtree = subtreeInfo(info);
-  const styles = Array.isArray(subtree.styles) ? subtree.styles : [];
+  const styleValues = Array.isArray(subtree.styles) ? subtree.styles : subtree.style;
+  const styles = Array.isArray(styleValues) ? styleValues : [];
   const tokens = [];
   for (const entry of styles) {
     if (!entry || typeof entry !== 'object') continue;
@@ -875,7 +852,8 @@ function subtreeResourceTokens(info, limit = 16) {
       tokens.push('img', 'image', 'src', lowerKey);
     }
   }
-  for (const entry of Array.isArray(subtree.styles) ? subtree.styles : []) {
+  const styleValues = Array.isArray(subtree.styles) ? subtree.styles : subtree.style;
+  for (const entry of Array.isArray(styleValues) ? styleValues : []) {
     const style = entry?.style || entry?.computedStyle || {};
     if (style.backgroundImage && style.backgroundImage !== 'none') {
       tokens.push('background-image', 'backgroundImage', 'background', 'image');
@@ -1109,7 +1087,7 @@ function groupAttrTokens(attrs = {}, tag = '') {
 function nodeSelectionGroup(node, selectionIndex, index) {
   const tag = String(node?.tag || '').toLowerCase();
   const classTokens = orderedClassTokens(node?.className, 10)
-    .filter(token => !isNoiseClass(token) || isIconClass(token))
+    .filter(token => !isWeakGeneratedClass(token) || isIconClass(token))
     .slice(0, 8);
   const textPhrases = textEvidenceValues(node?.text, 4).slice(0, 4);
   const textTokens = uniq(textPhrases.flatMap(text => tokenize(text))).slice(0, 8);
@@ -1188,6 +1166,11 @@ function buildSearchEvidence(body) {
       weightedTokens.push({ token, weight, label });
     }
   };
+  const addClassTokens = (info, weight, label) => {
+    for (const token of infoClassTokens(info, 24)) {
+      weightedTokens.push({ token, weight, label });
+    }
+  };
   const addPhrase = (value, weight, label) => {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
     if (text.length >= 2) phrases.push({ text, weight, label });
@@ -1214,7 +1197,7 @@ function buildSearchEvidence(body) {
   addToken(body.manualEvidence, 30, '用户补充证据');
 
   for (const selection of selections) {
-    addToken(selection.element?.className, 46, 'className');
+    addClassTokens(selection.element, 46, 'className');
     addPhrase(searchTextValue(selection.element), 90, '选区文案');
     addToken(searchTextValue(selection.element), 28, '选区文案');
     addSubtreeEvidence(selection.element, {
@@ -1222,11 +1205,11 @@ function buildSearchEvidence(body) {
       textWeight: 64,
       textTokenWeight: 24,
     }, '选区向下');
-    addToken(selection.asset?.className, 26, '扩大选区 className');
+    addClassTokens(selection.asset, 26, '扩大选区 className');
     addPhrase(searchTextValue(selection.asset), 34, '扩大选区文案');
     addToken(searchTextValue(selection.asset), 12, '扩大选区文案');
     for (const ancestor of selection.element?.ancestors || []) {
-      addToken(ancestor.className, 24, '父级 className');
+      addClassTokens(ancestor, 24, '父级 className');
       addPhrase(searchTextValue(ancestor), 42, '父级文案');
       addToken(searchTextValue(ancestor), 14, '父级文案');
       addSubtreeEvidence(ancestor, {

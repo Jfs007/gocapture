@@ -41,6 +41,7 @@ export function createSelectionFacade(store: SelectionStore) {
       token: `@选区${index + 1}`,
       element: item.element,
       asset: item.asset || null,
+      sourceLocate: item.sourceLocate || item.element?.sourceLocate || null,
       thumbnailCaptured: !!item.thumbnailUrl
     }));
   }

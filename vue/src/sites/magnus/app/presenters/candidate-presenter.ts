@@ -9,6 +9,7 @@ export function candidateStageLabel(hit) {
     'api-usage': '接口调用',
     'api-upstream': '上层引用',
     'model-agent': '模型定位',
+    'runtime-source': '框架运行时定位',
     'route-resolver': '页面路由'
   };
   return labels[hit?.stage] || '候选命中';
@@ -56,8 +57,13 @@ export function candidateStageExplanation(hit) {
     ];
   }
   if (hit.stage === 'model-agent') {
+    const preModelSource = hit.preModelStage ? `本地来源: ${candidateStageLabel({ stage: hit.preModelStage })}` : '';
+    const preModelRuntimeReasons = hit.preModelStage === 'runtime-source'
+      ? (hit.preModelReasons || []).slice(0, 4).map(reason => `运行时依据: ${reason}`)
+      : [];
     return [
       `定位过程: 模型阅读本地预检索结果、候选文件内容和选区证据后推荐该文件`,
+      preModelSource,
       hit.modelAdapter ? `模型: ${hit.modelAdapter}` : '',
       hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : '',
       hit.modelLocateLevel ? `定位层级: ${hit.modelLocateLevel}${hit.modelDowngradedToDirection ? '；片段未逐字验证，已降级为源码方向' : ''}` : '',
@@ -65,6 +71,18 @@ export function candidateStageExplanation(hit) {
       hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : '',
       hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : '',
       uniqueLine,
+      ...preModelRuntimeReasons,
+      ...reasons.slice(0, 6).map(reason => `依据: ${reason}`)
+    ];
+  }
+  if (hit.stage === 'runtime-source') {
+    return [
+      `定位过程: 由页面运行时组件实例/Fiber/调试字段直接提供源码线索`,
+      hit.framework ? `框架: ${hit.framework}` : '',
+      hit.sourceConfidence ? `置信度: ${hit.sourceConfidence}` : '',
+      hit.sourceComponentName ? `组件: ${hit.sourceComponentName}` : '',
+      hit.sourceLine ? `源码位置: ${hit.sourceLine}${hit.sourceColumn ? `:${hit.sourceColumn}` : ''}` : '',
+      hit.sourceRuntimeFile ? `运行时路径: ${hit.sourceRuntimeFile}` : '',
       ...reasons.slice(0, 6).map(reason => `依据: ${reason}`)
     ];
   }

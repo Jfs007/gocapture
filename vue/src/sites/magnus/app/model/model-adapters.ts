@@ -325,6 +325,9 @@ export function useModelAdapters() {
         }),
         score,
         stage: 'model-agent',
+        preModelStage: old?.stage || '',
+        preModelStageLabel: old?.stage ? old.stage : '',
+        preModelReasons: old?.reasons || [],
         reasons: [
           `模型定位：${target.prompt || target.reason || result.parsed?.summary || result.rawText || '-'}`,
           target.directionGuess ? `推测方向：${target.directionGuess}` : '',

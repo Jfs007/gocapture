@@ -51,6 +51,7 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
       uid,
       element,
       asset: raw?.asset || element,
+      sourceLocate: raw?.sourceLocate || raw?.sourceEvidence || element.sourceLocate || null,
       thumbnailUrl: raw?.thumbnailUrl || raw?.thumbnail || '',
       thumbnailCaptured: !!(raw?.thumbnailUrl || raw?.thumbnail)
     };

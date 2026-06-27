@@ -1,17 +1,12 @@
 import { extractSearchTerms } from '../utils/text';
 
 export function createSearchContextTools({ denoiseTextByApi }: { denoiseTextByApi: (text: string, limit?: number) => string }) {
-  function isNoiseClassTerm(term: string) {
-    return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term)
-      || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
-  }
-
   function contextTextTerms(info: any) {
     return extractSearchTerms(denoiseTextByApi(info?.text || ''));
   }
 
   function contextClassTerms(info: any) {
-    return extractSearchTerms(info?.className || '').filter(term => !isNoiseClassTerm(term));
+    return extractSearchTerms(info?.className || '');
   }
 
   function contextAttrTerms(info: any) {

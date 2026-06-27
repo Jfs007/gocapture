@@ -26,6 +26,7 @@ export interface SelectionAsset {
   uid: SelectionId;
   element: ElementInfo;
   asset?: ElementInfo | null;
+  sourceLocate?: unknown;
   thumbnailUrl?: string;
   thumbnailCaptured?: boolean;
 }
@@ -35,6 +36,8 @@ export interface RuntimeSelectionPayload {
   element?: ElementInfo;
   info?: ElementInfo;
   asset?: ElementInfo;
+  sourceLocate?: unknown;
+  sourceEvidence?: unknown;
   thumbnailUrl?: string;
   thumbnail?: string;
   [key: string]: unknown;

@@ -254,6 +254,301 @@
     };
   }
 
+  function isBusinessSourceFile(file) {
+    const value = String(file || '').replace(/\\/g, '/');
+    if (!value) return false;
+    return !/(^|\/)(node_modules|dist|build|vendor)\//i.test(value);
+  }
+
+  function componentNameFromVueType(type) {
+    return type?.name || type?.__name || type?.displayName || '';
+  }
+
+  function closestElementWith(element, predicate, depth = 40) {
+    let node = element || null;
+    for (let i = 0; i < depth && node && node.nodeType === 1; i++) {
+      try {
+        if (predicate(node)) return { node, domDepth: i };
+      } catch (error) {
+      }
+      node = node.parentElement || null;
+    }
+    return { node: null, domDepth: -1 };
+  }
+
+  function findVue3ComponentChain(element, depth = 20) {
+    const chain = [];
+    const anchor = closestElementWith(element, node => !!(node.__vueParentComponent || node.__vue_app__?._instance));
+    let component = anchor.node?.__vueParentComponent || anchor.node?.__vue_app__?._instance || null;
+    for (let i = 0; i < depth && component; i++) {
+      const file = component.type?.__file || '';
+      chain.push({
+        depth: i,
+        domDepth: anchor.domDepth,
+        framework: 'vue3',
+        name: componentNameFromVueType(component.type),
+        file,
+        isBusinessComponent: isBusinessSourceFile(file),
+      });
+      component = component.parent || null;
+    }
+    return chain;
+  }
+
+  function findVue2ComponentChain(element, depth = 20) {
+    const chain = [];
+    const anchor = closestElementWith(element, node => !!node.__vue__);
+    let vm = anchor.node?.__vue__ || null;
+    for (let i = 0; i < depth && vm; i++) {
+      const file = vm.$options?.__file || '';
+      chain.push({
+        depth: i,
+        domDepth: anchor.domDepth,
+        framework: 'vue2',
+        name: vm.$options?.name || '',
+        file,
+        isBusinessComponent: isBusinessSourceFile(file),
+      });
+      vm = vm.$parent || null;
+    }
+    console.log('Vue2 component chain:', chain);
+    return chain;
+  }
+
+  function normalizeReactFiber(value) {
+    if (!value) return null;
+    if (value.current) return value.current;
+    if (value._internalRoot?.current) return value._internalRoot.current;
+    if (value.stateNode?.current) return value.stateNode.current;
+    return value;
+  }
+
+  function reactFiberFromElement(element) {
+    let node = element || null;
+    while (node && node.nodeType === 1) {
+      const key = Object.keys(node).find(item =>
+        item.startsWith('__reactFiber') ||
+        item.startsWith('__reactInternalInstance') ||
+        item.startsWith('__reactContainer')
+      );
+      if (key) return normalizeReactFiber(node[key]);
+      if (node._reactRootContainer?._internalRoot?.current) return normalizeReactFiber(node._reactRootContainer._internalRoot);
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function fiberDisplayName(fiber) {
+    const type = fiber?.elementType || fiber?.type;
+    if (!type) return '';
+    return type.displayName || type.name || (typeof type === 'string' ? type : '');
+  }
+
+  function findReactComponentChain(element, depth = 40) {
+    const chain = [];
+    let fiber = reactFiberFromElement(element);
+    let componentDepth = 0;
+    for (let i = 0; i < depth && fiber; i++) {
+      const source = fiber._debugSource || null;
+      const file = source?.fileName || '';
+      const name = fiberDisplayName(fiber);
+      if (file || name) {
+        chain.push({
+          depth: componentDepth,
+          framework: 'react',
+          name,
+          file,
+          line: source?.lineNumber || 0,
+          column: source?.columnNumber || 0,
+          isBusinessComponent: isBusinessSourceFile(file),
+        });
+        componentDepth++;
+      }
+      fiber = fiber.return || null;
+    }
+    return chain;
+  }
+
+  function inspectAngularComponent(element) {
+    const ng = window.ng;
+    if (!ng?.getComponent && !ng?.getOwningComponent) return null;
+    const anchor = closestElementWith(element, node => {
+      try {
+        return !!(ng.getComponent?.(node) || ng.getOwningComponent?.(node));
+      } catch (error) {
+        return false;
+      }
+    });
+    if (!anchor.node) return null;
+    let component = null;
+    try {
+      component = ng.getComponent?.(anchor.node) || ng.getOwningComponent?.(anchor.node);
+    } catch (error) {
+      component = null;
+    }
+    if (!component) return null;
+    const definition = component.constructor?.ɵcmp || component.constructor?.ɵdir || {};
+    const selector = Array.isArray(definition.selectors?.[0])
+      ? definition.selectors[0].join('')
+      : '';
+    return {
+      framework: 'angular',
+      componentChain: [{
+        depth: 0,
+        domDepth: anchor.domDepth,
+        framework: 'angular',
+        name: component.constructor?.name || '',
+        selector,
+        isBusinessComponent: false,
+      }],
+    };
+  }
+
+  function firstDirectLocation(chain, source) {
+    const item = (chain || []).find(entry => entry.file && entry.isBusinessComponent);
+    if (!item) return null;
+    return {
+      file: item.file,
+      line: item.line || 0,
+      column: item.column || 0,
+      confidence: 'exact',
+      source,
+    };
+  }
+
+  function inferUiSemanticKind(element) {
+    if (!element) return 'unknown';
+    const marker = `${element.tagName || ''} ${getClassName(element)} ${element.getAttribute?.('role') || ''}`.toLowerCase();
+    if (element.closest?.('[role="dialog"], dialog, .modal, .drawer, .n-modal, .el-dialog, .ant-modal')) return 'modal';
+    if (/table|thead|tbody|tr|td|th|data-table|grid/.test(marker) || element.querySelector?.('table, thead, tbody, tr, td, th, [role="table"], [role="grid"]')) return 'table';
+    if (element.querySelector?.('input, textarea, select, [contenteditable="true"]') || /form|field|input|select|checkbox|radio/.test(marker)) return 'form';
+    if (/list|item|card|row/.test(marker)) return 'list';
+    return 'unknown';
+  }
+
+  function extractDomFingerprint(element) {
+    const texts = new Set();
+    const labels = new Set();
+    const inputValues = new Set();
+    const inputNames = new Set();
+    const attributes = new Set();
+    const ids = new Set();
+    const classTokens = new Set();
+    const componentHints = new Set();
+    const tagSequence = [];
+    const dataAttributes = {};
+    const queue = [element];
+    let inspected = 0;
+    while (queue.length && inspected < 80) {
+      const node = queue.shift();
+      if (!node || node.nodeType !== 1) continue;
+      inspected++;
+      const tag = String(node.tagName || '').toLowerCase();
+      if (['script', 'style', 'noscript', 'template'].includes(tag)) continue;
+      tagSequence.push(tag);
+      if (node.id) ids.add(compactText(node.id, 120));
+      for (const className of Array.from(node.classList || [])) {
+        classTokens.add(className);
+        if (/^(x-|md-|mda-|app-|biz-|page-|layout-|[a-z][\w-]*(__|--))/.test(className)) {
+          componentHints.add(className);
+        }
+      }
+      if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement) {
+        if (node.value) inputValues.add(compactText(node.value, 160));
+        if (node.name) inputNames.add(compactText(node.name, 120));
+      }
+      for (const attr of Array.from(node.attributes || [])) {
+        const name = String(attr.name || '').toLowerCase();
+        if (name.startsWith('data-v-')) continue;
+        if (name.startsWith('data-')) {
+          dataAttributes[name] = attr.value ? compactText(attr.value, 180) : '[present]';
+        }
+        if (
+          name === 'name' ||
+          name === 'path' ||
+          name === 'value' ||
+          name === 'title' ||
+          name === 'alt' ||
+          name === 'aria-label' ||
+          name === 'placeholder' ||
+          name.startsWith('data-')
+        ) {
+          attributes.add(`${name}=${compactText(attr.value || '[present]', 160)}`);
+        }
+      }
+      const directText = getDirectText(node);
+      if (directText && directText.length <= 120) texts.add(directText);
+      const allText = getElementText(node, 180);
+      if (allText && allText.length <= 120) texts.add(allText);
+      if (tag === 'label' || node.getAttribute?.('aria-label') || node.getAttribute?.('data-label') || /label/.test(getClassName(node))) {
+        const label = compactText(node.getAttribute?.('aria-label') || node.getAttribute?.('data-label') || allText, 120);
+        if (label) labels.add(label);
+      }
+      for (const child of Array.from(node.children || [])) {
+        if (queue.length + inspected >= 80) break;
+        queue.push(child);
+      }
+    }
+    return {
+      texts: Array.from(texts).slice(0, 40),
+      labels: Array.from(labels).slice(0, 32),
+      inputValues: Array.from(inputValues).slice(0, 24),
+      inputNames: Array.from(inputNames).slice(0, 24),
+      attributes: Array.from(attributes).slice(0, 48),
+      ids: Array.from(ids).slice(0, 24),
+      dataAttributes,
+      classTokens: Array.from(classTokens).slice(0, 64),
+      componentHints: Array.from(componentHints).slice(0, 32),
+      tagSequence: tagSequence.slice(0, 80),
+      structuralPaths: [getSelectorPath(element, 6)].filter(Boolean),
+      uiSemanticKind: inferUiSemanticKind(element),
+    };
+  }
+
+  function inspectSourceLocate(element) {
+    const vue3Chain = findVue3ComponentChain(element);
+    if (vue3Chain.length) {
+      return {
+        framework: 'vue3',
+        componentChain: vue3Chain,
+        directLocation: firstDirectLocation(vue3Chain, 'runtime') || undefined,
+        domFingerprint: extractDomFingerprint(element),
+      };
+    }
+    const vue2Chain = findVue2ComponentChain(element);
+    if (vue2Chain.length) {
+      return {
+        framework: 'vue2',
+        componentChain: vue2Chain,
+        directLocation: firstDirectLocation(vue2Chain, 'runtime') || undefined,
+        domFingerprint: extractDomFingerprint(element),
+      };
+    }
+    const reactChain = findReactComponentChain(element);
+    if (reactChain.length) {
+      return {
+        framework: 'react',
+        componentChain: reactChain,
+        directLocation: firstDirectLocation(reactChain, 'runtime') || undefined,
+        domFingerprint: extractDomFingerprint(element),
+      };
+    }
+    const angular = inspectAngularComponent(element);
+    if (angular) {
+      return {
+        ...angular,
+        directLocation: undefined,
+        domFingerprint: extractDomFingerprint(element),
+      };
+    }
+    return {
+      framework: 'unknown',
+      componentChain: [],
+      directLocation: undefined,
+      domFingerprint: extractDomFingerprint(element),
+    };
+  }
+
   function getSubtreeEvidence(element, options = {}) {
     if (!element) {
       return {
@@ -1092,8 +1387,12 @@
     refreshSelectionFromElement(selection, element) {
       if (!selection?.uid || !element) return selection;
       const info = getElementInfo(element);
+      const sourceLocate = inspectSourceLocate(element);
       selection.element = info;
       selection.info = info;
+      selection.sourceLocate = sourceLocate;
+      selection.sourceEvidence = sourceLocate;
+      info.sourceLocate = sourceLocate;
       const assetElement = resolveSelectionAssetElement(element);
       const assetInfo = getElementInfo(assetElement) || info;
       selection.asset = assetInfo;
@@ -1157,12 +1456,16 @@
 
     addSelection(element) {
       const info = getElementInfo(element);
+      const sourceLocate = inspectSourceLocate(element);
+      info.sourceLocate = sourceLocate;
       const selection = {
         uid: info.uid,
         element: info,
         info,
         asset: null,
         assetInfo: null,
+        sourceLocate,
+        sourceEvidence: sourceLocate,
       };
       selection.thumbnailUrl = '';
       selection.thumbnailCaptured = false;

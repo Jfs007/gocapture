@@ -1,3 +1,4 @@
+const path = require('path');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
 const {
   buildSearchEvidence,
@@ -12,7 +13,7 @@ const { traceI18nReferences } = require('./i18n-trace');
 const { traceDefinitionReferences } = require('./definition-trace');
 const { buildFileMap, importedFiles } = require('./import-trace');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
-const { makeSnippet, uniq } = require('../utils');
+const { escapeRegExp, kebabCase, makeSnippet, posixPath, uniq } = require('../utils');
 
 const MAX_CLASS_BASIS_FILES = 8;
 const WEAK_CONTEXT_TOKENS = new Set([
@@ -157,6 +158,8 @@ function lineInfoAt(text, index, tokenLength) {
 function scoreEvidenceHit(ev, filePath, snippet) {
   let score = ev.weight || 0;
   if (ev.strong) score += 18;
+  if (ev.strong && ev.kind === 'class') score += 12;
+  if (isBridgeEvidence(ev)) score += 110;
   if (isViewOrComponentFile(filePath)) score += 10;
   if (isRouteFile(filePath)) score -= 10;
   const lower = String(snippet || '').toLowerCase();
@@ -164,6 +167,18 @@ function scoreEvidenceHit(ev, filePath, snippet) {
     .filter(token => lower.includes(token)).length;
   if (multiStrongSignals >= 2) score += 30;
   return score;
+}
+
+function isBridgeEvidence(ev) {
+  return /桥接证据/.test(String(ev?.label || ''));
+}
+
+function candidateHasEvidence(candidate, predicate) {
+  return (candidate?.matched || []).some(item => predicate(item.evidence || {}));
+}
+
+function candidateEvidenceKinds(candidate) {
+  return new Set((candidate?.matched || []).map(item => item.evidence?.kind).filter(Boolean));
 }
 
 function upsertRecallCandidate(candidates, file, score, match) {
@@ -760,6 +775,22 @@ function recallByStructuredEvidence(project, routeHits, evidence, textCache, opt
         `同窗口共现：${rescored.matchedValues.join('，')}`,
       ]).slice(0, 12);
     }
+    const evidenceKinds = candidateEvidenceKinds(candidate);
+    const hasRouteEvidence = evidenceKinds.has('route');
+    const hasBridgeEvidence = candidateHasEvidence(candidate, isBridgeEvidence);
+    const hasOnlyClassLikeEvidence = evidenceKinds.size > 0
+      && [...evidenceKinds].every(kind => kind === 'class' || kind === 'icon');
+    if (hasRouteEvidence && hasBridgeEvidence) {
+      candidate.score += 180;
+      candidate.reasons = uniq([
+        ...(candidate.reasons || []),
+        '提权：当前路由与运行时到源码的桥接证据同时命中',
+      ]).slice(0, 12);
+    }
+    if (hasOnlyClassLikeEvidence) {
+      candidate.score -= 96;
+      candidate.reasons.push('降权：仅命中 class/icon，缺少文案、桥接或路由证据');
+    }
     if (onlyMatchedWeakEvidence(candidate)) {
       candidate.score -= 80;
       candidate.reasons.push('降权：仅命中弱证据');
@@ -781,6 +812,22 @@ function recallByStructuredEvidence(project, routeHits, evidence, textCache, opt
 
 function mergeList(...lists) {
   return uniq(lists.flatMap(list => Array.isArray(list) ? list : [list])).slice(0, 12);
+}
+
+function mergeReasonsForHit(hit, old) {
+  const runtimeFirst = hit?.stage === 'runtime-source' || old?.stage === 'runtime-source';
+  if (runtimeFirst) {
+    return uniq([
+      ...(old?.stage === 'runtime-source' ? old?.reasons || [] : []),
+      ...(hit?.stage === 'runtime-source' ? hit?.reasons || [] : []),
+      ...(hit?.stage !== 'runtime-source' ? hit?.reasons || [] : []),
+      ...(old?.stage !== 'runtime-source' ? old?.reasons || [] : []),
+    ]).slice(0, 12);
+  }
+  return uniq([
+    ...(hit?.reasons || []),
+    ...(old?.reasons || []),
+  ]).slice(0, 12);
 }
 
 function mergeHits(hits) {
@@ -838,10 +885,7 @@ function mergeHits(hits) {
       merged.set(hit.file, {
         ...hit,
         ...mergedShared,
-        reasons: uniq([
-          ...(hit.reasons || []),
-          ...(old?.reasons || []),
-        ]).slice(0, 12),
+        reasons: mergeReasonsForHit(hit, old),
         exactMatchLabel: hit.exactMatchLabel || old?.exactMatchLabel || '',
         exactMatchText: hit.exactMatchText || old?.exactMatchText || '',
         exactMatchCount: hit.exactMatchCount || old?.exactMatchCount || 0,
@@ -863,10 +907,7 @@ function mergeHits(hits) {
       merged.set(hit.file, {
         ...old,
         ...mergedShared,
-        reasons: uniq([
-          ...(hit.reasons || []),
-          ...(old?.reasons || []),
-        ]).slice(0, 12),
+        reasons: mergeReasonsForHit(hit, old),
         exactMatchLabel: hit.exactMatchLabel || old?.exactMatchLabel || '',
         exactMatchText: hit.exactMatchText || old?.exactMatchText || '',
         exactMatchCount: hit.exactMatchCount || old?.exactMatchCount || 0,
@@ -888,10 +929,7 @@ function mergeHits(hits) {
       merged.set(hit.file, {
         ...old,
         ...mergedShared,
-        reasons: uniq([
-          ...(hit.reasons || []),
-          ...(old?.reasons || []),
-        ]).slice(0, 12),
+        reasons: mergeReasonsForHit(hit, old),
         exactMatchLabel: hit.exactMatchLabel || old?.exactMatchLabel || '',
         exactMatchText: hit.exactMatchText || old?.exactMatchText || '',
         exactMatchCount: hit.exactMatchCount || old?.exactMatchCount || 0,
@@ -909,10 +947,7 @@ function mergeHits(hits) {
       merged.set(hit.file, {
         ...old,
         ...mergedShared,
-        reasons: uniq([
-          ...(hit.reasons || []),
-          ...(old?.reasons || []),
-        ]).slice(0, 12),
+        reasons: mergeReasonsForHit(hit, old),
       });
     } else if (
       (hit.contextScore || 0) > (old?.contextScore || 0) ||
@@ -923,10 +958,7 @@ function mergeHits(hits) {
       merged.set(hit.file, {
         ...old,
         ...mergedShared,
-        reasons: uniq([
-          ...(hit.reasons || []),
-          ...(old?.reasons || []),
-        ]).slice(0, 12),
+        reasons: mergeReasonsForHit(hit, old),
         snippet: old?.snippet || hit.snippet || '',
         exactMatchLabel: hit.exactMatchLabel || old?.exactMatchLabel || '',
         exactMatchText: hit.exactMatchText || old?.exactMatchText || '',
@@ -949,10 +981,7 @@ function mergeHits(hits) {
       merged.set(hit.file, {
         ...old,
         ...mergedShared,
-        reasons: uniq([
-          ...(hit.reasons || []),
-          ...(old?.reasons || []),
-        ]).slice(0, 12),
+        reasons: mergeReasonsForHit(hit, old),
       });
     }
   }
@@ -1040,17 +1069,11 @@ function bindApiEvidenceToSelectionHits(project, selectionHits, apiHits, textCac
 
 function selectionClassBasisCandidates(evidence, options = {}) {
   const allowedScopes = options.allowedScopes ? new Set(options.allowedScopes) : null;
-  const isUsableClassToken = value => {
-    const text = String(value || '').trim();
-    if (!text) return false;
-    return !/^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(text)
-      && !/(--active|--selected|--disabled|--focus|--hover|is-active|is-selected|active|selected|disabled)$/i.test(text);
-  };
   const structured = (evidence.structuredEvidences || [])
     .filter(item => {
       if (!item.strong || (item.kind !== 'class' && item.kind !== 'icon') || !item.value) return false;
       if (allowedScopes && !allowedScopes.has(item.scope || '')) return false;
-      if (item.kind === 'class' && !isUsableClassToken(item.value)) return false;
+      if (item.kind === 'class' && String(item.value || '').trim().length < 2) return false;
       return true;
     })
     .map(item => ({
@@ -1071,7 +1094,6 @@ function selectionClassBasisCandidates(evidence, options = {}) {
     for (const token of ordered) {
       const value = String(token || '').trim();
       if (value.length < 2) continue;
-      if (!isUsableClassToken(value)) continue;
       result.push({
         token: value,
         selectionIndex: signal.index,
@@ -1280,7 +1302,7 @@ function hasInitialSelectionEvidence(scored) {
     .map(item => item.trim())
     .filter(item => /^[a-zA-Z0-9_-]{2,}$/.test(item))
     .filter(item => !/^(class|classname|当前选区|同文件命中)$/i.test(item));
-  return classes.some(cls => !/^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(cls));
+  return classes.length > 0;
 }
 
 function searchInitialHitsWithEvidence(project, scopedEvidence, textCache, scopeFiles, stage, reason, options = {}) {
@@ -1581,10 +1603,390 @@ function stableLocalHits(hits) {
   const top1 = sorted[0];
   const top2 = sorted[1];
   if (!top1) return false;
-  if (sorted.length === 1) return true;
+  if (sorted.length === 1) {
+    if (top1.sourceConfidence === 'exact') return true;
+    if (top1.preciseEvidence && ((top1.contextStrongMatchCount || 0) >= 2 || top1.exactMatchCount || top1.uniqueMatchText)) return true;
+    return (top1.score || 0) >= 700;
+  }
   if (top1.score >= 220 && top1.score - top2.score >= 46) return true;
-  if (sorted.length <= 4 && top1.score >= 170) return true;
+  if (top1.score >= 170 && top1.score - top2.score >= 32) return true;
   return false;
+}
+
+function isDefinitionLikeFile(filePath) {
+  const value = String(filePath || '');
+  if (!/\.(ts|tsx|js|jsx|mjs|cjs|json)$/i.test(value)) return false;
+  if (/\.(vue|jsx|tsx|svelte|astro|html)$/i.test(value)) return false;
+  return /(^|\/)(constants?|config|configs|options?|enums?|dictionary|dict|locale|locales|i18n)\//i.test(value)
+    || /(^|\/)(constants?|config|configs|options?|enums?|dictionary|dict|locale|locales|i18n)\.(ts|tsx|js|jsx|mjs|cjs|json)$/i.test(value)
+    || /(^|\/)[^/]*(constants?|config|options?|enums?|dictionary|dict|locale|i18n)[^/]*\.(ts|tsx|js|jsx|mjs|cjs|json)$/i.test(value);
+}
+
+function sourceHasClassOrComponentToken(text, token) {
+  const value = String(token || '').trim();
+  if (value.length < 2) return false;
+  if (findClassTokenIndex(text, value) !== -1) return true;
+  if (!/^[A-Za-z][\w-]*-[\w-]+$/.test(value)) return false;
+  const escaped = escapeRegExp(value);
+  return new RegExp(`<\\s*${escaped}\\b`, 'i').test(text)
+    || new RegExp(`\\bh\\(\\s*['"\`]${escaped}['"\`]`, 'i').test(text);
+}
+
+function evidenceSignalGroups(evidence) {
+  if (!Array.isArray(evidence?.selectionSignals)) return [];
+  return evidence.selectionSignals
+    .flatMap(signal => Array.isArray(signal?.layers) ? signal.layers : [])
+    .map((layer, index) => ({
+      label: [
+        layer.label || layer.scope || 'node',
+        layer.tag || '',
+        (layer.ownClassTokens || [])[0] ? `.${(layer.ownClassTokens || [])[0]}` : '',
+        (layer.ownTextPhrases || [])[0] ? ` "${String((layer.ownTextPhrases || [])[0]).slice(0, 24)}"` : '',
+      ].filter(Boolean).join(' '),
+      classTokens: layer.ownClassTokens || [],
+      textPhrases: layer.ownTextPhrases || [],
+      attrTokens: layer.ownAttrTokens || [],
+      styleTokens: layer.ownStyleTokens || [],
+      id: `signal-${index}`,
+    }));
+}
+
+function classTokensFromUiShapeEvidence(evidence) {
+  const groups = [
+    ...(Array.isArray(evidence?.selectionGroups) ? evidence.selectionGroups : []),
+    ...evidenceSignalGroups(evidence),
+  ];
+  return uniq(groups
+    .flatMap(group => group.classTokens || [])
+    .map(token => String(token || '').trim())
+    .filter(token => token.length >= 3));
+}
+
+function rareClassTokensForScope(project, scopeFiles, evidence, textCache) {
+  const result = new Set();
+  const files = scopeFiles || fileSetFromProject(project);
+  for (const token of classTokensFromUiShapeEvidence(evidence)) {
+    const docFreq = documentFrequency(project, files, { kind: 'class', value: token }, textCache, 12);
+    if (docFreq > 0 && docFreq <= 2) {
+      result.add(token.toLowerCase());
+    }
+  }
+  return result;
+}
+
+function scoreSourceUiShape(text, evidence, options = {}) {
+  let groups = Array.isArray(evidence?.selectionGroups) ? evidence.selectionGroups : [];
+  groups = [...groups, ...evidenceSignalGroups(evidence)];
+  if (!groups.length) return null;
+  const rawText = String(text || '');
+  const searchableText = maskCommentsPreserveLength(rawText);
+  const rareClassTokens = options.rareClassTokens || new Set();
+  const matched = [];
+  let score = 0;
+
+  for (const group of groups) {
+    const groupMatches = [];
+    for (const token of group.classTokens || []) {
+      if (!sourceHasClassOrComponentToken(searchableText, token)) continue;
+      groupMatches.push(`component/class:${token}`);
+      score += rareClassTokens.has(String(token || '').toLowerCase()) ? 260 : 54;
+    }
+    for (const phrase of group.textPhrases || []) {
+      const value = String(phrase || '').trim();
+      if (value.length < 2 || findNeedleIndex(searchableText.toLowerCase(), value.toLowerCase()) === -1) continue;
+      groupMatches.push(`text:${value}`);
+      score += 66;
+    }
+    const attrTokens = (group.attrTokens || [])
+      .filter(token => String(token || '').length >= 3)
+      .filter(token => !WEAK_CONTEXT_TOKENS.has(String(token).toLowerCase()));
+    for (const token of attrTokens) {
+      const value = String(token || '').trim();
+      if (!value || findNeedleIndex(searchableText.toLowerCase(), value.toLowerCase()) === -1) continue;
+      groupMatches.push(`attr:${value}`);
+      score += 24;
+    }
+    if (!groupMatches.length) continue;
+    matched.push({
+      label: group.label,
+      matched: uniq(groupMatches).slice(0, 6),
+    });
+  }
+
+  if (!matched.length) return null;
+  const componentMatches = matched.flatMap(item => item.matched).filter(item => item.startsWith('component/class:'));
+  const textMatches = matched.flatMap(item => item.matched).filter(item => item.startsWith('text:'));
+  if (!componentMatches.length && !textMatches.length) return null;
+  const bonus = matched.length * 42 + (matched.length >= 2 ? 80 : 0);
+  const firstToken = (componentMatches[0] || textMatches[0] || '').split(':').slice(1).join(':');
+  const index = firstToken ? searchableText.toLowerCase().indexOf(firstToken.toLowerCase()) : -1;
+  return {
+    score: Math.min(360, score + bonus),
+    matched,
+    snippet: index >= 0 ? makeSnippet(rawText, index, firstToken.length) : makeSnippet(rawText, 0, 0),
+  };
+}
+
+function reverseImportClosure(graph, seedFile, allowedFiles, maxDepth = 5) {
+  const result = [];
+  const queue = [{ file: seedFile, chain: [seedFile], depth: 0 }];
+  const visited = new Set([seedFile]);
+  while (queue.length) {
+    const current = queue.shift();
+    if (current.depth >= maxDepth) continue;
+    for (const parent of graph.parents.get(current.file) || []) {
+      if (visited.has(parent.file)) continue;
+      visited.add(parent.file);
+      const chain = [parent.file, ...current.chain];
+      if (!allowedFiles || allowedFiles.has(parent.file)) {
+        result.push({
+          file: parent.file,
+          chain,
+          depth: current.depth + 1,
+          via: parent.specifier || '',
+        });
+      }
+      queue.push({
+        file: parent.file,
+        chain,
+        depth: current.depth + 1,
+      });
+    }
+  }
+  return result;
+}
+
+function promoteDefinitionUsageHits(project, hits, evidence, textCache, scopeFiles, graph) {
+  const promoted = [];
+  const allowed = scopeFiles || fileSetFromProject(project);
+  const rareClassTokens = rareClassTokensForScope(project, allowed, evidence, textCache);
+  for (const hit of hits || []) {
+    if (!hit?.file || !isDefinitionLikeFile(hit.file)) continue;
+    const parents = reverseImportClosure(graph, hit.file, allowed, 5)
+      .filter(parent => isUiSourceFile(parent.file));
+    for (const parent of parents) {
+      const file = (project.files || []).find(item => item.path === parent.file);
+      if (!file || !isTextFile(file.path)) continue;
+      const text = readProjectText(project, file, textCache);
+      const shape = scoreSourceUiShape(text, evidence, { rareClassTokens });
+      if (!shape) continue;
+      promoted.push({
+        ...hit,
+        file: parent.file,
+        score: hit.score + 220 + shape.score - Math.min(90, parent.depth * 18),
+        stage: 'definition-usage',
+        stages: mergeList(hit.stages || hit.stage, 'definition-usage'),
+        from: hit.file,
+        snippet: shape.snippet || hit.snippet,
+        preciseEvidence: true,
+        preciseSnippet: shape.snippet || hit.preciseSnippet || hit.snippet,
+        contextScore: Math.max(hit.contextScore || 0, shape.score),
+        contextReasons: uniq([
+          ...(hit.contextReasons || []),
+          ...shape.matched.slice(0, 4).map(item => `定义使用组件结构命中：${item.label} => ${item.matched.join('、')}`),
+        ]).slice(0, 8),
+        contextStrongMatchCount: Math.max(hit.contextStrongMatchCount || 0, shape.matched.length),
+        reasons: uniq([
+          `命中文案/配置来自定义文件：${hit.file}`,
+          `沿 import 反查到渲染组件：${parent.file}`,
+          parent.chain.length > 1 ? `定义使用链：${parent.chain.join(' -> ')}` : '',
+          ...shape.matched.slice(0, 5).map(item => `源码结构命中：${item.label} => ${item.matched.join('、')}`),
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+        importChain: parent.chain,
+        definitionFile: hit.file,
+        definitionEvidence: true,
+      });
+    }
+  }
+  return promoted.sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+function runtimeSourceEvidenceList(body) {
+  const selections = Array.isArray(body?.selections) ? body.selections : [];
+  return selections
+    .map(selection => ({
+      selection,
+      sourceLocate: selection?.sourceLocate || selection?.sourceEvidence || selection?.element?.sourceLocate || null,
+    }))
+    .filter(item => item.sourceLocate);
+}
+
+function decodeSourcePath(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    if (/^file:\/\//i.test(raw)) {
+      return decodeURIComponent(new URL(raw).pathname || '');
+    }
+  } catch (error) {
+  }
+  try {
+    return decodeURIComponent(raw);
+  } catch (error) {
+    return raw;
+  }
+}
+
+function runtimeFileCandidates(project, runtimeFile) {
+  const raw = decodeSourcePath(runtimeFile)
+    .replace(/\\/g, '/')
+    .replace(/[?#].*$/, '')
+    .replace(/^webpack:\/\/\/?/, '')
+    .replace(/^webpack-internal:\/\/\/?/, '')
+    .replace(/^\/?@fs\//, '/')
+    .replace(/^\.\/+/, '');
+  if (!raw) return [];
+  const candidates = [];
+  const add = value => {
+    const normalized = posixPath(path.posix.normalize(String(value || '').replace(/\\/g, '/').replace(/^\.\/+/, '')));
+    if (normalized) candidates.push(normalized);
+  };
+  add(raw);
+  if (project?.path && path.isAbsolute(raw)) {
+    try {
+      add(path.relative(project.path, raw));
+    } catch (error) {
+    }
+  }
+  const srcIndex = raw.lastIndexOf('/src/');
+  if (srcIndex !== -1) add(raw.slice(srcIndex + 1));
+  const slashSrcIndex = raw.indexOf('src/');
+  if (slashSrcIndex !== -1) add(raw.slice(slashSrcIndex));
+  const projectName = project?.name ? `${project.name}/` : '';
+  if (projectName && raw.includes(projectName)) {
+    const projectNameIndex = raw.startsWith(projectName) ? 0 : raw.indexOf(`/${projectName}`);
+    if (projectNameIndex !== -1) {
+      const offset = projectNameIndex + (raw.startsWith(projectName) ? projectName.length : projectName.length + 1);
+      add(raw.slice(offset));
+    }
+  }
+  return uniq(candidates);
+}
+
+function resolveRuntimeFile(project, runtimeFile) {
+  const fileMap = buildFileMap(project);
+  for (const candidate of runtimeFileCandidates(project, runtimeFile)) {
+    if (fileMap.has(candidate)) return candidate;
+  }
+  return '';
+}
+
+function snippetForRuntimeLocation(project, filePath, line, textCache) {
+  const file = (project.files || []).find(item => item.path === filePath);
+  if (!file || !isTextFile(file.path)) return '';
+  const text = readProjectText(project, file, textCache);
+  const lineNumber = Number(line || 0);
+  if (lineNumber > 0) {
+    const lines = text.split('\n');
+    const start = Math.max(0, lineNumber - 12);
+    const end = Math.min(lines.length, lineNumber + 18);
+    return lines.slice(start, end).join('\n').trim();
+  }
+  return makeSnippet(text, 0, 0).trim();
+}
+
+function runtimeDirectLocationHits(project, body, textCache) {
+  const hits = [];
+  for (const { selection, sourceLocate } of runtimeSourceEvidenceList(body)) {
+    const direct = sourceLocate?.directLocation || null;
+    const filePath = resolveRuntimeFile(project, direct?.file || '');
+    if (!filePath) continue;
+    const chain = Array.isArray(sourceLocate.componentChain) ? sourceLocate.componentChain : [];
+    const component = chain.find(item => resolveRuntimeFile(project, item?.file || '') === filePath) || chain[0] || {};
+    const line = Number(direct.line || component.line || 0);
+    const column = Number(direct.column || component.column || 0);
+    hits.push({
+      file: filePath,
+      score: 2400 - Math.min(240, Number(component.depth || 0) * 30),
+      stage: 'runtime-source',
+      stages: ['runtime-source'],
+      sourceConfidence: 'exact',
+      framework: sourceLocate.framework || component.framework || 'unknown',
+      sourceLine: line || 0,
+      sourceColumn: column || 0,
+      sourceComponentName: component.name || '',
+      sourceComponentDepth: Number(component.depth || 0),
+      sourceRuntimeFile: direct.file || component.file || '',
+      apiEvidence: false,
+      apiEvidenceReasons: [],
+      apiEvidenceFrom: [],
+      preciseEvidence: true,
+      preciseSnippet: snippetForRuntimeLocation(project, filePath, line, textCache),
+      snippet: snippetForRuntimeLocation(project, filePath, line, textCache),
+      contextScore: 300,
+      contextReasons: [
+        `${sourceLocate.framework || component.framework || 'framework'} 运行时直接定位`,
+        direct.file ? `运行时源码路径：${direct.file}` : '',
+        component.name ? `组件：${component.name}` : '',
+      ].filter(Boolean),
+      contextSelectionIndex: Number(selection.index || 0),
+      reasons: [
+        `框架运行时直接定位：${sourceLocate.framework || component.framework || 'unknown'}`,
+        direct.file ? `源码路径：${direct.file}` : '',
+        line ? `源码位置：${line}${column ? `:${column}` : ''}` : '',
+        component.name ? `组件：${component.name}` : '',
+        '置信度：exact',
+      ].filter(Boolean),
+    });
+  }
+  return hits;
+}
+
+function angularRuntimeHintHits(project, body, textCache) {
+  const hits = [];
+  for (const { selection, sourceLocate } of runtimeSourceEvidenceList(body)) {
+    if (sourceLocate?.framework !== 'angular') continue;
+    const chain = Array.isArray(sourceLocate.componentChain) ? sourceLocate.componentChain : [];
+    const component = chain[0] || {};
+    const values = uniq([
+      component.selector,
+      component.name,
+      component.name ? kebabCase(component.name.replace(/Component$/i, '')) : '',
+    ]).filter(value => String(value || '').length >= 3);
+    if (!values.length) continue;
+    for (const file of project.files || []) {
+      if (!isTextFile(file.path)) continue;
+      const lowerPath = file.path.toLowerCase();
+      const text = readProjectText(project, file, textCache);
+      const lowerText = text.toLowerCase();
+      let matched = '';
+      for (const value of values) {
+        const lower = String(value).toLowerCase();
+        if (lowerPath.includes(lower) || lowerText.includes(lower)) {
+          matched = value;
+          break;
+        }
+      }
+      if (!matched) continue;
+      const index = lowerText.indexOf(String(matched).toLowerCase());
+      hits.push({
+        file: file.path,
+        score: 760 + (lowerPath.includes(String(matched).toLowerCase()) ? 120 : 0),
+        stage: 'runtime-source',
+        stages: ['runtime-source'],
+        sourceConfidence: 'medium',
+        framework: 'angular',
+        sourceComponentName: component.name || '',
+        apiEvidence: false,
+        apiEvidenceReasons: [],
+        apiEvidenceFrom: [],
+        preciseEvidence: false,
+        snippet: index >= 0 ? makeSnippet(text, index, String(matched).length) : '',
+        contextScore: 120,
+        contextReasons: [`Angular 运行时组件线索：${matched}`],
+        contextSelectionIndex: Number(selection.index || 0),
+        reasons: [
+          'Angular 运行时只能提供组件类/selector，按约定和源码内容召回',
+          component.name ? `组件类：${component.name}` : '',
+          component.selector ? `selector：${component.selector}` : '',
+          `命中：${matched}`,
+          '置信度：medium',
+        ].filter(Boolean),
+      });
+    }
+  }
+  return hits.sort((a, b) => b.score - a.score).slice(0, 6);
 }
 
 function legacyKeywordFallback(project, evidence, textCache) {
@@ -1684,9 +2086,21 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         ...(hit.reasons || []),
       ]).slice(0, 12),
     }));
-    const localStructuredHits = mergeHits([
+    const baseLocalStructuredHits = mergeHits([
       ...bundledHits,
       ...groupHits,
+    ]).sort((a, b) => b.score - a.score);
+    const localDefinitionUsageHits = promoteDefinitionUsageHits(project, baseLocalStructuredHits, evidence, textCache, scope.files, graph)
+      .map(hit => ({
+        ...hit,
+        reasons: uniq([
+          `检索层级：${scope.name}`,
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      }));
+    const localStructuredHits = mergeHits([
+      ...baseLocalStructuredHits,
+      ...localDefinitionUsageHits,
     ]).sort((a, b) => b.score - a.score);
     if (stableLocalHits(localStructuredHits) || exactTextIsUniqueEnough(localStructuredHits)) {
       return {
@@ -1704,9 +2118,18 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         ...(hit.reasons || []),
       ]).slice(0, 12),
     }));
+    const definitionUsageHits = promoteDefinitionUsageHits(project, recalledHits, evidence, textCache, scope.files, graph)
+      .map(hit => ({
+        ...hit,
+        reasons: uniq([
+          `检索层级：${scope.name}`,
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      }));
     const mergedScopeHits = mergeHits([
       ...localStructuredHits,
       ...recalledHits,
+      ...definitionUsageHits,
     ]).sort((a, b) => b.score - a.score);
     const meaningfulScopeHits = mergedScopeHits.filter(hit => !isOnlyRouteHitWithoutLocalEvidence(hit));
     if (meaningfulScopeHits.length) {
@@ -1733,6 +2156,16 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         ...(hit.reasons || []),
       ]).slice(0, 12),
     }));
+    const fallbackDefinitionUsageHits = promoteDefinitionUsageHits(project, fallbackHits, evidence, textCache, scope.files, graph)
+      .map(hit => ({
+        ...hit,
+        score: Math.round((hit.score || 0) * 0.92),
+        reasons: uniq([
+          `检索层级：${scope.name}`,
+          '当前选区未形成候选，启用扩区证据兜底召回',
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      }));
     const fallbackGroupHits = domGroupCoverageHits(project, evidence, textCache, scope.files, {
       fileFilter: isUiOrStyleSourceFile,
     }).map(hit => ({
@@ -1747,6 +2180,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
     const fallbackMergedHits = mergeHits([
       ...fallbackHits,
       ...fallbackGroupHits,
+      ...fallbackDefinitionUsageHits,
     ]).sort((a, b) => b.score - a.score);
     const meaningfulFallbackHits = fallbackMergedHits.filter(hit => !isOnlyRouteHitWithoutLocalEvidence(hit));
     last = {
@@ -1767,6 +2201,10 @@ function searchProjectWithMeta(project, body) {
   const limit = boundedLimit(body.limit || 10);
   const routeResult = resolvePageRouteTrace(project, body, textCache);
   const routeHits = routeResult.hits;
+  const runtimeHits = mergeHits([
+    ...runtimeDirectLocationHits(project, body, textCache),
+    ...angularRuntimeHintHits(project, body, textCache),
+  ]);
 
   const scopes = buildSearchScopes(project, routeHits, textCache);
   const layered = layeredSelectionHits(project, routeHits, evidence, textCache, scopes);
@@ -1796,9 +2234,16 @@ function searchProjectWithMeta(project, body) {
       '路由只作为入口基础分；最终优先看本文件局部证据',
     ]).slice(0, 12),
   }));
+  const exactRuntimeFiles = new Set(runtimeHits
+    .filter(hit => hit.sourceConfidence === 'exact')
+    .map(hit => hit.file));
+  const keywordHitsForMerge = exactRuntimeFiles.size
+    ? sortedKeywordHits.filter(hit => exactRuntimeFiles.has(hit.file))
+    : sortedKeywordHits;
   const hits = mergeHits([
+    ...runtimeHits,
     ...routeDisplayHits,
-    ...sortedKeywordHits,
+    ...keywordHitsForMerge,
     ...i18nHits,
     ...definitionHits,
   ])

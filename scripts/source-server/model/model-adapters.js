@@ -224,6 +224,7 @@ function numericStyleValue(value) {
 
 function pruneEvidencePriority(label) {
   const text = String(label || '');
+  if (/桥接|dataIndex|key/.test(text)) return 6;
   if (/文案|文本|精确|唯一/.test(text)) return 5;
   if (/class|样式|宽度|高度|objectFit|object-fit|background|borderRadius|border-radius|css/i.test(text)) return 4;
   if (/属性|attr|data-|href|key|value|role|title|aria/i.test(text)) return 3;
@@ -1097,6 +1098,11 @@ function mergeRanges(ranges, limit = MAX_MODEL_FILES) {
       continue;
     }
     last.end = Math.max(last.end, range.end);
+    if ((range.anchorWeight || 0) > (last.anchorWeight || 0)) {
+      last.anchorWeight = range.anchorWeight;
+      last.anchorLabel = range.anchorLabel || last.anchorLabel;
+      last.anchorNeedle = range.anchorNeedle || last.anchorNeedle;
+    }
   }
   return merged.slice(0, limit);
 }
@@ -1388,6 +1394,20 @@ function buildExcerptNeedles(payload, hit) {
   addNeedle(map, hit?.snippet, 260, '候选片段');
   addNeedle(map, hit?.exactMatchText, 920, '精确文案');
   addNeedle(map, hit?.uniqueMatchText, 900, '唯一文案');
+
+  for (const item of hit?.matched || []) {
+    const evidence = item?.evidence || {};
+    const value = evidence.value;
+    if (!value) continue;
+    const label = evidence.label || `本地命中证据(${evidence.kind || 'unknown'})`;
+    const bridge = /桥接证据/.test(String(label || ''));
+    const exact = evidence.kind === 'text' || evidence.kind === 'attr';
+    addNeedle(map, value, bridge ? 1060 : exact ? 900 : 620, label);
+    addNeedle(map, item.snippet, bridge ? 980 : 520, `${label}片段`);
+  }
+  for (const seed of reasonAnchorSeeds(hit?.reasons || [])) {
+    addNeedle(map, seed.text, seed.weight, seed.label);
+  }
 
   for (const selection of payload?.selections || []) {
     const info = selection?.element || {};
@@ -1837,6 +1857,20 @@ function weightedAnchorSeeds(hit, payload, needles) {
   add(hit?.uniqueMatchText, 860, '唯一文案');
   add(hit?.snippet, 520, '候选片段');
 
+  for (const item of hit?.matched || []) {
+    const evidence = item?.evidence || {};
+    const value = evidence.value;
+    if (!value) continue;
+    const label = evidence.label || `本地命中证据(${evidence.kind || 'unknown'})`;
+    const bridge = /桥接证据/.test(String(label || ''));
+    const exact = evidence.kind === 'text' || evidence.kind === 'attr';
+    add(value, bridge ? 1060 : exact ? 900 : 620, label);
+    if (item.snippet) add(item.snippet, bridge ? 980 : 520, `${label}片段`);
+  }
+  for (const seed of reasonAnchorSeeds(hit?.reasons || [])) {
+    add(seed.text, seed.weight, seed.label);
+  }
+
   for (const seed of selectionAnchorSeedItems(payload)) {
     add(seed.text, weakSelectionSeed(seed.text) ? 18 : seed.weight, seed.label);
   }
@@ -1849,12 +1883,34 @@ function weightedAnchorSeeds(hit, payload, needles) {
     .slice(0, 80);
 }
 
+function reasonAnchorSeeds(reasons) {
+  const seeds = [];
+  for (const reason of reasons || []) {
+    const text = String(reason || '');
+    const matched = text.match(/强证据命中\((text|attr)\)：(.+)$/);
+    if (matched && matched[2]) {
+      seeds.push({
+        text: matched[2].trim(),
+        weight: 1040,
+        label: '本地候选原因桥接证据',
+      });
+    }
+  }
+  return seeds;
+}
+
 function semanticRangeKey(range) {
   if (!range) return '';
   return `${range.start}:${range.end}`;
 }
 
 function rangeAroundAnchor(rawText, astNodes, anchor) {
+  const bridgeAnchor = /桥接证据/.test(String(anchor?.label || ''))
+    || /^(?:key|dataIndex)\s*:/.test(String(anchor?.needle || '').trim());
+  if (bridgeAnchor) {
+    const objectRange = enclosingObjectRange(rawText, anchor?.index || 0);
+    if (objectRange) return objectRange;
+  }
   const astRange = astNodeRangeForAnchor(astNodes, anchor);
   const syntaxRange = astRange || enclosingSyntaxRange(rawText, anchor.index);
   const baseRange = syntaxRange || { start: anchor.index, end: anchor.index + anchor.length };
@@ -1864,6 +1920,17 @@ function rangeAroundAnchor(rawText, astNodes, anchor) {
     return declarationRange;
   }
   return baseRange;
+}
+
+function enclosingObjectRange(text, index, maxChars = PRUNED_MODEL_FILE_CHARS) {
+  const content = String(text || '');
+  if (!content || index < 0) return null;
+  const range = pairedRanges(content, '{', '}')
+    .filter(item => item.start <= index && index < item.end)
+    .filter(item => item.end - item.start <= maxChars)
+    .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+  if (!range) return null;
+  return includeDeclarationPrefix(content, range);
 }
 
 function declaredSymbolsFromText(value, limit = 12) {
@@ -2071,7 +2138,8 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
 
   const anchorRanges = mergeRanges(selectedRanges
     .sort((a, b) => (b.anchorWeight || 0) - (a.anchorWeight || 0) || (a.end - a.start) - (b.end - b.start) || a.start - b.start)
-    .slice(0, 72), 24);
+    .slice(0, 72), 72)
+    .sort((a, b) => (b.anchorWeight || 0) - (a.anchorWeight || 0) || (a.end - a.start) - (b.end - b.start) || a.start - b.start);
   let anchorText = '';
   let skippedCompleteBlocks = 0;
   if (anchorRanges.length) {

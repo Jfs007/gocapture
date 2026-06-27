@@ -7769,6 +7769,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         uid: uid2,
         element,
         asset: (raw == null ? void 0 : raw.asset) || element,
+        sourceLocate: (raw == null ? void 0 : raw.sourceLocate) || (raw == null ? void 0 : raw.sourceEvidence) || element.sourceLocate || null,
         thumbnailUrl: (raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail) || "",
         thumbnailCaptured: !!((raw == null ? void 0 : raw.thumbnailUrl) || (raw == null ? void 0 : raw.thumbnail))
       };
@@ -7829,6 +7830,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       "api-usage": "接口调用",
       "api-upstream": "上层引用",
       "model-agent": "模型定位",
+      "runtime-source": "框架运行时定位",
       "route-resolver": "页面路由"
     };
     return labels[hit == null ? void 0 : hit.stage] || "候选命中";
@@ -7869,8 +7871,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       ];
     }
     if (hit.stage === "model-agent") {
+      const preModelSource = hit.preModelStage ? `本地来源: ${candidateStageLabel({ stage: hit.preModelStage })}` : "";
+      const preModelRuntimeReasons = hit.preModelStage === "runtime-source" ? (hit.preModelReasons || []).slice(0, 4).map((reason) => `运行时依据: ${reason}`) : [];
       return [
         `定位过程: 模型阅读本地预检索结果、候选文件内容和选区证据后推荐该文件`,
+        preModelSource,
         hit.modelAdapter ? `模型: ${hit.modelAdapter}` : "",
         hit.modelConfidence ? `置信度: ${hit.modelConfidence}%` : "",
         hit.modelLocateLevel ? `定位层级: ${hit.modelLocateLevel}${hit.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}` : "",
@@ -7878,6 +7883,18 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         hit.modelDirectionGuess ? `推测方向: ${hit.modelDirectionGuess}` : "",
         hit.modelPrompt ? `模型提示词: ${hit.modelPrompt}` : "",
         uniqueLine,
+        ...preModelRuntimeReasons,
+        ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
+      ];
+    }
+    if (hit.stage === "runtime-source") {
+      return [
+        `定位过程: 由页面运行时组件实例/Fiber/调试字段直接提供源码线索`,
+        hit.framework ? `框架: ${hit.framework}` : "",
+        hit.sourceConfidence ? `置信度: ${hit.sourceConfidence}` : "",
+        hit.sourceComponentName ? `组件: ${hit.sourceComponentName}` : "",
+        hit.sourceLine ? `源码位置: ${hit.sourceLine}${hit.sourceColumn ? `:${hit.sourceColumn}` : ""}` : "",
+        hit.sourceRuntimeFile ? `运行时路径: ${hit.sourceRuntimeFile}` : "",
         ...reasons.slice(0, 6).map((reason) => `依据: ${reason}`)
       ];
     }
@@ -10658,13 +10675,17 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       }
     });
     function selectionPayloads() {
-      return store.items.map((item, index) => ({
-        index: index + 1,
-        token: `@选区${index + 1}`,
-        element: item.element,
-        asset: item.asset || null,
-        thumbnailCaptured: !!item.thumbnailUrl
-      }));
+      return store.items.map((item, index) => {
+        var _a;
+        return {
+          index: index + 1,
+          token: `@选区${index + 1}`,
+          element: item.element,
+          asset: item.asset || null,
+          sourceLocate: item.sourceLocate || ((_a = item.element) == null ? void 0 : _a.sourceLocate) || null,
+          thumbnailCaptured: !!item.thumbnailUrl
+        };
+      });
     }
     function confirmSelectionContext(invalidatePrompt) {
       if (!store.hasSelection) return false;
@@ -10845,14 +10866,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     return lines;
   }
   function createSearchContextTools({ denoiseTextByApi }) {
-    function isNoiseClassTerm(term) {
-      return /^((n|el|ant|ivu|van|arco|semi|q|v)-|router-link-)/.test(term) || /(active|selected|disabled|checked|hover|focus)$/i.test(term);
-    }
     function contextTextTerms(info) {
       return extractSearchTerms(denoiseTextByApi((info == null ? void 0 : info.text) || ""));
     }
     function contextClassTerms(info) {
-      return extractSearchTerms((info == null ? void 0 : info.className) || "").filter((term) => !isNoiseClassTerm(term));
+      return extractSearchTerms((info == null ? void 0 : info.className) || "");
     }
     function contextAttrTerms(info) {
       const attrs = (info == null ? void 0 : info.attrs) || {};
@@ -10971,13 +10989,17 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       assetInfo: item.asset || item.element || {},
       thumbnailUrl: item.thumbnailUrl || ""
     })));
-    const selectionPayloads = () => selectionStore.items.map((item, index) => ({
-      index: index + 1,
-      token: `@选区${index + 1}`,
-      element: item.element,
-      asset: item.asset || null,
-      thumbnailCaptured: !!item.thumbnailUrl
-    }));
+    const selectionPayloads = () => selectionStore.items.map((item, index) => {
+      var _a;
+      return {
+        index: index + 1,
+        token: `@选区${index + 1}`,
+        element: item.element,
+        asset: item.asset || null,
+        sourceLocate: item.sourceLocate || ((_a = item.element) == null ? void 0 : _a.sourceLocate) || null,
+        thumbnailCaptured: !!item.thumbnailUrl
+      };
+    });
     const denoiseTextByApi = requestStore.denoiseTextByApi;
     const searchContext = createSearchContextTools({ denoiseTextByApi });
     function filteredAncestorsForSearch(info) {
@@ -11607,6 +11629,9 @@ ${source}` : "",
         }), {
           score,
           stage: "model-agent",
+          preModelStage: (old == null ? void 0 : old.stage) || "",
+          preModelStageLabel: (old == null ? void 0 : old.stage) ? old.stage : "",
+          preModelReasons: (old == null ? void 0 : old.reasons) || [],
           reasons: [
             `模型定位：${target.prompt || target.reason || ((_a = result.parsed) == null ? void 0 : _a.summary) || result.rawText || "-"}`,
             target.directionGuess ? `推测方向：${target.directionGuess}` : "",
