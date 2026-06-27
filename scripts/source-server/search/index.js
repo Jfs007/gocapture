@@ -1603,6 +1603,9 @@ function stableLocalHits(hits) {
   const top1 = sorted[0];
   const top2 = sorted[1];
   if (!top1) return false;
+  const topStages = new Set(top1.stages || [top1.stage].filter(Boolean));
+  if (topStages.has('context-hypothesis-demoted')) return false;
+  if (topStages.has('context-hypothesis-related') && !topStages.has('original-selection-verified')) return false;
   if (sorted.length === 1) {
     if (top1.sourceConfidence === 'exact') return true;
     if (top1.preciseEvidence && ((top1.contextStrongMatchCount || 0) >= 2 || top1.exactMatchCount || top1.uniqueMatchText)) return true;
@@ -1611,6 +1614,226 @@ function stableLocalHits(hits) {
   if (top1.score >= 220 && top1.score - top2.score >= 46) return true;
   if (top1.score >= 170 && top1.score - top2.score >= 32) return true;
   return false;
+}
+
+function isRuntimeScalarText(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return true;
+  if (text.length > 40) return false;
+  if (!/[\p{L}\p{N}]/u.test(text)) return true;
+  if (/^[￥¥$€£]?\s*\d+(?:[.,]\d+)?\s*[%元万亿件个次天时分秒]?$/.test(text)) return true;
+  if (/^\d{1,4}[-/.:]\d{1,2}(?:[-/.:]\d{1,2})?(?:\s+\d{1,2}:\d{1,2}(?::\d{1,2})?)?$/.test(text)) return true;
+  if (/^(?:id[:：]?\s*)?[a-z0-9_-]{8,}$/i.test(text)) return true;
+  return false;
+}
+
+function groupMatchHasStableOriginalSignal(group) {
+  const matches = Array.isArray(group?.matched) ? group.matched : [];
+  return matches.some(item => {
+    const [kind, ...rest] = String(item || '').split(':');
+    const value = rest.join(':').trim();
+    if (kind === 'class' || kind === 'component/class' || kind === 'attr' || kind === 'resource') return true;
+    if (kind === 'text') return !isRuntimeScalarText(value);
+    return false;
+  });
+}
+
+function coverageHasStableOriginalSignal(coverage) {
+  return (coverage?.matchedGroups || []).some(groupMatchHasStableOriginalSignal);
+}
+
+function originalSelectionVerification(project, filePath, selfEvidence, textCache) {
+  const file = (project.files || []).find(item => item.path === filePath);
+  if (!file || !isTextFile(file.path)) {
+    return {
+      accepted: false,
+      score: 0,
+      reasons: [],
+      snippet: '',
+    };
+  }
+  const text = readProjectText(project, file, textCache);
+  const scored = scoreFileText(file, text, selfEvidence);
+  const coverage = scoreDomGroupCoverageForText(text, selfEvidence);
+  const acceptedByText = hasInitialSelectionEvidence(scored);
+  const acceptedByGroup = coverage
+    && coverageHasStableOriginalSignal(coverage)
+    && coverage.matchedGroups.length >= 1
+    && (coverage.score || 0) >= 90;
+  const reasons = [];
+  if (acceptedByText) {
+    reasons.push('原始选区回验通过：当前选区文案/class 能在该文件解释');
+    reasons.push(...(scored.contextReasons || []).slice(0, 3));
+  }
+  if (acceptedByGroup) {
+    reasons.push(`原始选区局部结构回验：${coverage.matchedGroups.length} 个局部组命中`);
+    reasons.push(...coverage.matchedGroups.slice(0, 2).map(group => `${group.label} => ${group.matched.join('、')}`));
+  }
+  return {
+    accepted: !!(acceptedByText || acceptedByGroup),
+    score: Math.min(180, Math.max(scored.contextScore || 0, coverage?.score || 0)),
+    reasons: uniq(reasons).slice(0, 6),
+    snippet: scored.snippet || coverage?.snippet || '',
+    scored,
+    coverage,
+  };
+}
+
+function importPathBetween(graph, fromFile, toFile, maxDepth = 8) {
+  if (!graph?.children?.has(fromFile) || !toFile) return [];
+  if (fromFile === toFile) return [fromFile];
+  const queue = [{ file: fromFile, chain: [fromFile], depth: 0 }];
+  const visited = new Set([fromFile]);
+  while (queue.length) {
+    const current = queue.shift();
+    if (current.depth >= maxDepth) continue;
+    for (const child of graph.children.get(current.file) || []) {
+      if (visited.has(child.file)) continue;
+      const chain = [...current.chain, child.file];
+      if (child.file === toFile) return chain;
+      visited.add(child.file);
+      queue.push({ file: child.file, chain, depth: current.depth + 1 });
+    }
+  }
+  return [];
+}
+
+function hypothesisRelationForFile(filePath, options = {}) {
+  const {
+    seedFiles,
+    routeEntry,
+    routeClosure,
+    graph,
+  } = options;
+  if (!filePath) return null;
+  if (seedFiles?.has(filePath)) {
+    return {
+      accepted: true,
+      score: 96,
+      reason: '候选关系验证：命中文件属于原始选区初始候选',
+      chain: [filePath],
+    };
+  }
+  if (routeClosure?.has(filePath)) {
+    const chain = routeEntry ? importPathBetween(graph, routeEntry, filePath, 10) : [];
+    return {
+      accepted: true,
+      score: chain.length > 1 ? 74 : 46,
+      reason: chain.length > 1
+        ? `候选关系验证：处于当前页面 import 闭包 ${chain.join(' -> ')}`
+        : '候选关系验证：处于当前页面源码闭包',
+      chain,
+    };
+  }
+  for (const seed of seedFiles || []) {
+    const seedToFile = importPathBetween(graph, seed, filePath, 8);
+    if (seedToFile.length > 1) {
+      return {
+        accepted: true,
+        score: 62,
+        reason: `候选关系验证：原始候选引用该文件 ${seedToFile.join(' -> ')}`,
+        chain: seedToFile,
+      };
+    }
+    const fileToSeed = importPathBetween(graph, filePath, seed, 8);
+    if (fileToSeed.length > 1) {
+      return {
+        accepted: true,
+        score: 68,
+        reason: `候选关系验证：该文件是原始候选的引用方 ${fileToSeed.join(' -> ')}`,
+        chain: fileToSeed,
+      };
+    }
+  }
+  return null;
+}
+
+function validateExpandedHypothesisHits(project, hits, evidence, textCache, options = {}) {
+  if (!hits?.length) return [];
+  const selfEvidence = selfOnlyEvidence(evidence);
+  const seedFiles = currentSelectionSeedFiles(options.initialHits || []);
+  const routeEntry = options.routeEntry || '';
+  const routeClosure = routeEntry ? importClosure(project, [routeEntry], textCache, 8) : new Set();
+  const graph = options.graph || buildImportGraph(project, textCache);
+
+  return hits.map(hit => {
+    const verification = originalSelectionVerification(project, hit.file, selfEvidence, textCache);
+    const relation = hypothesisRelationForFile(hit.file, {
+      seedFiles,
+      routeEntry,
+      routeClosure,
+      graph,
+    });
+    if (verification.accepted) {
+      return {
+        ...hit,
+        score: hit.score + 120 + verification.score,
+        stages: mergeList(hit.stages || hit.stage, 'original-selection-verified'),
+        preciseEvidence: !!(hit.preciseEvidence || verification.scored?.preciseEvidence),
+        preciseSnippet: hit.preciseSnippet || verification.snippet || '',
+        snippet: hit.snippet || verification.snippet || '',
+        reasons: uniq([
+          ...verification.reasons,
+          relation?.reason || '',
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function rebalanceAuxiliaryEvidenceHits(project, hits, evidence, textCache, routeHits = []) {
+  if (!hits?.length) return [];
+  const selfEvidence = selfOnlyEvidence(evidence);
+  const routeEntry = routeHits?.[0]?.file || '';
+  const routeClosure = routeEntry ? importClosure(project, [routeEntry], textCache, 8) : new Set();
+  const graph = buildImportGraph(project, textCache);
+  return hits.map(hit => {
+    const auxiliary = hit.i18nEvidence || hit.definitionEvidence || isApiStage(hit.stage);
+    if (!auxiliary) return hit;
+    const verification = originalSelectionVerification(project, hit.file, selfEvidence, textCache);
+    if (verification.accepted) {
+      return {
+        ...hit,
+        score: hit.score + 80 + Math.min(120, verification.score),
+        stages: mergeList(hit.stages || hit.stage, 'auxiliary-original-selection-verified'),
+        reasons: uniq([
+          '辅助证据回验通过：定义/i18n/API 线索能回到原始选区所在源码',
+          ...verification.reasons,
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      };
+    }
+    const relation = hypothesisRelationForFile(hit.file, {
+      seedFiles: new Set(),
+      routeEntry,
+      routeClosure,
+      graph,
+    });
+    if (relation?.accepted && (hit.contextScore || 0) >= 80) {
+      return {
+        ...hit,
+        score: hit.score + Math.min(60, relation.score),
+        stages: mergeList(hit.stages || hit.stage, 'auxiliary-page-related'),
+        reasons: uniq([
+          relation.reason,
+          '辅助证据保留：处于页面关系内，但仍需以后续选区/模型判断为准',
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      };
+    }
+    return {
+      ...hit,
+      score: Math.max(1, Math.round((hit.score || 0) * 0.58) - 60),
+      preciseEvidence: false,
+      stages: mergeList(hit.stages || hit.stage, 'auxiliary-demoted'),
+      reasons: uniq([
+        '辅助证据降权：定义/i18n/API 线索未回验到原始选区，只作为旁证',
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    };
+  }).filter(hit => (hit.score || 0) > 0);
 }
 
 function isDefinitionLikeFile(filePath) {
@@ -2177,11 +2400,15 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         ...(hit.reasons || []),
       ]).slice(0, 12),
     }));
-    const fallbackMergedHits = mergeHits([
+    const fallbackMergedHits = validateExpandedHypothesisHits(project, mergeHits([
       ...fallbackHits,
       ...fallbackGroupHits,
       ...fallbackDefinitionUsageHits,
-    ]).sort((a, b) => b.score - a.score);
+    ]), evidence, textCache, {
+      initialHits: baseLocalStructuredHits,
+      routeEntry,
+      graph,
+    }).sort((a, b) => b.score - a.score);
     const meaningfulFallbackHits = fallbackMergedHits.filter(hit => !isOnlyRouteHitWithoutLocalEvidence(hit));
     last = {
       hits: fallbackMergedHits,
@@ -2220,9 +2447,9 @@ function searchProjectWithMeta(project, body) {
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
   const i18nTrace = traceI18nReferences(project, body, evidence, textCache, routeHits);
-  const i18nHits = i18nTrace.hits || [];
+  const i18nHits = rebalanceAuxiliaryEvidenceHits(project, i18nTrace.hits || [], evidence, textCache, routeHits);
   const definitionTrace = traceDefinitionReferences(project, body, evidence, textCache);
-  const definitionHits = definitionTrace.hits || [];
+  const definitionHits = rebalanceAuxiliaryEvidenceHits(project, definitionTrace.hits || [], evidence, textCache, routeHits);
   const apiHits = traceApiReferences(project, body, evidence, textCache);
   const apiTrace = apiHits.apiTrace || null;
 

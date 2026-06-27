@@ -1,14 +1,33 @@
 import type { Ref } from 'vue';
-import { hashRoutePath } from './route-resolver.adapter';
+
+export function hashRoutePath(hash: string) {
+  const value = String(hash || '').replace(/^#/, '');
+  if (!value) return '';
+  const route = value.startsWith('!/') ? value.slice(1) : value;
+  if (!route.startsWith('/')) return '';
+  return route.split('?')[0] || '/';
+}
 
 export function readCurrentHref(api: Record<string, any>) {
   if (api.sidePanelConfig?.snapshot?.page?.url) {
     return api.sidePanelConfig.snapshot.page.url;
   }
+  if (api.sidePanelConfig?.panelTicket) {
+    return '';
+  }
   try {
     return window.location.href || '';
   } catch (error) {
     return '';
+  }
+}
+
+export function isMagnusUiHref(href: string) {
+  try {
+    const url = new URL(href);
+    return url.pathname === '/ui' || url.pathname === '/ui/';
+  } catch (error) {
+    return false;
   }
 }
 
@@ -34,6 +53,7 @@ export function installLocationWatcher(currentPageHref: Ref<string>) {
   const rawReplaceState = window.history.replaceState;
   const syncCurrentUrl = () => {
     const nextHref = readCurrentHref({ sidePanelConfig: window.__MAGNUS_SIDE_PANEL__ || {} });
+    if (!nextHref || isMagnusUiHref(nextHref)) return;
     if (nextHref && nextHref !== currentPageHref.value) currentPageHref.value = nextHref;
   };
   const onChanged = () => window.setTimeout(syncCurrentUrl, 0);

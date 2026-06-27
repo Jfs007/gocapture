@@ -1168,6 +1168,9 @@ function stableLocalModelCandidate(body) {
   for (const hit of [...(body.selectedCandidateHits || []), ...(body.candidateHits || [])]) {
     const file = normalizeModelFilePath(hit?.file);
     if (!file || !isSelectionMatchedHit(hit)) continue;
+    const stages = hitStages(hit);
+    if (stages.includes('context-hypothesis-demoted')) continue;
+    if (stages.includes('context-hypothesis-related') && !stages.includes('original-selection-verified')) continue;
     if (hitStages(hit).includes('route-resolver') && !(hit.contextScore || hit.preciseEvidence || hit.exactMatchText)) continue;
     const old = byFile.get(file);
     if (!old || Number(old.score || 0) < Number(hit.score || 0)) {

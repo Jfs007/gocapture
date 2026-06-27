@@ -9971,6 +9971,71 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     if (!route.startsWith("/")) return "";
     return route.split("?")[0] || "/";
   }
+  function readCurrentHref(api) {
+    var _a, _b, _c, _d;
+    if ((_c = (_b = (_a = api.sidePanelConfig) == null ? void 0 : _a.snapshot) == null ? void 0 : _b.page) == null ? void 0 : _c.url) {
+      return api.sidePanelConfig.snapshot.page.url;
+    }
+    if ((_d = api.sidePanelConfig) == null ? void 0 : _d.panelTicket) {
+      return "";
+    }
+    try {
+      return window.location.href || "";
+    } catch (error) {
+      return "";
+    }
+  }
+  function isMagnusUiHref(href) {
+    try {
+      const url = new URL(href);
+      return url.pathname === "/ui" || url.pathname === "/ui/";
+    } catch (error) {
+      return false;
+    }
+  }
+  function pageHostText(href) {
+    try {
+      return new URL(href).host || href;
+    } catch (error) {
+      return "-";
+    }
+  }
+  function pageUrlPath(href) {
+    try {
+      const url = new URL(href);
+      return hashRoutePath(url.hash) || url.pathname || "/";
+    } catch (error) {
+      return "/";
+    }
+  }
+  function installLocationWatcher(currentPageHref) {
+    const rawPushState = window.history.pushState;
+    const rawReplaceState = window.history.replaceState;
+    const syncCurrentUrl = () => {
+      const nextHref = readCurrentHref({ sidePanelConfig: window.__MAGNUS_SIDE_PANEL__ || {} });
+      if (!nextHref || isMagnusUiHref(nextHref)) return;
+      if (nextHref && nextHref !== currentPageHref.value) currentPageHref.value = nextHref;
+    };
+    const onChanged = () => window.setTimeout(syncCurrentUrl, 0);
+    window.history.pushState = function pushState(...args) {
+      const result = rawPushState.apply(this, args);
+      onChanged();
+      return result;
+    };
+    window.history.replaceState = function replaceState(...args) {
+      const result = rawReplaceState.apply(this, args);
+      onChanged();
+      return result;
+    };
+    window.addEventListener("popstate", onChanged, true);
+    window.addEventListener("hashchange", onChanged, true);
+    return () => {
+      window.history.pushState = rawPushState;
+      window.history.replaceState = rawReplaceState;
+      window.removeEventListener("popstate", onChanged, true);
+      window.removeEventListener("hashchange", onChanged, true);
+    };
+  }
   function useRouteResolver({
     project,
     currentPageHref,
@@ -10007,6 +10072,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         var _a;
         if (!project.value || project.value.source !== "source-server") {
           routeStore.applyTrace(null);
+          return;
+        }
+        if (!currentPageHref.value || isMagnusUiHref(currentPageHref.value)) {
+          routeStore.status = "idle";
+          routeStore.error = "";
           return;
         }
         const seq = ++routeResolveSeq;
@@ -12491,59 +12561,6 @@ ${result.rawText}` : ""
       element: null,
       selections: selection.selectionPayloads()
     });
-  }
-  function readCurrentHref(api) {
-    var _a, _b, _c;
-    if ((_c = (_b = (_a = api.sidePanelConfig) == null ? void 0 : _a.snapshot) == null ? void 0 : _b.page) == null ? void 0 : _c.url) {
-      return api.sidePanelConfig.snapshot.page.url;
-    }
-    try {
-      return window.location.href || "";
-    } catch (error) {
-      return "";
-    }
-  }
-  function pageHostText(href) {
-    try {
-      return new URL(href).host || href;
-    } catch (error) {
-      return "-";
-    }
-  }
-  function pageUrlPath(href) {
-    try {
-      const url = new URL(href);
-      return hashRoutePath(url.hash) || url.pathname || "/";
-    } catch (error) {
-      return "/";
-    }
-  }
-  function installLocationWatcher(currentPageHref) {
-    const rawPushState = window.history.pushState;
-    const rawReplaceState = window.history.replaceState;
-    const syncCurrentUrl = () => {
-      const nextHref = readCurrentHref({ sidePanelConfig: window.__MAGNUS_SIDE_PANEL__ || {} });
-      if (nextHref && nextHref !== currentPageHref.value) currentPageHref.value = nextHref;
-    };
-    const onChanged = () => window.setTimeout(syncCurrentUrl, 0);
-    window.history.pushState = function pushState(...args) {
-      const result = rawPushState.apply(this, args);
-      onChanged();
-      return result;
-    };
-    window.history.replaceState = function replaceState(...args) {
-      const result = rawReplaceState.apply(this, args);
-      onChanged();
-      return result;
-    };
-    window.addEventListener("popstate", onChanged, true);
-    window.addEventListener("hashchange", onChanged, true);
-    return () => {
-      window.history.pushState = rawPushState;
-      window.history.replaceState = rawReplaceState;
-      window.removeEventListener("popstate", onChanged, true);
-      window.removeEventListener("hashchange", onChanged, true);
-    };
   }
   function createMagnusRuntime(api) {
     const currentPageHref = /* @__PURE__ */ ref(readCurrentHref(api));

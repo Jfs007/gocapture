@@ -1,14 +1,7 @@
 import { type ComputedRef, type Ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouteStore } from '../../stores/route.store';
-
-export function hashRoutePath(hash: string) {
-  const value = String(hash || '').replace(/^#/, '');
-  if (!value) return '';
-  const route = value.startsWith('!/') ? value.slice(1) : value;
-  if (!route.startsWith('/')) return '';
-  return route.split('?')[0] || '/';
-}
+import { isMagnusUiHref } from './page-location';
 
 interface RouteResolverOptions {
   project: Ref<any>;
@@ -55,6 +48,11 @@ export function useRouteResolver({
   async function resolveCurrentPageRoute() {
     if (!project.value || project.value.source !== 'source-server') {
       routeStore.applyTrace(null);
+      return;
+    }
+    if (!currentPageHref.value || isMagnusUiHref(currentPageHref.value)) {
+      routeStore.status = 'idle';
+      routeStore.error = '';
       return;
     }
 
