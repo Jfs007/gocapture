@@ -11,8 +11,11 @@ const {
   recordSkillVerification,
   saveCandidateSkill,
 } = require('./skill-store');
-
-const MAX_TARGET_CHARS = 18000;
+const {
+  compactTaskSession,
+  getOrCreateTaskSession,
+  updateTaskSession,
+} = require('./task-session');
 
 function parseJson(value) {
   const text = String(value || '').trim();
@@ -51,17 +54,6 @@ function projectFileSet(project) {
   return new Set((project.files || []).map(file => file.path));
 }
 
-function pathsFromText(text, project) {
-  const files = projectFileSet(project);
-  const values = new Set();
-  const pattern = /\bsrc\/[A-Za-z0-9_./@-]+\.[A-Za-z0-9]+\b/g;
-  for (const match of String(text || '').matchAll(pattern)) {
-    const file = match[0].replace(/[),.;:，。；：]+$/g, '');
-    if (files.has(file)) values.add(file);
-  }
-  return Array.from(values);
-}
-
 function normalizeEvidenceItems(items, project, fallbackPurpose) {
   const files = projectFileSet(project);
   return (Array.isArray(items) ? items : [])
@@ -75,69 +67,11 @@ function normalizeEvidenceItems(items, project, fallbackPurpose) {
     .filter(item => files.has(item.path));
 }
 
-function discoveryHighFrequencyTerms(discovery) {
-  const result = [];
-  for (const entry of Object.values(discovery?.results || {})) {
-    for (const stat of entry?.stats?.termStats || []) {
-      if (stat.files >= 3 && stat.occurrences >= stat.files) {
-        result.push(stat.term);
-      }
-    }
-  }
-  return Array.from(new Set(result)).slice(0, 8);
-}
-
-function discoveryExampleItems(discovery, project, terms) {
-  const files = projectFileSet(project);
-  const result = [];
-  const wanted = new Set(terms || []);
-  for (const entry of Object.values(discovery?.results || {})) {
-    for (const match of entry?.matches || []) {
-      if (!files.has(match.path)) continue;
-      const matched = match.matchedTerms || [];
-      if (wanted.size && !matched.some(term => wanted.has(term))) continue;
-      result.push({
-        path: match.path,
-        purpose: matched.length
-          ? `代表案例：${matched.slice(0, 4).join('、')}`
-          : '代表案例',
-      });
-    }
-  }
-  const seen = new Set();
-  return result.filter(item => {
-    if (seen.has(item.path)) return false;
-    seen.add(item.path);
-    return true;
-  });
-}
-
 function normalizeCandidateSkillForSave(candidate, project, discovery) {
   if (!candidate) return null;
   const textContext = String(candidate.context || candidate.content || candidate.description || '').trim();
-  const highFrequencyTerms = discoveryHighFrequencyTerms(discovery);
-  const mentionedPaths = pathsFromText([
-    textContext,
-    safeJson(candidate.requiredEvidence || []),
-    safeJson(candidate.examples || []),
-  ].join('\n'), project);
-  const examples = [
-    ...normalizeEvidenceItems(candidate.examples, project, '模型返回案例'),
-    ...mentionedPaths
-      .filter(file => !/\/components\/|\/hooks\/|\/utils\//.test(file))
-      .map(path => ({ path, purpose: '模型正文提到的真实案例' })),
-    ...discoveryExampleItems(discovery, project, highFrequencyTerms)
-      .filter(item => !/\/components\/|\/hooks\/|\/utils\//.test(item.path)),
-  ];
-  const requiredEvidence = [
-    ...normalizeEvidenceItems(candidate.requiredEvidence, project, '基础能力证据'),
-    ...mentionedPaths
-      .filter(file => /\/components\/|\/hooks\/|\/utils\//.test(file))
-      .map(path => ({ path, purpose: '模型正文提到的基础能力证据' })),
-    ...discoveryExampleItems(discovery, project, highFrequencyTerms)
-      .filter(item => /\/components\/|\/hooks\/|\/utils\//.test(item.path))
-      .map(item => ({ ...item, purpose: `基础能力证据：${item.purpose}` })),
-  ];
+  const examples = normalizeEvidenceItems(candidate.examples, project, '模型返回案例');
+  const requiredEvidence = normalizeEvidenceItems(candidate.requiredEvidence, project, '基础能力证据');
   const unique = (items) => {
     const seen = new Set();
     return items.filter(item => {
@@ -151,6 +85,9 @@ function normalizeCandidateSkillForSave(candidate, project, discovery) {
     context: textContext,
     examples: unique(examples),
     requiredEvidence: unique(requiredEvidence),
+    recipes: Array.isArray(candidate.recipes) ? candidate.recipes : [],
+    sourceContracts: Array.isArray(candidate.sourceContracts) ? candidate.sourceContracts : [],
+    verificationChecklist: Array.isArray(candidate.verificationChecklist) ? candidate.verificationChecklist : [],
     triggerTags: Array.from(new Set((candidate.triggerTags || []).map(String).filter(Boolean))),
   };
 }
@@ -588,13 +525,11 @@ function targetFileContext(project, modelItems, textCache) {
   return (modelItems || []).slice(0, 4).map(item => {
     const file = (project.files || []).find(entry => entry.path === item.file);
     const text = file ? readProjectText(project, file, textCache) : '';
-    const locatedSnippet = String(item.codeSnippet || item.rawCodeSnippet || '').trim();
-    const complete = String(text || '').length <= MAX_TARGET_CHARS;
     return {
       path: item.file,
-      mode: complete ? 'full' : 'located-snippet',
-      content: complete ? String(text || '') : locatedSnippet,
-      fullFileOmitted: !complete,
+      mode: file ? 'full' : 'missing',
+      content: String(text || ''),
+      fullFileOmitted: false,
       rawChars: String(text || '').length,
     };
   });
@@ -830,14 +765,19 @@ function buildEnhancementPrompt(input) {
     '要求：',
     '- 不要直接修改代码。',
     '- 项目经验只用于约束实现方式，目标文件真实代码优先。',
+    '- targetFiles.content 是本地已读取的完整目标文件内容，不是片段；必须基于完整文件提炼可直接执行的修改方案。',
+    '- activeTask 是同一 projectRoot + 页面路径下累计的任务上下文；若包含多条 requirements，需要把它们合并成一个完整任务，而不是只处理最后一句。',
+    '- 如果 activeTask.confirmedSkillIds 已存在，说明这些经验已在当前任务中确认过，应优先复用，不要重复质疑其项目级适用性；但目标文件真实代码仍优先。',
+    '- enhancedPrompt 应尽量让 Code Agent 上手即可修改：指出应改的文件、应放置的位置、应复用的 import/变量/函数/组件/API 模式、实施步骤和校验点。',
+    '- 不要笼统要求 Code Agent “重新完整阅读目标文件”；只有当目标文件以外的 API、hook、子组件、父组件或公共实现仍缺失时，才列出“需要继续阅读的相关文件/方向”。',
     '- 明确区分已确认事实、待验证假设和实施要求。',
     '- 不得臆造接口字段、响应结构、函数名、导入路径、状态变量或组件 API。',
     '- 禁止建议创建占位接口、猜测接口路径、猜测字段名，或发明 columns2/data2/loading2 这类实现名称。',
     '- “已确认项目经验”必须引用 discovery/matchedSkills 中真实命中的文件和代码模式；没有证据就明确写未确认。',
     '- 若 discovery.stats 显示某组实现标识符在多个文件中高频出现，并且代表案例代码模式一致，可以把它作为“项目基础经验”；不要求业务语义完全相同。',
     '- 例如表格任务中，如果 useTable、MdTable、md-table、NDataTable 等从目标文件抽取出的同类实现标识符在多个文件中稳定共现，可确认项目表格实现倾向。',
-    '- 如果粗定位可能不准确，要求 Code Agent 修改前沿直接引用链重新验证。',
-    '- enhancedPrompt 必须包含任务、目标文件、已确认项目经验、本次已确认事实、实施步骤、待确认项和安全准则。',
+    '- 如果粗定位可能不准确，要求 Code Agent 沿直接引用链验证相关文件，不要把验证范围泛化成重读整个项目。',
+    '- enhancedPrompt 必须包含任务、目标文件、目标文件内已确认上下文、已确认项目经验、实施步骤、需要继续阅读的相关文件/方向、待确认项和安全准则。',
     '- 不要在本阶段生成或保存 Skill；candidateSkill 必须返回 null。Skill 是否沉淀会由后续独立阶段基于高频门票和证据包判断。',
     '',
     '返回格式：',
@@ -856,17 +796,19 @@ function buildSkillCandidatePrompt(input) {
     '- 不要判断本次业务需求是否可复用；本阶段只判断候选模式本身是否可沉淀。',
     '- target 只是触发候选模式校验的一个用法案例，不是要沉淀的业务需求。',
     '- Skill 应接近项目开发文档水准：说明适用场景、入口 import、核心组件/hook/工具怎么组合、实现步骤、注意事项。',
+    '- context/recipes/sourceContracts/verificationChecklist 是后续进入提示词的真正经验内容，必须能直接指导同类开发。',
+    '- requiredEvidence/examples 只用于存档追溯，不会作为后续提示词主体；不要把泛化搜索结果、无关 columns 文件或一次性业务页面塞进去。',
     '- 不要把本次用户需求、接口名、字段名、一次性文案写成 triggerTags。',
     '- triggerTags 只能是短标签或符号，例如 MdTable、useTable、md-table、表格、列表；不要超过 8 个。',
     '- 如果只是当前页面细节、当前业务接口、当前字段，或证据不足以指导后续同类任务，shouldSave=false。',
     '- shouldSave=true 时，candidateSkill.context 必须包含“如何使用”的具体写法，而不是空泛总结。',
-    '- requiredEvidence/examples 的 path 必须来自 patternCandidate 中的真实文件。',
+    '- requiredEvidence/examples 的 path 必须来自 patternCandidate 中的真实文件，且只保留证明该模式公共来源和代表用法所必需的最小集合。',
     '',
     '返回格式：',
     '{"shouldSave":false,"reason":"","candidateSkill":null}',
     '',
     'candidateSkill 格式：',
-    '{"id":"","name":"","triggerTags":[],"applicableWhen":[],"notApplicableWhen":[],"context":"","requiredEvidence":[{"path":"src/...","purpose":""}],"examples":[{"path":"src/...","purpose":""}],"confidence":"medium"}',
+    '{"id":"","name":"","triggerTags":[],"applicableWhen":[],"notApplicableWhen":[],"context":"","recipes":[],"sourceContracts":[],"verificationChecklist":[],"requiredEvidence":[{"path":"src/...","purpose":""}],"examples":[{"path":"src/...","purpose":""}],"confidence":"medium"}',
     '',
     'context 建议结构：',
     '## 适用场景',
@@ -901,6 +843,9 @@ async function enhanceLocatedPrompt(options) {
   if (!modelItems?.length || typeof invoke !== 'function') {
     return { enhancedPrompt: fallback, usedSkillIds: [], mode: 'fallback' };
   }
+  const taskSession = getOrCreateTaskSession(project, task);
+  const activeTask = compactTaskSession(taskSession.session);
+  log(`任务上下文：${taskSession.mode === 'append' ? '复用' : '新建'}；key=${activeTask.pageKey}；需求 ${activeTask.requirements.length} 条；已确认 Skill ${activeTask.confirmedSkillIds.length} 个`);
 
   const initialMetas = loadSkillMetas(project);
   const matchableMetas = initialMetas.filter(meta => meta.status === 'active' || meta.status === 'needs-verification');
@@ -912,7 +857,13 @@ async function enhanceLocatedPrompt(options) {
   let taskFacts = null;
   let discovery = null;
 
-  if (matchableMetas.length) {
+  const reusableSkillIds = (activeTask.confirmedSkillIds || [])
+    .filter(id => matchableMetas.some(meta => meta.id === id))
+    .slice(0, 4);
+  if (reusableSkillIds.length) {
+    matchedSkillIds = reusableSkillIds;
+    log(`任务上下文复用经验：${matchedSkillIds.join('、')}，跳过 skill-match`);
+  } else if (matchableMetas.length) {
     const match = await invokeJson(
       invoke,
       'skill-match',
@@ -968,6 +919,7 @@ async function enhanceLocatedPrompt(options) {
       overview: projectContext.markdown,
     },
     roughTask: task,
+    activeTask,
     targetFiles: targetFileContext(project, modelItems, textCache),
     matchedSkills: skills,
     taskFacts,
@@ -985,6 +937,16 @@ async function enhanceLocatedPrompt(options) {
   if (usedSkillIds.length) {
     recordSkillVerification(project, usedSkillIds);
     log(`项目经验已验证：${usedSkillIds.join('、')}`);
+  }
+  const updatedSession = updateTaskSession(project, task, {
+    targetFiles: task.targets.map(item => item.file).filter(Boolean),
+    confirmedSkillIds: usedSkillIds.length ? usedSkillIds : matchedSkillIds,
+    confirmedFacts: enhanced.parsed?.confirmedFacts || [],
+    assumptions: enhanced.parsed?.assumptions || [],
+    enhancedPrompt,
+  });
+  if (updatedSession) {
+    log(`任务上下文已更新：需求 ${updatedSession.requirements.length} 条；Skill ${updatedSession.confirmedSkillIds.length} 个`);
   }
 
   let savedSkill = null;
@@ -1022,6 +984,11 @@ async function enhanceLocatedPrompt(options) {
     log(savedSkill.saved
       ? `候选经验已保存：${savedSkill.meta.id}（needs-verification）`
       : `候选经验未保存：${savedSkill.reason}`);
+    if (savedSkill.saved) {
+      updateTaskSession(project, task, {
+        confirmedSkillIds: [savedSkill.meta.id],
+      });
+    }
   }
 
   return {

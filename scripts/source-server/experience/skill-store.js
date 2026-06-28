@@ -85,11 +85,18 @@ function loadSkillContexts(project, ids) {
   const metas = loadSkillMetas(project).filter(meta => wanted.has(skillSlug(meta.id)));
   return metas.map(meta => {
     const directory = path.join(skillsRoot(project), skillSlug(meta.id));
+    const provenance = safeJson(path.join(directory, 'provenance.json')) || {};
     return {
       meta,
       context: safeRead(path.join(directory, 'context.md')),
-      examples: safeJson(path.join(directory, 'examples.json')) || {},
-      evidence: safeJson(path.join(directory, 'evidence.json')) || {},
+      recipes: safeJson(path.join(directory, 'recipes.json')) || [],
+      sourceContracts: safeJson(path.join(directory, 'source-contracts.json')) || [],
+      verificationChecklist: safeJson(path.join(directory, 'checklist.json')) || [],
+      provenance: {
+        sourceFiles: Array.isArray(provenance.sourceFiles)
+          ? provenance.sourceFiles.map(String).filter(Boolean).slice(0, 16)
+          : [],
+      },
     };
   });
 }
@@ -114,6 +121,9 @@ function saveCandidateSkill(project, candidate) {
     ...candidate,
     requiredEvidence: (candidate?.requiredEvidence || []).filter(item => projectFiles.has(item?.path)),
     examples: (candidate?.examples || []).filter(item => projectFiles.has(item?.path)),
+    recipes: Array.isArray(candidate?.recipes) ? candidate.recipes : [],
+    sourceContracts: Array.isArray(candidate?.sourceContracts) ? candidate.sourceContracts : [],
+    verificationChecklist: Array.isArray(candidate?.verificationChecklist) ? candidate.verificationChecklist : [],
   };
   if (!validCandidateSkill(normalizedCandidate)) {
     return { saved: false, reason: '候选经验缺少足够案例、上下文或证据' };
@@ -134,24 +144,26 @@ function saveCandidateSkill(project, candidate) {
     lastVerifiedAt: oldMeta?.lastVerifiedAt || '',
     staleAfterDays: normalizedCandidate.staleAfterDays || oldMeta?.staleAfterDays || 90,
   }, slug);
-  const examples = {
-    requiredEvidence: normalizedCandidate.requiredEvidence || [],
-    examples: normalizedCandidate.examples || [],
-  };
-  const evidence = {
+  const provenance = {
     createdAt: new Date().toISOString(),
     evidenceCount: candidateEvidenceCount(normalizedCandidate),
     sourceFiles: Array.from(new Set([
       ...(normalizedCandidate.requiredEvidence || []).map(item => item?.path),
       ...(normalizedCandidate.examples || []).map(item => item?.path),
     ].filter(Boolean))),
+    requiredEvidence: normalizedCandidate.requiredEvidence || [],
+    examples: normalizedCandidate.examples || [],
     discoverySummary: normalizedCandidate.discoverySummary || '',
   };
   try {
     atomicWrite(path.join(directory, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`);
     atomicWrite(path.join(directory, 'context.md'), `${String(normalizedCandidate.context || '').trim()}\n`);
-    atomicWrite(path.join(directory, 'examples.json'), `${JSON.stringify(examples, null, 2)}\n`);
-    atomicWrite(path.join(directory, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
+    atomicWrite(path.join(directory, 'recipes.json'), `${JSON.stringify(normalizedCandidate.recipes || [], null, 2)}\n`);
+    atomicWrite(path.join(directory, 'source-contracts.json'), `${JSON.stringify(normalizedCandidate.sourceContracts || [], null, 2)}\n`);
+    atomicWrite(path.join(directory, 'checklist.json'), `${JSON.stringify(normalizedCandidate.verificationChecklist || [], null, 2)}\n`);
+    atomicWrite(path.join(directory, 'provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`);
+    fs.rmSync(path.join(directory, 'examples.json'), { force: true });
+    fs.rmSync(path.join(directory, 'evidence.json'), { force: true });
     refreshProjectDocument(project, loadSkillMetas(project));
     return { saved: true, meta };
   } catch (error) {

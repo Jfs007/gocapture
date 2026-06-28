@@ -6,7 +6,7 @@ const { scanProject } = require('../core/project');
 const { executeDiscoveryPlan } = require('./discovery-executor');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
 const { ensureProjectContext } = require('./project-context');
-const { loadSkillMetas } = require('./skill-store');
+const { loadSkillContexts, loadSkillMetas } = require('./skill-store');
 
 function write(root, file, content) {
   const absolute = path.join(root, file);
@@ -21,10 +21,13 @@ async function run() {
       dependencies: { vue: '^3.0.0', axios: '^1.0.0' },
       devDependencies: { vite: '^5.0.0', typescript: '^5.0.0' },
     }));
+    const longAppBody = Array.from({ length: 900 }, (_, index) => `const marker${index} = ${index}`).join('\n');
     write(root, 'src/App.vue', [
       '<script setup lang="ts">',
       "import { onMounted } from 'vue'",
+      longAppBody,
       'onMounted(() => {})',
+      'const MAGNUS_FULL_TARGET_FILE_MARKER = true',
       '</script>',
     ].join('\n'));
     write(root, 'src/main.ts', "import App from './App.vue'\n");
@@ -151,6 +154,7 @@ async function run() {
         }
         assert.match(prompt, /src\/api\/user\.ts/);
         assert.match(prompt, /http\.request/);
+        assert.match(prompt, /MAGNUS_FULL_TARGET_FILE_MARKER/);
         return JSON.stringify({
           enhancedPrompt: '任务: 在 App.vue 按项目现有 API 层接入 /api/setup。',
           confirmedFacts: ['项目通过 API 模块调用统一 HTTP 实例'],
@@ -240,6 +244,31 @@ async function run() {
                 { path: 'src/views/order/index.vue', purpose: '当前业务表格用法' },
                 { path: 'src/views/goods/index.vue', purpose: '另一个业务表格用法' },
               ],
+              recipes: [{
+                title: '新增分页业务表格',
+                when: '目标页面已有 MdTable/useTable 或同类列表页结构',
+                steps: [
+                  '从项目组件入口导入 MdTable，从 md-table hooks 导入 useTable。',
+                  '在当前业务目录 api.ts 增加列表接口函数。',
+                  '定义 columns，并通过 useTable({ api, params }) 接管数据、分页和 loading。',
+                  '模板中绑定 columns、data、loading、pagination，并把分页事件接到 paginationChange。',
+                ],
+                code: "const { data, loading, pagination, paginationChange, getData } = useTable({ api: getListApi, params: () => ({ ...filter }) })",
+              }],
+              sourceContracts: [{
+                name: 'MdTable',
+                importFrom: '@/components',
+                usage: '<md-table :columns="columns" :data="data" :loading="loading" :pagination="pagination" @update:pagination="paginationChange" />',
+              }, {
+                name: 'useTable',
+                importFrom: '@/components/md-table/hooks/useTable',
+                usage: 'useTable({ api, params }) 返回 data/loading/pagination/paginationChange/getData 等表格状态与动作。',
+              }],
+              verificationChecklist: [
+                '确认目标文件实际导入路径与当前项目一致。',
+                '确认接口函数位于当前业务目录或项目既有 api 模块。',
+                '确认 columns、rowKey、分页字段与后端响应结构匹配。',
+              ],
               confidence: 'medium',
             },
           });
@@ -256,6 +285,20 @@ async function run() {
     assert.equal(tableSkill.savedSkill.saved, true, tableSkill.savedSkill.reason);
     assert.equal(loadSkillMetas(project).length, 1);
     assert.deepEqual(loadSkillMetas(project)[0].triggerTags, ['MdTable', 'useTable', 'md-table', '表格', '列表']);
+    const skillDirectory = path.join(root, '.magnus-project', 'skills', 'mdtable-usetable');
+    assert.equal(fs.existsSync(path.join(skillDirectory, 'recipes.json')), true);
+    assert.equal(fs.existsSync(path.join(skillDirectory, 'source-contracts.json')), true);
+    assert.equal(fs.existsSync(path.join(skillDirectory, 'checklist.json')), true);
+    assert.equal(fs.existsSync(path.join(skillDirectory, 'provenance.json')), true);
+    assert.equal(fs.existsSync(path.join(skillDirectory, 'examples.json')), false);
+    assert.equal(fs.existsSync(path.join(skillDirectory, 'evidence.json')), false);
+    const contexts = loadSkillContexts(project, ['skill:mdtable-usetable']);
+    assert.equal(contexts.length, 1);
+    assert.equal(Array.isArray(contexts[0].recipes), true);
+    assert.equal(Array.isArray(contexts[0].sourceContracts), true);
+    assert.equal(Array.isArray(contexts[0].verificationChecklist), true);
+    assert.equal(contexts[0].examples, undefined);
+    assert.equal(contexts[0].evidence, undefined);
 
     const rescanned = scanProject(root);
     assert.equal(rescanned.files.some(file => file.path.startsWith('.magnus-project/')), false);
