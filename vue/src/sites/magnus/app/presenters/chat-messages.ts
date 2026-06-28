@@ -164,11 +164,17 @@ export function useChatMessages() {
         .slice(0, 5)
         .flatMap((item: any, index: number) => {
           const locateLevel = item.locateLevel || item.modelLocateLevel || 'exact';
+          const fileOnly = !!(item.fileOnly || item.modelFileOnly || locateLevel === 'file');
+          const selectionFallback = !!(item.selectionFallback || item.modelSelectionFallback || item.snippetSource === 'selection-fallback' || item.modelSnippetSource === 'selection-fallback');
           const snippetVerified = item.snippetVerified !== false && item.modelSnippetVerified !== false;
           return [
             `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ''}${item.exists === false ? ' · 文件不存在' : ''}`,
-            `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? '；片段未逐字验证，已降级为源码方向' : ''}`,
-            item.codeSnippet ? `${snippetVerified ? 'code片段' : '源码方向片段'}: ${item.codeSnippet}` : '',
+            fileOnly
+              ? '定位结果: 文件命中'
+              : selectionFallback
+                ? '定位层级: direction；源码不足，使用选区兜底'
+                : `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? '；片段未逐字验证，已降级为源码方向' : ''}`,
+            item.codeSnippet ? `${selectionFallback ? '选区兜底' : snippetVerified ? 'code片段' : '源码方向片段'}: ${item.codeSnippet}` : '',
             item.directionGuess ? `推测方向: ${item.directionGuess}` : '',
             item.prompt ? `提示词: ${item.prompt}` : (item.reason || '-')
           ].filter(Boolean);

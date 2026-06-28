@@ -33,7 +33,7 @@ const TOKEN_ESTIMATE_CHARS = 3;
 const MODEL_RESULT_SNIPPET_CHARS = 1400;
 const MIN_FOCUSED_WINDOW_SCORE = 90;
 const DEFAULT_TIMEOUT_MS = 120000;
-const PRUNED_MODEL_FILE_CHARS = 22000;
+const PRUNED_MODEL_FILE_CHARS = 10000;
 const DIRECT_RELATED_CHARS = 5200;
 const GENERIC_MODEL_SYMBOLS = new Set([
   'api',
@@ -1419,6 +1419,11 @@ function buildExcerptNeedles(payload, hit) {
 
   for (const selection of payload?.selections || []) {
     const info = selection?.element || {};
+    const expandedInfos = [
+      selection?.asset,
+      selection?.expanded,
+      selection?.expandedContext,
+    ].filter(Boolean);
     const tag = String(info.tag || '').toLowerCase();
     const attrs = info.attrs || {};
     const style = info.computedStyle || {};
@@ -1444,6 +1449,27 @@ function buildExcerptNeedles(payload, hit) {
       styleWeight: 560,
       resourceWeight: 400,
     });
+
+    for (const expanded of expandedInfos) {
+      addNeedle(map, expanded?.text || expanded?.searchText, 760, '扩区文案');
+      addNeedle(map, expanded?.className, 560, '扩区 className');
+      for (const token of tokenize(expanded?.className).slice(0, 8)) {
+        addNeedle(map, token, 500, '扩区 class token');
+      }
+      for (const seed of usefulAttrSeedsFromInfo(expanded, 12)) {
+        addNeedle(map, seed.value, 420, `扩区${seed.label.replace(/^选区/, '')}`);
+      }
+      for (const seed of usefulStyleSeedsFromStyle(expanded?.computedStyle || {}, expanded?.inlineStyle || '', 12)) {
+        addNeedle(map, seed, 460, '扩区 CSS/样式');
+      }
+      addSubtreeNeedles(map, expanded?.subtree, '扩区向下', {
+        classWeight: 500,
+        textWeight: 680,
+        attrWeight: 420,
+        styleWeight: 420,
+        resourceWeight: 340,
+      });
+    }
 
     for (const ancestor of (info.ancestors || []).slice(0, 4)) {
       addNeedle(map, ancestor?.text, 700, '父级文案');
@@ -1701,81 +1727,6 @@ function cleanModelSymbol(value) {
   return symbol;
 }
 
-function symbolsFromText(value, limit = 18) {
-  const result = [];
-  const seen = new Set();
-  const regex = /\b[A-Za-z_$][\w$]*\b/g;
-  let match;
-  while ((match = regex.exec(String(value || ''))) && result.length < limit) {
-    const symbol = cleanModelSymbol(match[0]);
-    if (!symbol || seen.has(symbol)) continue;
-    seen.add(symbol);
-    result.push(symbol);
-  }
-  return result;
-}
-
-function importLinesForSymbols(text, symbols) {
-  const symbolSet = new Set((symbols || []).map(cleanModelSymbol).filter(Boolean));
-  return String(text || '')
-    .split('\n')
-    .filter(line => /^\s*import\b/.test(line) || /^\s*(?:const|let|var)\s+\{?[^=]*\}?\s*=\s*require\s*\(/.test(line))
-    .filter(line => {
-      if (!symbolSet.size) return true;
-      return [...symbolSet].some(symbol => line.includes(symbol));
-    })
-    .slice(0, 24)
-    .join('\n');
-}
-
-function directDefinitionExcerpt(text, symbol, maxChars = DIRECT_RELATED_CHARS) {
-  const content = String(text || '');
-  const name = cleanModelSymbol(symbol);
-  if (!content || !name) return '';
-  const patterns = [
-    new RegExp(`\\b(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s+${escapeRegExp(name)}\\s*\\(`),
-    new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${escapeRegExp(name)}\\b`),
-    new RegExp(`\\bclass\\s+${escapeRegExp(name)}\\b`),
-    new RegExp(`\\b${escapeRegExp(name)}\\s*:\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>|[A-Za-z_$][\\w$]*\\s*=>|[\\[{])`),
-  ];
-  for (const pattern of patterns) {
-    const match = pattern.exec(content);
-    if (!match) continue;
-    const structuralIndex = findDefinitionStructuralIndex(content, match.index + match[0].length);
-    const range = structuralIndex === -1
-      ? enclosingSyntaxRange(content, match.index)
-      : enclosingSyntaxRange(content, structuralIndex);
-    const textBlock = range
-      ? content.slice(range.start, range.end).trim()
-      : completeLineAt(content, match.index);
-    return textBlock;
-  }
-  return '';
-}
-
-function findDefinitionStructuralIndex(content, fromIndex) {
-  const source = String(content || '');
-  const window = source.slice(fromIndex, Math.min(source.length, fromIndex + 1200));
-  const structural = ['{', '[']
-    .map(char => {
-      const index = window.indexOf(char);
-      return index === -1 ? -1 : fromIndex + index + 1;
-    })
-    .filter(index => index >= 0)
-    .sort((a, b) => a - b);
-  if (structural.length) return structural[0];
-  const paren = window.indexOf('(');
-  return paren === -1 ? -1 : fromIndex + paren + 1;
-}
-
-function completeLineAt(content, index) {
-  const source = String(content || '');
-  const start = source.lastIndexOf('\n', index) + 1;
-  const endIndex = source.indexOf('\n', index);
-  const end = endIndex === -1 ? source.length : endIndex;
-  return source.slice(start, end).trim();
-}
-
 function styleSeedValuesFromInfo(info) {
   const style = info?.computedStyle || {};
   return uniq([
@@ -1814,6 +1765,14 @@ function selectionAnchorSeedItems(payload) {
         for (const seed of usefulStyleSeedsFromStyle(info?.computedStyle || {}, info?.inlineStyle || '', 18)) add(seed, 560, '选区/父级 CSS/样式');
         for (const seed of usefulAttrSeedsFromInfo(info, 18)) add(seed.value, 430, seed.label.replace(/^选区/, '选区/父级'));
         for (const seed of resourceSeedValuesFromInfo(info).slice(0, 12)) add(seed, weakSelectionSeed(seed) ? 36 : 360, '选区/父级资源');
+        for (const node of (info?.subtree?.nodes || []).slice(0, 24)) {
+          add(infoSearchText(node), 640, '扩区子节点文案');
+          for (const token of tokenize(infoSearchText(node)).slice(0, 8)) add(token, 380, '扩区子节点文本 token');
+          add(node?.className, 460, '扩区子节点 CSS class');
+          for (const token of tokenize(node?.className).slice(0, 6)) add(token, 400, '扩区子节点 CSS class token');
+          for (const seed of usefulAttrSeedsFromInfo(node, 8)) add(seed.value, 340, seed.label.replace(/^选区/, '扩区子节点'));
+          for (const seed of usefulStyleSeedsFromStyle(node?.computedStyle || {}, node?.inlineStyle || '', 8)) add(seed, 360, '扩区子节点 CSS/样式');
+        }
       }
   }
   const merged = new Map();
@@ -1922,12 +1881,38 @@ function rangeAroundAnchor(rawText, astNodes, anchor) {
   const astRange = astNodeRangeForAnchor(astNodes, anchor);
   const syntaxRange = astRange || enclosingSyntaxRange(rawText, anchor.index);
   const baseRange = syntaxRange || { start: anchor.index, end: anchor.index + anchor.length };
+  const siblingRange = siblingContextRange(rawText, baseRange, anchor);
+  if (siblingRange) return siblingRange;
   const declarationRange = enclosingAstDeclarationRange(astNodes, anchor.index) || enclosingDeclarationRange(rawText, anchor.index);
   if (!declarationRange) return baseRange;
   if (declarationRange.start <= baseRange.start && baseRange.end <= declarationRange.end) {
     return declarationRange;
   }
   return baseRange;
+}
+
+function siblingContextRange(text, baseRange, anchor) {
+  const source = String(text || '');
+  if (!source || !baseRange || baseRange.end <= baseRange.start) return null;
+  const label = String(anchor?.label || '');
+  if (!/(文案|结构化证据|资源)/.test(label) || /CSS|样式|class/i.test(label)) return null;
+  const baseSize = baseRange.end - baseRange.start;
+  if (baseSize > 1600) return null;
+  const parents = [
+    ...pairedRanges(source, '[', ']'),
+    ...pairedRanges(source, '(', ')'),
+    ...pairedRanges(source, '{', '}'),
+  ]
+    .filter(range => range.start <= baseRange.start && baseRange.end <= range.end)
+    .filter(range => {
+      const size = range.end - range.start;
+      if (size <= baseSize || size > 3600) return false;
+      const inner = source.slice(range.start, range.end);
+      return inner.includes(',') || inner.includes('\n');
+    })
+    .sort((a, b) => (a.end - a.start) - (b.end - b.start));
+  const parent = parents[0];
+  return parent ? includeDeclarationPrefix(source, parent) : null;
 }
 
 function enclosingObjectRange(text, index, maxChars = PRUNED_MODEL_FILE_CHARS) {
@@ -2166,37 +2151,14 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
     }
     anchorText = anchorBlocks.join('\n\n');
   } else {
-    anchorText = rawText;
+    anchorText = String(
+      hit?.preciseSnippet
+      || hit?.uniqueSnippet
+      || hit?.snippet
+      || ''
+    ).trim();
   }
-  const directSymbols = symbolsFromText(anchorText, 18);
-  const importText = importLinesForSymbols(rawText, directSymbols);
-  const directBlocks = [];
-  for (const symbol of directSymbols.slice(0, 10)) {
-    const block = directDefinitionExcerpt(rawText, symbol, 2800);
-    if (block && !directBlocks.some(item => item.includes(block.slice(0, 80)))) {
-      directBlocks.push(block);
-    }
-  }
-  const sections = [
-  ];
-  let textSize = 0;
-  const pushSection = (title, body, required = false) => {
-    const value = String(body || '').trim();
-    if (!value) return;
-    const section = `${title}\n${value}`;
-    if (required || !sections.length || textSize + section.length <= PRUNED_MODEL_FILE_CHARS) {
-      sections.push(section);
-      textSize += section.length;
-    } else {
-      skippedCompleteBlocks++;
-    }
-  };
-  pushSection('// imports directly related to visible symbols', importText);
-  pushSection('// selection/code anchor', anchorText, true);
-  for (const block of directBlocks) {
-    pushSection('// one-hop direct definition/usage', block);
-  }
-  let text = sections.join('\n\n');
+  let text = anchorText;
   if (skippedCompleteBlocks) {
     text = `${text}\n\n// pruned ${skippedCompleteBlocks} additional complete syntax unit(s) after budget`;
   }
@@ -2204,7 +2166,7 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
     file: file.path,
     text,
     mode: 'pruned-chain',
-    note: '多候选未敲定：按 AST/结构节点保留选区命中、相关 import 和一层直接关系代码，未保留内容按整节点剔除',
+    note: '按 AST/结构节点仅保留直接支撑本地命中的完整语法块',
     rawLength: rawText.length,
     tokenEstimate: estimateModelTokens(text),
     chunkIndex: 1,
@@ -2216,38 +2178,6 @@ function pruneFileForModel(project, filePath, hit, payload, textCache) {
 
 function estimateModelTokens(value) {
   return Math.max(1, Math.ceil(String(value || '').length / TOKEN_ESTIMATE_CHARS));
-}
-
-function fileContentBlock(project, filePath, textCache) {
-  const file = projectFile(project, filePath);
-  if (!file || !isTextFile(file.path)) return null;
-  const rawText = readProjectText(project, file, textCache || new Map());
-  if (!rawText) {
-    return {
-      file: file.path,
-      text: '',
-      mode: 'full',
-      note: '空文件',
-      rawLength: 0,
-      tokenEstimate: 1,
-      chunkIndex: 1,
-      chunkTotal: 1,
-      start: 0,
-      end: 0,
-    };
-  }
-  return {
-    file: file.path,
-    text: rawText,
-    mode: 'full',
-    note: '完整文件纳入模型请求；文件内部不切片',
-    rawLength: rawText.length,
-    tokenEstimate: estimateModelTokens(rawText),
-    chunkIndex: 1,
-    chunkTotal: 1,
-    start: 0,
-    end: rawText.length,
-  };
 }
 
 function collectModelFiles(project, body, textCache, logs) {
@@ -2268,13 +2198,16 @@ function collectModelFiles(project, body, textCache, logs) {
   for (const item of body.extraFiles || []) add(item);
 
   const blocks = [];
-  const multiCandidateMode = modelHits.length > 1;
-  const localMap = multiCandidateMode ? localCandidateMap(body) : new Map();
+  const localMap = localCandidateMap(body);
   for (const file of files.slice(0, MAX_MODEL_FILES)) {
-    const pruned = multiCandidateMode
-      ? pruneFileForModel(project, file, localMap.get(file) || candidateHitForFile(body, file) || { file }, body.searchPayload || {}, textCache)
-      : null;
-    const block = pruned || fileContentBlock(project, file, textCache);
+    const pruned = pruneFileForModel(
+      project,
+      file,
+      localMap.get(file) || candidateHitForFile(body, file) || { file },
+      body.searchPayload || {},
+      textCache
+    );
+    const block = pruned;
     if (!block) continue;
     block.tokenEstimate = block.tokenEstimate || estimateModelTokens(block.text);
     blocks.push(block);
@@ -2282,72 +2215,82 @@ function collectModelFiles(project, body, textCache, logs) {
       ? `读取候选文件：${file}（原始 ${block.rawLength} 字符；AST 剪枝后 ${block.text.length} 字符；估算 ${block.tokenEstimate} tokens；文件不切片）`
       : `读取候选文件：${file}（完整 ${block.rawLength} 字符；估算 ${block.tokenEstimate} tokens；文件不切片）`);
   }
-  appendLog(logs, multiCandidateMode
-    ? `候选文件内容：纳入 ${blocks.length} 个 AST 剪枝文件 / ${files.length} 个候选文件；每个文件作为不可拆 block 分批`
-    : `候选文件内容：纳入 ${blocks.length} 个完整文件 / ${files.length} 个候选文件；每个文件作为不可拆 block 分批`);
+  appendLog(
+    logs,
+    `候选文件内容：纳入 ${blocks.length} 个依据源码剪枝块 / ${files.length} 个候选文件；定位模型不读取完整文件`
+  );
   return blocks;
 }
 
-function compactSubtreeSummary(subtree) {
-  if (!subtree || typeof subtree !== 'object') return null;
-  const attrs = (subtree.attrs || []).slice(0, 12).map(item => ({
-    tag: item?.tag || '',
-    className: item?.className || '',
-    key: item?.key || '',
-    value: compact(item?.value || '', 160),
-  }));
-  const styles = (subtree.styles || []).slice(0, 10).map(item => ({
-    tag: item?.tag || '',
-    className: item?.className || '',
-    style: Object.fromEntries(
-      Object.entries(item?.style || {})
-        .slice(0, 8)
-        .map(([key, value]) => [key, compact(value, 120)])
-    ),
-  }));
-  return {
-    nodeCount: subtree.nodeCount || 0,
-    class: (subtree.classNames || []).slice(0, 20),
-    text: (subtree.texts || []).slice(0, 12).map(text => compact(text, 160)),
-    attrs,
-    style: styles,
-  };
-}
-
-function structureSummaryFromInfo(info) {
-  const nodes = [];
-  const pushNode = node => {
-    if (!node || typeof node !== 'object') return;
-    const tag = String(node.tag || '').toLowerCase();
-    const className = String(node.className || '');
-    const attrs = node.attrs || {};
-    nodes.push({ tag, className, attrs });
-  };
-  pushNode(info);
-  for (const node of (info?.subtree?.nodes || []).slice(0, 64)) pushNode(node);
-
-  const hasTag = tags => nodes.some(node => tags.has(node.tag));
-  const hasAttr = key => nodes.some(node => {
-    const attrs = node.attrs || {};
-    return Object.prototype.hasOwnProperty.call(attrs, key) && String(attrs[key] || '').trim();
-  });
-  const hasClassLike = pattern => nodes.some(node => pattern.test(node.className || ''));
-  const descendants = nodes.slice(1);
-  return {
-    hasLink: hasTag(new Set(['a'])) || hasAttr('href'),
-    hasButton: hasTag(new Set(['button'])) || nodes.some(node => String(node.attrs?.role || '').toLowerCase() === 'button'),
-    hasInput: hasTag(new Set(['input', 'textarea', 'select'])),
-    hasMedia: hasTag(new Set(['img', 'video', 'canvas', 'svg'])) || nodes.some(node => String(node.attrs?.['magnus-media'] || '') === 'image'),
-    hasIcon: hasTag(new Set(['svg', 'i'])) || hasClassLike(/\b(?:icon|anticon|n-icon|el-icon|ivu-icon)\b/i),
-    descendantTags: uniq(descendants.map(node => node.tag).filter(Boolean)).slice(0, 12),
-  };
+function conciseClassName(value) {
+  return uniq(String(value || '').split(/\s+/).filter(Boolean)).slice(0, 4).join(' ');
 }
 
 function infoSearchText(info) {
-  return String(info?.searchText || info?.text || '');
+  return String(info?.searchText || info?.text || info?.innerText || '').trim();
 }
 
-function selectionSummary(searchPayload) {
+function generatedAttribute(key, value) {
+  const name = String(key || '').toLowerCase();
+  const text = String(value || '');
+  if (!name || name === 'class' || name === 'style') return true;
+  if (/^data-v-[a-f0-9]+$/i.test(name)) return true;
+  if (/^data-(?:react|vue|n)-?(?:id|uid|key)$/i.test(name)) return true;
+  if (name === 'tabindex' || (name.startsWith('aria-') && name !== 'aria-label')) return true;
+  if (/^(?:id|aria-controls|aria-describedby|aria-labelledby|aria-activedescendant)$/i.test(name)
+    && /(?:^|[-_:])[a-f0-9]{7,}(?:$|[-_:])/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+function conciseAttrs(attrs) {
+  const result = {};
+  for (const [key, value] of Object.entries(attrs || {})) {
+    if (generatedAttribute(key, value)) continue;
+    result[key] = compact(value || '[present]', 10);
+    if (Object.keys(result).length >= 6) break;
+  }
+  return result;
+}
+
+function conciseNode(node) {
+  if (!node || typeof node !== 'object') return null;
+  const tag = String(node.tag || '').toLowerCase();
+  const className = conciseClassName(node.className || node.firstClassName || '');
+  const text = compact(node.text || '', 24);
+  const attrs = conciseAttrs(node.attrs);
+  if (!tag && !className && !text && !Object.keys(attrs).length) return null;
+  return {
+    ...(tag ? { tag } : {}),
+    ...(className ? { className } : {}),
+    ...(text ? { text } : {}),
+    ...(Object.keys(attrs).length ? { attrs } : {}),
+  };
+}
+
+function conciseSubtree(subtree) {
+  const groups = new Map();
+  for (const node of (subtree?.nodes || []).slice(0, 80)) {
+    const value = conciseNode(node);
+    if (!value) continue;
+    const key = JSON.stringify(value);
+    const old = groups.get(key);
+    if (old) {
+      old.count += 1;
+    } else {
+      groups.set(key, { ...value, count: 1 });
+    }
+  }
+  return Array.from(groups.values())
+    .sort((a, b) => Number(b.count || 1) - Number(a.count || 1))
+    .slice(0, 12)
+    .map(item => item.count > 1 ? item : Object.fromEntries(
+      Object.entries(item).filter(([key]) => key !== 'count')
+    ));
+}
+
+function conciseSelectionSummary(searchPayload) {
   const instructions = new Map(
     (searchPayload.selectionInstructions || [])
       .map(item => [Number(item?.index || 0), String(item?.instruction || '')])
@@ -2356,324 +2299,75 @@ function selectionSummary(searchPayload) {
   return (searchPayload.selections || []).map(item => {
     const info = item.element || {};
     const asset = item.asset || {};
-    const broadAssetTag = new Set(['body', 'html', 'table', 'tbody', 'thead', 'tr']);
-    const styleSignals = info.computedStyle || {};
-    const assetStyleSignals = asset.computedStyle || {};
+    const self = conciseNode(info) || {};
+    const expanded = conciseNode(asset);
+    const subtree = conciseSubtree(info.subtree);
     return {
       index: item.index,
-      token: item.token || `@选区${item.index}`,
       instruction: instructions.get(Number(item.index || 0)) || '',
-      tag: info.tag,
-      selector: info.selector,
-      className: info.className,
-      attrs: info.attrs || {},
-      text: compact(info.text, 400),
-      searchText: compact(infoSearchText(info), 240),
-      structure: structureSummaryFromInfo(info),
-      subtree: compactSubtreeSummary(info.subtree),
-      inlineStyle: compact(info.inlineStyle, 220),
-      style: {
-        width: styleSignals.width || '',
-        height: styleSignals.height || '',
-        objectFit: styleSignals.objectFit || '',
-        borderRadius: styleSignals.borderRadius || '',
-        backgroundImage: compact(styleSignals.backgroundImage || '', 220),
-        backgroundSize: styleSignals.backgroundSize || '',
-        backgroundPosition: styleSignals.backgroundPosition || ''
-      },
-      box: info.box || null,
-      expandedContext: {
-        tag: asset.tag || '',
-        selector: asset.selector || '',
-        className: asset.className || '',
-        text: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(asset.text, 120) : '',
-        searchText: !broadAssetTag.has(String(asset.tag || '').toLowerCase()) ? compact(infoSearchText(asset), 120) : '',
-        structure: asset ? structureSummaryFromInfo(asset) : null,
-        width: assetStyleSignals.width || '',
-        height: assetStyleSignals.height || '',
-        backgroundImage: compact(assetStyleSignals.backgroundImage || '', 220),
-        box: asset.box || null
-      },
-      ancestors: (info.ancestors || []).slice(0, 4).map(ancestor => ({
-        tag: ancestor.tag,
-        selector: ancestor.selector || '',
-        className: ancestor.className,
-        attrs: ancestor.attrs || {},
-        text: compact(ancestor.text, 220),
-        searchText: compact(infoSearchText(ancestor), 160),
-        structure: structureSummaryFromInfo(ancestor),
-        inlineStyle: compact(ancestor.inlineStyle, 160),
-        subtree: compactSubtreeSummary(ancestor.subtree),
-        style: ancestor.computedStyle ? {
-          width: ancestor.computedStyle.width || '',
-          height: ancestor.computedStyle.height || '',
-          display: ancestor.computedStyle.display || '',
-          position: ancestor.computedStyle.position || '',
-          backgroundImage: compact(ancestor.computedStyle.backgroundImage || '', 180),
-        } : {},
-        box: ancestor.box || null,
-      })),
+      self,
+      ...(subtree.length ? { subtree } : {}),
+      ...(expanded ? { expanded } : {}),
     };
   });
-}
-
-function apiReferenceSummary(candidateHits) {
-  return (candidateHits || [])
-    .filter(hit => hit && hit.file && hit.apiEvidence)
-    .slice(0, 8)
-    .map(hit => ({
-      file: hit.file,
-      stages: hit.stages || [hit.stage].filter(Boolean),
-      from: hit.apiEvidenceFrom || [],
-      reasons: (hit.apiEvidenceReasons || []).slice(0, 6),
-    }));
-}
-
-function apiTraceSummary(trace) {
-  if (!trace || !Array.isArray(trace.endpoints)) return [];
-  return trace.endpoints.slice(0, 5).map(endpoint => ({
-    path: endpoint.path || '',
-    method: endpoint.method || '',
-    requestKeys: endpoint.requestKeys || [],
-    symbols: endpoint.symbols || [],
-    files: (endpoint.files || []).slice(0, 6).map(file => ({
-      file: file.file,
-      symbols: file.symbols || [],
-    })),
-    chains: (endpoint.chains || []).slice(0, 8).map(chain => ({
-      file: chain.file,
-      symbol: chain.symbol || '',
-      chain: chain.chain || [],
-      stage: chain.stage || '',
-    })),
-  }));
-}
-
-function selectionTextReferences(searchPayload) {
-  const instructions = new Map(
-    (searchPayload.selectionInstructions || [])
-      .map(item => [Number(item?.index || 0), String(item?.instruction || '')])
-      .filter(item => item[0] > 0 && item[1])
-  );
-  return (searchPayload?.selectionTexts || searchPayload?.selections || [])
-    .map(item => {
-      const info = item.element || item;
-      return {
-        index: item.index,
-        token: item.token || `@选区${item.index}`,
-        text: compact(info.text, 240),
-        searchText: compact(infoSearchText(info), 180),
-        selector: info.selector || '',
-        className: info.className || '',
-        attrs: info.attrs || {},
-        instruction: instructions.get(Number(item.index || 0)) || '',
-      };
-    });
-}
-
-function routeResolverSummary(trace) {
-  if (!trace) return null;
-  return {
-    pagePath: trace.pagePath || '',
-    matched: !!trace.matched,
-    adapters: Array.isArray(trace.adapters) ? trace.adapters : [],
-    hits: (trace.hits || []).slice(0, 4).map(hit => ({
-      file: hit.file,
-      routePath: hit.routePath || '',
-      score: hit.score,
-      from: hit.from || '',
-      reasons: (hit.reasons || []).slice(0, 3),
-    }))
-  };
-}
-
-function i18nTraceSummary(trace) {
-  if (!trace || !trace.active) return null;
-  return {
-    active: true,
-    environment: {
-      packageHints: trace.environment?.packageHints || [],
-      codeHints: (trace.environment?.codeHints || []).slice(0, 6),
-      i18nFiles: (trace.environment?.i18nFiles || []).slice(0, 8),
-    },
-    definitions: (trace.definitions || []).slice(0, 8).map(item => ({
-      file: item.file,
-      keyPath: item.keyPath,
-      phrase: item.phrase,
-    })),
-    usages: (trace.usages || []).slice(0, 8).map(item => ({
-      file: item.file,
-      keyPath: item.i18nKey || item.keyPath || '',
-      phrase: item.i18nText || '',
-      definitionFile: item.i18nDefinitionFile || item.from || '',
-      score: item.score || 0,
-    })),
-  };
-}
-
-function definitionTraceSummary(trace) {
-  if (!trace || !trace.active) return null;
-  return {
-    active: true,
-    definitions: (trace.definitions || []).slice(0, 8).map(item => ({
-      file: item.file,
-      symbol: item.symbol || '',
-      keyPath: item.keyPath || '',
-      phrase: item.phrase || '',
-    })),
-    usages: (trace.usages || []).slice(0, 8).map(item => ({
-      file: item.file,
-      symbol: item.definitionSymbol || '',
-      keyPath: item.definitionKeyPath || '',
-      phrase: item.definitionText || '',
-      definitionFile: item.definitionFile || item.from || '',
-      score: item.score || 0,
-    })),
-  };
-}
-
-function candidateFactsSummary(candidateHits) {
-  return (candidateHits || []).slice(0, 30).map(hit => ({
-    file: hit.file,
-    score: hit.score,
-    stage: hit.stage,
-    fileRole: /(^|\/)(const|constants|enums?|options?)\.(js|ts)$/i.test(String(hit.file || ''))
-      ? 'definition-file'
-      : /(index|page|view)\.(vue|jsx|tsx|js|ts)$/i.test(String(hit.file || ''))
-        ? 'render-file'
-        : '',
-    from: hit.from || '',
-    preciseEvidence: !!hit.preciseEvidence,
-    exactMatchText: hit.exactMatchText || '',
-    uniqueMatchText: hit.uniqueMatchText || '',
-    i18nKey: hit.i18nKey || '',
-    i18nText: hit.i18nText || '',
-    i18nDefinitionFile: hit.i18nDefinitionFile || '',
-    definitionSymbol: hit.definitionSymbol || '',
-    definitionKeyPath: hit.definitionKeyPath || '',
-    definitionText: hit.definitionText || '',
-    definitionFile: hit.definitionFile || '',
-    classEvidence: (hit.contextReasons || []).slice(0, 2),
-    contextScope: hit.contextScope || '',
-    contextLayerDepth: hit.contextLayerDepth || 0,
-    reasons: (hit.reasons || []).slice(0, 4),
-    importChain: (hit.importChain || []).slice(0, 4),
-  }));
-}
-
-function mergedCandidateFacts(body) {
-  const merged = [];
-  const seen = new Set();
-  for (const hit of modelCandidateHits(body)) {
-    const file = normalizeModelFilePath(hit?.file);
-    if (!file || seen.has(file)) continue;
-    seen.add(file);
-    merged.push(hit);
-  }
-  return merged;
 }
 
 function mergeList(...lists) {
   return uniq(lists.flatMap(list => Array.isArray(list) ? list : [list]).filter(Boolean));
 }
 
-function previousModelClues(previousItems) {
-  return (previousItems || []).slice(0, 6).map(item => ({
-    file: item.file,
-    confidence: item.confidence || 0,
-    selectionEvidenceScore: item.selectionEvidenceScore || 0,
-    prompt: compact(item.prompt || item.reason || '', 320),
-    code片段: clipText(item.codeSnippet || '', 1200),
-  }));
+function cleanLocateSource(value) {
+  return String(value || '')
+    .split('\n')
+    .filter(line => {
+      const text = line.trim();
+      return !/^\/\/\s*(imports directly related to visible symbols|selection\/code anchor|anchor\s+\d+:|one-hop direct definition\/usage)/i.test(text)
+        && !/^\/\/\s*pruned\s+\d+/i.test(text);
+    })
+    .join('\n')
+    .trim();
+}
+
+function locateHitsForPrompt(files, body) {
+  const localMap = localCandidateMap(body);
+  return files.map(file => {
+    const local = localMap.get(normalizeModelFilePath(file.file))
+      || candidateHitForFile(body, file.file)
+      || {};
+    return {
+      file: file.file,
+      evidence: uniq([
+        ...(local.reasons || []),
+        ...(local.contextReasons || []),
+      ]).slice(0, 6),
+      code: cleanLocateSource(file.text),
+    };
+  });
 }
 
 function buildModelPrompt(project, body, textCache, logs, options = {}) {
   const payload = body.searchPayload || {};
   const files = options.files || collectModelFiles(project, body, textCache, logs);
-  const apiRequests = Array.isArray(payload.apiRequests) ? payload.apiRequests : [];
-  const routeSummary = routeResolverSummary(body.routeResolver);
-  const apiTraceFacts = apiTraceSummary(body.apiTrace);
-  const i18nTraceFacts = i18nTraceSummary(body.i18nTrace);
-  const definitionTraceFacts = definitionTraceSummary(body.definitionTrace);
-  const candidateFacts = candidateFactsSummary(mergedCandidateFacts(body));
   const batchIndex = Math.max(1, Number(options.batchIndex || 1));
   const batchTotal = Math.max(batchIndex, Number(options.batchTotal || 1));
   const previousItems = Array.isArray(options.previousItems) ? options.previousItems : [];
-  const batchFiles = files.map(file => ({
-    file: file.file,
-    mode: file.mode || 'full',
-    tokenEstimate: file.tokenEstimate || estimateModelTokens(file.text || ''),
-    chars: String(file.text || '').length,
-  }));
+  const hits = locateHitsForPrompt(files, body);
 
   return [
-    '你是本地源码定位 agent。你的任务是阅读当前批次的候选源码文件，理解当前选区在页面上的语义、区域和用户需求，判断哪段源码最可能生成或控制这个 UI。',
-    '',
-    '判断规则：',
-    '- 第一步先理解当前选区和扩大选区上下文：tag、selector、className、属性、src/href/background 图片资源、inline style、computed style、宽高、文案、父级线索、区域文本集合、用户需求。',
-    '- 不要要求源码结构和页面 DOM 结构严格一致。源码可能来自组件封装、配置对象、render 函数、hook、常量映射、props 组合、样式文件或间接引用。',
-    '- 你需要判断源码块在语义、区域、文案集合、class/style/src/background 资源、引用链、接口线索和用户需求上，是否最可能对应当前选区，而不是机械比较 tag/class 层级。',
-    '- 选区证据和 UI 结构是主要定位依据；用户修改要求只用于辅助判断哪个源码块更值得作为改动方向建议，不得覆盖选区结构证据。',
-    '- 用户修改要求只用于辅助区分候选源码块和生成粗加工的 direction 建议；不要按某种框架、组件库或固定实现范式去推断源码。',
-    '- 需要给出一段简短的 "推测方向"：基于当前候选源码、选区结构和用户修改要求，说明后续修改 agent 可以优先检查什么；它只是建议，不是最终结论。',
-    '- 如果无法确认具体修改点，返回最稳的 UI 结构、组件区域或源码方向即可；不要为了贴合需求强行推断内部实现。',
-    '- 禁止只因为出现同名文案就返回结果；同名文案只能作为弱证据，必须结合区域上下文、引用关系、样式/属性、图片资源、页面路径、接口或需求一起成立。没有文案的图片/图标/背景选区，应优先参考 class、src、background、style 和附近区域证据。',
-    '- 如果选区文本像运行时数据（例如价格、数量、日期、ID、状态值、后端返回字段），不要把该文本当作源码字面量；必须结合父级/同区域文本、属性、class、样式、候选源码里的数据字段或渲染块判断。',
-    '- 对运行时文本选区，选区结构只作为辅助参考；优先结合用户修改需求判断源码方向。若无法可靠区分多个相近源码块，不要强行二选一，可以返回多个可能方向交给后续修改 agent 继续确认。',
-    '- 如果同一文件或多个文件出现同名文案，必须比较每个命中文案所在的完整源码块，选择更符合当前选区语义和用户需求的位置。',
-    '- 如果候选里同时存在渲染文件和只承载局部文案/枚举/配置的定义文件，优先返回真正组装当前选区所在界面区域的渲染文件；只有需求明确针对定义源本身时，才返回定义文件。',
-    '- 页面路由、接口线索、本地候选分数只是辅助，不得覆盖当前选区语义证据。',
-    '- 如果命中文案来自常量/配置定义文件，而 importChain 中间文件包含真实组件使用、渲染函数、交互逻辑或样式逻辑，优先返回真实使用文件；只有需求明确修改常量/配置本身时才返回定义文件。',
-    '- 对没有明确指向配置源的普通界面改动请求，默认理解为修改渲染或组装该区域的源码；只有当需求明确指向状态映射、选项源、枚举或配置定义时，才考虑常量/配置文件。',
-    '- 当候选摘要包含 importChain 时，链路文件会一起出现在候选源码中；你需要把链路作为一个整体理解，而不是孤立判断单个文案定义文件。',
-    '- 接口线索只会提供请求地址、method 和请求参数字段，不包含响应结果。',
-    `- 你当前只在阅读第 ${batchIndex}/${batchTotal} 批候选源码文件；当前批次如果能找到明确修改点，返回 exact；如果只能确认源码大致方向但具体逻辑可能在后续修改阶段继续沿引用链追踪，返回 direction；完全无法判断才返回 []。`,
-    '- 候选源码由本地系统按 AST/结构节点切分，原则上不会从标签、语句、对象、函数、参数、样式块中间截断。你返回的 "code片段" 也必须是完整闭合源码。',
-    '- 当文件标记为 pruned-chain 时，源码已按 Vue/React/HTML/JS/CSS 结构节点剪枝：选区和扩大选区命中的节点必须完整保留，未保留的内容只会按整节点删除；不要要求看到被剪掉的二层调用链。',
-    '- exact 结果的 "code片段" 必须直接摘自真实源码内容，不能改写，不能省略，不能使用 ...，不能从多个不连续位置拼接；不要包含候选内容里的辅助注释，例如 // selection/code anchor、// anchor、// imports directly related to visible symbols。',
-    '- direction 结果允许只返回当前文件中最能说明源码方向的连续源码片段；它可以是 UI 结构、组件区域或其它与选区明显相关的源码块。direction 只是后续修改 agent 的优先检查建议，不是最终结论。',
-    '- 如果找到匹配项，"提示词" 必须直接作为最终修改提示词使用，格式包含：页面、文件、源码方向或源码、推测方向、需求。',
-    '- 本轮允许返回多个真正涉及改动的文件；完全无法判断候选源码方向时才返回 []。',
-    '',
-    '返回格式必须严格为：',
-    '[',
-    '  {',
-    '    "path": "相对项目根路径",',
-    '    "code片段": "当前批次文件内容中完整闭合的源码片段，必须连续且原样存在，不允许 ...",',
-    '    "定位层级": "exact 或 direction；exact 表示明确修改点，direction 表示源码方向",',
-    '    "推测方向": "基于候选源码和用户需求的简短建议；如果没有额外判断可以为空字符串",',
-    '    "提示词": "页面: ...\\n文件: ...\\n源码方向或源码:\\n...\\n推测方向: ...\\n需求: ...",',
-    '    "confidence": 0-100,',
-    '    "selectionEvidence": { "score": 0-100, "reasons": ["为什么该源码块在语义、区域或引用链上最可能对应当前选区，而不是只命中文案"] }',
-    '  }',
-    ']',
-    '',
-    `项目根: ${project.path}`,
-    `项目类型: ${project.kind || 'unknown'}；技术栈: ${project.stackText || '-'}`,
-    `当前 URL: ${payload.url || body.url || '-'}`,
-    `页面路径: ${body.pagePath || body.routeResolver?.pagePath || '-'}`,
-    `用户修改要求: ${payload.userPrompt || '-'}`,
-    `当前批次: ${batchIndex}/${batchTotal}`,
-    batchFiles.length ? `当前批次文件:\n${safeJson(batchFiles)}` : '',
-    '',
-    `当前选区:\n${safeJson(selectionSummary(payload))}`,
-    '',
-    payload.selectionInstructions?.length ? `按选区拆分后的修改要求:\n${safeJson(payload.selectionInstructions)}` : '',
-    routeSummary ? `路由入口线索:\n${safeJson(routeSummary)}` : '',
-    i18nTraceFacts ? `国际化线索:\n${safeJson(i18nTraceFacts)}` : '',
-    definitionTraceFacts ? `字面量定义链线索:\n${safeJson(definitionTraceFacts)}` : '',
-    candidateFacts.length ? `候选文件摘要:\n${safeJson(candidateFacts)}` : '',
-    apiRequests.length ? `接口线索:\n${safeJson(apiRequests.slice(0, 4))}` : '',
-    apiTraceFacts.length ? `接口引用链:\n${safeJson(apiTraceFacts)}` : '',
-    previousItems.length ? `前序批次已确认结果:\n${safeJson(previousModelClues(previousItems))}` : '',
-    body.candidateHits?.some(hit => hit && hit.apiEvidence) ? `候选文件接口关联:\n${safeJson(apiReferenceSummary(body.candidateHits || []))}` : '',
-    '',
-    '候选源码内容：',
-    files.map(file => [
-      `--- FILE: ${file.file} (${file.mode || 'full'}, chars ${String(file.text || '').length}, raw ${file.rawLength}, tokens~${file.tokenEstimate || estimateModelTokens(file.text || '')}, ${file.note}) ---`,
-      file.text,
-      `--- END FILE: ${file.file} ---`,
-    ].join('\n')).join('\n\n') || '-',
+    '你只负责从本地候选中选出最可能对应当前页面选区的源码文件，并给出粗源码依据。',
+    '规则：',
+    '- 只能返回 hit 中存在的 file。',
+    '- 结合 evidence、code、selection 和 requirement 判断文件。',
+    '- sourceType=code 时，source 必须从对应 hit.code 中摘取关键连续片段，不需要定位精确修改位置。',
+    '- 如果无法在 hit.code 中判断出可靠源码片段，但文件仍最可能相关，sourceType=selection，source 返回简化后的相关选区信息。',
+    '- 不生成修改方案，不解释。',
+    '- 可以返回多个确实相关的文件；完全无法判断返回空 items。',
+    '返回严格 JSON：{"items":[{"file":"src/...","sourceType":"code|selection","source":"源码片段或选区摘要"}]}',
+    batchTotal > 1 ? `batch: ${batchIndex}/${batchTotal}` : '',
+    previousItems.length ? `previousFiles: ${safeJson(previousItems.map(item => item.file).filter(Boolean))}` : '',
+    `hit: ${safeJson(hits)}`,
+    `selection: ${safeJson(conciseSelectionSummary(payload))}`,
+    `requirement: ${payload.userPrompt || '-'}`,
   ].join('\n');
 }
 
@@ -2711,7 +2405,13 @@ function parseModelJson(text) {
 }
 
 function modelOutputItems(parsed) {
-  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed)) {
+    return parsed.map(item => typeof item === 'string' ? { path: item } : item);
+  }
+  if (Array.isArray(parsed?.files)) return parsed.files.map(file => ({ path: file }));
+  if (Array.isArray(parsed?.hit)) {
+    return parsed.hit.map(item => typeof item === 'string' ? { path: item } : item);
+  }
   if (Array.isArray(parsed?.items)) return parsed.items;
   if (Array.isArray(parsed?.edits)) return parsed.edits;
   if (Array.isArray(parsed?.results)) return parsed.results;
@@ -2832,8 +2532,11 @@ function normalizeModelLocateLevel(item) {
 
 function modelItemAccepted(item) {
   if (!item?.exists) return false;
+  if (item.fileOnly) return hasLocalCandidateSupport(item);
+  if (item.selectionFallback) return hasLocalCandidateSupport(item);
   const directionLevel = item.locateLevel === 'direction';
   if (!directionLevel && (!item.snippetVerified || !item.codeSnippet)) return false;
+  if (!directionLevel && item.snippetVerified && item.codeSnippet && hasLocalCandidateSupport(item)) return true;
   const semanticDirection = !!item.downgradedToDirection
     && (item.confidence || 0) >= 85
     && (item.selectionEvidenceScore || 0) >= 85
@@ -2888,6 +2591,7 @@ function reconcileModelItems(items, body) {
       localContextScore: Math.max(old.localContextScore || 0, normalized.localContextScore || 0),
       selectionEvidenceScore: Math.max(old.selectionEvidenceScore || 0, normalized.selectionEvidenceScore || 0),
       selectionEvidenceReasons: mergeList(old.selectionEvidenceReasons || [], normalized.selectionEvidenceReasons || []),
+      fileOnly: !!(old.fileOnly || normalized.fileOnly),
     });
   }
 
@@ -2972,13 +2676,29 @@ function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
   };
 }
 
-function validateModelItems(project, parsed, body, textCache) {
+function validateModelItems(project, parsed, body, textCache, options = {}) {
+  const allowedFiles = new Set((options.allowedFiles || [])
+    .map(file => normalizeModelFilePath(file))
+    .filter(Boolean));
   return modelOutputItems(parsed).map(item => {
     const file = String(item.path || item.file || '').replace(/\\/g, '/').replace(/^\/+/, '');
-    const rawCodeSnippet = String(item['code片段'] || item['位置'] || item.codeSnippet || item.location || item.snippet || item.code || '').trim();
+    const sourceType = String(item.sourceType || item['sourceType'] || item['来源类型'] || item.type || '').trim().toLowerCase();
+    const sourceText = String(item.source || item['源码'] || item['源码方向'] || item.sourceText || '').trim();
+    const selectionFallback = sourceType === 'selection' || sourceType === 'select' || sourceType === '选区';
+    const rawCodeSnippet = String(
+      item['code片段']
+      || item['位置']
+      || item.codeSnippet
+      || item.location
+      || item.snippet
+      || item.code
+      || (selectionFallback ? '' : sourceText)
+      || ''
+    ).trim();
+    const fallbackSelectionSource = selectionFallback ? sourceText : '';
     const directionGuess = String(item['推测方向'] || item.directionGuess || item.guess || item.suggestion || '').trim();
     const prompt = String(item['提示词'] || item.prompt || item.instruction || item.reason || '').trim();
-    const locateLevel = /direction|方向|coarse/i.test(String(item['定位层级'] || item.locateLevel || item.level || item.type || ''))
+    const locateLevel = selectionFallback || /direction|方向|coarse/i.test(String(item['定位层级'] || item.locateLevel || item.level || item.type || ''))
       ? 'direction'
       : 'exact';
     const selectionEvidence = item.selectionEvidence || item.match || item.evidence || {};
@@ -2987,24 +2707,34 @@ function validateModelItems(project, parsed, body, textCache) {
     ), 100));
     const selectionEvidenceReasons = stringList(selectionEvidence.reasons || item.selectionEvidenceReasons || item.matchReasons, 8);
     const confidence = Math.max(0, Math.min(Number(item.confidence ?? item.confidenceScore ?? 0), 100));
-    const snippetResult = resolveModelSnippet(project, file, rawCodeSnippet, body, textCache);
+    const fileOnly = !rawCodeSnippet && !fallbackSelectionSource && !directionGuess && !prompt;
+    const snippetResult = fallbackSelectionSource
+      ? {
+          codeSnippet: fallbackSelectionSource,
+          snippetVerified: false,
+          snippetSource: 'selection-fallback',
+        }
+      : resolveModelSnippet(project, file, rawCodeSnippet, body, textCache);
     return {
       path: file,
       file,
-      confidence,
+      confidence: fileOnly ? 0 : confidence,
       selectionEvidenceScore,
       selectionEvidenceReasons,
       directionGuess,
       codeSnippet: snippetResult.codeSnippet,
       rawCodeSnippet,
+      selectionFallback: !!fallbackSelectionSource,
       prompt,
       reason: prompt || snippetResult.codeSnippet || rawCodeSnippet,
       exists: !!projectFile(project, file),
       snippetVerified: snippetResult.snippetVerified,
       snippetSource: snippetResult.snippetSource,
       locateLevel,
+      fileOnly,
+      allowed: !allowedFiles.size || allowedFiles.has(file),
     };
-  }).filter(item => item.file);
+  }).filter(item => item.file && item.allowed);
 }
 
 function buildCliLocatePrompt(prompt) {
@@ -3018,7 +2748,7 @@ function buildCliLocatePrompt(prompt) {
     '- 不要联网。',
     '- 不要做项目重构、测试、计划或解释。',
     '- 只基于下面提供的候选源码、选区信息和用户需求判断。',
-    '- 只输出符合下方要求的 JSON 数组；无法判断就输出 []。',
+    '- 只输出符合下方要求的 JSON 对象；无法判断时 files 返回空数组。',
     '',
     '下面是定位任务输入：',
     prompt,
@@ -3364,7 +3094,9 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
       const parsed = parseModelJson(rawText);
       parsedList.push(parsed);
       appendLog(logs, parsed ? `第 ${index + 1}/${batches.length} 批 JSON 解析成功` : `第 ${index + 1}/${batches.length} 批 JSON 解析失败`);
-      const batchItems = validateModelItems(project, parsed, body, textCache);
+      const batchItems = validateModelItems(project, parsed, body, textCache, {
+        allowedFiles: batchFiles.map(item => item.file),
+      });
       appendLog(logs, `第 ${index + 1}/${batches.length} 批命中 ${batchItems.length} 个文件`);
       aggregatedItems = reconcileModelItems([...aggregatedItems, ...batchItems], body);
     }
@@ -3375,13 +3107,13 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     for (const item of allModelItems.filter(item => !modelItemAccepted(item)).slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果丢弃：${item.file}；原因：${!item.exists ? '文件不存在' : item.locateLevel !== 'direction' && !item.snippetVerified ? '代码片段未验证' : '缺少本地候选证据'}；confidence ${item.confidence || 0}；selectionEvidence ${item.selectionEvidenceScore || 0}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}`
+        `模型结果丢弃：${item.file}；原因：${!item.exists ? '文件不存在' : '不属于当前本地候选或缺少本地候选证据'}`
       );
     }
     for (const item of modelItems.slice(0, 8)) {
       appendLog(
         logs,
-        `模型结果接收：${item.file}；定位层级 ${item.locateLevel || 'exact'}${item.downgradedToDirection ? '（片段未逐字验证，按强语义证据降级为源码方向）' : ''}；本地分数 ${item.localScore || 0}；本地上下文分 ${item.localContextScore || 0}；AI语义匹配分 ${item.selectionEvidenceScore || 0}；代码片段${item.snippetVerified ? '已按连续源码原样命中' : '未验证'}`
+        `模型结果接收：${item.file}；本地分数 ${item.localScore || 0}；模型仅负责文件裁决`
       );
     }
     const multiFileMatches = modelItems.filter(item => item.localPreciseEvidence || item.localScore >= 120);
@@ -3451,6 +3183,8 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         confidence: item.confidence,
         reason: item.reason,
         codeSnippet: item.codeSnippet,
+        snippetSource: item.snippetSource,
+        selectionFallback: !!item.selectionFallback,
         snippetVerified: item.snippetVerified,
         downgradedToDirection: !!item.downgradedToDirection,
         prompt: item.prompt,
@@ -3465,6 +3199,8 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         localContextScore: item.localContextScore,
         localPreciseEvidence: item.localPreciseEvidence,
         exists: item.exists,
+        fileOnly: !!item.fileOnly,
+        selectionFallback: !!item.selectionFallback,
       })),
       experience,
       logs,
