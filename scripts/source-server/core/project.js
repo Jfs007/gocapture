@@ -54,22 +54,65 @@ function walkFiles(rootDir) {
   return result.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+function packageManifest(snippets) {
+  try {
+    return JSON.parse(snippets['package.json'] || '{}');
+  } catch (error) {
+    return {};
+  }
+}
+
+function packageDependencies(manifest) {
+  return {
+    ...(manifest.dependencies || {}),
+    ...(manifest.devDependencies || {}),
+    ...(manifest.peerDependencies || {}),
+    ...(manifest.optionalDependencies || {}),
+  };
+}
+
 function inferStack(files, snippets) {
   const paths = files.map(file => file.path);
   const packageText = snippets['package.json'] || '';
+  const dependencies = packageDependencies(packageManifest(snippets));
   const hits = [];
   const hasPath = matcher => paths.some(matcher);
   const hasPackage = text => packageText.includes(text);
+  const hasDependency = names => {
+    const list = Array.isArray(names) ? names : [names];
+    return list.some(name => Object.prototype.hasOwnProperty.call(dependencies, name));
+  };
 
-  if (hasPackage('"vue"') || hasPath(file => file.endsWith('.vue'))) hits.push('Vue');
-  if (hasPackage('"react"') || hasPath(file => file.endsWith('.jsx') || file.endsWith('.tsx'))) hits.push('React');
-  if (hasPackage('"vite"') || hasPath(file => file.startsWith('vite.config.'))) hits.push('Vite');
-  if (hasPackage('"webpack"') || hasPath(file => file.includes('webpack.config'))) hits.push('Webpack');
-  if (hasPackage('"next"') || hasPath(file => file.startsWith('next.config.'))) hits.push('Next');
-  if (hasPackage('"nuxt"') || hasPath(file => file.startsWith('nuxt.config.'))) hits.push('Nuxt');
-  if (hasPackage('"typescript"') || hasPath(file => file.endsWith('.ts') || file.endsWith('.tsx'))) hits.push('TypeScript');
-  if (hasPackage('"tailwindcss"') || hasPath(file => file.includes('tailwind.config'))) hits.push('Tailwind');
-  if (hasPackage('"express"') || hasPath(file => file.includes('controller') || file.includes('router'))) hits.push('Node Backend');
+  if (hasDependency('vue') || hasPackage('"vue"') || hasPath(file => file.endsWith('.vue'))) hits.push('Vue');
+  if (hasDependency('react') || hasPackage('"react"') || hasPath(file => file.endsWith('.jsx') || file.endsWith('.tsx'))) hits.push('React');
+  if (hasDependency('vite') || hasPackage('"vite"') || hasPath(file => file.startsWith('vite.config.'))) hits.push('Vite');
+  if (hasDependency('webpack') || hasPackage('"webpack"') || hasPath(file => file.includes('webpack.config'))) hits.push('Webpack');
+  if (hasDependency('next') || hasPackage('"next"') || hasPath(file => file.startsWith('next.config.'))) hits.push('Next');
+  if (hasDependency('nuxt') || hasPackage('"nuxt"') || hasPath(file => file.startsWith('nuxt.config.'))) hits.push('Nuxt');
+  if (hasDependency('typescript') || hasPackage('"typescript"') || hasPath(file => file.endsWith('.ts') || file.endsWith('.tsx'))) hits.push('TypeScript');
+  if (hasDependency('tailwindcss') || hasPackage('"tailwindcss"') || hasPath(file => file.includes('tailwind.config'))) hits.push('Tailwind CSS');
+  if (hasDependency('sass')) hits.push('Sass');
+  if (hasDependency('less')) hits.push('Less');
+  if (hasDependency('vue-router')) hits.push('Vue Router');
+  if (hasDependency('react-router') || hasDependency('react-router-dom')) hits.push('React Router');
+  if (hasDependency('pinia')) hits.push('Pinia');
+  if (hasDependency('vuex')) hits.push('Vuex');
+  if (hasDependency(['redux', '@reduxjs/toolkit'])) hits.push('Redux');
+  if (hasDependency('axios')) hits.push('Axios');
+  if (hasDependency('@tanstack/react-query') || hasDependency('react-query')) hits.push('React Query');
+  if (hasDependency('@vueuse/core')) hits.push('VueUse');
+  if (hasDependency('naive-ui')) hits.push('Naive UI');
+  if (hasDependency('element-plus')) hits.push('Element Plus');
+  if (hasDependency('element-ui')) hits.push('Element UI');
+  if (hasDependency('antd')) hits.push('Ant Design');
+  if (hasDependency('@arco-design/web-vue') || hasDependency('@arco-design/react')) hits.push('Arco Design');
+  if (hasDependency('@douyinfe/semi-ui')) hits.push('Semi UI');
+  if (hasDependency('vant')) hits.push('Vant');
+  if (hasDependency('view-ui-plus') || hasDependency('iview')) hits.push('View UI');
+  if (hasDependency('@mui/material')) hits.push('Material UI');
+  if (hasDependency('@chakra-ui/react')) hits.push('Chakra UI');
+  if (hasDependency('bootstrap') || hasDependency('react-bootstrap')) hits.push('Bootstrap');
+  if (hasDependency('express') || hasPackage('"express"') || hasPath(file => file.includes('controller') || file.includes('router'))) hits.push('Node Backend');
   if (hasPath(file => file.endsWith('.go'))) hits.push('Go');
   if (hasPath(file => file.endsWith('.java'))) hits.push('Java');
   if (hasPath(file => file.endsWith('.py'))) hits.push('Python');

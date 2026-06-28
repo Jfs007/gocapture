@@ -140,6 +140,7 @@ export function normalizeSourceServerProject(raw: any) {
     fileCount: raw.fileCount || files.length,
     files,
     snippets: raw.snippets || {},
+    context: raw.context || null,
     stack: raw.stack || [],
     stackText: raw.stackText || '',
     limited: !!raw.limited

@@ -10,6 +10,8 @@ const {
 const { createBridge } = require('./bridge');
 const { selectDirectory } = require('./resource/dialog');
 const { scanProject } = require('./core/project');
+const { bindProjectContext } = require('./experience/project-context');
+const { loadSkillMetas } = require('./experience/skill-store');
 const { searchProjectWithMeta } = require('./search');
 const { resolvePageRouteTrace } = require('./route-resolvers/registry');
 const { runModelLocate } = require('./model/model-adapters');
@@ -113,6 +115,13 @@ function createSourceServer() {
   let currentProject = null;
   const bridge = createBridge();
 
+  function bindSourceProject(selectedPath) {
+    const project = scanProject(selectedPath);
+    return bindProjectContext(project, {
+      skillMetas: loadSkillMetas(project),
+    });
+  }
+
   async function handle(req, res) {
     if (req.method === 'OPTIONS') {
       sendJson(res, 204, {});
@@ -150,14 +159,14 @@ function createSourceServer() {
       if (req.method === 'POST' && url.pathname === '/api/source/select') {
         const body = await readBody(req);
         const selectedPath = body.path || await selectDirectory();
-        currentProject = scanProject(selectedPath);
+        currentProject = bindSourceProject(selectedPath);
         sendJson(res, 200, { success: true, project: currentProject });
         return;
       }
 
       if (req.method === 'POST' && url.pathname === '/api/source/scan') {
         const body = await readBody(req);
-        currentProject = scanProject(body.path);
+        currentProject = bindSourceProject(body.path);
         sendJson(res, 200, { success: true, project: currentProject });
         return;
       }
@@ -165,7 +174,14 @@ function createSourceServer() {
       if (req.method === 'POST' && url.pathname === '/api/search') {
         const body = await readBody(req);
         const result = searchProjectWithMeta(currentProject, body);
-        sendJson(res, 200, { success: true, hits: result.hits, routeResolver: result.routeResolver, apiTrace: result.apiTrace });
+        sendJson(res, 200, {
+          success: true,
+          hits: result.hits,
+          routeResolver: result.routeResolver,
+          apiTrace: result.apiTrace,
+          i18nTrace: result.i18nTrace,
+          definitionTrace: result.definitionTrace,
+        });
         return;
       }
 

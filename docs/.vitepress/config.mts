@@ -30,7 +30,8 @@ export default defineConfig({
             { text: '快速上手', link: '/guide/quick-start' },
             { text: '架构', link: '/guide/architecture' },
             { text: '工程化 App 打包', link: '/guide/app-build' },
-            { text: '动态配置', link: '/guide/config' }
+            { text: '动态配置', link: '/guide/config' },
+            { text: '源码定位规则', link: '/guide/source-locate-rules' }
           ]
         }
       ],

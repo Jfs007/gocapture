@@ -6,7 +6,7 @@ const EXPERIENCE_DIR = '.magnus-project';
 const PROJECT_META_FILE = 'project-meta.json';
 const PROJECT_DOC_FILE = 'Project.md';
 const PROJECT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const PROJECT_CONTEXT_VERSION = 2;
+const PROJECT_CONTEXT_VERSION = 4;
 
 const IMPORTANT_PATH_PATTERNS = [
   /^package\.json$/,
@@ -88,6 +88,14 @@ function directoryDescription(directory) {
 
 function projectDocument(project, skillMetas = []) {
   const directories = topLevelDirectories(project, 'src');
+  const routeFiles = (project.files || [])
+    .map(file => file.path)
+    .filter(file => /(^|\/)(router|routes)(\/|\.|$)|(^|\/)config\/routes\./i.test(file))
+    .slice(0, 20);
+  const requestFiles = (project.files || [])
+    .map(file => file.path)
+    .filter(file => /(^|\/)(api|apis|services?|request|requests|http)(\/|\.|$)/i.test(file))
+    .slice(0, 20);
   const featureApiCount = (project.files || [])
     .filter(file => /^src\/(?:views?|pages?)\/.+\/api\.(?:js|ts)$/.test(file.path))
     .length;
@@ -105,6 +113,14 @@ function projectDocument(project, skillMetas = []) {
     ...directories.map(item => `- ${item}：${directoryDescription(item)}`),
     ...(featureApiCount ? [`- src/views/**/api.ts：发现 ${featureApiCount} 个 Feature 私有 API 文件`] : []),
     '',
+    '## 源码定位入口',
+    ...(routeFiles.length
+      ? routeFiles.map(file => `- 路由：${file}`)
+      : ['- 路由：未发现明确的路由文件']),
+    ...(requestFiles.length
+      ? requestFiles.map(file => `- 请求/API：${file}`)
+      : ['- 请求/API：未发现明确的请求目录']),
+    '',
     '## 已发现经验',
     ...(skillMetas.length
       ? skillMetas.map(meta => `- ${meta.id}：${meta.name || meta.id}（${meta.status || 'unknown'}）`)
@@ -115,6 +131,54 @@ function projectDocument(project, skillMetas = []) {
     '- 当前目标文件和本次任务的真实源码证据优先于 Skill。',
     '',
   ].join('\n');
+}
+
+function projectSearchHints(project) {
+  return {
+    sourceRoots: topLevelDirectories(project, 'src'),
+    routeFiles: (project.files || [])
+      .map(file => file.path)
+      .filter(file => /(^|\/)(router|routes)(\/|\.|$)|(^|\/)config\/routes\./i.test(file))
+      .slice(0, 40),
+    requestFiles: (project.files || [])
+      .map(file => file.path)
+      .filter(file => /(^|\/)(api|apis|services?|request|requests|http)(\/|\.|$)/i.test(file))
+      .slice(0, 40),
+  };
+}
+
+function projectTechnicalStackMarkdown(project, markdown = '') {
+  const source = String(markdown || '');
+  const match = source.match(/## 技术栈\s*\n([\s\S]*?)(?=\n## |\s*$)/);
+  if (match) {
+    return `## 技术栈\n${match[1].trim()}`.trim();
+  }
+  const stack = project.stack || [];
+  return [
+    '## 技术栈',
+    ...(stack.length ? stack.map(item => `- ${item}`) : ['- unknown']),
+  ].join('\n');
+}
+
+function projectContextSummary(project, context) {
+  if (!context) return null;
+  return {
+    path: path.join(context.root, PROJECT_DOC_FILE),
+    markdown: context.markdown,
+    technicalStackMarkdown: projectTechnicalStackMarkdown(project, context.markdown),
+    fingerprint: context.meta?.fingerprint || '',
+    generatedAt: context.meta?.generatedAt || '',
+    rebuilt: !!context.rebuilt,
+    writable: context.writable !== false,
+    error: context.error || '',
+    searchHints: projectSearchHints(project),
+  };
+}
+
+function bindProjectContext(project, options = {}) {
+  const context = ensureProjectContext(project, options);
+  project.context = projectContextSummary(project, context);
+  return project;
 }
 
 function ensureProjectContext(project, options = {}) {
@@ -179,9 +243,11 @@ function refreshProjectDocument(project, skillMetas) {
 module.exports = {
   EXPERIENCE_DIR,
   atomicWrite,
+  bindProjectContext,
   ensureProjectContext,
   experienceRoot,
   projectFingerprint,
+  projectTechnicalStackMarkdown,
   refreshProjectDocument,
   safeJson,
   safeRead,
