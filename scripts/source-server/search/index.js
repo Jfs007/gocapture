@@ -54,6 +54,16 @@ const WEAK_EXACT_TEXTS = new Set([
   '重置',
 ]);
 
+function countMatches(text, pattern) {
+  const content = String(text || '');
+  if (!content) return 0;
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+  const regex = new RegExp(pattern.source, flags);
+  let count = 0;
+  while (regex.exec(content)) count++;
+  return count;
+}
+
 function boundedLimit(value, fallback = 10) {
   return Math.max(1, Math.min(Number(value || fallback), 30));
 }
@@ -119,6 +129,32 @@ function isStyleSourceFile(filePath) {
 
 function isUiOrStyleSourceFile(filePath) {
   return isUiSourceFile(filePath) || isStyleSourceFile(filePath);
+}
+
+function isLikelyGlobalStyleOverrideFile(filePath, text) {
+  if (!isStyleSourceFile(filePath)) return false;
+  let score = 0;
+  const normalizedPath = String(filePath || '').replace(/\\/g, '/');
+  if (/(^|\/)(styles?|theme|themes|design|tokens?|vars?|reset|common|global)\//i.test(normalizedPath)) score += 24;
+  if (/(^|\/)(design|theme|global|common|reset|var|vars|token)\.(css|less|scss|sass|styl)$/i.test(normalizedPath)) score += 18;
+
+  const librarySelectorCount = countMatches(text, /\.(n-|ant-|el-|ivu-|arco-|semi-)[\w-]+/g);
+  if (librarySelectorCount >= 6) score += 26;
+  else if (librarySelectorCount >= 3) score += 14;
+
+  const cssVarCount = countMatches(text, /--[\w-]+\s*:/g);
+  if (cssVarCount >= 8) score += 22;
+  else if (cssVarCount >= 4) score += 10;
+
+  const importantCount = countMatches(text, /!important/g);
+  if (importantCount >= 3) score += 10;
+
+  const businessSignalCount =
+    countMatches(text, /<template[\s>]/g)
+    + countMatches(text, /\b(?:onClick|@click|emit\s*\(|dialog\.|message\.|useTable\b|render\s*:)\b/g);
+  if (businessSignalCount === 0) score += 12;
+
+  return score >= 54;
 }
 
 function isRouteFile(filePath) {
@@ -629,6 +665,26 @@ function scanScoredSelectionHits(project, evidence, textCache, scopeFiles, optio
 
 function hasExactTextEvidence(hit) {
   return (hit?.exactMatchCount || 0) > 0 && String(hit.exactMatchText || '').trim().length > 0;
+}
+
+function hitHasBusinessTextSignal(hit) {
+  const exactTexts = [
+    String(hit?.exactMatchText || '').trim(),
+    String(hit?.uniqueMatchText || '').trim(),
+  ].filter(Boolean);
+  if (exactTexts.some(text => !WEAK_EXACT_TEXTS.has(text) && !isRuntimeScalarText(text))) return true;
+  for (const group of hit?.domGroupMatches || []) {
+    for (const matched of group?.matched || []) {
+      const [kind, ...rest] = String(matched || '').split(':');
+      const value = rest.join(':').trim();
+      if (kind !== 'text') continue;
+      if (!value) continue;
+      if (WEAK_EXACT_TEXTS.has(value)) continue;
+      if (isRuntimeScalarText(value)) continue;
+      return true;
+    }
+  }
+  return false;
 }
 
 function isExpandedOnlyHit(hit) {
@@ -1665,6 +1721,34 @@ function stableLocalHits(hits) {
   return false;
 }
 
+function applyStyleThemePenalty(project, hits, textCache) {
+  return (hits || []).map(hit => {
+    if (!isStyleSourceFile(hit?.file || '')) return hit;
+    const file = (project.files || []).find(item => item.path === hit.file);
+    if (!file || !isTextFile(file.path)) return hit;
+    const text = readProjectText(project, file, textCache);
+    if (!isLikelyGlobalStyleOverrideFile(hit.file, text)) return hit;
+    if (hitHasBusinessTextSignal(hit)) {
+      return {
+        ...hit,
+        score: Math.round((hit.score || 0) * 0.78),
+        reasons: uniq([
+          '疑似全局样式覆写文件：已命中业务文本，轻度降权',
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      };
+    }
+    return {
+      ...hit,
+      score: Math.round((hit.score || 0) * 0.42),
+      reasons: uniq([
+        '疑似全局样式覆写文件：主要命中组件库通用结构，已降权',
+        ...(hit.reasons || []),
+      ]).slice(0, 12),
+    };
+  });
+}
+
 function isRuntimeScalarText(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (!text) return true;
@@ -2205,56 +2289,28 @@ function runtimeDirectLocationHits(project, body, textCache) {
   return hits;
 }
 
-function runtimeComponentChainHits(project, body, textCache) {
-  const hits = [];
+function runtimeComponentChainPreferredFiles(project, body) {
+  const bestByFile = new Map();
   for (const { selection, sourceLocate } of runtimeSourceEvidenceList(body)) {
     const chain = Array.isArray(sourceLocate?.componentChain) ? sourceLocate.componentChain : [];
-    const seenFiles = new Set();
     for (const component of chain) {
       const filePath = resolveRuntimeFile(project, component?.file || '');
-      if (!filePath || seenFiles.has(filePath)) continue;
-      seenFiles.add(filePath);
+      if (!filePath || !component?.isBusinessComponent) continue;
       const depth = Number(component.depth || 0);
-      const domDepth = Number(component.domDepth || 0);
-      const line = Number(component.line || 0);
-      const column = Number(component.column || 0);
-      hits.push({
+      const current = bestByFile.get(filePath);
+      if (current && Number(current.depth || 0) <= depth) continue;
+      bestByFile.set(filePath, {
         file: filePath,
-        score: 2200 - Math.min(360, depth * 40) - Math.min(120, Math.max(0, domDepth) * 6),
-        stage: 'runtime-source',
-        stages: ['runtime-source'],
-        sourceConfidence: 'exact',
         framework: sourceLocate.framework || component.framework || 'unknown',
-        sourceLine: line || 0,
-        sourceColumn: column || 0,
-        sourceComponentName: component.name || '',
-        sourceComponentDepth: depth,
-        sourceRuntimeFile: component.file || '',
-        apiEvidence: false,
-        apiEvidenceReasons: [],
-        apiEvidenceFrom: [],
-        preciseEvidence: true,
-        preciseSnippet: snippetForRuntimeLocation(project, filePath, line, textCache),
-        snippet: snippetForRuntimeLocation(project, filePath, line, textCache),
-        contextScore: 260 - Math.min(120, depth * 20),
-        contextReasons: [
-          `${sourceLocate.framework || component.framework || 'framework'} 运行时组件链命中`,
-          component.file ? `组件源码路径：${component.file}` : '',
-          component.name ? `组件：${component.name}` : '',
-          Number.isFinite(domDepth) && domDepth >= 0 ? `DOM 向上 ${domDepth} 层找到组件实例` : '',
-        ].filter(Boolean),
-        contextSelectionIndex: Number(selection.index || 0),
-        reasons: [
-          `框架运行时组件链命中：${sourceLocate.framework || component.framework || 'unknown'}`,
-          component.file ? `组件源码路径：${component.file}` : '',
-          component.name ? `组件：${component.name}` : '',
-          Number.isFinite(domDepth) && domDepth >= 0 ? `DOM 向上 ${domDepth} 层找到组件实例` : '',
-          '置信度：exact',
-        ].filter(Boolean),
+        componentName: component.name || '',
+        runtimeFile: component.file || '',
+        depth,
+        domDepth: Number(component.domDepth || 0),
+        selectionIndex: Number(selection.index || 0),
       });
     }
   }
-  return hits;
+  return Array.from(bestByFile.values()).sort((a, b) => (a.depth || 0) - (b.depth || 0));
 }
 
 function angularRuntimeHintHits(project, body, textCache) {
@@ -2372,15 +2428,45 @@ function buildLayeredScopePlan(project, routeHits, evidence, textCache, scopes) 
   ].filter(scope => scope && scope.files && scope.files.size);
 }
 
-function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
+function layeredSelectionHits(project, routeHits, evidence, textCache, scopes, options = {}) {
   const routeEntry = routeHits?.[0]?.file || '';
   const graph = buildImportGraph(project, textCache);
   const allScope = scopes[scopes.length - 1] || { name: 'fullRepo', files: fileSetFromProject(project) };
   const scopePlan = buildLayeredScopePlan(project, routeHits, evidence, textCache, scopes);
   const selfEvidence = selfOnlyEvidence(evidence);
+  const preferredFiles = new Map((options.preferredFiles || []).map(item => [item.file, item]));
 
   let last = { hits: [], activeScope: allScope, layer: 'L3', graph };
   for (const scope of scopePlan) {
+    const preferredScopeFiles = new Set(
+      Array.from(scope.files || []).filter(file => preferredFiles.has(file))
+    );
+    const preferredInitialHits = preferredScopeFiles.size
+      ? searchInitialSelectionHits(
+        project,
+        evidence,
+        textCache,
+        preferredScopeFiles,
+        'runtime-chain-scope',
+        `${scope.name}：运行时组件链范围内复核当前选区`,
+        {
+          allowAncestorFallback: false,
+          fileFilter: isUiSourceFile,
+        }
+      ).map(hit => {
+        const detail = preferredFiles.get(hit.file);
+        return {
+          ...hit,
+          score: (hit.score || 0) + 28,
+          reasons: uniq([
+            '运行时组件链仅作为文件范围，已在该文件内重新命中当前选区证据',
+            detail?.componentName ? `组件链组件：${detail.componentName}` : '',
+            detail?.runtimeFile ? `运行时文件：${detail.runtimeFile}` : '',
+            ...(hit.reasons || []),
+          ]).slice(0, 12),
+        };
+      })
+      : [];
     const initialHits = searchInitialSelectionHits(
       project,
       evidence,
@@ -2393,7 +2479,7 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes) {
         fileFilter: isUiSourceFile,
       }
     );
-    const bundledHits = bundleInitialHits(project, initialHits, evidence, textCache, routeEntry, scope.files, graph)
+    const bundledHits = bundleInitialHits(project, [...preferredInitialHits, ...initialHits], evidence, textCache, routeEntry, scope.files, graph)
       .map(hit => ({
         ...hit,
         reasons: uniq([
@@ -2534,23 +2620,29 @@ function searchProjectWithMeta(project, body) {
   const routeHits = routeResult.hits;
   const runtimeHits = mergeHits([
     ...runtimeDirectLocationHits(project, body, textCache),
-    ...runtimeComponentChainHits(project, body, textCache),
     ...angularRuntimeHintHits(project, body, textCache),
   ]);
+  const runtimePreferredFiles = runtimeComponentChainPreferredFiles(project, body);
 
   const scopes = buildSearchScopes(project, routeHits, textCache);
-  const layered = layeredSelectionHits(project, routeHits, evidence, textCache, scopes);
-  const localHits = promoteImportingCandidateScores(
-    (layered.hits || [])
-    .map(hit => ({
-      ...hit,
-      reasons: uniq([
-        `检索层级：${layered.layer}`,
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    })),
-    routeHits?.[0]?.file || '',
-    layered.graph
+  const layered = layeredSelectionHits(project, routeHits, evidence, textCache, scopes, {
+    preferredFiles: runtimePreferredFiles,
+  });
+  const localHits = applyStyleThemePenalty(
+    project,
+    promoteImportingCandidateScores(
+      (layered.hits || [])
+      .map(hit => ({
+        ...hit,
+        reasons: uniq([
+          `检索层级：${layered.layer}`,
+          ...(hit.reasons || []),
+        ]).slice(0, 12),
+      })),
+      routeHits?.[0]?.file || '',
+      layered.graph
+    ),
+    textCache
   );
   const sortedKeywordHits = localHits
     .sort((a, b) => b.score - a.score)

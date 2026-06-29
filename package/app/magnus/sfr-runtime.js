@@ -282,19 +282,22 @@
     const chain = [];
     const anchor = closestElementWith(element, node => !!(node.__vueParentComponent || node.__vue_app__?._instance));
     let component = anchor.node?.__vueParentComponent || anchor.node?.__vue_app__?._instance || null;
+    let fileDepth = 0;
     for (let i = 0; i < depth && component; i++) {
       const file = component.type?.__file || '';
       chain.push({
-        depth: i,
+        depth: fileDepth,
         domDepth: anchor.domDepth,
         framework: 'vue3',
         name: componentNameFromVueType(component.type),
         file,
+        fileDepth: file ? fileDepth : -1,
         isBusinessComponent: isBusinessSourceFile(file),
       });
+      if (file) fileDepth++;
+      if (fileDepth >= 3) break;
       component = component.parent || null;
     }
-    console.log('Vue3 component chain:', chain);
     return chain;
   }
 
@@ -302,19 +305,22 @@
     const chain = [];
     const anchor = closestElementWith(element, node => !!node.__vue__);
     let vm = anchor.node?.__vue__ || null;
+    let fileDepth = 0;
     for (let i = 0; i < depth && vm; i++) {
       const file = vm.$options?.__file || '';
       chain.push({
-        depth: i,
+        depth: fileDepth,
         domDepth: anchor.domDepth,
         framework: 'vue2',
         name: vm.$options?.name || '',
         file,
+        fileDepth: file ? fileDepth : -1,
         isBusinessComponent: isBusinessSourceFile(file),
       });
+      if (file) fileDepth++;
+      if (fileDepth >= 3) break;
       vm = vm.$parent || null;
     }
-    console.log('Vue2 component chain:', chain);
     return chain;
   }
 
@@ -350,22 +356,24 @@
   function findReactComponentChain(element, depth = 40) {
     const chain = [];
     let fiber = reactFiberFromElement(element);
-    let componentDepth = 0;
+    let fileDepth = 0;
     for (let i = 0; i < depth && fiber; i++) {
       const source = fiber._debugSource || null;
       const file = source?.fileName || '';
       const name = fiberDisplayName(fiber);
       if (file || name) {
         chain.push({
-          depth: componentDepth,
+          depth: fileDepth,
           framework: 'react',
           name,
           file,
+          fileDepth: file ? fileDepth : -1,
           line: source?.lineNumber || 0,
           column: source?.columnNumber || 0,
           isBusinessComponent: isBusinessSourceFile(file),
         });
-        componentDepth++;
+        if (file) fileDepth++;
+        if (fileDepth >= 3) break;
       }
       fiber = fiber.return || null;
     }
@@ -408,7 +416,7 @@
   }
 
   function firstDirectLocation(chain, source) {
-    const item = (chain || []).find(entry => entry.file && entry.isBusinessComponent);
+    const item = (chain || []).find(entry => entry.file && entry.isBusinessComponent && Number(entry.line || 0) > 0);
     if (!item) return null;
     return {
       file: item.file,
