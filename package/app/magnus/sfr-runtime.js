@@ -294,6 +294,7 @@
       });
       component = component.parent || null;
     }
+    console.log('Vue3 component chain:', chain);
     return chain;
   }
 
