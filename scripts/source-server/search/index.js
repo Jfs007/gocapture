@@ -2205,6 +2205,58 @@ function runtimeDirectLocationHits(project, body, textCache) {
   return hits;
 }
 
+function runtimeComponentChainHits(project, body, textCache) {
+  const hits = [];
+  for (const { selection, sourceLocate } of runtimeSourceEvidenceList(body)) {
+    const chain = Array.isArray(sourceLocate?.componentChain) ? sourceLocate.componentChain : [];
+    const seenFiles = new Set();
+    for (const component of chain) {
+      const filePath = resolveRuntimeFile(project, component?.file || '');
+      if (!filePath || seenFiles.has(filePath)) continue;
+      seenFiles.add(filePath);
+      const depth = Number(component.depth || 0);
+      const domDepth = Number(component.domDepth || 0);
+      const line = Number(component.line || 0);
+      const column = Number(component.column || 0);
+      hits.push({
+        file: filePath,
+        score: 2200 - Math.min(360, depth * 40) - Math.min(120, Math.max(0, domDepth) * 6),
+        stage: 'runtime-source',
+        stages: ['runtime-source'],
+        sourceConfidence: 'exact',
+        framework: sourceLocate.framework || component.framework || 'unknown',
+        sourceLine: line || 0,
+        sourceColumn: column || 0,
+        sourceComponentName: component.name || '',
+        sourceComponentDepth: depth,
+        sourceRuntimeFile: component.file || '',
+        apiEvidence: false,
+        apiEvidenceReasons: [],
+        apiEvidenceFrom: [],
+        preciseEvidence: true,
+        preciseSnippet: snippetForRuntimeLocation(project, filePath, line, textCache),
+        snippet: snippetForRuntimeLocation(project, filePath, line, textCache),
+        contextScore: 260 - Math.min(120, depth * 20),
+        contextReasons: [
+          `${sourceLocate.framework || component.framework || 'framework'} 运行时组件链命中`,
+          component.file ? `组件源码路径：${component.file}` : '',
+          component.name ? `组件：${component.name}` : '',
+          Number.isFinite(domDepth) && domDepth >= 0 ? `DOM 向上 ${domDepth} 层找到组件实例` : '',
+        ].filter(Boolean),
+        contextSelectionIndex: Number(selection.index || 0),
+        reasons: [
+          `框架运行时组件链命中：${sourceLocate.framework || component.framework || 'unknown'}`,
+          component.file ? `组件源码路径：${component.file}` : '',
+          component.name ? `组件：${component.name}` : '',
+          Number.isFinite(domDepth) && domDepth >= 0 ? `DOM 向上 ${domDepth} 层找到组件实例` : '',
+          '置信度：exact',
+        ].filter(Boolean),
+      });
+    }
+  }
+  return hits;
+}
+
 function angularRuntimeHintHits(project, body, textCache) {
   const hits = [];
   for (const { selection, sourceLocate } of runtimeSourceEvidenceList(body)) {
@@ -2482,6 +2534,7 @@ function searchProjectWithMeta(project, body) {
   const routeHits = routeResult.hits;
   const runtimeHits = mergeHits([
     ...runtimeDirectLocationHits(project, body, textCache),
+    ...runtimeComponentChainHits(project, body, textCache),
     ...angularRuntimeHintHits(project, body, textCache),
   ]);
 

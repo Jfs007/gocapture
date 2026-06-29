@@ -15,13 +15,11 @@ import { setupModelRuntime } from './setup/model';
 import { setupChatRuntime } from './setup/chat';
 import type { MagnusRuntimeContext, MagnusRuntimeState } from './context';
 
-const PROJECT_STORAGE_KEY = 'magnus:source-project:current';
 const LEGACY_PROJECT_STORAGE_PREFIX = 'magnus:source-project:';
 
 export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusRuntimeState {
   const { api, currentPageHref, sidePanelConfig, routePagePath, pageHost } = runtime;
-  const projectStorageKey = computed(() => PROJECT_STORAGE_KEY);
-  const legacyProjectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
+  const projectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
   const composerStore = useComposerStore();
   const composer: any = createComposerFacade(composerStore);
   const requests = usePageRequests();
@@ -34,7 +32,7 @@ export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusR
     sendCommand: (type, payload) => bridge?.sendSidePanelCommand(type, payload)
   });
 
-  const source = useSourceProject({ projectStorageKey, legacyProjectStorageKey });
+  const source = useSourceProject({ projectStorageKey });
 
   const route = useRouteResolver({
     project: source.project,

@@ -10437,7 +10437,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     });
   }
-  function useSourceProject({ projectStorageKey, legacyProjectStorageKey }) {
+  function useSourceProject({ projectStorageKey }) {
     const projectStore = useProjectStore();
     const appUiStore = useAppUiStore();
     const composerStore = useComposerStore();
@@ -10460,51 +10460,18 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           savedAt: Date.now()
         });
         window.localStorage.setItem(projectStorageKey.value, value);
-        if (legacyProjectStorageKey == null ? void 0 : legacyProjectStorageKey.value) {
-          window.localStorage.setItem(legacyProjectStorageKey.value, value);
-        }
       } catch (error) {
       }
     }
     function savedProjectPath() {
       try {
         const raw = window.localStorage.getItem(projectStorageKey.value);
-        const legacyRaw = (legacyProjectStorageKey == null ? void 0 : legacyProjectStorageKey.value) ? window.localStorage.getItem(legacyProjectStorageKey.value) : "";
-        const scannedRaw = !raw && !legacyRaw ? latestLegacyProjectRaw() : "";
-        if (!raw && !legacyRaw && !scannedRaw) return "";
-        const source = raw || legacyRaw || scannedRaw;
-        if (!raw && legacyRaw) {
-          window.localStorage.setItem(projectStorageKey.value, legacyRaw);
-        } else if (!raw && scannedRaw) {
-          window.localStorage.setItem(projectStorageKey.value, scannedRaw);
-        }
-        const data = JSON.parse(source);
+        if (!raw) return "";
+        const data = JSON.parse(raw);
         return data && typeof data.path === "string" ? data.path : "";
       } catch (error) {
         return "";
       }
-    }
-    function latestLegacyProjectRaw() {
-      let latest = "";
-      let latestSavedAt = 0;
-      try {
-        for (let i = 0; i < window.localStorage.length; i += 1) {
-          const key = window.localStorage.key(i) || "";
-          if (!key.startsWith("magnus:source-project:") || key === projectStorageKey.value) continue;
-          const raw = window.localStorage.getItem(key) || "";
-          if (!raw) continue;
-          const data = JSON.parse(raw);
-          if (!data || typeof data.path !== "string") continue;
-          const savedAt = Number(data.savedAt || 0);
-          if (!latest || savedAt >= latestSavedAt) {
-            latest = raw;
-            latestSavedAt = savedAt;
-          }
-        }
-      } catch (error) {
-        return "";
-      }
-      return latest;
     }
     function resetAfterProjectChange(options = {}) {
       const preserveUi = !!options.preserveUi;
@@ -12239,13 +12206,11 @@ ${result.rawText}` : ""
     }, { immediate: true });
     return message;
   }
-  const PROJECT_STORAGE_KEY = "magnus:source-project:current";
   const LEGACY_PROJECT_STORAGE_PREFIX = "magnus:source-project:";
   function createMagnusRuntimeState(runtime) {
     var _a;
     const { api, currentPageHref, sidePanelConfig, routePagePath, pageHost } = runtime;
-    const projectStorageKey = computed(() => PROJECT_STORAGE_KEY);
-    const legacyProjectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
+    const projectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
     const composerStore = useComposerStore();
     const composer = createComposerFacade(composerStore);
     const requests = usePageRequests();
@@ -12256,7 +12221,7 @@ ${result.rawText}` : ""
     const selection = setupSelectionRuntime({
       sendCommand: (type, payload) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload)
     });
-    const source = useSourceProject({ projectStorageKey, legacyProjectStorageKey });
+    const source = useSourceProject({ projectStorageKey });
     const route = useRouteResolver({
       project: source.project,
       currentPageHref,
@@ -12374,7 +12339,7 @@ ${result.rawText}` : ""
           method: "POST",
           body,
           timeoutMs,
-          timeoutMessage: search.includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试" : "源码检索超过 12 秒，请补充关键词后重试"
+          timeoutMessage: search.includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试" : "源码检索超过 12 秒，请确认项目源码目录是否选错，或补充关键词后重试"
         });
       });
     }
@@ -12642,6 +12607,9 @@ ${result.rawText}` : ""
       search.definitionTrace.value = null;
       route.scheduleRouteResolve();
     }, { immediate: true });
+    watch(currentPageHref, () => {
+      source.restoreSavedProject();
+    });
     onMounted(() => {
       registerRuntimeApi(api, state);
       cleanupLocationWatcher = installLocationWatcher(currentPageHref);

@@ -37,6 +37,10 @@ export function createMagnusRuntime(api: Record<string, any>) {
     route.scheduleRouteResolve();
   }, { immediate: true });
 
+  watch(currentPageHref, () => {
+    source.restoreSavedProject();
+  });
+
   onMounted(() => {
     registerRuntimeApi(api, state);
     cleanupLocationWatcher = installLocationWatcher(currentPageHref);

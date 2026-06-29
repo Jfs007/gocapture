@@ -12,7 +12,7 @@ import { useModelStore } from '../../stores/model.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 
-export function useSourceProject({ projectStorageKey, legacyProjectStorageKey }) {
+export function useSourceProject({ projectStorageKey }) {
   const projectStore = useProjectStore();
   const appUiStore = useAppUiStore();
   const composerStore = useComposerStore();
@@ -36,9 +36,6 @@ export function useSourceProject({ projectStorageKey, legacyProjectStorageKey })
         savedAt: Date.now()
       });
       window.localStorage.setItem(projectStorageKey.value, value);
-      if (legacyProjectStorageKey?.value) {
-        window.localStorage.setItem(legacyProjectStorageKey.value, value);
-      }
     } catch (error) {
     }
   }
@@ -46,45 +43,12 @@ export function useSourceProject({ projectStorageKey, legacyProjectStorageKey })
   function savedProjectPath() {
     try {
       const raw = window.localStorage.getItem(projectStorageKey.value);
-      const legacyRaw = legacyProjectStorageKey?.value
-        ? window.localStorage.getItem(legacyProjectStorageKey.value)
-        : '';
-      const scannedRaw = !raw && !legacyRaw ? latestLegacyProjectRaw() : '';
-      if (!raw && !legacyRaw && !scannedRaw) return '';
-      const source = raw || legacyRaw || scannedRaw;
-      if (!raw && legacyRaw) {
-        window.localStorage.setItem(projectStorageKey.value, legacyRaw);
-      } else if (!raw && scannedRaw) {
-        window.localStorage.setItem(projectStorageKey.value, scannedRaw);
-      }
-      const data = JSON.parse(source);
+      if (!raw) return '';
+      const data = JSON.parse(raw);
       return data && typeof data.path === 'string' ? data.path : '';
     } catch (error) {
       return '';
     }
-  }
-
-  function latestLegacyProjectRaw() {
-    let latest = '';
-    let latestSavedAt = 0;
-    try {
-      for (let i = 0; i < window.localStorage.length; i += 1) {
-        const key = window.localStorage.key(i) || '';
-        if (!key.startsWith('magnus:source-project:') || key === projectStorageKey.value) continue;
-        const raw = window.localStorage.getItem(key) || '';
-        if (!raw) continue;
-        const data = JSON.parse(raw);
-        if (!data || typeof data.path !== 'string') continue;
-        const savedAt = Number(data.savedAt || 0);
-        if (!latest || savedAt >= latestSavedAt) {
-          latest = raw;
-          latestSavedAt = savedAt;
-        }
-      }
-    } catch (error) {
-      return '';
-    }
-    return latest;
   }
 
   function resetAfterProjectChange(options = {}) {

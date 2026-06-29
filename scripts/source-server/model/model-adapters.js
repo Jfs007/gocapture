@@ -2647,6 +2647,49 @@ function modelSnippetCandidates(snippet) {
     .filter(item => item.length >= 24);
 }
 
+function approximateModelSnippetExcerpt(text, snippet, maxChars = MODEL_RESULT_SNIPPET_CHARS) {
+  const source = String(text || '');
+  const raw = String(snippet || '').trim();
+  if (!source || raw.length < 60) return null;
+  const lines = source.split('\n');
+  const offsets = [];
+  let cursor = 0;
+  for (const line of lines) {
+    offsets.push(cursor);
+    cursor += line.length + 1;
+  }
+  const anchors = uniq([
+    ...String(raw).split(/\r?\n/).map(line => line.trim()).filter(line => line.length >= 18 && line.length <= 180),
+    ...(raw.match(/\b[A-Za-z_$][\w$]{4,}\b/g) || []).filter(token => !GENERIC_MODEL_SYMBOLS.has(token.toLowerCase())),
+    ...(raw.match(/['"`][^'"`]{2,40}['"`]/g) || []).map(item => item.slice(1, -1)),
+  ]).slice(0, 40);
+  if (anchors.length < 3) return null;
+
+  let best = null;
+  for (let start = 0; start < lines.length; start++) {
+    const end = Math.min(lines.length, start + 36);
+    const windowText = lines.slice(start, end).join('\n');
+    let score = 0;
+    let count = 0;
+    for (const anchor of anchors) {
+      if (!anchor || !windowText.includes(anchor)) continue;
+      count++;
+      score += anchor.length >= 18 ? 8 : 3;
+    }
+    if (count < 3) continue;
+    if (!best || score > best.score) {
+      best = {
+        score,
+        count,
+        start: offsets[start],
+        end: offsets[end - 1] + lines[end - 1].length,
+      };
+    }
+  }
+  if (!best || best.score < 12) return null;
+  return rangeExcerpt(source, best.start, best.end, maxChars);
+}
+
 function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
   const file = projectFile(project, filePath);
   if (!file) {
@@ -2667,6 +2710,15 @@ function resolveModelSnippet(project, filePath, codeSnippet, body, textCache) {
         snippetSource: candidate === String(codeSnippet || '').trim() ? 'model' : 'normalized-model',
       };
     }
+  }
+
+  const approximate = approximateModelSnippetExcerpt(text, codeSnippet);
+  if (approximate) {
+    return {
+      codeSnippet: approximate,
+      snippetVerified: true,
+      snippetSource: 'approximate-model-anchors',
+    };
   }
 
   return {

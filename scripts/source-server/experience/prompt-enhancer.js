@@ -538,7 +538,7 @@ function targetFileContext(project, modelItems, textCache) {
 function fallbackEnhancedPrompt(task) {
   const targets = task.targets.map(item => [
     `文件: ${item.file}`,
-    item.codeSnippet ? `源码方向:\n${item.codeSnippet}` : '',
+    item.codeSnippet ? `粗定位源码:\n${item.codeSnippet}` : '',
     item.directionGuess ? `初步方向: ${item.directionGuess}` : '',
   ].filter(Boolean).join('\n')).join('\n\n');
   return [
@@ -546,7 +546,9 @@ function fallbackEnhancedPrompt(task) {
     task.pageUrl ? `页面: ${task.pageUrl}` : '',
     targets,
     '实施要求:',
-    '- 先重新阅读目标文件及直接相关代码，验证上面的源码方向。',
+    '- 上面的粗定位源码来自页面选区定位，是本次修改的优先检查位置。',
+    '- 先在目标文件中验证该源码片段是否对应页面选区；若匹配，围绕该片段完成修改。',
+    '- 如果验证发现该片段不匹配，再沿相邻渲染块、直接引用链或同一列/同一区域重新定位。',
     '- 严格复用项目已有组件、请求、状态和错误处理方式。',
     '- 缺少接口字段、返回结构或调用时机时，先确认真实代码，不要臆造。',
   ].filter(Boolean).join('\n\n');
@@ -765,8 +767,11 @@ function buildEnhancementPrompt(input) {
     '要求：',
     '- 不要直接修改代码。',
     '- 项目经验只用于约束实现方式，目标文件真实代码优先。',
+    '- roughTask.targets[].codeSnippet 是上一阶段已经按页面选区定位出的粗源码依据，优先级高于 targetFiles.content 中其它相似代码。',
+    '- 生成 enhancedPrompt 时必须围绕 roughTask.targets[].codeSnippet 指向的源码块描述修改位置；除非你能从输入证据明确证明它不匹配，否则禁止改判到同文件里的其它价格、文案或样式块。',
+    '- targetFiles.content 只用于补充 import、变量定义、相邻上下文和校验点，不允许覆盖粗定位源码结论。',
     '- targetFiles.content 是本地已读取的完整目标文件内容，不是片段；必须基于完整文件提炼可直接执行的修改方案。',
-    '- activeTask 是同一 projectRoot + 页面路径下累计的任务上下文；若包含多条 requirements，需要把它们合并成一个完整任务，而不是只处理最后一句。',
+    '- activeTask 是同一 projectRoot + 页面路径下累计的任务上下文；只能合并仍与当前粗定位源码或当前用户需求直接相关的 requirements，不能把历史任务改写成本次需求。',
     '- 如果 activeTask.confirmedSkillIds 已存在，说明这些经验已在当前任务中确认过，应优先复用，不要重复质疑其项目级适用性；但目标文件真实代码仍优先。',
     '- enhancedPrompt 应尽量让 Code Agent 上手即可修改：指出应改的文件、应放置的位置、应复用的 import/变量/函数/组件/API 模式、实施步骤和校验点。',
     '- 不要笼统要求 Code Agent “重新完整阅读目标文件”；只有当目标文件以外的 API、hook、子组件、父组件或公共实现仍缺失时，才列出“需要继续阅读的相关文件/方向”。',
@@ -785,6 +790,32 @@ function buildEnhancementPrompt(input) {
     '',
     `输入上下文:\n${safeJson(input)}`,
   ].join('\n');
+}
+
+function roughSourceAnchors(value) {
+  const stop = new Set([
+    'const', 'return', 'render', 'style', 'class', 'value', 'false', 'true',
+    'size', 'type', 'text', 'primary', 'font', 'color', 'div', 'row', 'item',
+    'status', 'action', 'click',
+  ]);
+  return Array.from(new Set(String(value || '').match(/\b[A-Za-z_$][\w$]{3,}\b/g) || []))
+    .filter(item => !stop.has(item.toLowerCase()))
+    .slice(0, 16);
+}
+
+function enhancedPromptMatchesRoughSource(task, enhancedPrompt) {
+  const prompt = String(enhancedPrompt || '');
+  const targets = (task.targets || [])
+    .map(item => ({
+      file: item.file,
+      anchors: roughSourceAnchors(item.codeSnippet || item.rawCodeSnippet || ''),
+    }))
+    .filter(item => item.anchors.length >= 3);
+  if (!targets.length) return true;
+  return targets.some(item => {
+    const matched = item.anchors.filter(anchor => prompt.includes(anchor));
+    return matched.length >= Math.min(2, item.anchors.length);
+  });
 }
 
 function buildSkillCandidatePrompt(input) {
@@ -931,8 +962,13 @@ async function enhanceLocatedPrompt(options) {
     buildEnhancementPrompt(enhancementInput),
     log
   );
-  const enhancedPrompt = String(enhanced.parsed?.enhancedPrompt || '').trim() || fallback;
-  const usedSkillIds = (enhanced.parsed?.usedSkillIds || matchedSkillIds).map(String).filter(Boolean).slice(0, 4);
+  let enhancedPrompt = String(enhanced.parsed?.enhancedPrompt || '').trim() || fallback;
+  let usedSkillIds = (enhanced.parsed?.usedSkillIds || matchedSkillIds).map(String).filter(Boolean).slice(0, 4);
+  if (!enhancedPromptMatchesRoughSource(task, enhancedPrompt)) {
+    log('需求提示词增强被回退：增强结果未引用粗定位源码核心锚点，可能改判到同文件其它相似代码');
+    enhancedPrompt = fallback;
+    usedSkillIds = matchedSkillIds;
+  }
 
   if (usedSkillIds.length) {
     recordSkillVerification(project, usedSkillIds);

@@ -88,8 +88,8 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       body,
       timeoutMs,
       timeoutMessage: search.includeApiEvidence.value
-        ? '接口调用链追踪超过 30 秒，请减少捕获接口或补充关键词后重试'
-        : '源码检索超过 12 秒，请补充关键词后重试'
+        ? '接口调用链追踪超过 30 秒，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试'
+        : '源码检索超过 12 秒，请确认项目源码目录是否选错，或补充关键词后重试'
     });
   }
 
