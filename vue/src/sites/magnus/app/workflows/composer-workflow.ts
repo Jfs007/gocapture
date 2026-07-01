@@ -1,6 +1,8 @@
-import { sourceServerJson } from '../services/source-service';
+import { sourceServerNdjson } from '../services/source-service';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import type { MagnusRuntimeState } from '../runtime/context';
+
+const MAX_AUTO_EXPAND_ATTEMPTS = 3;
 
 export function createComposerWorkflow(state: MagnusRuntimeState) {
   const { source, route, search, selection, composer, model, prompt } = state;
@@ -25,6 +27,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
   async function searchCandidateFiles() {
     search.candidateLoading.value = true;
     search.candidateError.value = '';
+    search.serverNeedsMoreEvidence.value = false;
     search.modelAssistAttempted.value = false;
     model.resetModelAssist();
     selection.filesConfirmed.value = false;
@@ -44,10 +47,15 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       search.apiTrace.value = data.apiTrace || null;
       search.i18nTrace.value = data.i18nTrace || null;
       search.definitionTrace.value = data.definitionTrace || null;
+      search.serverNeedsMoreEvidence.value = !!(data.needsMoreEvidence || data.needMoreDom || data.agent?.needMoreDom);
 
       if (!search.candidateHits.value.length) {
         search.selectedCandidatePaths.value = [];
-        search.candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
+        if (search.serverNeedsMoreEvidence.value) {
+          search.candidateError.value = '自动扩区后仍证据不足，未能定位源码。';
+        } else {
+          search.candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
+        }
       } else {
         search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
         search.expandedCandidatePath.value = '';
@@ -70,8 +78,16 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
 
   async function runSearchWithOptionalRetry(timeoutMs: number) {
     try {
-      const firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs);
+      let firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs);
+      for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
+        const expanded = await expandLatestSelectionForMoreEvidence(attempt);
+        if (!expanded) break;
+        firstPass = await runSearchRequest(prompt.searchPayload({
+          agentState: buildAgentRetryState(firstPass, attempt)
+        }), timeoutMs);
+      }
       const firstHits = Array.isArray(firstPass?.hits) ? firstPass.hits : [];
+      if (firstPass?.agent?.enabled) return firstPass;
       if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
       const secondPass = await runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs);
       const secondHits = Array.isArray(secondPass?.hits) ? secondPass.hits : [];
@@ -83,13 +99,26 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
   }
 
   async function runSearchRequest(body: unknown, timeoutMs: number) {
-    return await sourceServerJson('/api/search', {
+    search.processLogs.value = [];
+    search.agentUsed.value = false;
+    return await sourceServerNdjson('/api/search/stream', {
       method: 'POST',
-      body,
-      timeoutMs,
+      body: {
+        ...(body as Record<string, unknown>),
+        adapter: model.selectedModel.value || null
+      },
+      timeoutMs: Math.max(timeoutMs, Number(model.selectedModel.value?.timeoutMs || 120000) * 2 + 5000),
       timeoutMessage: search.includeApiEvidence.value
-        ? '接口调用链追踪超过 30 秒，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试'
-        : '源码检索超过 12 秒，请确认项目源码目录是否选错，或补充关键词后重试'
+        ? '源码检索超时，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试'
+        : '源码检索超时，请确认项目源码目录是否选错，或补充关键词后重试',
+      onEvent(event) {
+        if (event.type === 'log' && event.log) {
+          search.appendProcessLog(event.log);
+          if (String(event.log).startsWith('DOM Agent 触发判断：启用')) {
+            search.agentUsed.value = true;
+          }
+        }
+      }
     });
   }
 
@@ -112,6 +141,40 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     return false;
   }
 
+  async function expandLatestSelectionForMoreEvidence(attempt: number) {
+    const before = latestSelectionSnapshot();
+    const items = selection.selectedItems?.value || [];
+    const latest = items[items.length - 1];
+    const uid = latest?.uid || '';
+    if (!uid || typeof selection.expandSelection !== 'function') return false;
+    search.appendProcessLog?.(`证据不足：自动扩大当前选区 ${uid}（第 ${attempt} 次）`);
+    await selection.expandSelection(uid);
+    const changed = await waitForSelectionSnapshotChange(before);
+    if (changed) {
+      search.appendProcessLog?.('自动扩区完成：选区对象已更新，继续检索');
+      appUiStore.setToast('已自动扩大当前选区并继续检索');
+      return true;
+    }
+    search.appendProcessLog?.('自动扩区停止：未检测到选区变化');
+    return false;
+  }
+
+  function latestSelectionSnapshot() {
+    return latestSelectionSnapshotFromItems(selection.selectedItems?.value || []);
+  }
+
+  async function waitForSelectionSnapshotChange(before: { uid: string; signature: string }) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < 1500) {
+      await sleep(80);
+      const current = latestSelectionSnapshot();
+      if (current.uid && current.uid === before.uid && current.signature && current.signature !== before.signature) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function modelAssistUnavailableText() {
     if (!model.selectedModel.value) return '模型定位未启用：请先在输入框模型菜单里选择或配置模型。';
     if (!source.project.value || source.project.value.source !== 'source-server') {
@@ -125,6 +188,62 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     searchCandidateFiles,
     runModelAssistForCandidates
   };
+}
+
+function buildAgentRetryState(previousResult: any, attempt: number) {
+  const agent = previousResult?.agent || {};
+  const inspectionCandidates = Array.isArray(agent?.inspection?.candidates)
+    ? agent.inspection.candidates
+    : [];
+  return {
+    expansionRetry: true,
+    expansionRoundsUsed: attempt,
+    previousPlan: agent?.plan || null,
+    previousCandidates: inspectionCandidates.slice(0, 8).map((item: any) => ({
+      file: item?.file || '',
+      score: item?.score || 0,
+      matchedGroups: Array.isArray(item?.matchedGroups)
+        ? item.matchedGroups.map((group: any) => ({
+          keywords: Array.isArray(group?.keywords) ? group.keywords : [],
+          source: group?.source || '',
+          range: group?.range || ''
+        }))
+        : []
+    })),
+    previousReason: agent?.evidence?.reason || ''
+  };
+}
+
+function shouldAutoExpandSearch(result: any) {
+  const hits = Array.isArray(result?.hits) ? result.hits : [];
+  if (hits.length) return false;
+  return !!(result?.needsMoreEvidence || result?.needMoreDom || result?.agent?.needMoreDom);
+}
+
+function latestSelectionSnapshotFromItems(items: any[]) {
+  const latest = items[items.length - 1];
+  if (!latest?.uid) return { uid: '', signature: '' };
+  const info = latest.info || latest.element || {};
+  const asset = latest.assetInfo || latest.asset || {};
+  return {
+    uid: latest.uid,
+    signature: JSON.stringify([
+      info.tag || info.tagName || '',
+      info.selector || '',
+      info.className || '',
+      info.text || '',
+      info.searchText || '',
+      info.outerHtml || info.rawOuterHtml || '',
+      asset.selector || '',
+      asset.className || '',
+      asset.text || '',
+      asset.outerHtml || asset.rawOuterHtml || ''
+    ]).slice(0, 20000)
+  };
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function hasUsableModelResult(result: any) {

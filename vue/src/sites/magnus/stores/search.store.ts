@@ -20,6 +20,9 @@ export const useSearchStore = defineStore('magnus.search', () => {
   const modelAssistAttempted = ref(false);
   const showCandidatePicker = ref(false);
   const needsMoreEvidence = ref(false);
+  const serverNeedsMoreEvidence = ref(false);
+  const processLogs = ref<string[]>([]);
+  const agentUsed = ref(false);
 
   const selectedCandidates = computed(() => {
     const selected = new Set(selectedCandidatePaths.value);
@@ -35,6 +38,14 @@ export const useSearchStore = defineStore('magnus.search', () => {
     startedAt.value = Date.now();
     finishedAt.value = 0;
     modelAssistAttempted.value = false;
+    serverNeedsMoreEvidence.value = false;
+    processLogs.value = [];
+    agentUsed.value = false;
+  }
+
+  function appendProcessLog(log: string) {
+    if (!log) return;
+    processLogs.value.push(log);
   }
 
   function applyResult(result: {
@@ -77,6 +88,9 @@ export const useSearchStore = defineStore('magnus.search', () => {
     finishedAt.value = 0;
     error.value = '';
     modelAssistAttempted.value = false;
+    serverNeedsMoreEvidence.value = false;
+    processLogs.value = [];
+    agentUsed.value = false;
   }
 
   return {
@@ -97,8 +111,12 @@ export const useSearchStore = defineStore('magnus.search', () => {
     modelAssistAttempted,
     showCandidatePicker,
     needsMoreEvidence,
+    serverNeedsMoreEvidence,
+    processLogs,
+    agentUsed,
     selectedCandidates,
     start,
+    appendProcessLog,
     applyResult,
     fail,
     reset

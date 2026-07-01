@@ -16,6 +16,7 @@ export interface ElementInfo {
   selector?: string;
   innerHtml?: string;
   outerHtml?: string;
+  rawOuterHtml?: string;
   inlineStyle?: string;
   computedStyle?: unknown;
   box?: ElementBox | null;

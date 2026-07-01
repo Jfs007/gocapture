@@ -37,6 +37,10 @@ export function useChatMessages() {
     finishedAt: searchFinishedAt
   } = storeToRefs(searchStore);
   const {
+    processLogs: searchProcessLogs,
+    agentUsed: searchAgentUsed
+  } = storeToRefs(searchStore);
+  const {
     confirmed: selectionConfirmed,
     evidenceMessages,
     filesConfirmed
@@ -124,8 +128,12 @@ export function useChatMessages() {
     if (searchRunning?.value) {
       messages.push({
         id: 'searching',
-        role: 'system',
-        text: includeApiEvidence.value ? '正在基于选区和接口端点追踪候选文件。' : '正在基于选区文案、className 和页面路径检索候选文件。',
+        role: searchAgentUsed.value ? 'agent' : 'system',
+        title: searchAgentUsed.value ? 'DOM 源码定位 Agent' : '源码检索',
+        text: searchAgentUsed.value
+          ? '正在让模型生成检索计划，并由本地执行候选检索和源码事实对照。'
+          : includeApiEvidence.value ? '正在基于选区和接口端点追踪候选文件。' : '正在基于选区文案、className 和页面路径检索候选文件。',
+        logs: searchProcessLogs.value || [],
         durationStartedAt: searchStartedAt?.value || 0,
         durationFinishedAt: searchFinishedAt?.value || 0,
         durationActive: true,
@@ -134,10 +142,13 @@ export function useChatMessages() {
     } else if ((searchFinishedAt?.value || 0) > 0) {
       messages.push({
         id: 'search-log',
-        role: 'system',
-        title: '源码检索',
+        role: searchAgentUsed.value ? 'agent' : 'system',
+        title: searchAgentUsed.value ? 'DOM 源码定位 Agent' : '源码检索',
         text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : '未命中候选文件。',
-        logs: searchLogLines(),
+        logs: [
+          ...(searchProcessLogs.value || []),
+          ...searchLogLines()
+        ],
         durationStartedAt: searchStartedAt?.value || 0,
         durationFinishedAt: searchFinishedAt?.value || 0,
         durationActive: false,
@@ -218,9 +229,8 @@ export function useChatMessages() {
         role: 'system',
         title: '线索不足，需要补充页面证据',
         text: [
-          '当前选区命中了多个候选文件，但没有任何文件同时命中文案和当前页面上下文。',
-          '这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只命中了通用子组件里的重复字段。',
-          '请继续选择更外层、更独特的页面区域，或在输入框补充业务位置/交互目标后重新检索。'
+          '当前选区检索到了多个候选文件，系统已基于当前选区自动向上扩区并继续检索。',
+          '如果自动扩区后仍然失败，说明当前 DOM 链路还不能把候选收敛到唯一源码方向。'
         ].join('\n')
       });
     } else if (!candidateLoading.value && candidateHits.value.length > 1 && !filesConfirmed.value) {

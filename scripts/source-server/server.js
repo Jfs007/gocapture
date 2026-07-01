@@ -13,6 +13,7 @@ const { scanProject } = require('./core/project');
 const { bindProjectContext } = require('./experience/project-context');
 const { loadSkillMetas } = require('./experience/skill-store');
 const { searchProjectWithMeta } = require('./search');
+const { runAgentSearch } = require('./search/agent-search');
 const { resolvePageRouteTrace } = require('./route-resolvers/registry');
 const { runModelLocate } = require('./model/model-adapters');
 const { handleUiRequest } = require('./ui/serve-ui');
@@ -52,7 +53,7 @@ function readBody(req) {
     req.setEncoding('utf8');
     req.on('data', chunk => {
       data += chunk;
-      if (data.length > 1024 * 1024) {
+      if (data.length > 4 * 1024 * 1024) {
         reject(new Error('Request body too large.'));
         req.destroy();
       }
@@ -182,6 +183,34 @@ function createSourceServer() {
           i18nTrace: result.i18nTrace,
           definitionTrace: result.definitionTrace,
         });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/search/stream') {
+        if (!currentProject) throw new Error('No project selected.');
+        const body = await readBody(req);
+        sendStreamHeaders(res);
+        const controller = new AbortController();
+        let finished = false;
+        req.on('close', () => {
+          if (!finished) controller.abort();
+        });
+        try {
+          const result = await runAgentSearch(currentProject, body, {
+            signal: controller.signal,
+            onLog: log => writeStreamEvent(res, { type: 'log', log }),
+          });
+          finished = true;
+          writeStreamEvent(res, { type: 'result', result });
+          res.end();
+        } catch (error) {
+          finished = true;
+          writeStreamEvent(res, {
+            type: 'error',
+            error: error.message || String(error),
+          });
+          res.end();
+        }
         return;
       }
 

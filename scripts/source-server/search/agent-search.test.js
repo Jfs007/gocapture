@@ -1,0 +1,882 @@
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const test = require('node:test');
+const {
+  compressDomMarkup,
+  analyzeEvidenceSufficiency,
+  domAgentTrigger,
+  executeSearchPlan,
+  filterFollowUpSearchesByEvidence,
+  inspectCandidates,
+  runAgentSearch,
+} = require('./agent-search');
+const {
+  buildLocatorUserInput,
+  normalizeLocatorDecision,
+  validateLocatorDecision,
+  locatorDecisionToSearchPlan,
+} = require('./locator-protocol');
+
+function fixtureProject(files) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-agent-search-'));
+  const projectFiles = [];
+  for (const [file, content] of Object.entries(files)) {
+    const fullPath = path.join(root, file);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, content);
+    projectFiles.push({
+      path: file,
+      size: Buffer.byteLength(content),
+      mtimeMs: Date.now(),
+    });
+  }
+  return {
+    name: 'fixture',
+    path: root,
+    kind: 'unknown',
+    stack: [],
+    files: projectFiles,
+  };
+}
+
+test('locator protocol accepts explicit search plans from the model', () => {
+  const decision = normalizeLocatorDecision({
+    status: 'ready',
+    understanding: {
+      userTarget: '修改供应来源输入框',
+      selectedDomAnchors: ['data-col-key=source', 'placeholder=请输入供应来源'],
+    },
+    evidenceAssessment: { sufficient: true },
+    nextPlan: [{
+      id: 'p1',
+      capability: 'locate-structure',
+      searches: [{
+        keywords: ['source', '请输入供应来源'],
+        mode: 'all',
+        range: 'same-structure',
+        reason: '验证列 key 和 placeholder 是否在同一渲染结构中出现',
+      }],
+      relation: 'same-rendering-context',
+      scopeHint: 'route-entry-first',
+      purpose: '验证列 key 和 placeholder 是否在同一渲染结构中出现',
+    }],
+  });
+  const validation = validateLocatorDecision(decision);
+  assert.equal(validation.valid, true);
+
+  const plan = locatorDecisionToSearchPlan(decision);
+  assert.deepEqual(plan.searches[0].keywords, ['source', '请输入供应来源']);
+  assert.equal(plan.searches[0].range, 'same-structure');
+
+  const invalid = validateLocatorDecision(normalizeLocatorDecision({
+    status: 'ready',
+    nextPlan: [{
+      capability: 'locate-structure',
+      relation: 'same-scope',
+    }],
+  }));
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors.join('\n'), /searches\.keywords/);
+});
+
+test('locator resolve-route plan asks for more DOM instead of searching runtime evidence', () => {
+  const decision = normalizeLocatorDecision({
+    status: 'need-more-context',
+    nextPlan: [{
+      capability: 'expand-dom',
+      relation: 'same-rendering-context',
+      scopeHint: 'route-entry-first',
+      purpose: '当前选区只有运行时选中值，需要扩区',
+    }],
+  });
+  const validation = validateLocatorDecision(decision);
+  assert.equal(validation.valid, true);
+  const plan = locatorDecisionToSearchPlan(decision);
+  assert.deepEqual(plan.searches, []);
+  assert.equal(plan.needMoreDom, true);
+});
+
+test('locator planner input carries Project.md tech stack context', () => {
+  const input = buildLocatorUserInput({
+    project: {
+      context: {
+        technicalStackMarkdown: '## 技术栈\n- Vue\n- Naive UI',
+      },
+    },
+    body: {
+      userPrompt: '按钮加粗',
+      pagePath: '/demo',
+    },
+    routeTrace: {
+      matched: true,
+      bestPageFile: 'src/views/demo.vue',
+      hits: [{ file: 'src/views/demo.vue', routePath: '/demo', reasons: ['路径精确匹配'] }],
+    },
+    domSelections: [{
+      index: 1,
+      tag: 'button',
+      markup: '<button>提交</button>',
+      rawMarkupLength: 19,
+      compressedMarkupLength: 19,
+      compression: { enabled: false, repeatedGroupCount: 0, repeatedGroups: [] },
+    }],
+  });
+  assert.equal(input.techStack.markdown, '## 技术栈\n- Vue\n- Naive UI');
+  assert.equal(input.pageContext.route.bestPageFile, 'src/views/demo.vue');
+  assert.equal(Object.prototype.hasOwnProperty.call(input, 'selectionFacts'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(input, 'evidenceCatalog'), false);
+  assert.ok(input.domSelections[0].markup.includes('<button>提交</button>'));
+});
+
+test('compress DOM collapses repeated sibling structures and keeps stable anchors', () => {
+  const markup = [
+    '<div class="panel">',
+    '<div class="row"><a href="/a">Alpha</a></div>',
+    '<div class="row"><a href="/b">Beta</a></div>',
+    '<div class="row"><a href="/c">Gamma</a></div>',
+    '<div class="row"><a href="/d">Delta</a></div>',
+    '</div>',
+  ].join('');
+  const result = compressDomMarkup(markup);
+  assert.equal(result.enabled, true);
+  assert.ok(result.markup.includes('/a'));
+  assert.ok(result.markup.includes('/b'));
+  assert.ok(result.markup.includes('magnus-repeat'));
+  assert.ok(!result.markup.includes('href="/d"'));
+  assert.equal(result.repeatedGroups[0].count, 4);
+});
+
+test('compress DOM repeat summary keeps descendant attribute anchors and drops runtime ids', () => {
+  const markup = [
+    '<div data-n-id="ce167487">',
+    '<div class="cell" aria-labelledby="e3e85ba9"><a href="/one" data-col-key="name">Name</a></div>',
+    '<div class="cell" aria-labelledby="e3e85ba9"><a href="/two" data-col-key="cost">Cost</a></div>',
+    '<div class="cell" aria-labelledby="e3e85ba9"><a href="/three" data-col-key="status">Status</a></div>',
+    '</div>',
+  ].join('');
+  const result = compressDomMarkup(markup);
+  assert.ok(result.markup.includes('href=/one'));
+  assert.ok(result.markup.includes('data-col-key=name'));
+  assert.ok(result.markup.includes('href=/three'));
+  assert.ok(!result.markup.includes('ce167487'));
+  assert.ok(!result.markup.includes('e3e85ba9'));
+});
+
+test('compress DOM keeps distinct selected item when repeated structure differs', () => {
+  const markup = [
+    '<div class="children">',
+    '<div class="item"><a href="/index">腾讯广告3.0</a></div>',
+    '<div class="item"><a href="/ads-ks-cid">快手CID</a></div>',
+    '<div class="item selected"><a href="/ks-niu"><span>磁力金牛</span><em>全站|标准</em></a></div>',
+    '<div class="item"><a href="/ads-dy-qc">巨量千川</a></div>',
+    '<div class="item"><a href="/ks-dr">磁力达人</a></div>',
+    '</div>',
+  ].join('');
+  const result = compressDomMarkup(markup);
+  assert.ok(result.markup.includes('腾讯广告3.0'));
+  assert.ok(result.markup.includes('快手CID'));
+  assert.ok(result.markup.includes('磁力金牛'));
+  assert.ok(result.markup.includes('全站|标准'));
+  assert.ok(result.markup.includes('magnus-repeat'));
+});
+
+test('DOM Agent triggers when the component chain has no project file', () => {
+  const project = fixtureProject({
+    'src/Page.vue': '<template><div /></template>',
+  });
+  const trigger = domAgentTrigger({
+    selections: [{
+      element: {
+        outerHtml: '<div class="target"></div>',
+      },
+      sourceLocate: {
+        componentChain: [{ file: '/missing/Page.vue' }],
+      },
+    }],
+  }, { project, threshold: 8000 });
+  assert.equal(trigger.enabled, true);
+  assert.equal(trigger.missingComponentFile, true);
+});
+
+test('DOM Agent triggers for oversized DOM even with a resolved component file', () => {
+  const project = fixtureProject({
+    'src/Page.vue': '<template><div /></template>',
+  });
+  const trigger = domAgentTrigger({
+    selections: [{
+      element: {
+        rawOuterHtml: `<div>${'x'.repeat(9000)}</div>`,
+      },
+      sourceLocate: {
+        componentChain: [{ file: 'src/Page.vue' }],
+      },
+    }],
+  }, { project, threshold: 8000 });
+  assert.equal(trigger.enabled, true);
+  assert.equal(trigger.oversized, true);
+  assert.equal(trigger.missingComponentFile, false);
+});
+
+test('candidate inspection prefers complete code matches over comment-only matches', () => {
+  const project = fixtureProject({
+    'src/Exact.vue': [
+      '<template>',
+      '  <div class="materials-list">',
+      '    <div class="material-item"><i class="play-icon" /></div>',
+      '  </div>',
+      '</template>',
+    ].join('\n'),
+    'src/Comment.vue': [
+      '<template><div /></template>',
+      '<!-- <div class="materials-list"><div class="material-item"><i class="play-icon" /></div></div> -->',
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['materials-list', 'material-item', 'play-icon'],
+      mode: 'all',
+      range: 'same-structure',
+      priority: 1,
+      reason: 'fixture',
+    }],
+  };
+  const cache = new Map();
+  const candidates = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, candidates, plan, cache);
+  assert.equal(inspection.candidates[0].file, 'src/Exact.vue');
+  assert.deepEqual(inspection.candidates[0].commentOnly, []);
+  assert.equal(inspection.candidates[1].commentOnly.length, 3);
+});
+
+test('search plan keeps partial structural evidence when planner over-constrains a group', () => {
+  const project = fixtureProject({
+    'src/RegionShell.vue': [
+      '<template>',
+      '  <section class="feature-shell stable-region" />',
+      '</template>',
+    ].join('\n'),
+    'src/region-data.ts': [
+      "export const region = [{ title: '业务标题' }, { title: '子项名称' }]",
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['feature-shell', 'stable-region', '业务标题'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'planner over-constrained mixed evidence',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const files = candidates.map(candidate => candidate.file);
+  assert.ok(files.includes('src/RegionShell.vue'));
+  assert.ok(files.includes('src/region-data.ts'));
+  const regionShell = candidates.find(candidate => candidate.file === 'src/RegionShell.vue');
+  assert.ok(regionShell.matchedGroups.some(group => group.source === 'keyword-fallback'));
+  assert.deepEqual(regionShell.matchedKeywords.sort(), ['feature-shell', 'stable-region']);
+});
+
+test('evidence analysis asks for more DOM when local search has multiple candidates', () => {
+  const project = fixtureProject({
+    'src/A.vue': '<template><div style="font-size: 12px; color: #999">¥2.8</div></template>',
+    'src/B.vue': '<template><div style="font-size: 12px; color: #999">¥7.1</div></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['¥', 'font-size: 12px', '#999'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'weak visual evidence',
+    }],
+  };
+  const cache = new Map();
+  const candidates = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, candidates, plan, cache);
+  const evidence = analyzeEvidenceSufficiency(plan, inspection);
+  assert.equal(evidence.insufficient, true);
+  assert.equal(evidence.candidateCount, 2);
+  assert.match(evidence.reason, /2 个候选文件/);
+});
+
+test('evidence analysis asks for more DOM when local search has no candidates', () => {
+  const evidence = analyzeEvidenceSufficiency(
+    { searches: [{ keywords: ['n-base-selection-label'], mode: 'all', range: 'same-file' }] },
+    { candidates: [] },
+    []
+  );
+  assert.equal(evidence.insufficient, true);
+  assert.equal(evidence.candidateCount, 0);
+  assert.match(evidence.reason, /未命中候选文件/);
+});
+
+test('evidence analysis ignores fallback noise when a planned group has one unique match', () => {
+  const plan = { searches: [] };
+  const inspection = {
+    candidates: [
+      {
+        file: 'src/Page.vue',
+        matchedGroups: [{ source: 'planned-group', keywords: ['placeholder', 'icon'] }],
+      },
+      {
+        file: 'src/IconOnly.vue',
+        matchedGroups: [{ source: 'keyword-fallback', keywords: ['icon'] }],
+      },
+    ],
+  };
+  const evidence = analyzeEvidenceSufficiency(plan, inspection);
+  assert.equal(evidence.insufficient, false);
+  assert.equal(evidence.plannedGroupCandidateCount, 1);
+});
+
+test('evidence analysis still asks for more DOM when related candidates are ambiguous', () => {
+  const plan = { searches: [] };
+  const inspection = {
+    candidates: [
+      {
+        file: 'src/components/Child.vue',
+        matchedGroups: [{ source: 'keyword-fallback', keywords: ['child-class'] }],
+      },
+      {
+        file: 'src/views/Page.vue',
+        matchedGroups: [{ source: 'keyword-fallback', keywords: ['page-text'] }],
+      },
+    ],
+  };
+  const ownership = [{
+    file: 'src/views/Page.vue',
+    chain: ['src/components/Child.vue', 'src/views/Page.vue'],
+  }];
+  const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership);
+  assert.equal(evidence.insufficient, true);
+  assert.equal(evidence.ownershipCount, 1);
+  assert.match(evidence.reason, /2 个候选文件/);
+});
+
+test('evidence analysis expands when a single placeholder matches page and modal files', () => {
+  const project = fixtureProject({
+    'src/views/Page.vue': [
+      "render: () => h(NInput, { placeholder: '请输入供应来源' })",
+      "h('path', { d: 'M10 6H6a2 2 0 00-2 2v10a2' })",
+    ].join('\n'),
+    'src/views/QuickEditModal.vue': [
+      '<template>',
+      '  <n-modal><n-input placeholder="请输入供应来源" /></n-modal>',
+      '</template>',
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['请输入供应来源'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'single placeholder anchor',
+    }],
+  };
+  const cache = new Map();
+  const candidates = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, candidates, plan, cache);
+  const evidence = analyzeEvidenceSufficiency(plan, inspection, [{
+    file: 'src/views/Page.vue',
+    chain: ['src/views/QuickEditModal.vue', 'src/views/Page.vue'],
+  }]);
+  assert.equal(evidence.insufficient, true);
+  assert.equal(evidence.candidateCount, 2);
+  assert.equal(evidence.plannedGroupCandidateCount, 0);
+});
+
+test('agent search asks for more DOM when local search has multiple candidates', async () => {
+  const project = fixtureProject({
+    'src/CostA.vue': '<template><div style="font-size: 12px; color: #999">¥2.8</div></template>',
+    'src/CostB.vue': '<template><div style="font-size: 12px; color: #999">¥1.2</div></template>',
+  });
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<div style="font-size:12px;color:#999">¥2.8</div>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: JSON.stringify({
+        searches: [{
+          keywords: ['¥', 'font-size: 12px', '#999'],
+          mode: 'all',
+          range: 'same-file',
+          priority: 1,
+          reason: 'weak visual evidence',
+        }],
+        needMoreDom: false,
+      }),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits.length, 0);
+  assert.equal(result.needMoreDom, true);
+  assert.equal(result.agent.needMoreDom, true);
+  assert.ok(logs.some(log => log.includes('DOM Agent 证据不足')));
+});
+
+test('agent search returns needMoreDom when planner asks for more DOM without searches', async () => {
+  const project = fixtureProject({
+    'src/Page.vue': '<template><div /></template>',
+  });
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<div>¥2.8</div>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: JSON.stringify({
+        searches: [],
+        needMoreDom: true,
+      }),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits.length, 0);
+  assert.equal(result.needMoreDom, true);
+  assert.equal(result.agent.evidence.insufficient, true);
+});
+
+test('agent search filters user-only planner terms before local search', async () => {
+  const project = fixtureProject({
+    'src/Page.vue': [
+      "const columns = [{",
+      "  title: '供应来源',",
+      "  key: 'source',",
+      "  width: 150,",
+      "  render: () => h(NInput, { placeholder: '请输入供应来源' }),",
+      "  icon: h('path', { d: 'M10 6H6a2 2 0 00-2 2v10a2' })",
+      "}]",
+    ].join('\n'),
+    'src/Other.vue': [
+      "const label = '供应来源'",
+      "const width = '150px'",
+    ].join('\n'),
+  });
+  const logs = [];
+  const outputs = [
+    JSON.stringify({
+      searches: [
+        {
+          keywords: ['请输入供应来源', 'getV2List'],
+          mode: 'all',
+          range: 'same-file',
+          priority: 1,
+          reason: 'bad planner used user request term',
+        },
+      ],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/Page.vue',
+        role: 'render',
+        confidence: 95,
+        reason: '补充 DOM 锚点后唯一命中',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    userPrompt: '@选区1 选择器宽度改为300px，下拉选项数据源改为 getV2List',
+    selections: [{
+      element: {
+        rawOuterHtml: [
+          '<td data-col-key="source" style="width: 150px">',
+          '<input placeholder="请输入供应来源">',
+          '<svg><path d="M10 6H6a2 2 0 00-2 2v10a2"></path></svg>',
+          '</td>',
+        ].join(''),
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0].file, 'src/Page.vue');
+  assert.ok(logs.some(log => log.includes('丢弃未在 DOM/路由证据中出现的词 getV2List')));
+  assert.ok(!logs.some(log => log.includes('DOM Agent Planner 计划补充')));
+});
+
+test('agent search can use expanded ancestor DOM anchors for local search', async () => {
+  const project = fixtureProject({
+    'src/views/Page.vue': [
+      'const columns = [{',
+      "  title: '所属运营',",
+      "  key: 'operator',",
+      '  render: row => h(NSelect, { value: row.operatorId })',
+      '}]',
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      status: 'ready',
+      understanding: {
+        userTarget: '定位所属运营选择器',
+        selectedDomAnchors: ['data-col-key=operator'],
+      },
+      evidenceAssessment: { sufficient: true },
+      nextPlan: [{
+        capability: 'locate-structure',
+        searches: [{
+          keywords: ['operator'],
+          mode: 'all',
+          range: 'same-structure',
+          reason: '用扩区后的表格列 key 定位渲染结构',
+        }],
+        relation: 'same-rendering-context',
+        scopeHint: 'route-entry-first',
+        purpose: '用扩区后的表格列 key 定位渲染结构',
+      }],
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/views/Page.vue',
+        role: 'render',
+        confidence: 92,
+        reason: '扩区 data-col-key 与源码列 key 对应',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<div class="n-base-selection-label" title="张小庆">张小庆</div>',
+        ancestors: [{
+          rawOuterHtml: '<td data-col-key="operator"><div class="n-select"><div class="n-base-selection-label">张小庆</div></div></td>',
+        }],
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0].file, 'src/views/Page.vue');
+});
+
+test('expanded DOM agent search relates previous child candidates through parent imports', async () => {
+  const project = fixtureProject({
+    'src/Parent.vue': [
+      'const columns = [{',
+      "  key: 'cost',",
+      "  title: '商品成本/快递成本',",
+      "  render: () => h(Child)",
+      '}]',
+      "import Child from './Child.vue'",
+    ].join('\n'),
+    'src/Child.vue': [
+      '<template><button>查看</button></template>',
+    ].join('\n'),
+    'src/OtherChild.vue': [
+      '<template><button>查看</button></template>',
+    ].join('\n'),
+  });
+  const logs = [];
+  const outputs = [
+    JSON.stringify({
+      status: 'ready',
+      understanding: {
+        userTarget: '定位扩区后的成本列',
+        selectedDomAnchors: ['cost'],
+      },
+      evidenceAssessment: { sufficient: true },
+      nextPlan: [{
+        capability: 'locate-structure',
+        searches: [{
+          keywords: ['cost'],
+          mode: 'all',
+          range: 'same-file',
+          reason: '扩区后列 key',
+        }],
+        relation: 'same-rendering-context',
+        scopeHint: 'route-entry-first',
+        purpose: '验证扩区列 key',
+      }],
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/Child.vue',
+        role: 'render',
+        confidence: 95,
+        reason: '父文件命中 cost 且引用上一轮查看按钮候选',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    agentState: {
+      expansionRetry: true,
+      previousPlan: {
+        searches: [{
+          keywords: ['查看'],
+          mode: 'all',
+          range: 'same-file',
+          priority: 1,
+          reason: '第一轮按钮文案',
+        }],
+      },
+      previousCandidates: [{
+        file: 'src/Child.vue',
+        score: 300,
+        matchedGroups: [{ keywords: ['查看'], source: 'planned-group', range: 'same-file' }],
+      }, {
+        file: 'src/OtherChild.vue',
+        score: 260,
+        matchedGroups: [{ keywords: ['查看'], source: 'planned-group', range: 'same-file' }],
+      }],
+    },
+    selections: [{
+      element: {
+        rawOuterHtml: '<td data-col-key="cost"><button>查看</button></td>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0].file, 'src/Child.vue');
+  assert.ok(logs.some(log => log.includes('DOM Agent 扩区保留上一轮检索锚点用于引用链验证：查看')));
+  assert.ok(logs.some(log => log.includes('DOM Agent 扩区引用链命中')));
+  assert.ok(logs.some(log => log.includes('"chain"') && log.includes('src/Parent.vue') && log.includes('src/Child.vue')));
+});
+
+test('expanded DOM agent search prefers child when it directly matches inherited and expanded anchors', async () => {
+  const project = fixtureProject({
+    'src/Parent.vue': [
+      "import Child from './Child.vue'",
+      "const columns = [{ key: 'other', render: () => h(Child) }]",
+    ].join('\n'),
+    'src/Child.vue': [
+      '<template>',
+      '  <section data-col-key="cost">',
+      '    <button>查看</button>',
+      '  </section>',
+      '</template>',
+    ].join('\n'),
+    'src/Other.vue': [
+      '<template><button>查看</button></template>',
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      status: 'ready',
+      understanding: {
+        userTarget: '定位成本区域查看按钮',
+        selectedDomAnchors: ['cost'],
+      },
+      evidenceAssessment: { sufficient: true },
+      nextPlan: [{
+        capability: 'locate-structure',
+        searches: [{
+          keywords: ['cost'],
+          mode: 'all',
+          range: 'same-file',
+          reason: '扩区后列 key',
+        }],
+        relation: 'same-rendering-context',
+        scopeHint: 'route-entry-first',
+        purpose: '验证扩区列 key',
+      }],
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/Child.vue',
+        role: 'render',
+        confidence: 96,
+        reason: 'child 自身同时命中 cost 和 查看',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    agentState: {
+      expansionRetry: true,
+      previousPlan: {
+        searches: [{
+          keywords: ['查看'],
+          mode: 'all',
+          range: 'same-file',
+          priority: 1,
+          reason: '第一轮按钮文案',
+        }],
+      },
+      previousCandidates: [{
+        file: 'src/Child.vue',
+        score: 300,
+        matchedGroups: [{ keywords: ['查看'], source: 'planned-group', range: 'same-file' }],
+      }, {
+        file: 'src/Other.vue',
+        score: 260,
+        matchedGroups: [{ keywords: ['查看'], source: 'planned-group', range: 'same-file' }],
+      }],
+    },
+    selections: [{
+      element: {
+        rawOuterHtml: '<td data-col-key="cost"><button>查看</button></td>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0].file, 'src/Child.vue');
+  assert.ok(logs.some(log => log.includes('executeSearchPlan') && log.includes('查看') && log.includes('cost')));
+  assert.ok(!logs.some(log => log.includes('DOM Agent 扩区引用链命中')));
+});
+
+test('agent search streams model input, local calls and a verified final file', async () => {
+  const project = fixtureProject({
+    'src/MaterialView.vue': [
+      '<template>',
+      '  <div class="operation-workbench-cell-main">',
+      '    <div class="materials-list">',
+      '      <div v-for="item in items" class="material-item">',
+      '        <i class="play-icon" />',
+      '        <img class="material-cover" />',
+      '      </div>',
+      '    </div>',
+      '  </div>',
+      '</template>',
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['operation-workbench-cell-main', 'materials-list', 'material-item'],
+        mode: 'all',
+        range: 'same-structure',
+        priority: 1,
+        reason: '共同结构',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/MaterialView.vue',
+        role: 'render',
+        confidence: 98,
+        reason: '完整结构共同出现',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<div class="operation-workbench-cell-main"><div class="materials-list"><div class="material-item"></div></div></div>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.agent.enabled, true);
+  assert.equal(result.hits[0].file, 'src/MaterialView.vue');
+  assert.equal(result.hits[0].sourceRole, 'render');
+  assert.ok(logs.some(log => log.startsWith('DOM Agent Planner 输入')));
+  assert.ok(logs.some(log => log.startsWith('DOM Agent Planner 输出')));
+  assert.ok(logs.some(log => log.startsWith('本地调用：inspectCandidates')));
+  assert.ok(logs.some(log => log.startsWith('DOM Agent Judge 输入')));
+});
+
+test('judge follow-up searches cannot use words absent from DOM and candidate facts', () => {
+  const body = {
+    userPrompt: '增加所属店铺列',
+    selections: [{
+      element: {
+        rawOuterHtml: '<div class="campaign-name">计划名称</div>',
+      },
+    }],
+  };
+  const inspection = {
+    candidates: [{
+      file: 'src/View.vue',
+      excerpt: 'const field = "campaignName"; const columns = []',
+      keywordFacts: [{ keyword: 'campaignName' }],
+      matchedGroups: [{ keywords: ['campaignName'] }],
+    }],
+  };
+  const result = filterFollowUpSearchesByEvidence([{
+    keywords: ['所属店铺', 'campaignName', 'columns'],
+    mode: 'all',
+    range: 'same-file',
+    priority: 1,
+    reason: 'model output',
+  }], body, inspection, []);
+  assert.deepEqual(result.searches[0].keywords, ['campaignName', 'columns']);
+  assert.deepEqual(result.removed, ['所属店铺']);
+});

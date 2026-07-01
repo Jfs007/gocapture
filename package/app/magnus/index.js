@@ -7144,6 +7144,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const modelAssistAttempted = /* @__PURE__ */ ref(false);
     const showCandidatePicker = /* @__PURE__ */ ref(false);
     const needsMoreEvidence = /* @__PURE__ */ ref(false);
+    const serverNeedsMoreEvidence = /* @__PURE__ */ ref(false);
+    const processLogs = /* @__PURE__ */ ref([]);
+    const agentUsed = /* @__PURE__ */ ref(false);
     const selectedCandidates = computed(() => {
       const selected = new Set(selectedCandidatePaths.value);
       return candidates.value.filter((item) => selected.has(item.file));
@@ -7157,6 +7160,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       startedAt.value = Date.now();
       finishedAt.value = 0;
       modelAssistAttempted.value = false;
+      serverNeedsMoreEvidence.value = false;
+      processLogs.value = [];
+      agentUsed.value = false;
+    }
+    function appendProcessLog(log) {
+      if (!log) return;
+      processLogs.value.push(log);
     }
     function applyResult(result) {
       var _a;
@@ -7192,6 +7202,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       finishedAt.value = 0;
       error.value = "";
       modelAssistAttempted.value = false;
+      serverNeedsMoreEvidence.value = false;
+      processLogs.value = [];
+      agentUsed.value = false;
     }
     return {
       status,
@@ -7211,8 +7224,12 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       modelAssistAttempted,
       showCandidatePicker,
       needsMoreEvidence,
+      serverNeedsMoreEvidence,
+      processLogs,
+      agentUsed,
       selectedCandidates,
       start,
+      appendProcessLog,
       applyResult,
       fail,
       reset
@@ -8065,7 +8082,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               createBaseVNode(
                 "div",
                 { class: "mda-option-desc" },
-                "这些候选文件缺少唯一命中文案，可能是重复复制粘贴的组件。请继续在页面上选择更外层/更独特的区域，或在输入框补充页面位置、业务模块、交互目标。",
+                "当前选区缺少稳定源码锚点，系统已基于当前选区自动扩区并继续检索。若仍未定位，说明当前 DOM 链路没有足够稳定证据。",
                 -1
                 /* CACHED */
               )
@@ -10675,7 +10692,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       selectedCandidatePaths,
       expandedCandidatePath,
       modelAssistAttempted,
-      keywords: searchKeywords
+      keywords: searchKeywords,
+      processLogs,
+      agentUsed,
+      serverNeedsMoreEvidence
     } = storeToRefs(searchStore);
     const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
     const { recent: recentRequests } = storeToRefs(requestStore);
@@ -10695,7 +10715,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         return hit.stage === "model-agent" || hit.preciseEvidence;
       });
     });
-    const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+    const localNeedsMoreEvidence = computed(() => {
+      if (serverNeedsMoreEvidence.value) return true;
+      return candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value;
+    });
     const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
     const showCandidatePicker = computed(() => {
       return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
@@ -10743,10 +10766,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       selectedCandidatePaths,
       expandedCandidatePath,
       modelAssistAttempted,
+      processLogs,
+      agentUsed,
+      serverNeedsMoreEvidence,
       searchApiRequests,
       selectedCandidateHits,
       needsMoreEvidence,
       showCandidatePicker,
+      appendProcessLog: searchStore.appendProcessLog,
       invalidateCandidateConfirm,
       clearCandidateState
     };
@@ -11483,6 +11510,7 @@ ${source}` : "",
         expansionMode: expandedRetry ? "expanded-retry" : "base",
         apiPaths: apiRequests.map((item) => item.pathname || item.url),
         apiKeys: apiRequests.flatMap((item) => item.requestKeys || []),
+        agentState: options.agentState || null,
         limit: 30
       };
     }
@@ -11992,6 +12020,10 @@ ${source}` : "",
       finishedAt: searchFinishedAt
     } = storeToRefs(searchStore);
     const {
+      processLogs: searchProcessLogs,
+      agentUsed: searchAgentUsed
+    } = storeToRefs(searchStore);
+    const {
       confirmed: selectionConfirmed,
       evidenceMessages,
       filesConfirmed
@@ -12073,8 +12105,10 @@ ${source}` : "",
       if (searchRunning == null ? void 0 : searchRunning.value) {
         messages.push({
           id: "searching",
-          role: "system",
-          text: includeApiEvidence.value ? "正在基于选区和接口端点追踪候选文件。" : "正在基于选区文案、className 和页面路径检索候选文件。",
+          role: searchAgentUsed.value ? "agent" : "system",
+          title: searchAgentUsed.value ? "DOM 源码定位 Agent" : "源码检索",
+          text: searchAgentUsed.value ? "正在让模型生成检索计划，并由本地执行候选检索和源码事实对照。" : includeApiEvidence.value ? "正在基于选区和接口端点追踪候选文件。" : "正在基于选区文案、className 和页面路径检索候选文件。",
+          logs: searchProcessLogs.value || [],
           durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
           durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
           durationActive: true,
@@ -12083,10 +12117,13 @@ ${source}` : "",
       } else if (((searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0) > 0) {
         messages.push({
           id: "search-log",
-          role: "system",
-          title: "源码检索",
+          role: searchAgentUsed.value ? "agent" : "system",
+          title: searchAgentUsed.value ? "DOM 源码定位 Agent" : "源码检索",
           text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : "未命中候选文件。",
-          logs: searchLogLines(),
+          logs: [
+            ...searchProcessLogs.value || [],
+            ...searchLogLines()
+          ],
           durationStartedAt: (searchStartedAt == null ? void 0 : searchStartedAt.value) || 0,
           durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
           durationActive: false,
@@ -12156,9 +12193,8 @@ ${result.rawText}` : ""
           role: "system",
           title: "线索不足，需要补充页面证据",
           text: [
-            "当前选区命中了多个候选文件，但没有任何文件同时命中文案和当前页面上下文。",
-            "这通常说明页面里有复制粘贴的相似组件，或者当前选区过小，只命中了通用子组件里的重复字段。",
-            "请继续选择更外层、更独特的页面区域，或在输入框补充业务位置/交互目标后重新检索。"
+            "当前选区检索到了多个候选文件，系统已基于当前选区自动向上扩区并继续检索。",
+            "如果自动扩区后仍然失败，说明当前 DOM 链路还不能把候选收敛到唯一源码方向。"
           ].join("\n")
         });
       } else if (!candidateLoading.value && candidateHits.value.length > 1 && !filesConfirmed.value) {
@@ -12254,6 +12290,7 @@ ${result.rawText}` : ""
       message
     };
   }
+  const MAX_AUTO_EXPAND_ATTEMPTS = 3;
   function createComposerWorkflow(state) {
     const { source, route, search, selection, composer, model, prompt } = state;
     const appUiStore = useAppUiStore();
@@ -12276,9 +12313,10 @@ ${result.rawText}` : ""
     }
     function searchCandidateFiles() {
       return __async(this, null, function* () {
-        var _a;
+        var _a, _b;
         search.candidateLoading.value = true;
         search.candidateError.value = "";
+        search.serverNeedsMoreEvidence.value = false;
         search.modelAssistAttempted.value = false;
         model.resetModelAssist();
         selection.filesConfirmed.value = false;
@@ -12296,9 +12334,14 @@ ${result.rawText}` : ""
           search.apiTrace.value = data.apiTrace || null;
           search.i18nTrace.value = data.i18nTrace || null;
           search.definitionTrace.value = data.definitionTrace || null;
+          search.serverNeedsMoreEvidence.value = !!(data.needsMoreEvidence || data.needMoreDom || ((_a = data.agent) == null ? void 0 : _a.needMoreDom));
           if (!search.candidateHits.value.length) {
             search.selectedCandidatePaths.value = [];
-            search.candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
+            if (search.serverNeedsMoreEvidence.value) {
+              search.candidateError.value = "自动扩区后仍证据不足，未能定位源码。";
+            } else {
+              search.candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
+            }
           } else {
             search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
             search.expandedCandidatePath.value = "";
@@ -12306,7 +12349,7 @@ ${result.rawText}` : ""
           }
           if (shouldAutoRunModelAssist(search.candidateHits.value)) {
             const modelHandled = yield runModelAssistForCandidates(composer.promptIntent.value.trim());
-            if (modelHandled) return ((_a = model.modelAssistResult.value) == null ? void 0 : _a.stopped) ? [] : search.candidateHits.value;
+            if (modelHandled) return ((_b = model.modelAssistResult.value) == null ? void 0 : _b.stopped) ? [] : search.candidateHits.value;
           }
           return search.candidateHits.value;
         } catch (error) {
@@ -12320,9 +12363,18 @@ ${result.rawText}` : ""
     }
     function runSearchWithOptionalRetry(timeoutMs) {
       return __async(this, null, function* () {
+        var _a;
         try {
-          const firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs);
+          let firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs);
+          for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
+            const expanded = yield expandLatestSelectionForMoreEvidence(attempt);
+            if (!expanded) break;
+            firstPass = yield runSearchRequest(prompt.searchPayload({
+              agentState: buildAgentRetryState(firstPass, attempt)
+            }), timeoutMs);
+          }
           const firstHits = Array.isArray(firstPass == null ? void 0 : firstPass.hits) ? firstPass.hits : [];
+          if ((_a = firstPass == null ? void 0 : firstPass.agent) == null ? void 0 : _a.enabled) return firstPass;
           if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
           const secondPass = yield runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs);
           const secondHits = Array.isArray(secondPass == null ? void 0 : secondPass.hits) ? secondPass.hits : [];
@@ -12335,11 +12387,24 @@ ${result.rawText}` : ""
     }
     function runSearchRequest(body, timeoutMs) {
       return __async(this, null, function* () {
-        return yield sourceServerJson("/api/search", {
+        var _a;
+        search.processLogs.value = [];
+        search.agentUsed.value = false;
+        return yield sourceServerNdjson("/api/search/stream", {
           method: "POST",
-          body,
-          timeoutMs,
-          timeoutMessage: search.includeApiEvidence.value ? "接口调用链追踪超过 30 秒，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试" : "源码检索超过 12 秒，请确认项目源码目录是否选错，或补充关键词后重试"
+          body: __spreadProps(__spreadValues({}, body), {
+            adapter: model.selectedModel.value || null
+          }),
+          timeoutMs: Math.max(timeoutMs, Number(((_a = model.selectedModel.value) == null ? void 0 : _a.timeoutMs) || 12e4) * 2 + 5e3),
+          timeoutMessage: search.includeApiEvidence.value ? "源码检索超时，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试" : "源码检索超时，请确认项目源码目录是否选错，或补充关键词后重试",
+          onEvent(event) {
+            if (event.type === "log" && event.log) {
+              search.appendProcessLog(event.log);
+              if (String(event.log).startsWith("DOM Agent 触发判断：启用")) {
+                search.agentUsed.value = true;
+              }
+            }
+          }
         });
       });
     }
@@ -12363,6 +12428,43 @@ ${result.rawText}` : ""
         return false;
       });
     }
+    function expandLatestSelectionForMoreEvidence(attempt) {
+      return __async(this, null, function* () {
+        var _a, _b, _c, _d;
+        const before = latestSelectionSnapshot();
+        const items = ((_a = selection.selectedItems) == null ? void 0 : _a.value) || [];
+        const latest = items[items.length - 1];
+        const uid2 = (latest == null ? void 0 : latest.uid) || "";
+        if (!uid2 || typeof selection.expandSelection !== "function") return false;
+        (_b = search.appendProcessLog) == null ? void 0 : _b.call(search, `证据不足：自动扩大当前选区 ${uid2}（第 ${attempt} 次）`);
+        yield selection.expandSelection(uid2);
+        const changed = yield waitForSelectionSnapshotChange(before);
+        if (changed) {
+          (_c = search.appendProcessLog) == null ? void 0 : _c.call(search, "自动扩区完成：选区对象已更新，继续检索");
+          appUiStore.setToast("已自动扩大当前选区并继续检索");
+          return true;
+        }
+        (_d = search.appendProcessLog) == null ? void 0 : _d.call(search, "自动扩区停止：未检测到选区变化");
+        return false;
+      });
+    }
+    function latestSelectionSnapshot() {
+      var _a;
+      return latestSelectionSnapshotFromItems(((_a = selection.selectedItems) == null ? void 0 : _a.value) || []);
+    }
+    function waitForSelectionSnapshotChange(before) {
+      return __async(this, null, function* () {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < 1500) {
+          yield sleep(80);
+          const current = latestSelectionSnapshot();
+          if (current.uid && current.uid === before.uid && current.signature && current.signature !== before.signature) {
+            return true;
+          }
+        }
+        return false;
+      });
+    }
     function modelAssistUnavailableText() {
       if (!model.selectedModel.value) return "模型定位未启用：请先在输入框模型菜单里选择或配置模型。";
       if (!source.project.value || source.project.value.source !== "source-server") {
@@ -12375,6 +12477,56 @@ ${result.rawText}` : ""
       searchCandidateFiles,
       runModelAssistForCandidates
     };
+  }
+  function buildAgentRetryState(previousResult, attempt) {
+    var _a, _b;
+    const agent = (previousResult == null ? void 0 : previousResult.agent) || {};
+    const inspectionCandidates = Array.isArray((_a = agent == null ? void 0 : agent.inspection) == null ? void 0 : _a.candidates) ? agent.inspection.candidates : [];
+    return {
+      expansionRetry: true,
+      expansionRoundsUsed: attempt,
+      previousPlan: (agent == null ? void 0 : agent.plan) || null,
+      previousCandidates: inspectionCandidates.slice(0, 8).map((item) => ({
+        file: (item == null ? void 0 : item.file) || "",
+        score: (item == null ? void 0 : item.score) || 0,
+        matchedGroups: Array.isArray(item == null ? void 0 : item.matchedGroups) ? item.matchedGroups.map((group) => ({
+          keywords: Array.isArray(group == null ? void 0 : group.keywords) ? group.keywords : [],
+          source: (group == null ? void 0 : group.source) || "",
+          range: (group == null ? void 0 : group.range) || ""
+        })) : []
+      })),
+      previousReason: ((_b = agent == null ? void 0 : agent.evidence) == null ? void 0 : _b.reason) || ""
+    };
+  }
+  function shouldAutoExpandSearch(result) {
+    var _a;
+    const hits = Array.isArray(result == null ? void 0 : result.hits) ? result.hits : [];
+    if (hits.length) return false;
+    return !!((result == null ? void 0 : result.needsMoreEvidence) || (result == null ? void 0 : result.needMoreDom) || ((_a = result == null ? void 0 : result.agent) == null ? void 0 : _a.needMoreDom));
+  }
+  function latestSelectionSnapshotFromItems(items) {
+    const latest = items[items.length - 1];
+    if (!(latest == null ? void 0 : latest.uid)) return { uid: "", signature: "" };
+    const info = latest.info || latest.element || {};
+    const asset = latest.assetInfo || latest.asset || {};
+    return {
+      uid: latest.uid,
+      signature: JSON.stringify([
+        info.tag || info.tagName || "",
+        info.selector || "",
+        info.className || "",
+        info.text || "",
+        info.searchText || "",
+        info.outerHtml || info.rawOuterHtml || "",
+        asset.selector || "",
+        asset.className || "",
+        asset.text || "",
+        asset.outerHtml || asset.rawOuterHtml || ""
+      ]).slice(0, 2e4)
+    };
+  }
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   function hasUsableModelResult(result) {
     return ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).some((item) => {

@@ -525,6 +525,7 @@ export function useSearchPrompt() {
       expansionMode: expandedRetry ? 'expanded-retry' : 'base',
       apiPaths: apiRequests.map(item => item.pathname || item.url),
       apiKeys: apiRequests.flatMap(item => item.requestKeys || []),
+      agentState: options.agentState || null,
       limit: 30
     };
   }

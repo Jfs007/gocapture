@@ -31,7 +31,7 @@
 
   <div v-if="needsMoreEvidence" class="mda-composer-options">
     <div class="mda-option-title">线索不足，需要补充页面证据</div>
-    <div class="mda-option-desc">这些候选文件缺少唯一命中文案，可能是重复复制粘贴的组件。请继续在页面上选择更外层/更独特的区域，或在输入框补充页面位置、业务模块、交互目标。</div>
+    <div class="mda-option-desc">当前选区缺少稳定源码锚点，系统已基于当前选区自动扩区并继续检索。若仍未定位，说明当前 DOM 链路没有足够稳定证据。</div>
   </div>
 </template>
 

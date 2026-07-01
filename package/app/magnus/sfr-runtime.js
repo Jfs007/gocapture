@@ -843,6 +843,7 @@
       subtree: collectSubtree(element),
       innerHtml: compactMarkup(element.innerHTML || '', 960),
       outerHtml: compactMarkup(element.outerHTML || '', 1200),
+      rawOuterHtml: compactMarkup(element.outerHTML || '', 180000),
       inlineStyle: compactText(element.getAttribute('style') || '', 500),
       style: getStyleInfo(element),
       computedStyle: getStyleInfo(element),
@@ -1558,8 +1559,12 @@
       const uid = payload.uid || payload.selectionUid || '';
       const ref = this.getSelectionRef(uid);
       if (!ref?.selection || !ref.el) return;
-      this.refreshSelectionFromElement(ref.selection, ref.el);
+      const next = findNextSizedAncestor(ref.el, null) || ref.el;
+      this.refreshSelectionFromElement(ref.selection, next);
+      this.bindSelectionElement(ref.selection, next);
+      this.showOverlay(next);
       this.emitSelectionChanged(ref.selection);
+      void this.updateSelectionThumbnail(ref.selection, next);
     }
 
     removeSelectionByUid(uid) {

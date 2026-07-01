@@ -28,7 +28,10 @@ export function useSearchFacade() {
     selectedCandidatePaths,
     expandedCandidatePath,
     modelAssistAttempted,
-    keywords: searchKeywords
+    keywords: searchKeywords,
+    processLogs,
+    agentUsed,
+    serverNeedsMoreEvidence
   } = storeToRefs(searchStore);
   const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
   const { recent: recentRequests } = storeToRefs(requestStore);
@@ -46,7 +49,10 @@ export function useSearchFacade() {
       return hit.stage === 'model-agent' || hit.preciseEvidence;
     });
   });
-  const localNeedsMoreEvidence = computed(() => candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value);
+  const localNeedsMoreEvidence = computed(() => {
+    if (serverNeedsMoreEvidence.value) return true;
+    return candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value;
+  });
   const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
   const showCandidatePicker = computed(() => {
     return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
@@ -99,10 +105,14 @@ export function useSearchFacade() {
     selectedCandidatePaths,
     expandedCandidatePath,
     modelAssistAttempted,
+    processLogs,
+    agentUsed,
+    serverNeedsMoreEvidence,
     searchApiRequests,
     selectedCandidateHits,
     needsMoreEvidence,
     showCandidatePicker,
+    appendProcessLog: searchStore.appendProcessLog,
     invalidateCandidateConfirm,
     clearCandidateState
   };

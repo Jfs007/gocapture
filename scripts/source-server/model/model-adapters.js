@@ -3106,6 +3106,30 @@ async function runApiAdapter(adapter, prompt, logs, signal, runtimeOptions = {})
   }
 }
 
+async function runModelTask(rawAdapter, prompt, cwd, options = {}) {
+  const logs = [];
+  if (typeof options.onLog === 'function') {
+    logs.onAppend = options.onLog;
+  }
+  const adapter = normalizeAdapter(rawAdapter);
+  const rawText = adapter.type === 'api'
+    ? await runApiAdapter(adapter, prompt, logs, options.signal, {
+        systemPrompt: options.systemPrompt || '你是严谨的本地源码检索 agent，只返回 JSON。',
+      })
+    : await runExecAdapter(adapter, prompt, cwd, logs, options.signal, {
+        rawPrompt: true,
+      });
+  return {
+    adapter: {
+      id: adapter.id,
+      name: adapter.name,
+      type: adapter.type,
+    },
+    rawText,
+    logs,
+  };
+}
+
 async function runModelLocate(project, body, textCache = new Map(), options = {}) {
   if (!project) throw new Error('No project selected.');
   const logs = [];
@@ -3267,5 +3291,6 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
 module.exports = {
   buildModelPrompt,
   runModelLocate,
+  runModelTask,
   splitCommandLine,
 };
