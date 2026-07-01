@@ -13,6 +13,7 @@ const {
   runAgentSearch,
 } = require('./agent-search');
 const {
+  buildLocatorSystemPrompt,
   buildLocatorUserInput,
   normalizeLocatorDecision,
   validateLocatorDecision,
@@ -79,6 +80,15 @@ test('locator protocol accepts explicit search plans from the model', () => {
   }));
   assert.equal(invalid.valid, false);
   assert.match(invalid.errors.join('\n'), /searches\.keywords/);
+});
+
+test('locator prompt distinguishes container descendant text from structural anchors', () => {
+  const prompt = buildLocatorSystemPrompt();
+  assert.match(prompt, /后代文本的扁平汇总/);
+  assert.match(prompt, /<magnus-repeat>/);
+  assert.match(prompt, /componentChain 中即使 file 为空/);
+  assert.match(prompt, /mode=any 只用于同一语义锚点的替代写法/);
+  assert.match(prompt, /页面路由只提供页面范围/);
 });
 
 test('locator resolve-route plan asks for more DOM instead of searching runtime evidence', () => {
@@ -277,6 +287,705 @@ test('search plan keeps partial structural evidence when planner over-constrains
   const regionShell = candidates.find(candidate => candidate.file === 'src/RegionShell.vue');
   assert.ok(regionShell.matchedGroups.some(group => group.source === 'keyword-fallback'));
   assert.deepEqual(regionShell.matchedKeywords.sort(), ['feature-shell', 'stable-region']);
+});
+
+test('class-token searches require class context instead of bare object values', () => {
+  const project = fixtureProject({
+    'src/Component.vue': '<template><section class="metric-card">x</section></template>',
+    'src/ObjectValue.ts': "export const value = { token: 'metric-card' }",
+    'src/styles.css': '.metric-card { color: red; }',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['metric-card'],
+      keywordTypes: { 'metric-card': 'class-token' },
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'class context',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const files = candidates.map(item => item.file);
+  assert.ok(files.includes('src/Component.vue'));
+  assert.ok(files.includes('src/styles.css'));
+  assert.ok(!files.includes('src/ObjectValue.ts'));
+});
+
+test('serialized DOM attributes are split and matched as an attribute relation', async () => {
+  const project = fixtureProject({
+    'src/MenuNode.vue': [
+      '<template>',
+      '  <div class="org-menu-node">',
+      '    <Submenu data-c-name="sub-menu" />',
+      '  </div>',
+      '</template>',
+    ].join('\n'),
+    'src/ObjectValue.ts': [
+      "export const values = { 'sub-menu': true }",
+      "export const field = 'data-c-name'",
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['data-c-name="sub-menu"', 'org-menu-node'],
+        mode: 'all',
+        range: 'same-structure',
+        priority: 1,
+        reason: 'DOM attribute and class',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/MenuNode.vue',
+        role: 'render',
+        confidence: 98,
+        reason: '属性与 class 在同一模板结构中',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<li class="org-menu-node" data-c-name="sub-menu"></li>',
+      },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.deepEqual(result.agent.plan.searches[0].keywords, [
+    'data-c-name',
+    'sub-menu',
+    'org-menu-node',
+  ]);
+  assert.deepEqual(result.agent.plan.searches[0].attributePairs, [{
+    key: 'data-c-name',
+    value: 'sub-menu',
+  }]);
+  assert.equal(result.hits[0]?.file, 'src/MenuNode.vue');
+  assert.ok(!result.agent.inspection.candidates.some(candidate => {
+    return candidate.file === 'src/ObjectValue.ts';
+  }));
+});
+
+test('component chain names without files remain valid planner search evidence', async () => {
+  const project = fixtureProject({
+    'src/components/org-tree/index.vue': [
+      '<template><div class="org-tree"><slot /></div></template>',
+      '<script>export default { name: "org-tree" }</script>',
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['org-tree'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'runtime component name',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/components/org-tree/index.vue',
+        role: 'render',
+        confidence: 98,
+        reason: '组件名称与运行时 componentChain 一致',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const prompts = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: { rawOuterHtml: '<ul><li>运行时项目</li></ul>' },
+      sourceLocate: {
+        componentChain: [{ name: 'org-tree', file: '' }],
+      },
+    }],
+  }, {
+    runModelTask: async (_adapter, prompt) => {
+      prompts.push(prompt);
+      return {
+        adapter: { id: 'test', name: 'test', type: 'api' },
+        rawText: outputs.shift(),
+        logs: [],
+      };
+    },
+  });
+  const plannerInput = JSON.parse(prompts[0]);
+  assert.equal(plannerInput.domSelections[0].directText, '');
+  assert.equal(plannerInput.domSelections[0].textScope, 'descendant-flat-text');
+  assert.equal(result.agent.plan.searches[0].keywords[0], 'org-tree');
+  assert.equal(result.hits[0]?.file, 'src/components/org-tree/index.vue');
+});
+
+test('static text hits with incompatible DOM tags are removed before candidate judging', async () => {
+  const project = fixtureProject({
+    'src/MenuNode.vue': '<template><span class="nav-name">考核列表</span></template>',
+    'src/AssessmentPage.vue': '<template><h2 style="min-width:200px;">考核列表</h2></template>',
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['考核列表'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'DOM text',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/MenuNode.vue',
+        role: 'render',
+        confidence: 98,
+        reason: '静态文案所在标签与 DOM 一致',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<span data-v-893827c4="" class="nav-name">考核列表</span>',
+        text: '考核列表',
+      },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0]?.file, 'src/MenuNode.vue');
+  assert.ok(!result.agent.inspection.candidates.some(candidate => {
+    return candidate.file === 'src/AssessmentPage.vue';
+  }));
+});
+
+test('custom component tags are not rejected by native HTML tag consistency checks', () => {
+  const project = fixtureProject({
+    'src/MenuNode.vue': '<template><NavName>考核列表</NavName></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['考核列表'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM text',
+      domTextStructures: {
+        考核列表: [{ tag: 'span', classes: ['nav-name'] }],
+      },
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  assert.ok(inspection.candidates.some(candidate => candidate.file === 'src/MenuNode.vue'));
+});
+
+test('JSON text collections are definition references instead of render candidates', () => {
+  const project = fixtureProject({
+    'src/menu-data.json': JSON.stringify({
+      items: ['组织架构', '绩效', '周计划与总结'],
+    }),
+    'src/MenuNode.vue': [
+      '<template>',
+      '  <div class="org-menu-node">',
+      '    <Submenu data-c-name="sub-menu" />',
+      '  </div>',
+      '</template>',
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['组织架构', '绩效', '周计划与总结'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM texts',
+    }, {
+      keywords: ['data-c-name', 'sub-menu', 'org-menu-node'],
+      keywordTypes: {
+        'data-c-name': 'attribute-name',
+        'sub-menu': 'attribute-value',
+        'org-menu-node': 'class-token',
+      },
+      attributePairs: [{ key: 'data-c-name', value: 'sub-menu' }],
+      mode: 'all',
+      range: 'same-structure',
+      priority: 2,
+      reason: 'DOM structure',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const json = inspection.candidates.find(candidate => candidate.file === 'src/menu-data.json');
+  assert.equal(json.sourceRole, 'definition-like');
+  assert.equal(json.referenceOnly, true);
+  const evidence = analyzeEvidenceSufficiency(plan, inspection, []);
+  assert.equal(evidence.insufficient, false);
+  assert.equal(evidence.primaryCandidateCount, 1);
+});
+
+test('style and definition candidates do not force expansion when one render candidate remains', () => {
+  const project = fixtureProject({
+    'src/components/MetricCard.ts': [
+      "import { defineComponent, h } from 'vue'",
+      'export default defineComponent({',
+      "  setup() { return () => h('section', { class: ['metric-card'] }, []) }",
+      '})',
+    ].join('\n'),
+    'src/locales/zh-CN.ts': [
+      'export default {',
+      "  metrics: { roi: '投产比' }",
+      '}',
+    ].join('\n'),
+    'src/styles.css': '.metric-card { border: 1px solid #ddd; }',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['metric-card', '投产比'],
+      keywordTypes: { 'metric-card': 'class-token' },
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM class + text',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const roles = new Map(inspection.candidates.map(item => [item.file, item.sourceRole]));
+  assert.equal(roles.get('src/components/MetricCard.ts'), 'render-like');
+  assert.equal(roles.get('src/styles.css'), 'style-reference');
+  assert.equal(roles.get('src/locales/zh-CN.ts'), 'definition-like');
+  const evidence = analyzeEvidenceSufficiency(plan, inspection, []);
+  assert.equal(evidence.insufficient, false);
+  assert.match(evidence.reason, /只剩一个可渲染源码候选/);
+});
+
+test('style and definition candidates do not force expansion before judging render candidates', () => {
+  const project = fixtureProject({
+    'src/views/dashboard/DashboardPage.ts': [
+      "import { defineComponent, h } from 'vue'",
+      "import MetricCard from '../../components/MetricCard'",
+      'export default defineComponent({',
+      '  setup() {',
+      "    return () => h(MetricCard, { titleKey: 'metrics.roi', trend: '目标 3.5+' })",
+      '  }',
+      '})',
+    ].join('\n'),
+    'src/components/MetricCard.ts': [
+      "import { defineComponent, h } from 'vue'",
+      'export default defineComponent({',
+      "  setup() { return () => h('section', { class: ['metric-card'] }, []) }",
+      '})',
+    ].join('\n'),
+    'src/locales/zh-CN.ts': [
+      'export default {',
+      "  metrics: { roi: '投产比' }",
+      '}',
+    ].join('\n'),
+    'src/styles.css': '.metric-card { border: 1px solid #ddd; }',
+  });
+  const plan = {
+    searches: [
+      {
+        keywords: ['投产比', '目标 3.5+'],
+        mode: 'any',
+        range: 'same-structure',
+        priority: 1,
+        reason: 'DOM text anchors',
+      },
+      {
+        keywords: ['metric-card'],
+        keywordTypes: { 'metric-card': 'class-token' },
+        mode: 'all',
+        range: 'same-structure',
+        priority: 2,
+        reason: 'DOM class anchor',
+      },
+    ],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const files = inspection.candidates.map(item => item.file);
+  assert.ok(files.includes('src/views/dashboard/DashboardPage.ts'));
+  assert.ok(files.includes('src/components/MetricCard.ts'));
+  assert.ok(files.includes('src/locales/zh-CN.ts'));
+  assert.ok(files.includes('src/styles.css'));
+  const evidence = analyzeEvidenceSufficiency(plan, inspection, []);
+  assert.equal(evidence.insufficient, false);
+  assert.equal(evidence.primaryCandidateCount, 2);
+  assert.equal(evidence.referenceCandidateCount, 2);
+  assert.match(evidence.reason, /多个可渲染源码候选进入 Judge/);
+});
+
+test('definition candidates record import relation to render candidates', () => {
+  const project = fixtureProject({
+    'src/components/Component.vue': [
+      '<script setup>',
+      "import { labels } from '../define'",
+      '</script>',
+      '<template><button>{{ labels.exportReport }}</button></template>',
+    ].join('\n'),
+    'src/define.ts': [
+      'export const labels = {',
+      "  exportReport: '导出报表'",
+      '}',
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['导出报表'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM text',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  candidates.push({
+    file: 'src/components/Component.vue',
+    score: 80,
+    matchedGroups: [{ source: 'keyword-fallback', keywords: ['labels'] }],
+    matchedKeywords: ['labels'],
+    positions: [0],
+  });
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const definition = inspection.candidates.find(item => item.file === 'src/define.ts');
+  assert.ok(definition.definitionLinks.some(link => {
+    return link.type === 'import-relation'
+      && link.renderFile === 'src/components/Component.vue';
+  }));
+});
+
+test('definition text can discover render candidates through key path references', () => {
+  const project = fixtureProject({
+    'src/components/ActionBar.vue': [
+      '<script setup>',
+      "const label = t('actions.exportReport')",
+      '</script>',
+      '<template><button>{{ label }}</button></template>',
+    ].join('\n'),
+    'src/locales/zh-CN.ts': [
+      'export default {',
+      "  actions: { createPlan: '新增计划', exportReport: '导出报表', batchApprove: '批量审批' }",
+      '}',
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['导出报表'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM text',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const files = inspection.candidates.map(item => item.file);
+  assert.ok(files.includes('src/locales/zh-CN.ts'));
+  assert.ok(files.includes('src/components/ActionBar.vue'));
+  const render = inspection.candidates.find(item => item.file === 'src/components/ActionBar.vue');
+  assert.ok(render.matchedGroups.some(group => group.source === 'definition-key-reference'));
+  const definition = inspection.candidates.find(item => item.file === 'src/locales/zh-CN.ts');
+  assert.ok(definition.definitionLinks.some(link => {
+    return link.type === 'key-reference'
+      && link.renderFile === 'src/components/ActionBar.vue'
+      && link.terms.includes('actions.exportReport');
+  }));
+});
+
+test('high-frequency standalone definition keys do not create false render relations', () => {
+  const project = fixtureProject({
+    'src/router.ts': "export default { meta: { title: '组织架构' } }",
+    'src/A.vue': '<template><div>{{ title }}</div></template>',
+    'src/B.vue': '<template><div>{{ title }}</div></template>',
+    'src/C.vue': '<template><div>{{ title }}</div></template>',
+    'src/D.vue': '<template><div>{{ title }}</div></template>',
+    'src/E.vue': '<template><div>{{ title }}</div></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['组织架构'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM text',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  for (const file of ['src/A.vue', 'src/B.vue', 'src/C.vue', 'src/D.vue', 'src/E.vue']) {
+    candidates.push({
+      file,
+      score: 30,
+      matchedGroups: [{ source: 'keyword-fallback', keywords: ['title'] }],
+      matchedKeywords: ['title'],
+      positions: [0],
+    });
+  }
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const definition = inspection.candidates.find(item => item.file === 'src/router.ts');
+  assert.deepEqual(definition.definitionLinks, []);
+});
+
+test('definition import owners become render candidates without an extra model relation call', async () => {
+  const project = fixtureProject({
+    'src/components/ActionBar.vue': [
+      '<script setup>',
+      "import { labels } from '../labels'",
+      '</script>',
+      '<template><button>{{ labels.exportReport }}</button></template>',
+    ].join('\n'),
+    'src/labels.ts': [
+      "export const labels = createLabels({ exportReport: makeLabel('导出报表') })",
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['导出报表'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'DOM text',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/components/ActionBar.vue',
+        role: 'render',
+        confidence: 95,
+        reason: '渲染组件直接引用文案定义',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  let modelCalls = 0;
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    userPrompt: '修改导出按钮',
+    selections: [{
+      element: { rawOuterHtml: '<button>导出报表</button>' },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    runModelTask: async () => {
+      modelCalls += 1;
+      return {
+        adapter: { id: 'test', name: 'test', type: 'api' },
+        rawText: outputs.shift(),
+        logs: [],
+      };
+    },
+  });
+  assert.equal(modelCalls, 2);
+  assert.equal(result.hits[0]?.file, 'src/components/ActionBar.vue');
+  assert.ok(result.agent.inspection.candidates.some(candidate => {
+    return candidate.file === 'src/labels.ts'
+      && candidate.definitionLinks.some(link => link.renderFile === 'src/components/ActionBar.vue');
+  }));
+});
+
+test('definition relation resolver can link an indirect definition to an existing render candidate', async () => {
+  const project = fixtureProject({
+    'src/components/ActionBar.vue': [
+      '<template><section class="action-bar"><button>{{ labels.exportReport }}</button></section></template>',
+    ].join('\n'),
+    'src/labels.ts': [
+      "export const labels = createLabels({ exportReport: makeLabel('导出报表') })",
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['action-bar'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'DOM class',
+      }, {
+        keywords: ['导出报表'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 2,
+        reason: 'DOM text',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'linked',
+      relations: [{
+        definitionFile: 'src/labels.ts',
+        renderFile: 'src/components/ActionBar.vue',
+        confidence: 92,
+        reason: '渲染片段读取 labels.exportReport，定义片段提供同名 key',
+      }],
+      searches: [],
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/components/ActionBar.vue',
+        role: 'render',
+        confidence: 95,
+        reason: '组件直接生成选区',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    userPrompt: '修改导出按钮',
+    selections: [{
+      element: { rawOuterHtml: '<section class="action-bar"><button>导出报表</button></section>' },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0]?.file, 'src/components/ActionBar.vue');
+  assert.ok(logs.some(log => log.startsWith('DOM Agent 定义关系分析输入')));
+  assert.ok(logs.some(log => log.startsWith('DOM Agent 定义关系分析输出')));
+  assert.ok(result.agent.definitionResolution.relations.length);
+});
+
+test('definition relation resolver rejects invented search keywords', async () => {
+  const project = fixtureProject({
+    'src/labels.ts': [
+      "export const labels = createLabels({ exportReport: makeLabel('导出报表') })",
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['导出报表'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'DOM text',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'search',
+      relations: [],
+      searches: [{
+        keywords: ['imaginaryComponent', 'exportReport'],
+        mode: 'any',
+        range: 'same-file',
+        reason: 'find render usage',
+      }],
+    }),
+  ];
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: { rawOuterHtml: '<button>导出报表</button>' },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.needMoreDom, true);
+  assert.ok(logs.some(log => {
+    return log.includes('定义关系检索词过滤')
+      && log.includes('imaginaryComponent');
+  }));
+});
+
+test('style reference candidates are not accepted as final source when render candidates exist', async () => {
+  const project = fixtureProject({
+    'src/Card.vue': '<template><section class="metric-card">投产比</section></template>',
+    'src/styles.css': '.metric-card { color: red; }',
+  });
+  const outputs = [
+    JSON.stringify({
+      status: 'ready',
+      understanding: { userTarget: '定位指标卡片', selectedDomAnchors: ['metric-card'] },
+      evidenceAssessment: { sufficient: true },
+      nextPlan: [{
+        capability: 'locate-structure',
+        searches: [{
+          keywords: ['metric-card'],
+          mode: 'all',
+          range: 'same-file',
+          reason: 'DOM class',
+        }],
+        relation: 'same-rendering-context',
+        scopeHint: 'route-entry-first',
+        purpose: '定位指标卡片',
+      }],
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/styles.css',
+        role: 'render',
+        confidence: 99,
+        reason: 'model wrongly selected style',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<section class="metric-card">投产比</section>',
+      },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.notEqual(result.hits[0]?.file, 'src/styles.css');
 });
 
 test('evidence analysis asks for more DOM when local search has multiple candidates', () => {

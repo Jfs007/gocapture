@@ -12327,6 +12327,8 @@ ${result.rawText}` : ""
           search.searchRunning.value = true;
           search.searchStartedAt.value = Date.now();
           search.searchFinishedAt.value = 0;
+          search.processLogs.value = [];
+          search.agentUsed.value = false;
           const timeoutMs = search.includeApiEvidence.value ? 3e4 : 12e3;
           const data = yield runSearchWithOptionalRetry(timeoutMs);
           search.candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
@@ -12365,18 +12367,18 @@ ${result.rawText}` : ""
       return __async(this, null, function* () {
         var _a;
         try {
-          let firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs);
+          let firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs, "第 1 轮：原始选区检索");
           for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
             const expanded = yield expandLatestSelectionForMoreEvidence(attempt);
             if (!expanded) break;
             firstPass = yield runSearchRequest(prompt.searchPayload({
               agentState: buildAgentRetryState(firstPass, attempt)
-            }), timeoutMs);
+            }), timeoutMs, `第 ${attempt + 1} 轮：自动扩区后继续检索`);
           }
           const firstHits = Array.isArray(firstPass == null ? void 0 : firstPass.hits) ? firstPass.hits : [];
           if ((_a = firstPass == null ? void 0 : firstPass.agent) == null ? void 0 : _a.enabled) return firstPass;
           if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
-          const secondPass = yield runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs);
+          const secondPass = yield runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs, "扩展上下文兜底检索");
           const secondHits = Array.isArray(secondPass == null ? void 0 : secondPass.hits) ? secondPass.hits : [];
           return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
         } finally {
@@ -12385,11 +12387,10 @@ ${result.rawText}` : ""
         }
       });
     }
-    function runSearchRequest(body, timeoutMs) {
+    function runSearchRequest(body, timeoutMs, label = "") {
       return __async(this, null, function* () {
         var _a;
-        search.processLogs.value = [];
-        search.agentUsed.value = false;
+        if (label) search.appendProcessLog(`检索请求开始：${label}`);
         return yield sourceServerNdjson("/api/search/stream", {
           method: "POST",
           body: __spreadProps(__spreadValues({}, body), {

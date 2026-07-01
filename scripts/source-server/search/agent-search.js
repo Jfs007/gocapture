@@ -1,7 +1,7 @@
 const path = require('path');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { runModelTask } = require('../model/model-adapters');
-const { makeSnippet, uniq } = require('../utils');
+const { escapeRegExp, makeSnippet, uniq } = require('../utils');
 const { buildFileMap, importedFiles } = require('./import-trace');
 const { searchProjectWithMeta } = require('./index');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
@@ -22,6 +22,17 @@ const MAX_INSPECT_FILES = 6;
 const MAX_EXCERPT_CHARS = 7000;
 const MAX_COMPRESSED_DOM_CHARS = 30000;
 const MAX_INHERITED_KEYWORDS = 4;
+const MAX_DEFINITION_RESOLVER_SEARCHES = 2;
+const STYLE_EXTENSIONS = new Set(['.css', '.less', '.scss', '.sass', '.styl']);
+const NATIVE_HTML_TAGS = new Set([
+  'a', 'article', 'aside', 'button', 'canvas', 'caption', 'code', 'col', 'colgroup',
+  'dd', 'details', 'dialog', 'div', 'dl', 'dt', 'em', 'fieldset', 'figcaption',
+  'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header',
+  'hr', 'i', 'iframe', 'img', 'input', 'label', 'legend', 'li', 'main', 'nav',
+  'ol', 'option', 'p', 'picture', 'pre', 'section', 'select', 'small', 'span',
+  'strong', 'summary', 'table', 'tbody', 'td', 'textarea', 'tfoot', 'th', 'thead',
+  'time', 'tr', 'ul', 'video',
+]);
 
 function parseJsonResult(value) {
   const text = String(value || '').trim();
@@ -392,6 +403,9 @@ function plannerDomInput(body) {
   return selectionList(body).map((selection, index) => {
     const info = selection?.element || selection?.info || selection || {};
     const rawMarkup = selectionMarkup(selection);
+    const parsedMarkup = parseHtmlLite(rawMarkup);
+    const rootElement = (parsedMarkup.children || []).find(child => child.type === 'element') || null;
+    const rootDirectText = rootElement ? directText(rootElement) : '';
     const compression = compressDomMarkup(rawMarkup);
     const markup = (compression.markup || rawMarkup).slice(0, MAX_DOM_INPUT_CHARS);
     return {
@@ -400,6 +414,10 @@ function plannerDomInput(body) {
       selector: info.selector || '',
       className: info.className || '',
       text: info.text || '',
+      directText: rootDirectText,
+      textScope: rootDirectText && compactWhitespace(info.text || '') === rootDirectText
+        ? 'root-direct-text'
+        : 'descendant-flat-text',
       markup,
       rawMarkupLength: rawMarkup.length,
       compressedMarkupLength: compression.markup.length,
@@ -447,6 +465,16 @@ function plannerEvidenceCorpus(body, routeTrace) {
     body?.pagePath || '',
     routeTrace?.bestPageFile || '',
     ...(routeTrace?.hits || []).flatMap(hit => [hit.file, hit.routePath]),
+    ...selectionList(body).flatMap(selection => {
+      const sourceLocate = selection?.sourceLocate
+        || selection?.sourceEvidence
+        || selection?.element?.sourceLocate
+        || null;
+      return (sourceLocate?.componentChain || []).flatMap(component => [
+        component?.name,
+        component?.file,
+      ]);
+    }),
     ...plannerDomInput(body).flatMap(item => [
       item.tag,
       item.selector,
@@ -495,6 +523,129 @@ function filterPlanByVisibleEvidence(plan, body, routeTrace) {
     },
     removed: uniq(removed),
   };
+}
+
+function domClassTokenSet(body) {
+  const tokens = new Set();
+  const add = value => {
+    for (const token of String(value || '').split(/\s+/)) {
+      const text = token.trim();
+      if (text) tokens.add(text);
+    }
+  };
+  for (const selection of selectionList(body)) {
+    const info = selection?.element || selection?.info || selection || {};
+    add(info.className || '');
+    for (const markup of selectionContextMarkupValues(selection)) {
+      const regex = /\bclass\s*=\s*["']([^"']+)["']/gi;
+      let match;
+      while ((match = regex.exec(String(markup || '')))) add(match[1]);
+    }
+  }
+  return tokens;
+}
+
+function domAttributePairs(body) {
+  const pairs = [];
+  for (const selection of selectionList(body)) {
+    for (const markup of selectionContextMarkupValues(selection)) {
+      const regex = /\s([:@\w-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+      let match;
+      while ((match = regex.exec(String(markup || '')))) {
+        const key = String(match[1] || '').replace(/^:/, '').trim();
+        const value = String(match[3] ?? match[4] ?? match[5] ?? '').trim();
+        if (!key || key === 'class' || key === 'style' || !value) continue;
+        pairs.push({ key, value });
+      }
+    }
+  }
+  return uniq(pairs.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+}
+
+function collectDirectTextStructures(node, result = []) {
+  if (!node || node.type !== 'element') return result;
+  const text = directText(node);
+  if (text && node.tag !== 'root') {
+    result.push({
+      text,
+      tag: String(node.tag || '').toLowerCase(),
+      classes: classTokens(node.attrs),
+    });
+  }
+  for (const child of node.children || []) {
+    if (child.type === 'element') collectDirectTextStructures(child, result);
+  }
+  return result;
+}
+
+function domDirectTextStructures(body) {
+  const structures = [];
+  for (const selection of selectionList(body)) {
+    for (const markup of selectionContextMarkupValues(selection)) {
+      collectDirectTextStructures(parseHtmlLite(markup), structures);
+    }
+  }
+  return uniq(structures.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+}
+
+function serializedAttributeKeyword(keyword) {
+  const match = String(keyword || '').trim().match(/^([:@\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))$/);
+  if (!match) return null;
+  const key = String(match[1] || '').replace(/^:/, '').trim();
+  const value = String(match[2] ?? match[3] ?? match[4] ?? '').trim();
+  return key && value ? { key, value } : null;
+}
+
+function annotatePlanKeywordTypes(plan, body) {
+  const classTokens = domClassTokenSet(body);
+  const attributePairs = domAttributePairs(body);
+  const directTextStructures = domDirectTextStructures(body);
+  const searches = (plan.searches || []).map(search => {
+    const expandedKeywords = [];
+    const searchAttributePairs = [];
+    for (const keyword of search.keywords || []) {
+      const serialized = serializedAttributeKeyword(keyword);
+      const pair = serialized && attributePairs.find(item => {
+        return item.key === serialized.key && item.value === serialized.value;
+      });
+      if (pair) {
+        expandedKeywords.push(pair.key, pair.value);
+        searchAttributePairs.push(pair);
+      } else {
+        expandedKeywords.push(keyword);
+      }
+    }
+    for (const pair of attributePairs) {
+      if (expandedKeywords.includes(pair.key) && expandedKeywords.includes(pair.value)) {
+        searchAttributePairs.push(pair);
+      }
+    }
+    const keywords = uniq(expandedKeywords);
+    const keywordTypes = {};
+    const domTextStructures = {};
+    for (const keyword of keywords) {
+      if (classTokens.has(String(keyword || '').trim())) keywordTypes[keyword] = 'class-token';
+      if (searchAttributePairs.some(pair => pair.key === keyword)) keywordTypes[keyword] = 'attribute-name';
+      if (searchAttributePairs.some(pair => pair.value === keyword)) keywordTypes[keyword] = 'attribute-value';
+      if (!keywordTypes[keyword]) {
+        const structures = directTextStructures.filter(item => item.text.includes(keyword));
+        if (structures.length) domTextStructures[keyword] = structures.slice(0, 8);
+      }
+    }
+    return {
+      ...search,
+      keywords,
+      ...(Object.keys(keywordTypes).length ? { keywordTypes } : {}),
+      ...(Object.keys(domTextStructures).length ? { domTextStructures } : {}),
+      ...(searchAttributePairs.length
+        ? {
+            attributePairs: uniq(searchAttributePairs.map(item => JSON.stringify(item)))
+              .map(item => JSON.parse(item)),
+          }
+        : {}),
+    };
+  });
+  return { ...plan, searches };
 }
 
 function inheritedSearchKeywords(agentState) {
@@ -565,10 +716,80 @@ function keywordIndexes(text, keyword) {
   return indexes;
 }
 
-function groupMatch(text, search) {
+function classTokenIndexes(text, keyword, filePath = '') {
+  const source = String(text || '');
+  const value = String(keyword || '').trim();
+  if (!source || !value) return [];
+  const indexes = [];
+  const escaped = escapeRegExp(value);
+  const ext = path.posix.extname(filePath || '').toLowerCase();
+  const patterns = [
+    new RegExp(`\\bclass(?:Name)?\\s*=\\s*["'][^"']*(?<![\\w-])${escaped}(?![\\w-])[^"']*["']`, 'gi'),
+    new RegExp(`\\bclass(?:Name)?\\s*:\\s*["'\`][^"'\`]*(?<![\\w-])${escaped}(?![\\w-])[^"'\`]*["'\`]`, 'gi'),
+    new RegExp(`\\bclass(?:Name)?\\s*:\\s*[\\[{][\\s\\S]{0,220}(?<![\\w-])["'\`]?${escaped}["'\`]?(?![\\w-])`, 'gi'),
+    new RegExp(`['"]class['"]\\s*:\\s*["'\`][^"'\`]*(?<![\\w-])${escaped}(?![\\w-])[^"'\`]*["'\`]`, 'gi'),
+    new RegExp(`h\\([^\\n]{0,220}\\bclass\\s*:\\s*[\\s\\S]{0,220}(?<![\\w-])["'\`]?${escaped}["'\`]?(?![\\w-])`, 'gi'),
+  ];
+  if (STYLE_EXTENSIONS.has(ext)) {
+    patterns.push(new RegExp(`(^|[\\s,{>+~])\\.${escaped}(?![\\w-])`, 'g'));
+  }
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) && indexes.length < 20) {
+      const index = match.index + Math.max(0, match[0].indexOf(value));
+      indexes.push(index);
+    }
+  }
+  return uniq(indexes).sort((a, b) => a - b);
+}
+
+function attributePairIndexes(text, pair) {
+  const source = String(text || '');
+  const key = String(pair?.key || '').trim();
+  const value = String(pair?.value || '').trim();
+  if (!source || !key || !value) return [];
+  const escapedKey = escapeRegExp(key);
+  const escapedValue = escapeRegExp(value);
+  const patterns = [
+    new RegExp(`(?:^|[\\s<{])(?::)?${escapedKey}\\s*=\\s*["'][^"']*${escapedValue}[^"']*["']`, 'gmi'),
+    new RegExp(`["'\`]${escapedKey}["'\`]\\s*:\\s*["'\`][^"'\`]*${escapedValue}[^"'\`]*["'\`]`, 'gmi'),
+  ];
+  const indexes = [];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) && indexes.length < 20) {
+      indexes.push(match.index);
+    }
+  }
+  return uniq(indexes).sort((a, b) => a - b);
+}
+
+function attributeTokenIndexes(text, keyword, search, type) {
+  const pairs = (search?.attributePairs || []).filter(pair => {
+    return type === 'attribute-name'
+      ? pair.key === keyword
+      : pair.value === keyword;
+  });
+  return uniq(pairs.flatMap(pair => attributePairIndexes(text, pair))).sort((a, b) => a - b);
+}
+
+function keywordType(search, keyword) {
+  return search?.keywordTypes?.[keyword] || '';
+}
+
+function keywordIndexesForSearch(text, keyword, search, filePath = '') {
+  const type = keywordType(search, keyword);
+  if (type === 'class-token') return classTokenIndexes(text, keyword, filePath);
+  if (type === 'attribute-name' || type === 'attribute-value') {
+    return attributeTokenIndexes(text, keyword, search, type);
+  }
+  return keywordIndexes(text, keyword);
+}
+
+function groupMatch(text, search, filePath = '') {
   const matches = search.keywords.map(keyword => ({
     keyword,
-    indexes: keywordIndexes(text, keyword),
+    indexes: keywordIndexesForSearch(text, keyword, search, filePath),
   }));
   const accepted = search.mode === 'any'
     ? matches.some(item => item.indexes.length)
@@ -593,7 +814,7 @@ function executeSearchPlan(project, plan, textCache) {
     const text = readProjectText(project, file, textCache);
     if (!text) continue;
     for (const search of plan.searches) {
-      const match = groupMatch(text, search);
+      const match = groupMatch(text, search, file.path);
       if (match) {
         upsertCandidate(candidateMap, file.path, {
           score: Math.max(40, 260 - (search.priority - 1) * 30) + match.keywords.length * 18,
@@ -609,7 +830,7 @@ function executeSearchPlan(project, plan, textCache) {
         });
       }
       for (const keyword of search.keywords) {
-        const positions = keywordIndexes(text, keyword);
+        const positions = keywordIndexesForSearch(text, keyword, search, file.path);
         if (!positions.length) continue;
         upsertCandidate(candidateMap, file.path, {
           score: Math.max(12, 80 - (search.priority - 1) * 8),
@@ -752,34 +973,373 @@ function candidateExcerpt(text, candidate) {
   return uniq(chunks).join('\n\n').slice(0, MAX_EXCERPT_CHARS).trim();
 }
 
+function candidateSourceRole(filePath, text) {
+  const ext = path.posix.extname(filePath || '').toLowerCase();
+  const source = String(text || '');
+  if (STYLE_EXTENSIONS.has(ext)) {
+    return {
+      role: 'style-reference',
+      referenceOnly: true,
+      reasons: ['样式文件只作为 UI 样式参考，不作为 DOM 渲染源码'],
+    };
+  }
+  if (ext === '.json') {
+    return {
+      role: 'definition-like',
+      referenceOnly: true,
+      reasons: ['JSON 只承载数据/配置，不能直接生成 DOM，需要追踪其渲染使用处'],
+    };
+  }
+  const renderSignals = [
+    /<template[\s>]/i,
+    /\bdefineComponent\s*\(/,
+    /\bh\s*\(/,
+    /\bcreateElement\s*\(/,
+    /\bReact\.createElement\s*\(/,
+    /\breturn\s*\(\s*</,
+    /\bclassName\s*[=:]/,
+    /\bclass\s*:\s*/,
+    /\bclass\s*=/,
+    /\bsetup\s*\(/,
+    /\brender\s*[:=]\s*/,
+  ];
+  if (renderSignals.some(pattern => pattern.test(source))) {
+    return {
+      role: 'render-like',
+      referenceOnly: false,
+      reasons: ['源码包含渲染/组件结构信号'],
+    };
+  }
+  const definitionSignals = [
+    /\bexport\s+default\s+\{/,
+    /\bexport\s+const\s+\w+\s*=/,
+    /\bexport\s+default\s+\[/,
+    /\bconst\s+\w+\s*=\s*(?:\{|\[)/,
+  ];
+  if (definitionSignals.some(pattern => pattern.test(source))) {
+    return {
+      role: 'definition-like',
+      referenceOnly: true,
+      reasons: ['源码更像常量/文案/配置定义，需要结合引用链确认真实使用处'],
+    };
+  }
+  return {
+    role: 'unknown',
+    referenceOnly: false,
+    reasons: [],
+  };
+}
+
+function sourceDirectTextStructures(text, keyword) {
+  const source = String(text || '');
+  const value = String(keyword || '').trim();
+  if (!source || !value) return [];
+  const escaped = escapeRegExp(value);
+  const pattern = new RegExp(
+    `<([A-Za-z][\\w.-]*)\\b([^>]*)>[^<]{0,240}${escaped}[^<]{0,240}<\\/\\1\\s*>`,
+    'gi'
+  );
+  const structures = [];
+  let match;
+  while ((match = pattern.exec(source)) && structures.length < 12) {
+    const rawTag = String(match[1] || '');
+    const tag = rawTag.toLowerCase();
+    if (rawTag !== tag || !NATIVE_HTML_TAGS.has(tag)) continue;
+    structures.push({
+      tag,
+      classes: classTokens(parseAttributes(match[2] || '')),
+      index: match.index,
+    });
+  }
+  return structures;
+}
+
+function keywordDomTextStructures(plan, keyword) {
+  return uniq((plan.searches || []).flatMap(search => {
+    return search?.domTextStructures?.[keyword] || [];
+  }).map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+}
+
+function directTextStructureMismatch(text, keyword, plan) {
+  const domStructures = keywordDomTextStructures(plan, keyword);
+  if (!domStructures.length) return null;
+  const sourceStructures = sourceDirectTextStructures(text, keyword);
+  if (!sourceStructures.length) return null;
+  const compatible = sourceStructures.some(source => {
+    return domStructures.some(dom => source.tag === dom.tag);
+  });
+  if (compatible) return null;
+  return {
+    keyword,
+    domTags: uniq(domStructures.map(item => item.tag)),
+    sourceTags: uniq(sourceStructures.map(item => item.tag)),
+  };
+}
+
+function definitionValueRefs(text, keywordFacts) {
+  const source = String(text || '');
+  const refs = [];
+  const textKeywords = (keywordFacts || [])
+    .filter(item => item.codeCount > 0 && item.type !== 'class-token')
+    .map(item => String(item.keyword || '').trim())
+    .filter(Boolean);
+  for (const keyword of uniq(textKeywords)) {
+    const escaped = escapeRegExp(keyword);
+    const simplePattern = new RegExp(`([A-Za-z_$][\\w$-]*)\\s*:\\s*["'\`][^"'\`]{0,200}${escaped}[^"'\`]{0,200}["'\`]`, 'g');
+    const nestedPattern = new RegExp(`([A-Za-z_$][\\w$-]*)\\s*:\\s*\\{[^{}\\n]{0,400}?([A-Za-z_$][\\w$-]*)\\s*:\\s*["'\`][^"'\`]{0,200}${escaped}[^"'\`]{0,200}["'\`]`, 'g');
+    let match;
+    while ((match = nestedPattern.exec(source)) && refs.length < 20) {
+      refs.push({
+        keyword,
+        key: match[2],
+        path: `${match[1]}.${match[2]}`,
+      });
+    }
+    while ((match = simplePattern.exec(source)) && refs.length < 20) {
+      const key = match[1];
+      refs.push({ keyword, key, path: '' });
+    }
+  }
+  return uniq(refs.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+}
+
+function identifierIndexes(text, identifier) {
+  const source = String(text || '');
+  const value = String(identifier || '').trim();
+  if (!source || !value) return [];
+  const pattern = new RegExp(`(?<![\\w$-])${escapeRegExp(value)}(?![\\w$-])`, 'g');
+  const indexes = [];
+  let match;
+  while ((match = pattern.exec(source)) && indexes.length < 20) indexes.push(match.index);
+  return indexes;
+}
+
+function definitionRefSearchTerms(project, refs, textCache) {
+  const terms = [];
+  const files = sourceFiles(project);
+  const maxStandaloneKeyFiles = Math.min(20, Math.max(4, Math.ceil(files.length * 0.01)));
+  for (const ref of refs || []) {
+    if (ref.path) terms.push(ref.path);
+    const key = String(ref.key || '');
+    if (key.length < 4 || ref.path) continue;
+    let fileCount = 0;
+    for (const file of files) {
+      const text = readProjectText(project, file, textCache);
+      if (!identifierIndexes(text, key).length) continue;
+      fileCount += 1;
+      if (fileCount > maxStandaloneKeyFiles) break;
+    }
+    if (fileCount <= maxStandaloneKeyFiles) terms.push(key);
+  }
+  return uniq(terms);
+}
+
+function createDefinitionLinkedCandidate(project, file, text, terms, definitionFile) {
+  const positions = uniq(terms.flatMap(term => keywordIndexes(text, term))).slice(0, 8);
+  if (!positions.length) return null;
+  return {
+    file: file.path,
+    score: 260 + positions.length * 18,
+    matchedGroups: [{
+      priority: 1,
+      keywords: terms,
+      range: 'same-file',
+      reason: `定义值 key/path 在渲染源码中被使用：${definitionFile}`,
+      source: 'definition-key-reference',
+    }],
+    matchedKeywords: terms,
+    positions,
+    definitionLinks: [{
+      type: 'key-reference',
+      definitionFile,
+      terms,
+    }],
+  };
+}
+
+function enrichDefinitionCandidates(project, inspected, plan, textCache) {
+  const fileMap = buildFileMap(project);
+  const byFile = new Map(inspected.map(item => [item.file, item]));
+  const renderCandidates = inspected.filter(item => !item.referenceOnly);
+  const definitionCandidates = inspected.filter(item => item.sourceRole === 'definition-like');
+
+  for (const definition of definitionCandidates) {
+    const links = [];
+    for (const render of renderCandidates) {
+      const chains = importChainFromParent(project, render.file, [definition.file], textCache, 3);
+      const chain = chains.get(definition.file);
+      if (chain) {
+        links.push({
+          type: 'import-relation',
+          renderFile: render.file,
+          chain,
+        });
+      }
+    }
+    if (links.length) {
+      definition.definitionLinks = uniq([
+        ...(definition.definitionLinks || []),
+        ...links,
+      ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+      definition.roleReasons = uniq([
+        ...(definition.roleReasons || []),
+        '定义文件被渲染候选通过 import 链引用，作为参考而非最终 DOM 源码',
+      ]);
+    }
+  }
+
+  for (const definition of definitionCandidates) {
+    const file = fileMap.get(definition.file);
+    const definitionText = file ? readProjectText(project, file, textCache) : '';
+    const refs = definitionValueRefs(definitionText, definition.keywordFacts);
+    const terms = definitionRefSearchTerms(project, refs, textCache);
+    if (!terms.length) continue;
+    const links = [];
+    for (const candidate of renderCandidates) {
+      const renderFile = fileMap.get(candidate.file);
+      const renderText = renderFile ? readProjectText(project, renderFile, textCache) : '';
+      const matchedTerms = terms.filter(term => keywordIndexes(renderText, term).length);
+      if (!matchedTerms.length) continue;
+      links.push({
+        type: 'key-reference',
+        renderFile: candidate.file,
+        terms: matchedTerms,
+      });
+    }
+    if (links.length) {
+      definition.definitionLinks = uniq([
+        ...(definition.definitionLinks || []),
+        ...links,
+      ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+      definition.roleReasons = uniq([
+        ...(definition.roleReasons || []),
+        '定义值可通过 key/path 在渲染候选中找到使用关系',
+      ]);
+      continue;
+    }
+
+    for (const sourceFile of sourceFiles(project)) {
+      if (byFile.has(sourceFile.path) || sourceFile.path === definition.file) continue;
+      const text = readProjectText(project, sourceFile, textCache);
+      if (!text) continue;
+      const roleInfo = candidateSourceRole(sourceFile.path, text);
+      if (roleInfo.referenceOnly || roleInfo.role !== 'render-like') continue;
+      const linked = createDefinitionLinkedCandidate(project, sourceFile, text, terms, definition.file);
+      if (!linked) continue;
+      const keywordFacts = terms.map(term => ({
+        keyword: term,
+        type: '',
+        count: keywordIndexes(text, term).length,
+        codeCount: keywordIndexes(commentMask(text), term).length,
+        commentOnly: false,
+      })).filter(item => item.count > 0);
+      const inspectedCandidate = {
+        file: linked.file,
+        score: linked.score + keywordFacts.length * 24,
+        matchedGroups: linked.matchedGroups,
+        keywordFacts,
+        commentOnly: [],
+        sourceRole: roleInfo.role,
+        referenceOnly: roleInfo.referenceOnly,
+        roleReasons: [
+          ...roleInfo.reasons,
+          '由定义文件命中的文案 key/path 反查到渲染源码',
+        ],
+        importRelation: null,
+        definitionLinks: linked.definitionLinks,
+        excerpt: candidateExcerpt(text, linked),
+      };
+      byFile.set(inspectedCandidate.file, inspectedCandidate);
+      renderCandidates.push(inspectedCandidate);
+      links.push({
+        type: 'key-reference',
+        renderFile: inspectedCandidate.file,
+        terms,
+      });
+      if (links.length >= 4) break;
+    }
+    if (links.length) {
+      definition.definitionLinks = uniq([
+        ...(definition.definitionLinks || []),
+        ...links,
+      ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+      definition.roleReasons = uniq([
+        ...(definition.roleReasons || []),
+        '定义值可通过 key/path 反查到渲染源码',
+      ]);
+    }
+  }
+
+  return Array.from(byFile.values());
+}
+
 function inspectCandidates(project, candidates, plan, textCache) {
-  const inspected = candidates.slice(0, MAX_INSPECT_FILES).map(candidate => {
+  let inspected = candidates.slice(0, MAX_INSPECT_FILES).map(candidate => {
     const file = (project.files || []).find(item => item.path === candidate.file);
     const text = file ? readProjectText(project, file, textCache) : '';
     const masked = commentMask(text);
-    const keywordFacts = uniq(plan.searches.flatMap(search => search.keywords)).map(keyword => {
-      const allCount = keywordIndexes(text, keyword).length;
-      const codeCount = keywordIndexes(masked, keyword).length;
-      return {
+    const roleInfo = candidateSourceRole(candidate.file, text);
+    const keywordFacts = uniq(plan.searches.flatMap(search => {
+      return (search.keywords || []).map(keyword => ({
         keyword,
+        type: keywordType(search, keyword),
+        search,
+      }));
+    }).map(item => JSON.stringify({
+      keyword: item.keyword,
+      type: item.type || '',
+    }))).map(value => JSON.parse(value)).map(item => {
+      const search = (plan.searches || []).find(searchItem => {
+        return (searchItem.keywords || []).includes(item.keyword)
+          && keywordType(searchItem, item.keyword) === item.type;
+      }) || { keywords: [item.keyword], keywordTypes: item.type ? { [item.keyword]: item.type } : {} };
+      const allCount = keywordIndexesForSearch(text, item.keyword, search, candidate.file).length;
+      const codeCount = keywordIndexesForSearch(masked, item.keyword, search, candidate.file).length;
+      const structureMismatch = item.type
+        ? null
+        : directTextStructureMismatch(masked, item.keyword, plan);
+      return {
+        keyword: item.keyword,
+        type: item.type || '',
         count: allCount,
-        codeCount,
+        codeCount: structureMismatch ? 0 : codeCount,
         commentOnly: allCount > 0 && codeCount === 0,
+        structureMismatch,
       };
     }).filter(item => item.count > 0);
     const codeMatches = keywordFacts.filter(item => item.codeCount > 0).length;
     const commentOnly = keywordFacts.filter(item => item.commentOnly).map(item => item.keyword);
-    const localScore = candidate.score + codeMatches * 24 - commentOnly.length * 40;
+    const structureMismatches = keywordFacts
+      .filter(item => item.structureMismatch)
+      .map(item => item.structureMismatch);
+    const mismatchedKeywords = new Set(structureMismatches.map(item => item.keyword));
+    const matchedGroups = (candidate.matchedGroups || []).map(group => ({
+      ...group,
+      keywords: (group.keywords || []).filter(keyword => !mismatchedKeywords.has(keyword)),
+    })).filter(group => group.keywords.length);
+    const rolePenalty = roleInfo.referenceOnly ? 80 : 0;
+    const localScore = candidate.score
+      + codeMatches * 24
+      - commentOnly.length * 40
+      - structureMismatches.length * 140
+      - rolePenalty;
     return {
       file: candidate.file,
       score: localScore,
-      matchedGroups: candidate.matchedGroups,
+      matchedGroups,
       keywordFacts,
       commentOnly,
+      structureMismatches,
+      sourceRole: roleInfo.role,
+      referenceOnly: roleInfo.referenceOnly,
+      roleReasons: roleInfo.reasons,
       importRelation: candidate.importRelation || null,
+      definitionLinks: candidate.definitionLinks || [],
       excerpt: candidateExcerpt(text, candidate),
     };
-  }).sort((a, b) => b.score - a.score);
+  }).filter(candidate => candidate.matchedGroups.length);
+  inspected = enrichDefinitionCandidates(project, inspected, plan, textCache)
+    .sort((a, b) => b.score - a.score);
   const first = inspected[0];
   const second = inspected[1];
   const unique = !!first && (
@@ -797,6 +1357,227 @@ function inspectCandidates(project, candidates, plan, textCache) {
   };
 }
 
+function unresolvedDefinitionCandidates(inspection) {
+  return (inspection?.candidates || []).filter(candidate => {
+    return candidate.sourceRole === 'definition-like'
+      && !(candidate.definitionLinks || []).length;
+  });
+}
+
+function createDefinitionOwnerCandidate(project, owner, definition, textCache) {
+  const fileMap = buildFileMap(project);
+  const file = fileMap.get(owner.file);
+  const text = file ? readProjectText(project, file, textCache) : '';
+  const roleInfo = candidateSourceRole(owner.file, text);
+  if (roleInfo.referenceOnly || roleInfo.role !== 'render-like') return null;
+  const basename = path.posix.basename(definition.file).replace(/\.[^.]+$/, '');
+  const position = Math.max(0, text.indexOf(basename));
+  return {
+    file: owner.file,
+    score: 340 - Math.max(0, Number(owner.depth || 0)) * 20,
+    matchedGroups: [{
+      priority: 1,
+      keywords: (definition.keywordFacts || []).map(item => item.keyword).filter(Boolean),
+      range: 'import-relation',
+      reason: `渲染源码通过 import 链引用定义文件：${definition.file}`,
+      source: 'definition-import-owner',
+    }],
+    keywordFacts: [],
+    commentOnly: [],
+    sourceRole: roleInfo.role,
+    referenceOnly: false,
+    roleReasons: [
+      ...roleInfo.reasons,
+      '由定义文件的反向 import 链找到渲染源码',
+    ],
+    importRelation: null,
+    definitionLinks: [{
+      type: 'import-relation',
+      definitionFile: definition.file,
+      chain: owner.chain || [],
+    }],
+    excerpt: owner.excerpt || candidateExcerpt(text, { positions: [position] }),
+  };
+}
+
+function enrichDefinitionOwners(project, inspection, ownership, textCache) {
+  const candidateMap = new Map((inspection?.candidates || []).map(candidate => [candidate.file, candidate]));
+  for (const definition of unresolvedDefinitionCandidates(inspection)) {
+    const matchingOwners = (ownership || []).filter(owner => {
+      return Array.isArray(owner.chain)
+        && owner.chain[0] === definition.file
+        && owner.file !== definition.file;
+    });
+    for (const owner of matchingOwners) {
+      const renderCandidate = createDefinitionOwnerCandidate(project, owner, definition, textCache);
+      if (!renderCandidate) continue;
+      const old = candidateMap.get(renderCandidate.file);
+      if (old) {
+        old.definitionLinks = uniq([
+          ...(old.definitionLinks || []),
+          ...renderCandidate.definitionLinks,
+        ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+        old.roleReasons = uniq([...(old.roleReasons || []), ...renderCandidate.roleReasons]);
+      } else {
+        candidateMap.set(renderCandidate.file, renderCandidate);
+      }
+      definition.definitionLinks = uniq([
+        ...(definition.definitionLinks || []),
+        {
+          type: 'import-relation',
+          renderFile: renderCandidate.file,
+          chain: owner.chain || [],
+        },
+      ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+      definition.roleReasons = uniq([
+        ...(definition.roleReasons || []),
+        '反向 import 链已找到真实渲染引用者',
+      ]);
+    }
+  }
+  const candidates = Array.from(candidateMap.values()).sort((a, b) => b.score - a.score);
+  const first = candidates[0];
+  const second = candidates[1];
+  const unique = !!first && (!second || first.score - second.score >= 90);
+  return {
+    status: unique ? 'unique' : candidates.length ? 'ambiguous' : 'empty',
+    selectedFile: unique ? first.file : '',
+    candidates,
+  };
+}
+
+function buildDefinitionResolverPrompt(body, inspection, ownership) {
+  const unresolved = unresolvedDefinitionCandidates(inspection);
+  const primary = (inspection?.candidates || []).filter(candidate => !candidate.referenceOnly);
+  return [
+    '你是 Magnus 的定义来源关系分析器。只分析已给出的真实源码片段之间是否存在“定义 -> 渲染使用”关系。',
+    '你的目标不是修改代码，也不是直接按用户需求猜文件。',
+    '优先判断 definitionFiles 中的值、key 或访问路径，是否在 renderCandidates 或 owners 中被消费并最终生成当前 DOM。',
+    '如果现有片段已经能确认关系，返回 linked。',
+    '如果只能从现有片段中提取可继续本地检索的原样关键词，返回 search。',
+    '完全无法判断则返回 unresolved。',
+    '禁止编造文件、变量、key、路径或检索词。searches 中每个关键词必须逐字存在于本次输入的源码片段中。',
+    '最多返回 2 组 searches。',
+    '严格返回 JSON，不输出 Markdown：',
+    '{"status":"linked|search|unresolved","relations":[{"definitionFile":"","renderFile":"","confidence":0,"reason":""}],"searches":[{"keywords":[""],"mode":"all|any","range":"same-file|same-structure","reason":""}]}',
+    `用户需求（只用于理解 DOM 焦点）: ${body.userPrompt || ''}`,
+    `选区摘要: ${JSON.stringify(plannerDomInput(body).map(item => ({
+      index: item.index,
+      tag: item.tag,
+      selector: item.selector,
+      className: item.className,
+      text: item.text,
+    })), null, 2)}`,
+    `definitionFiles:\n${JSON.stringify(unresolved.map(candidate => ({
+      file: candidate.file,
+      matchedKeywords: (candidate.keywordFacts || []).map(item => item.keyword),
+      excerpt: candidate.excerpt,
+    })), null, 2)}`,
+    `renderCandidates:\n${JSON.stringify(primary.map(candidate => ({
+      file: candidate.file,
+      excerpt: candidate.excerpt,
+    })), null, 2)}`,
+    `owners:\n${JSON.stringify((ownership || []).map(owner => ({
+      file: owner.file,
+      chain: owner.chain,
+      excerpt: owner.excerpt,
+    })), null, 2)}`,
+  ].join('\n');
+}
+
+function definitionResolverCorpus(inspection, ownership) {
+  return [
+    ...((inspection?.candidates || []).flatMap(candidate => [
+      candidate.file,
+      candidate.excerpt,
+    ])),
+    ...((ownership || []).flatMap(owner => [
+      owner.file,
+      owner.excerpt,
+      ...(owner.chain || []),
+    ])),
+  ].filter(Boolean).join('\n').toLowerCase();
+}
+
+function normalizeDefinitionResolver(parsed, inspection, ownership) {
+  const unresolvedFiles = new Set(unresolvedDefinitionCandidates(inspection).map(item => item.file));
+  const renderFiles = new Set([
+    ...((inspection?.candidates || []).filter(item => !item.referenceOnly).map(item => item.file)),
+    ...((ownership || []).map(item => item.file)),
+  ]);
+  const relations = (Array.isArray(parsed?.relations) ? parsed.relations : [])
+    .map(item => ({
+      definitionFile: String(item?.definitionFile || '').replace(/^\/+/, ''),
+      renderFile: String(item?.renderFile || '').replace(/^\/+/, ''),
+      confidence: Math.max(0, Math.min(100, Number(item?.confidence || 0))),
+      reason: String(item?.reason || ''),
+    }))
+    .filter(item => unresolvedFiles.has(item.definitionFile) && renderFiles.has(item.renderFile));
+  const corpus = definitionResolverCorpus(inspection, ownership);
+  const removed = [];
+  const searches = normalizePlan({ searches: parsed?.searches }).searches
+    .slice(0, MAX_DEFINITION_RESOLVER_SEARCHES)
+    .map(search => ({
+      ...search,
+      keywords: (search.keywords || []).filter(keyword => {
+        const exists = keywordExistsInFollowUpCorpus(keyword, corpus);
+        if (!exists) removed.push(keyword);
+        return exists;
+      }),
+    }))
+    .filter(search => search.keywords.length);
+  return {
+    status: relations.length
+      ? 'linked'
+      : searches.length
+        ? 'search'
+        : 'unresolved',
+    relations,
+    searches,
+    removed: uniq(removed),
+  };
+}
+
+function applyDefinitionResolverRelations(project, inspection, relations, ownership, textCache) {
+  if (!(relations || []).length) return inspection;
+  const candidateMap = new Map((inspection?.candidates || []).map(candidate => [candidate.file, candidate]));
+  for (const relation of relations) {
+    const definition = candidateMap.get(relation.definitionFile);
+    if (!definition) continue;
+    const owner = (ownership || []).find(item => item.file === relation.renderFile);
+    if (!candidateMap.has(relation.renderFile) && owner) {
+      const renderCandidate = createDefinitionOwnerCandidate(project, owner, definition, textCache);
+      if (renderCandidate) candidateMap.set(renderCandidate.file, renderCandidate);
+    }
+    const render = candidateMap.get(relation.renderFile);
+    if (!render || render.referenceOnly) continue;
+    definition.definitionLinks = uniq([
+      ...(definition.definitionLinks || []),
+      {
+        type: 'model-validated-relation',
+        renderFile: relation.renderFile,
+        confidence: relation.confidence,
+        reason: relation.reason,
+      },
+    ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+    render.definitionLinks = uniq([
+      ...(render.definitionLinks || []),
+      {
+        type: 'model-validated-relation',
+        definitionFile: relation.definitionFile,
+        confidence: relation.confidence,
+        reason: relation.reason,
+      },
+    ].map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+  }
+  const candidates = Array.from(candidateMap.values()).sort((a, b) => b.score - a.score);
+  return {
+    status: candidates.length === 1 ? 'unique' : candidates.length ? 'ambiguous' : 'empty',
+    selectedFile: candidates.length === 1 ? candidates[0].file : '',
+    candidates,
+  };
+}
+
 function hasPlannedGroupMatch(candidate) {
   return (candidate?.matchedGroups || []).some(group => {
     return group?.source === 'planned-group' && (group.keywords || []).length >= 2;
@@ -807,6 +1588,7 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
   const candidates = inspection?.candidates || [];
   const plannedGroupCandidates = candidates.filter(hasPlannedGroupMatch);
   const importRelationCandidates = candidates.filter(candidate => candidate.importRelation);
+  const primaryCandidates = candidates.filter(candidate => !candidate.referenceOnly);
   const ownershipCount = Array.isArray(ownership) ? ownership.length : 0;
   if (plan.needMoreDom && !candidates.length) {
     return {
@@ -826,6 +1608,17 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
       ownershipCount,
     };
   }
+  if (!primaryCandidates.length) {
+    return {
+      insufficient: true,
+      reason: '当前只命中样式/定义参考文件，尚未找到生成 DOM 的渲染源码',
+      candidateCount: candidates.length,
+      primaryCandidateCount: 0,
+      referenceCandidateCount: candidates.length,
+      plannedGroupCandidateCount: plannedGroupCandidates.length,
+      ownershipCount,
+    };
+  }
   if (plannedGroupCandidates.length === 1) {
     return {
       insufficient: false,
@@ -842,6 +1635,27 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
       candidateCount: candidates.length,
       plannedGroupCandidateCount: plannedGroupCandidates.length,
       importRelationCandidateCount: importRelationCandidates.length,
+      ownershipCount,
+    };
+  }
+  if (primaryCandidates.length === 1 && candidates.length > 1) {
+    return {
+      insufficient: false,
+      reason: '除样式/定义参考候选外，只剩一个可渲染源码候选，进入 Judge 裁决',
+      candidateCount: candidates.length,
+      primaryCandidateCount: primaryCandidates.length,
+      plannedGroupCandidateCount: plannedGroupCandidates.length,
+      ownershipCount,
+    };
+  }
+  if (primaryCandidates.length > 1 && primaryCandidates.length < candidates.length) {
+    return {
+      insufficient: false,
+      reason: '样式/定义参考候选不参与扩区计数，多个可渲染源码候选进入 Judge 裁决',
+      candidateCount: candidates.length,
+      primaryCandidateCount: primaryCandidates.length,
+      referenceCandidateCount: candidates.length - primaryCandidates.length,
+      plannedGroupCandidateCount: plannedGroupCandidates.length,
       ownershipCount,
     };
   }
@@ -872,7 +1686,12 @@ function compactInspectionForModel(inspection) {
       matchedGroups: candidate.matchedGroups,
       keywordFacts: candidate.keywordFacts,
       commentOnly: candidate.commentOnly,
+      structureMismatches: candidate.structureMismatches || [],
+      sourceRole: candidate.sourceRole || '',
+      referenceOnly: !!candidate.referenceOnly,
+      roleReasons: candidate.roleReasons || [],
       importRelation: candidate.importRelation || null,
+      definitionLinks: candidate.definitionLinks || [],
       excerpt: candidate.excerpt,
     })),
   };
@@ -1047,8 +1866,13 @@ function normalizeJudge(parsed, project, allowedFiles = []) {
 }
 
 function agentHits(inspection, judge, ownership = []) {
+  const candidateByFile = new Map((inspection.candidates || []).map(candidate => [candidate.file, candidate]));
+  const hasPrimaryCandidate = (inspection.candidates || []).some(candidate => !candidate.referenceOnly);
   const selected = judge?.status === 'unique'
-    ? judge.files
+    ? judge.files.filter(item => {
+        const candidate = candidateByFile.get(item.file);
+        return !(hasPrimaryCandidate && candidate?.referenceOnly);
+      })
     : inspection.status === 'unique'
       ? [{ file: inspection.selectedFile, role: 'render', confidence: 90, reason: '本地候选事实形成唯一匹配' }]
       : [];
@@ -1071,6 +1895,9 @@ function agentHits(inspection, judge, ownership = []) {
         'DOM Agent：LLM 检索计划 → 本地候选事实对照',
         ...(candidate.matchedGroups || []).map(group => `同组命中：${group.keywords.join(' + ')}`),
         candidate.commentOnly.length ? `纯注释命中：${candidate.commentOnly.join('、')}` : '',
+        (candidate.structureMismatches || []).length
+          ? `DOM/源码静态节点不一致：${candidate.structureMismatches.map(item => `${item.keyword}(${item.domTags.join('|')} != ${item.sourceTags.join('|')})`).join('、')}`
+          : '',
         decision?.reason || '',
       ].filter(Boolean).slice(0, 12),
     };
@@ -1160,7 +1987,7 @@ async function runAgentSearch(project, body, options = {}) {
   if (filteredPlan.removed.length) {
     onLog(`DOM Agent Planner 计划过滤：丢弃未在 DOM/路由证据中出现的词 ${filteredPlan.removed.join('、')}`);
   }
-  plan = filteredPlan.plan;
+  plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
   const inheritedKeywords = inheritedSearchKeywords(body?.agentState || null);
   if (inheritedKeywords.length) {
     onLog(`DOM Agent 扩区保留上一轮检索锚点用于引用链验证：${inheritedKeywords.join('、')}`);
@@ -1246,13 +2073,92 @@ async function runAgentSearch(project, body, options = {}) {
   let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache);
   onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
 
+  const initialOwnershipFiles = uniq([
+    ...inspection.candidates.slice(0, 3).map(item => item.file),
+    ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
+  ]);
   let ownership = traceCandidateOwners(
     project,
-    inspection.candidates.slice(0, 3).map(item => item.file),
+    initialOwnershipFiles,
     textCache
   );
-  onLog(`本地调用：traceCandidateOwners(project, ${JSON.stringify(inspection.candidates.slice(0, 3).map(item => item.file))})`);
+  onLog(`本地调用：traceCandidateOwners(project, ${JSON.stringify(initialOwnershipFiles)})`);
   onLog(`本地输出：${JSON.stringify(ownership, null, 2)}`);
+
+  const unresolvedBeforeOwners = unresolvedDefinitionCandidates(inspection);
+  if (unresolvedBeforeOwners.length) {
+    inspection = enrichDefinitionOwners(project, inspection, ownership, textCache);
+    onLog(`本地调用：enrichDefinitionOwners(project, ${JSON.stringify(unresolvedBeforeOwners.map(item => item.file))})`);
+    onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
+  }
+
+  let definitionResolution = null;
+  const unresolvedDefinitions = unresolvedDefinitionCandidates(inspection);
+  if (unresolvedDefinitions.length) {
+    const resolverPrompt = buildDefinitionResolverPrompt(body, inspection, ownership);
+    onLog(`DOM Agent 定义关系分析输入（${resolverPrompt.length} 字符）:\n${resolverPrompt}`);
+    try {
+      const resolverResult = await invokeModel(body.adapter, resolverPrompt, project.path, {
+        signal,
+        onLog,
+        systemPrompt: '你是 Magnus 定义来源关系分析器。只根据提供的真实源码片段返回 JSON。',
+      });
+      onLog(`DOM Agent 定义关系分析输出（${resolverResult.rawText.length} 字符）:\n${resolverResult.rawText || '-'}`);
+      definitionResolution = normalizeDefinitionResolver(
+        parseJsonResult(resolverResult.rawText) || {},
+        inspection,
+        ownership
+      );
+      if (definitionResolution.removed.length) {
+        onLog(`DOM Agent 定义关系检索词过滤：丢弃未在输入源码片段中出现的词 ${definitionResolution.removed.join('、')}`);
+      }
+      if (definitionResolution.relations.length) {
+        inspection = applyDefinitionResolverRelations(
+          project,
+          inspection,
+          definitionResolution.relations,
+          ownership,
+          textCache
+        );
+        onLog(`本地调用：applyDefinitionResolverRelations(${JSON.stringify(definitionResolution.relations)})`);
+        onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
+      } else if (definitionResolution.searches.length) {
+        const definitionPlan = {
+          searches: definitionResolution.searches,
+          needMoreDom: false,
+        };
+        onLog(`本地调用：executeSearchPlan(project, ${JSON.stringify(definitionPlan)})`);
+        const definitionCandidates = executeSearchPlan(project, definitionPlan, textCache);
+        onLog(`本地输出：${JSON.stringify({
+          candidateCount: definitionCandidates.length,
+          files: definitionCandidates.map(item => item.file),
+        }, null, 2)}`);
+        const mergedDefinitionCandidates = Array.from(new Map(
+          [...candidates, ...definitionCandidates].map(item => [item.file, item])
+        ).values());
+        inspection = inspectCandidates(project, mergedDefinitionCandidates, {
+          searches: [...inspectionPlan.searches, ...definitionPlan.searches],
+        }, textCache);
+        const definitionOwnershipFiles = uniq([
+          ...inspection.candidates.slice(0, 4).map(item => item.file),
+          ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
+        ]);
+        ownership = traceCandidateOwners(project, definitionOwnershipFiles, textCache);
+        inspection = enrichDefinitionOwners(project, inspection, ownership, textCache);
+        onLog(`本地调用：inspectCandidates(project, ${JSON.stringify(mergedDefinitionCandidates.map(item => item.file))})`);
+        onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
+      }
+    } catch (error) {
+      definitionResolution = {
+        status: 'unresolved',
+        relations: [],
+        searches: [],
+        removed: [],
+        error: error?.message || String(error),
+      };
+      onLog(`DOM Agent 定义关系分析失败：${definitionResolution.error}`);
+    }
+  }
 
   const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership);
   onLog(`本地调用：analyzeEvidenceSufficiency(plan, inspection, ownership)`);
@@ -1272,6 +2178,7 @@ async function runAgentSearch(project, body, options = {}) {
         trigger,
         plan,
         inspection: compactInspectionForModel(inspection),
+        definitionResolution,
         evidence,
         needMoreDom: true,
       },
@@ -1365,6 +2272,7 @@ async function runAgentSearch(project, body, options = {}) {
       trigger,
       plan,
       inspection: compactInspectionForModel(inspection),
+      definitionResolution,
       evidence,
       judge,
     },

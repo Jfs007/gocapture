@@ -39,6 +39,8 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       search.searchRunning.value = true;
       search.searchStartedAt.value = Date.now();
       search.searchFinishedAt.value = 0;
+      search.processLogs.value = [];
+      search.agentUsed.value = false;
 
       const timeoutMs = search.includeApiEvidence.value ? 30000 : 12000;
       const data = await runSearchWithOptionalRetry(timeoutMs);
@@ -78,18 +80,18 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
 
   async function runSearchWithOptionalRetry(timeoutMs: number) {
     try {
-      let firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs);
+      let firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs, '第 1 轮：原始选区检索');
       for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
         const expanded = await expandLatestSelectionForMoreEvidence(attempt);
         if (!expanded) break;
         firstPass = await runSearchRequest(prompt.searchPayload({
           agentState: buildAgentRetryState(firstPass, attempt)
-        }), timeoutMs);
+        }), timeoutMs, `第 ${attempt + 1} 轮：自动扩区后继续检索`);
       }
       const firstHits = Array.isArray(firstPass?.hits) ? firstPass.hits : [];
       if (firstPass?.agent?.enabled) return firstPass;
       if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
-      const secondPass = await runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs);
+      const secondPass = await runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs, '扩展上下文兜底检索');
       const secondHits = Array.isArray(secondPass?.hits) ? secondPass.hits : [];
       return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
     } finally {
@@ -98,9 +100,8 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     }
   }
 
-  async function runSearchRequest(body: unknown, timeoutMs: number) {
-    search.processLogs.value = [];
-    search.agentUsed.value = false;
+  async function runSearchRequest(body: unknown, timeoutMs: number, label = '') {
+    if (label) search.appendProcessLog(`检索请求开始：${label}`);
     return await sourceServerNdjson('/api/search/stream', {
       method: 'POST',
       body: {
