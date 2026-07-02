@@ -7,6 +7,12 @@ const { executeDiscoveryPlan } = require('./discovery-executor');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
 const { ensureProjectContext } = require('./project-context');
 const { loadSkillContexts, loadSkillMetas } = require('./skill-store');
+const {
+  memorySnapshot,
+  removeTaskSessionMemory,
+  updateStoredSkill,
+  updateTaskSessionMemory,
+} = require('./memory-service');
 
 function write(root, file, content) {
   const absolute = path.join(root, file);
@@ -317,6 +323,34 @@ async function run() {
     assert.equal(Array.isArray(contexts[0].verificationChecklist), true);
     assert.equal(contexts[0].examples, undefined);
     assert.equal(contexts[0].evidence, undefined);
+
+    const memory = memorySnapshot(project);
+    assert.equal(memory.skills.length, 1);
+    assert.ok(memory.taskSessions.some(session => session.pageKey === '/order'));
+    const orderSession = memory.taskSessions.find(session => session.pageKey === '/order');
+    const updatedSession = updateTaskSessionMemory(project, orderSession.id, {
+      requirements: ['新增订单表格', '增加执行时间列'],
+      confirmedFacts: ['订单列表使用 MdTable'],
+    });
+    assert.deepEqual(updatedSession.requirements, ['新增订单表格', '增加执行时间列']);
+    assert.deepEqual(updatedSession.confirmedFacts, ['订单列表使用 MdTable']);
+
+    const updatedSkill = updateStoredSkill(project, {
+      id: 'skill:mdtable-usetable',
+      name: '项目表格实现规范',
+      status: 'active',
+      confidence: 'high',
+      context: `${contexts[0].context}\n\n编辑后的补充约束。`,
+    });
+    assert.equal(updatedSkill.meta.name, '项目表格实现规范');
+    assert.equal(updatedSkill.meta.status, 'active');
+    assert.match(updatedSkill.context, /编辑后的补充约束/);
+    assert.match(
+      fs.readFileSync(path.join(root, '.magnus-project', 'Project.md'), 'utf8'),
+      /项目表格实现规范/
+    );
+    assert.equal(removeTaskSessionMemory(project, orderSession.id), true);
+    assert.equal(memorySnapshot(project).taskSessions.some(session => session.id === orderSession.id), false);
 
     const rescanned = scanProject(root);
     assert.equal(rescanned.files.some(file => file.path.startsWith('.magnus-project/')), false);

@@ -12,6 +12,12 @@ const { selectDirectory } = require('./resource/dialog');
 const { scanProject } = require('./core/project');
 const { bindProjectContext } = require('./experience/project-context');
 const { loadSkillMetas } = require('./experience/skill-store');
+const {
+  memorySnapshot,
+  removeTaskSessionMemory,
+  updateStoredSkill,
+  updateTaskSessionMemory,
+} = require('./experience/memory-service');
 const { searchProjectWithMeta } = require('./search');
 const { runAgentSearch } = require('./search/agent-search');
 const { resolvePageRouteTrace } = require('./route-resolvers/registry');
@@ -121,6 +127,16 @@ function createSourceServer() {
     return bindProjectContext(project, {
       skillMetas: loadSkillMetas(project),
     });
+  }
+
+  function memoryProject(projectPath) {
+    const requested = String(projectPath || '');
+    if (!requested) {
+      if (!currentProject) throw new Error('No project selected.');
+      return currentProject;
+    }
+    if (currentProject?.path === requested) return currentProject;
+    return bindSourceProject(requested);
   }
 
   async function handle(req, res) {
@@ -256,6 +272,44 @@ function createSourceServer() {
           });
           res.end();
         }
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/memory') {
+        const project = memoryProject(url.searchParams.get('projectPath'));
+        sendJson(res, 200, { success: true, memory: memorySnapshot(project) });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/memory/read') {
+        const body = await readBody(req);
+        const project = memoryProject(body.projectPath);
+        sendJson(res, 200, { success: true, memory: memorySnapshot(project) });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/memory/skill') {
+        const body = await readBody(req);
+        const project = memoryProject(body.projectPath);
+        const skill = updateStoredSkill(project, body);
+        bindProjectContext(project, { skillMetas: loadSkillMetas(project) });
+        sendJson(res, 200, { success: true, skill, memory: memorySnapshot(project) });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/memory/session') {
+        const body = await readBody(req);
+        const project = memoryProject(body.projectPath);
+        const session = updateTaskSessionMemory(project, body.id, body);
+        sendJson(res, 200, { success: true, session, memory: memorySnapshot(project) });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/memory/session/remove') {
+        const body = await readBody(req);
+        const project = memoryProject(body.projectPath);
+        const removed = removeTaskSessionMemory(project, body.id);
+        sendJson(res, 200, { success: true, removed, memory: memorySnapshot(project) });
         return;
       }
 

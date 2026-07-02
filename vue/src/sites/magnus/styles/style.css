@@ -2187,3 +2187,275 @@
   border-color: #101828;
   box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);
 }
+
+.mda-settings-trigger {
+  flex: 0 0 auto;
+  font-size: 16px;
+}
+
+.mda-memory-shell {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #f7f8fa;
+  color: #1f2328;
+}
+
+.mda-memory-head {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid #d8dee6;
+  background: #ffffff;
+}
+
+.mda-memory-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.mda-memory-head strong {
+  font-size: 14px;
+}
+
+.mda-memory-head span {
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-memory-close {
+  font-size: 21px;
+}
+
+.mda-memory-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid #d8dee6;
+  background: #ffffff;
+}
+
+.mda-memory-tabs button {
+  min-width: 0;
+  height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mda-memory-tabs button:hover {
+  color: #111827;
+  background: #f8fafc;
+}
+
+.mda-memory-tabs button.is-active {
+  border-bottom-color: #2563eb;
+  color: #111827;
+  font-weight: 700;
+}
+
+.mda-memory-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
+.mda-memory-feedback {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid #abefc6;
+  border-radius: 6px;
+  background: #ecfdf3;
+  color: #067647;
+  font-size: 12px;
+}
+
+.mda-memory-feedback.is-error {
+  border-color: #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.mda-memory-state,
+.mda-memory-empty {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 180px;
+  padding: 24px;
+  color: #667085;
+  text-align: center;
+}
+
+.mda-memory-state.is-error {
+  color: #b42318;
+}
+
+.mda-memory-state button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.mda-memory-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mda-memory-field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mda-memory-field > span {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mda-memory-field small {
+  color: #98a2b3;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.mda-memory-field input,
+.mda-memory-field select,
+.mda-memory-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2937;
+  outline: none;
+  font: inherit;
+}
+
+.mda-memory-field input,
+.mda-memory-field select {
+  height: 34px;
+  padding: 0 9px;
+}
+
+.mda-memory-field textarea {
+  min-height: 66px;
+  padding: 8px 9px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.mda-memory-field textarea.is-code {
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-memory-field input:focus,
+.mda-memory-field select:focus,
+.mda-memory-field textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.mda-memory-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mda-memory-advanced {
+  border-top: 1px solid #e4e7ec;
+  padding-top: 10px;
+}
+
+.mda-memory-advanced summary {
+  cursor: pointer;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-memory-advanced[open] {
+  display: grid;
+  gap: 12px;
+}
+
+.mda-memory-advanced[open] summary {
+  margin-bottom: 2px;
+}
+
+.mda-memory-actions {
+  position: sticky;
+  bottom: -14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0 14px;
+  background: #f7f8fa;
+}
+
+.mda-memory-actions button {
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.mda-memory-actions button.is-primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.mda-memory-actions button.is-danger {
+  border-color: #fda29b;
+  color: #b42318;
+}
+
+.mda-memory-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.mda-memory-project-note {
+  margin-bottom: 10px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-memory-project-doc {
+  min-height: 240px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

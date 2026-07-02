@@ -148,9 +148,60 @@ function updateTaskSession(project, task, patch = {}) {
   return session;
 }
 
+function projectTaskSessions(project) {
+  const projectRoot = String(project?.path || '');
+  const currentTime = now();
+  for (const [key, session] of sessions) {
+    if (currentTime - session.updatedAt > SESSION_TTL_MS) sessions.delete(key);
+  }
+  return Array.from(sessions.values())
+    .filter(session => session.projectRoot === projectRoot)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .map(compactTaskSession);
+}
+
+function editableStringList(value, limit) {
+  return mergeUnique([], Array.isArray(value) ? value.map(String).map(item => item.trim()) : [], limit);
+}
+
+function updateTaskSessionMemory(project, id, patch = {}) {
+  const projectRoot = String(project?.path || '');
+  const session = Array.from(sessions.values()).find(item => {
+    return item.id === id && item.projectRoot === projectRoot;
+  });
+  if (!session) throw new Error('Task session not found.');
+  if (Array.isArray(patch.requirements)) {
+    session.requirements = editableStringList(patch.requirements, REQUIREMENT_LIMIT);
+    session.recentInputs = session.requirements.slice(-RECENT_INPUT_LIMIT);
+    session.taskBrief = session.requirements.join('；') || '按页面选区完成修改';
+  }
+  if (Array.isArray(patch.targetFiles)) session.targetFiles = editableStringList(patch.targetFiles, 12);
+  if (Array.isArray(patch.confirmedSkillIds)) session.confirmedSkillIds = editableStringList(patch.confirmedSkillIds, 8);
+  if (Array.isArray(patch.confirmedFacts)) session.confirmedFacts = editableStringList(patch.confirmedFacts, 16);
+  if (Array.isArray(patch.assumptions)) session.assumptions = editableStringList(patch.assumptions, 16);
+  if (typeof patch.lastEnhancedPrompt === 'string') {
+    session.lastEnhancedPrompt = patch.lastEnhancedPrompt.slice(0, 12000);
+  }
+  session.updatedAt = now();
+  return compactTaskSession(session);
+}
+
+function removeTaskSessionMemory(project, id) {
+  const projectRoot = String(project?.path || '');
+  for (const [key, session] of sessions) {
+    if (session.id !== id || session.projectRoot !== projectRoot) continue;
+    sessions.delete(key);
+    return true;
+  }
+  return false;
+}
+
 module.exports = {
   compactTaskSession,
   getOrCreateTaskSession,
   normalizedPageKey,
+  projectTaskSessions,
+  removeTaskSessionMemory,
   updateTaskSession,
+  updateTaskSessionMemory,
 };

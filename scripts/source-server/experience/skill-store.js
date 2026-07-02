@@ -193,11 +193,43 @@ function recordSkillVerification(project, ids) {
   return results;
 }
 
+function updateStoredSkill(project, input = {}) {
+  const slug = skillSlug(input.id);
+  const existing = loadSkillContexts(project, [`skill:${slug}`])[0];
+  if (!slug || !existing) throw new Error('Project skill not found.');
+  const directory = path.join(skillsRoot(project), slug);
+  const meta = normalizeMeta({
+    ...existing.meta,
+    name: input.name ?? existing.meta.name,
+    triggerTags: input.triggerTags ?? existing.meta.triggerTags,
+    applicableWhen: input.applicableWhen ?? existing.meta.applicableWhen,
+    notApplicableWhen: input.notApplicableWhen ?? existing.meta.notApplicableWhen,
+    status: input.status ?? existing.meta.status,
+    confidence: input.confidence ?? existing.meta.confidence,
+    staleAfterDays: input.staleAfterDays ?? existing.meta.staleAfterDays,
+  }, slug);
+  const context = typeof input.context === 'string' ? input.context.trim() : existing.context.trim();
+  if (!context) throw new Error('Skill context cannot be empty.');
+  const recipes = Array.isArray(input.recipes) ? input.recipes : existing.recipes;
+  const sourceContracts = Array.isArray(input.sourceContracts) ? input.sourceContracts : existing.sourceContracts;
+  const verificationChecklist = Array.isArray(input.verificationChecklist)
+    ? input.verificationChecklist
+    : existing.verificationChecklist;
+  atomicWrite(path.join(directory, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`);
+  atomicWrite(path.join(directory, 'context.md'), `${context}\n`);
+  atomicWrite(path.join(directory, 'recipes.json'), `${JSON.stringify(recipes, null, 2)}\n`);
+  atomicWrite(path.join(directory, 'source-contracts.json'), `${JSON.stringify(sourceContracts, null, 2)}\n`);
+  atomicWrite(path.join(directory, 'checklist.json'), `${JSON.stringify(verificationChecklist, null, 2)}\n`);
+  refreshProjectDocument(project, loadSkillMetas(project));
+  return loadSkillContexts(project, [meta.id])[0];
+}
+
 module.exports = {
   loadSkillContexts,
   loadSkillMetas,
   recordSkillVerification,
   saveCandidateSkill,
   skillSlug,
+  updateStoredSkill,
   validCandidateSkill,
 };
