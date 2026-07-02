@@ -18,11 +18,14 @@ const MAX_DOM_INPUT_CHARS = 180000;
 const MAX_PLAN_SEARCHES = 8;
 const MAX_PLAN_KEYWORDS = 8;
 const MAX_CANDIDATES = 12;
-const MAX_INSPECT_FILES = 6;
+const MAX_INSPECT_FILES = MAX_CANDIDATES;
 const MAX_EXCERPT_CHARS = 7000;
 const MAX_COMPRESSED_DOM_CHARS = 30000;
 const MAX_INHERITED_KEYWORDS = 4;
 const MAX_DEFINITION_RESOLVER_SEARCHES = 2;
+const MAX_OWNER_DEPTH = 3;
+const MAX_OWNERS_PER_CANDIDATE = 4;
+const MAX_ROUTE_RELATION_DEPTH = 5;
 const STYLE_EXTENSIONS = new Set(['.css', '.less', '.scss', '.sass', '.styl']);
 const NATIVE_HTML_TAGS = new Set([
   'a', 'article', 'aside', 'button', 'canvas', 'caption', 'code', 'col', 'colgroup',
@@ -588,6 +591,31 @@ function domDirectTextStructures(body) {
   return uniq(structures.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
 }
 
+function domStyleTokenSet(body) {
+  const tokens = new Set();
+  for (const selection of selectionList(body)) {
+    for (const markup of selectionContextMarkupValues(selection)) {
+      const regex = /\bstyle\s*=\s*("([^"]*)"|'([^']*)')/gi;
+      let match;
+      while ((match = regex.exec(String(markup || '')))) {
+        const declarations = String(match[2] ?? match[3] ?? '').split(';');
+        for (const declaration of declarations) {
+          const separator = declaration.indexOf(':');
+          if (separator === -1) continue;
+          const key = declaration.slice(0, separator).trim();
+          const value = declaration.slice(separator + 1).trim();
+          if (!key || !value || key.startsWith('--')) continue;
+          tokens.add(key);
+          tokens.add(value);
+          tokens.add(`${key}: ${value}`);
+          tokens.add(`${key}:${value}`);
+        }
+      }
+    }
+  }
+  return tokens;
+}
+
 function serializedAttributeKeyword(keyword) {
   const match = String(keyword || '').trim().match(/^([:@\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))$/);
   if (!match) return null;
@@ -600,6 +628,7 @@ function annotatePlanKeywordTypes(plan, body) {
   const classTokens = domClassTokenSet(body);
   const attributePairs = domAttributePairs(body);
   const directTextStructures = domDirectTextStructures(body);
+  const styleTokens = domStyleTokenSet(body);
   const searches = (plan.searches || []).map(search => {
     const expandedKeywords = [];
     const searchAttributePairs = [];
@@ -623,19 +652,38 @@ function annotatePlanKeywordTypes(plan, body) {
     const keywords = uniq(expandedKeywords);
     const keywordTypes = {};
     const domTextStructures = {};
+    const evidenceKinds = {};
     for (const keyword of keywords) {
-      if (classTokens.has(String(keyword || '').trim())) keywordTypes[keyword] = 'class-token';
-      if (searchAttributePairs.some(pair => pair.key === keyword)) keywordTypes[keyword] = 'attribute-name';
-      if (searchAttributePairs.some(pair => pair.value === keyword)) keywordTypes[keyword] = 'attribute-value';
+      if (classTokens.has(String(keyword || '').trim())) {
+        keywordTypes[keyword] = 'class-token';
+        evidenceKinds[keyword] = 'class';
+      }
+      if (searchAttributePairs.some(pair => pair.key === keyword)) {
+        keywordTypes[keyword] = 'attribute-name';
+        evidenceKinds[keyword] = 'other';
+      }
+      if (searchAttributePairs.some(pair => pair.value === keyword)) {
+        keywordTypes[keyword] = 'attribute-value';
+        evidenceKinds[keyword] = 'other';
+      }
+      if (!keywordTypes[keyword] && styleTokens.has(keyword)) {
+        keywordTypes[keyword] = 'style-token';
+        evidenceKinds[keyword] = 'style';
+      }
       if (!keywordTypes[keyword]) {
         const structures = directTextStructures.filter(item => item.text.includes(keyword));
-        if (structures.length) domTextStructures[keyword] = structures.slice(0, 8);
+        if (structures.length) {
+          domTextStructures[keyword] = structures.slice(0, 8);
+          evidenceKinds[keyword] = 'text';
+        }
       }
+      if (!evidenceKinds[keyword]) evidenceKinds[keyword] = 'other';
     }
     return {
       ...search,
       keywords,
       ...(Object.keys(keywordTypes).length ? { keywordTypes } : {}),
+      evidenceKinds,
       ...(Object.keys(domTextStructures).length ? { domTextStructures } : {}),
       ...(searchAttributePairs.length
         ? {
@@ -646,6 +694,17 @@ function annotatePlanKeywordTypes(plan, body) {
     };
   });
   return { ...plan, searches };
+}
+
+function planEvidenceKinds(plan) {
+  return (plan?.searches || []).flatMap((search, searchIndex) => {
+    return (search.keywords || []).map(keyword => ({
+      search: searchIndex + 1,
+      keyword,
+      kind: search?.evidenceKinds?.[keyword] || 'other',
+      matcher: search?.keywordTypes?.[keyword] || 'literal',
+    }));
+  });
 }
 
 function inheritedSearchKeywords(agentState) {
@@ -773,8 +832,43 @@ function attributeTokenIndexes(text, keyword, search, type) {
   return uniq(pairs.flatMap(pair => attributePairIndexes(text, pair))).sort((a, b) => a - b);
 }
 
+function styleTokenIndexes(text, keyword) {
+  const source = String(text || '');
+  const value = String(keyword || '').trim();
+  if (!source || !value) return [];
+  const escaped = escapeRegExp(value);
+  const patterns = [
+    new RegExp(`\\bstyle\\s*=\\s*["'][^"']*${escaped}[^"']*["']`, 'gi'),
+    new RegExp(`(?:^|[;{]\\s*)[A-Za-z-]+\\s*:\\s*[^;}\\n]*${escaped}`, 'gmi'),
+    new RegExp(`\\bstyle\\s*:\\s*(?:["'\`][^"'\`]*${escaped}|\\{[^}]*${escaped})`, 'gi'),
+  ];
+  const indexes = [];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) && indexes.length < 20) indexes.push(match.index);
+  }
+  return uniq(indexes).sort((a, b) => a - b);
+}
+
 function keywordType(search, keyword) {
   return search?.keywordTypes?.[keyword] || '';
+}
+
+function textEvidenceIndexes(text, keyword) {
+  const source = String(text || '');
+  const value = String(keyword || '');
+  if (!source || !value) return [];
+  const indexes = keywordIndexes(source, value);
+  const wordLike = /[\p{L}\p{N}_]/u;
+  return indexes.filter(index => {
+    const before = index > 0 ? source[index - 1] : '';
+    const after = source[index + value.length] || '';
+    const startsWord = wordLike.test(value[0] || '');
+    const endsWord = wordLike.test(value[value.length - 1] || '');
+    if (startsWord && before && wordLike.test(before)) return false;
+    if (endsWord && after && wordLike.test(after)) return false;
+    return true;
+  });
 }
 
 function keywordIndexesForSearch(text, keyword, search, filePath = '') {
@@ -783,6 +877,8 @@ function keywordIndexesForSearch(text, keyword, search, filePath = '') {
   if (type === 'attribute-name' || type === 'attribute-value') {
     return attributeTokenIndexes(text, keyword, search, type);
   }
+  if (type === 'style-token') return styleTokenIndexes(text, keyword);
+  if (search?.evidenceKinds?.[keyword] === 'text') return textEvidenceIndexes(text, keyword);
   return keywordIndexes(text, keyword);
 }
 
@@ -806,6 +902,37 @@ function groupMatch(text, search, filePath = '') {
     positions,
     spread,
   };
+}
+
+function candidateSort(a, b) {
+  const scoreDiff = b.score - a.score;
+  if (scoreDiff) return scoreDiff;
+  const styleDiff = Number(STYLE_EXTENSIONS.has(path.posix.extname(a.file)))
+    - Number(STYLE_EXTENSIONS.has(path.posix.extname(b.file)));
+  if (styleDiff) return styleDiff;
+  return a.file.localeCompare(b.file);
+}
+
+function selectCandidatesWithPlanCoverage(candidates, plan, limit = MAX_CANDIDATES) {
+  const ranked = [...candidates].sort(candidateSort);
+  const selected = [];
+  const selectedFiles = new Set();
+  const add = candidate => {
+    if (!candidate || selectedFiles.has(candidate.file) || selected.length >= limit) return;
+    selected.push(candidate);
+    selectedFiles.add(candidate.file);
+  };
+  const plannedKeywords = uniq((plan.searches || [])
+    .sort((a, b) => a.priority - b.priority)
+    .flatMap(search => search.keywords || []));
+  for (const keyword of plannedKeywords) {
+    ranked
+      .filter(candidate => (candidate.matchedKeywords || []).includes(keyword))
+      .slice(0, 3)
+      .forEach(add);
+  }
+  ranked.forEach(add);
+  return selected;
 }
 
 function executeSearchPlan(project, plan, textCache) {
@@ -847,14 +974,13 @@ function executeSearchPlan(project, plan, textCache) {
       }
     }
   }
-  return Array.from(candidateMap.values())
+  const ranked = Array.from(candidateMap.values())
     .map(candidate => ({
       ...candidate,
       matchedKeywords: uniq(candidate.matchedKeywords),
       positions: uniq(candidate.positions).sort((a, b) => a - b),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_CANDIDATES);
+    }));
+  return selectCandidatesWithPlanCoverage(ranked, plan);
 }
 
 function previousCandidateKeywords(previousCandidate, fallbackKeywords = []) {
@@ -1045,9 +1171,12 @@ function sourceDirectTextStructures(text, keyword) {
     const rawTag = String(match[1] || '');
     const tag = rawTag.toLowerCase();
     if (rawTag !== tag || !NATIVE_HTML_TAGS.has(tag)) continue;
+    const attrSource = match[2] || '';
+    const attrs = parseAttributes(attrSource);
     structures.push({
       tag,
-      classes: classTokens(parseAttributes(match[2] || '')),
+      classes: classTokens(attrs),
+      dynamicClass: /(?:^|\s)(?::class|v-bind:class|className\s*=\s*\{|class\s*=\s*\{)/.test(attrSource),
       index: match.index,
     });
   }
@@ -1066,14 +1195,96 @@ function directTextStructureMismatch(text, keyword, plan) {
   const sourceStructures = sourceDirectTextStructures(text, keyword);
   if (!sourceStructures.length) return null;
   const compatible = sourceStructures.some(source => {
-    return domStructures.some(dom => source.tag === dom.tag);
+    return domStructures.some(dom => {
+      if (source.tag !== dom.tag) return false;
+      if (source.dynamicClass || !source.classes.length) return true;
+      const domClasses = new Set(dom.classes || []);
+      return source.classes.every(className => domClasses.has(className));
+    });
   });
   if (compatible) return null;
   return {
     keyword,
     domTags: uniq(domStructures.map(item => item.tag)),
     sourceTags: uniq(sourceStructures.map(item => item.tag)),
+    domClasses: uniq(domStructures.flatMap(item => item.classes || [])),
+    sourceClasses: uniq(sourceStructures.flatMap(item => item.classes || [])),
   };
+}
+
+function candidateEffectiveKeywordSet(candidate) {
+  return new Set((candidate?.keywordFacts || [])
+    .filter(item => item.codeCount > 0 && !item.structureMismatch)
+    .map(item => item.keyword));
+}
+
+function pruneTextOnlyRenderCandidates(inspected, plan) {
+  const structuralKeywords = new Set((plan?.searches || []).flatMap(search => {
+    return (search.keywords || []).filter(keyword => {
+      const kind = search?.evidenceKinds?.[keyword];
+      const type = search?.keywordTypes?.[keyword];
+      return kind === 'class'
+        || type === 'attribute-name'
+        || type === 'attribute-value';
+    });
+  }));
+  if (!structuralKeywords.size) return inspected;
+  const hasStructuralRender = inspected.some(candidate => {
+    if (candidate.referenceOnly) return false;
+    const evidence = candidateEffectiveKeywordSet(candidate);
+    return Array.from(structuralKeywords).some(keyword => evidence.has(keyword));
+  });
+  if (!hasStructuralRender) return inspected;
+  return inspected.filter(candidate => {
+    if (candidate.referenceOnly) return true;
+    const evidence = candidateEffectiveKeywordSet(candidate);
+    const structuralMatch = Array.from(structuralKeywords).some(keyword => evidence.has(keyword));
+    if (structuralMatch) return true;
+    candidate.roleReasons = uniq([
+      ...(candidate.roleReasons || []),
+      '仅命中复合容器后代文案，未命中任何 DOM 结构锚点',
+    ]);
+    return false;
+  });
+}
+
+function candidateHasExactQuotedKeyword(candidate) {
+  const excerpt = String(candidate?.excerpt || '');
+  return (candidate?.keywordFacts || []).some(item => {
+    const keyword = String(item?.keyword || '').trim();
+    if (!keyword) return false;
+    return new RegExp(`["'\`]\\s*${escapeRegExp(keyword)}\\s*["'\`]`).test(excerpt);
+  });
+}
+
+function pruneDominatedDomCandidates(inspected, plan) {
+  const plannedKeywords = uniq((plan?.searches || [])
+    .flatMap(search => search.keywords || [])
+    .map(keyword => String(keyword || '').trim())
+    .filter(Boolean));
+  if (plannedKeywords.length < 2) return inspected;
+  const completeRenderCandidates = inspected.filter(candidate => {
+    if (candidate.referenceOnly || candidate.sourceRole !== 'render-like') return false;
+    const evidence = candidateEffectiveKeywordSet(candidate);
+    return plannedKeywords.every(keyword => evidence.has(keyword));
+  });
+  if (completeRenderCandidates.length !== 1) return inspected;
+  const winner = completeRenderCandidates[0];
+  const winnerEvidence = candidateEffectiveKeywordSet(winner);
+  winner.roleReasons = uniq([
+    ...(winner.roleReasons || []),
+    '唯一覆盖本轮全部 DOM 检索锚点，淘汰只命中其证据子集的候选',
+  ]);
+  return inspected.filter(candidate => {
+    if (candidate === winner) return true;
+    const evidence = candidateEffectiveKeywordSet(candidate);
+    if (!evidence.size || evidence.size >= winnerEvidence.size) return true;
+    const dominated = Array.from(evidence).every(keyword => winnerEvidence.has(keyword));
+    if (!dominated) return true;
+    if (!candidate.referenceOnly) return false;
+    if (candidate.sourceRole === 'style-reference') return true;
+    return candidateHasExactQuotedKeyword(candidate);
+  });
 }
 
 function definitionValueRefs(text, keywordFacts) {
@@ -1338,6 +1549,8 @@ function inspectCandidates(project, candidates, plan, textCache) {
       excerpt: candidateExcerpt(text, candidate),
     };
   }).filter(candidate => candidate.matchedGroups.length);
+  inspected = pruneTextOnlyRenderCandidates(inspected, plan);
+  inspected = pruneDominatedDomCandidates(inspected, plan);
   inspected = enrichDefinitionCandidates(project, inspected, plan, textCache)
     .sort((a, b) => b.score - a.score);
   const first = inspected[0];
@@ -1739,11 +1952,12 @@ function traceCandidateOwners(project, selectedFiles, textCache) {
   }
   const result = [];
   for (const selectedFile of selectedFiles) {
+    let ownerCount = 0;
     const queue = [{ file: selectedFile, depth: 0, chain: [selectedFile] }];
     const visited = new Set([selectedFile]);
-    while (queue.length) {
+    while (queue.length && ownerCount < MAX_OWNERS_PER_CANDIDATE) {
       const current = queue.shift();
-      if (current.depth >= 3) continue;
+      if (current.depth >= MAX_OWNER_DEPTH) continue;
       for (const parent of reverse.get(current.file) || []) {
         if (visited.has(parent)) continue;
         visited.add(parent);
@@ -1753,25 +1967,79 @@ function traceCandidateOwners(project, selectedFiles, textCache) {
         const position = Math.max(0, text.indexOf(basename));
         const chain = [...current.chain, parent];
         result.push({
+          candidateFile: selectedFile,
           file: parent,
           depth: current.depth + 1,
           chain,
           excerpt: makeSnippet(text, position, basename.length).slice(0, 3000),
         });
+        ownerCount += 1;
+        if (ownerCount >= MAX_OWNERS_PER_CANDIDATE) break;
         queue.push({ file: parent, depth: current.depth + 1, chain });
       }
     }
   }
-  return result.slice(0, 12);
+  return result;
 }
 
-function buildJudgePrompt(body, inspection, ownership, finalRound = false) {
+function traceRouteCandidateRelations(project, routeTrace, candidates, textCache) {
+  const fileMap = buildFileMap(project);
+  const candidateFiles = new Set((candidates || [])
+    .filter(candidate => !candidate.referenceOnly)
+    .map(candidate => candidate.file)
+    .filter(file => fileMap.has(file)));
+  if (!candidateFiles.size) return [];
+  const routeFiles = uniq([
+    routeTrace?.bestPageFile || '',
+    routeTrace?.bestRoute?.sourceFile || '',
+    ...((routeTrace?.hits || []).map(hit => hit?.file || '')),
+    ...((routeTrace?.hits || []).map(hit => hit?.from || '')),
+  ]).filter(file => fileMap.has(file));
+  const relationByCandidate = new Map();
+  for (const routeFile of routeFiles) {
+    const queue = [{ file: routeFile, depth: 0, chain: [routeFile] }];
+    const visited = new Set([routeFile]);
+    while (queue.length) {
+      const current = queue.shift();
+      if (candidateFiles.has(current.file)) {
+        const old = relationByCandidate.get(current.file);
+        if (!old || current.depth < old.depth) {
+          relationByCandidate.set(current.file, {
+            candidateFile: current.file,
+            routeFile,
+            depth: current.depth,
+            chain: current.chain,
+          });
+        }
+      }
+      if (current.depth >= MAX_ROUTE_RELATION_DEPTH) continue;
+      if (current.depth > 0 && /(?:^|\/)(?:store|stores|api|apis|router|routers|init|util|utils|service|services|infrastructure)(?:\/|$)/i.test(current.file)) {
+        continue;
+      }
+      for (const child of importedFiles(project, current.file, fileMap, textCache)) {
+        if (visited.has(child.file)) continue;
+        visited.add(child.file);
+        queue.push({
+          file: child.file,
+          depth: current.depth + 1,
+          chain: [...current.chain, child.file],
+        });
+      }
+    }
+  }
+  return Array.from(relationByCandidate.values())
+    .sort((a, b) => a.depth - b.depth || a.candidateFile.localeCompare(b.candidateFile));
+}
+
+function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelations, finalRound = false) {
   return [
     '你是源码候选裁决器。候选已经由本地检索并读取局部结构。',
     '比较 DOM 事实与候选源码事实，选择最可能直接生成或控制该选区的文件。',
     '不要重新生成宽泛关键词，不要选择只有注释命中的文件。',
     '必须区分 definition、assembly、render。DOM 内容定义文件不能冒充最终渲染文件。',
     '一个文件可能只命中结构 class，另一个文件只命中文案/路径；这代表 render 与 definition 分离，需要结合用户需求决定返回一个或多个方向，不能只按命中词数量裁决。',
+    '页面路由不是最终结论，但候选若能从当前精确路由入口通过真实 import 链到达，这是区分重复组件的重要证据。',
+    '多个候选 DOM 结构相似时，必须比较候选路由关系；不得仅凭目录名称猜测哪个文件属于当前页面。',
     '你的目标仍然是定位当前 DOM 对应的源码方向，不是提前设计修改方案；用户需求只能帮助理解焦点，不能驱动你搜索接口名、数据源变量、样式写法等实现细节。',
     '如果候选中存在唯一 source=planned-group 且包含 2 个以上关键词的命中，通常代表 DOM 多锚点已在同一局部结构命中；除非它明显只是注释或无关定义，否则优先返回该候选，不要继续 follow-up。',
     'followUpSearches 只能用于寻找更直接生成当前 DOM 的文件，不能用于追踪用户需求里的新接口、新变量、目标样式或修改方案。',
@@ -1791,7 +2059,113 @@ function buildJudgePrompt(body, inspection, ownership, finalRound = false) {
     })), null, 2)}`,
     `候选事实:\n${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`,
     `候选引用者:\n${JSON.stringify(ownership, null, 2)}`,
+    `页面路由证据:\n${JSON.stringify({
+      pagePath: body.pagePath || '',
+      matched: !!routeTrace?.matched,
+      bestPageFile: routeTrace?.bestPageFile || '',
+      hits: (routeTrace?.hits || []).slice(0, 4).map(hit => ({
+        file: hit.file,
+        routePath: hit.routePath,
+        reasons: hit.reasons || [],
+      })),
+    }, null, 2)}`,
+    `候选路由关系:\n${JSON.stringify(routeRelations || [], null, 2)}`,
   ].join('\n');
+}
+
+function candidateKeywordSet(candidate) {
+  return new Set((candidate?.keywordFacts || [])
+    .filter(item => item.codeCount > 0 && !item.structureMismatch)
+    .map(item => item.keyword));
+}
+
+function hasComparableDomEvidence(candidate, selectedCandidate) {
+  if (!candidate || !selectedCandidate || candidate.referenceOnly) return false;
+  const candidateKeywords = candidateKeywordSet(candidate);
+  const selectedKeywords = candidateKeywordSet(selectedCandidate);
+  if (!selectedKeywords.size) return false;
+  return Array.from(selectedKeywords).every(keyword => candidateKeywords.has(keyword))
+    && (candidate.structureMismatches || []).length <= (selectedCandidate.structureMismatches || []).length;
+}
+
+function validateJudgeRouteDecision(judge, inspection, routeRelations) {
+  if (judge?.status !== 'unique' || judge.files.length !== 1 || !routeRelations?.length) {
+    return { judge, rejected: false, reason: '' };
+  }
+  const selectedFile = judge.files[0].file;
+  const relatedFiles = new Set(routeRelations.map(relation => relation.candidateFile));
+  if (relatedFiles.has(selectedFile)) return { judge, rejected: false, reason: '' };
+  const candidateByFile = new Map((inspection?.candidates || []).map(candidate => [candidate.file, candidate]));
+  const selectedCandidate = candidateByFile.get(selectedFile);
+  const alternatives = (inspection?.candidates || []).filter(candidate => {
+    return relatedFiles.has(candidate.file) && hasComparableDomEvidence(candidate, selectedCandidate);
+  });
+  if (!alternatives.length) return { judge, rejected: false, reason: '' };
+  return {
+    judge: {
+      ...judge,
+      status: 'ambiguous',
+      files: uniq([
+        selectedFile,
+        ...alternatives.map(candidate => candidate.file),
+      ]).map(file => {
+        const old = judge.files.find(item => item.file === file);
+        return old || {
+          file,
+          role: 'render',
+          confidence: 0,
+          reason: '该候选具备同等 DOM 命中，并由当前页面路由入口的真实 import 链到达',
+        };
+      }),
+    },
+    rejected: true,
+    reason: `Judge 选择了路由关系外候选 ${selectedFile}，但当前路由可达候选具备同等 DOM 证据：${alternatives.map(item => item.file).join('、')}`,
+  };
+}
+
+function normalizedRoutePath(value) {
+  const text = String(value || '').trim().split('?')[0].split('#')[0] || '/';
+  return text.length > 1 ? text.replace(/\/+$/, '') : text;
+}
+
+function hasExactRouteEvidence(body, routeTrace) {
+  if (!routeTrace?.matched || !routeTrace.bestPageFile) return false;
+  const pagePath = normalizedRoutePath(body?.pagePath);
+  return (routeTrace.hits || []).some(hit => {
+    if (hit.file !== routeTrace.bestPageFile) return false;
+    if (normalizedRoutePath(hit.routePath) === pagePath) return true;
+    return (hit.reasons || []).some(reason => String(reason).includes('路径精确匹配'));
+  });
+}
+
+function resolveByRouteRelation(body, inspection, routeTrace, routeRelations) {
+  if (!hasExactRouteEvidence(body, routeTrace)) return null;
+  const exactRelations = (routeRelations || []).filter(relation => {
+    return relation.routeFile === routeTrace.bestPageFile
+      || relation.routeFile === routeTrace?.bestRoute?.sourceFile;
+  });
+  const candidateByFile = new Map((inspection?.candidates || []).map(candidate => [candidate.file, candidate]));
+  const relatedCandidates = uniq(exactRelations.map(relation => relation.candidateFile))
+    .map(file => candidateByFile.get(file))
+    .filter(candidate => {
+      if (!candidate || candidate.referenceOnly) return false;
+      return candidateKeywordSet(candidate).size > 0
+        && !(candidate.structureMismatches || []).length;
+    });
+  if (relatedCandidates.length !== 1) return null;
+  const candidate = relatedCandidates[0];
+  const relation = exactRelations.find(item => item.candidateFile === candidate.file);
+  return {
+    status: 'unique',
+    files: [{
+      file: candidate.file,
+      role: 'render',
+      confidence: 100,
+      reason: `候选同时命中 DOM 结构，并由当前精确路由入口通过真实 import 链到达：${relation.chain.join(' -> ')}`,
+    }],
+    followUpSearches: [],
+    source: 'local-route-relation',
+  };
 }
 
 function followUpCorpus(body, inspection, ownership) {
@@ -1868,7 +2242,7 @@ function normalizeJudge(parsed, project, allowedFiles = []) {
 function agentHits(inspection, judge, ownership = []) {
   const candidateByFile = new Map((inspection.candidates || []).map(candidate => [candidate.file, candidate]));
   const hasPrimaryCandidate = (inspection.candidates || []).some(candidate => !candidate.referenceOnly);
-  const selected = judge?.status === 'unique'
+  const selected = judge?.files?.length
     ? judge.files.filter(item => {
         const candidate = candidateByFile.get(item.file);
         return !(hasPrimaryCandidate && candidate?.referenceOnly);
@@ -1876,6 +2250,7 @@ function agentHits(inspection, judge, ownership = []) {
     : inspection.status === 'unique'
       ? [{ file: inspection.selectedFile, role: 'render', confidence: 90, reason: '本地候选事实形成唯一匹配' }]
       : [];
+  const uniqueDecision = judge?.status === 'unique';
   const selectedMap = new Map(selected.map(item => [item.file, item]));
   const baseCandidates = selected.length
     ? inspection.candidates.filter(candidate => selectedMap.has(candidate.file))
@@ -1884,19 +2259,23 @@ function agentHits(inspection, judge, ownership = []) {
     const decision = selectedMap.get(candidate.file);
     return {
       file: candidate.file,
-      score: decision ? 1800 + candidate.score : candidate.score,
+      score: decision && uniqueDecision ? 1800 + candidate.score : candidate.score,
       stage: 'dom-agent',
-      preciseEvidence: !!decision,
+      preciseEvidence: !!decision && uniqueDecision,
       sourceRole: decision?.role || '',
       modelConfidence: decision?.confidence || 0,
       snippet: candidate.excerpt,
-      preciseSnippet: decision ? candidate.excerpt : '',
+      preciseSnippet: decision && uniqueDecision ? candidate.excerpt : '',
       reasons: [
         'DOM Agent：LLM 检索计划 → 本地候选事实对照',
         ...(candidate.matchedGroups || []).map(group => `同组命中：${group.keywords.join(' + ')}`),
         candidate.commentOnly.length ? `纯注释命中：${candidate.commentOnly.join('、')}` : '',
         (candidate.structureMismatches || []).length
-          ? `DOM/源码静态节点不一致：${candidate.structureMismatches.map(item => `${item.keyword}(${item.domTags.join('|')} != ${item.sourceTags.join('|')})`).join('、')}`
+          ? `DOM/源码静态节点不一致：${candidate.structureMismatches.map(item => {
+              const tagDiff = `${item.domTags.join('|')} != ${item.sourceTags.join('|')}`;
+              const classDiff = `${(item.domClasses || []).join('|') || '-'} != ${(item.sourceClasses || []).join('|') || '-'}`;
+              return `${item.keyword}(tag: ${tagDiff}; class: ${classDiff})`;
+            }).join('、')}`
           : '',
         decision?.reason || '',
       ].filter(Boolean).slice(0, 12),
@@ -1988,6 +2367,7 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent Planner 计划过滤：丢弃未在 DOM/路由证据中出现的词 ${filteredPlan.removed.join('、')}`);
   }
   plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
+  onLog(`DOM Agent 检索词定性：${JSON.stringify(planEvidenceKinds(plan), null, 2)}`);
   const inheritedKeywords = inheritedSearchKeywords(body?.agentState || null);
   if (inheritedKeywords.length) {
     onLog(`DOM Agent 扩区保留上一轮检索锚点用于引用链验证：${inheritedKeywords.join('、')}`);
@@ -2051,9 +2431,16 @@ async function runAgentSearch(project, body, options = {}) {
       candidateMap.set(candidate.file, candidate);
     }
   }
-  const candidates = Array.from(candidateMap.values())
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_CANDIDATES);
+  const candidateSelectionPlan = {
+    searches: [
+      ...combinedPlan.plan.searches,
+      ...plan.searches,
+    ],
+  };
+  const candidates = selectCandidatesWithPlanCoverage(
+    Array.from(candidateMap.values()),
+    candidateSelectionPlan
+  );
   onLog(`本地输出：${JSON.stringify({
     candidateCount: candidates.length,
     files: candidates.map(candidate => ({
@@ -2073,8 +2460,58 @@ async function runAgentSearch(project, body, options = {}) {
   let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache);
   onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
 
+  let routeRelations = traceRouteCandidateRelations(
+    project,
+    routeResult.trace,
+    inspection.candidates,
+    textCache
+  );
+  onLog(`本地调用：traceRouteCandidateRelations(project, route, ${JSON.stringify(inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file))})`);
+  onLog(`本地输出：${JSON.stringify(routeRelations, null, 2)}`);
+  const localRouteDecision = resolveByRouteRelation(
+    body,
+    inspection,
+    routeResult.trace,
+    routeRelations
+  );
+  if (localRouteDecision) {
+    const evidence = {
+      insufficient: false,
+      reason: '当前精确路由、真实 import 链与 DOM 结构共同形成唯一候选',
+      candidateCount: inspection.candidates.length,
+      routeRelationCount: routeRelations.length,
+    };
+    const hits = agentHits(inspection, localRouteDecision, []);
+    onLog(`DOM Agent 本地关系裁决：${localRouteDecision.files[0].reason}`);
+    onLog(`DOM Agent 最终输出：${JSON.stringify({
+      status: localRouteDecision.status,
+      files: hits.map(hit => ({
+        file: hit.file,
+        score: hit.score,
+        role: hit.sourceRole || '',
+      })),
+    }, null, 2)}`);
+    return {
+      hits,
+      routeResolver: routeResult.trace,
+      apiTrace: null,
+      i18nTrace: null,
+      definitionTrace: null,
+      agent: {
+        enabled: true,
+        trigger,
+        plan,
+        inspection: compactInspectionForModel(inspection),
+        definitionResolution: null,
+        evidence,
+        routeRelations,
+        judge: localRouteDecision,
+      },
+    };
+  }
+
   const initialOwnershipFiles = uniq([
-    ...inspection.candidates.slice(0, 3).map(item => item.file),
+    ...inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
     ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
   ]);
   let ownership = traceCandidateOwners(
@@ -2140,7 +2577,7 @@ async function runAgentSearch(project, body, options = {}) {
           searches: [...inspectionPlan.searches, ...definitionPlan.searches],
         }, textCache);
         const definitionOwnershipFiles = uniq([
-          ...inspection.candidates.slice(0, 4).map(item => item.file),
+          ...inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
           ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
         ]);
         ownership = traceCandidateOwners(project, definitionOwnershipFiles, textCache);
@@ -2185,7 +2622,20 @@ async function runAgentSearch(project, body, options = {}) {
     };
   }
 
-  let judgePrompt = buildJudgePrompt(body, inspection, ownership, false);
+  routeRelations = traceRouteCandidateRelations(
+    project,
+    routeResult.trace,
+    inspection.candidates,
+    textCache
+  );
+  let judgePrompt = buildJudgePrompt(
+    body,
+    inspection,
+    ownership,
+    routeResult.trace,
+    routeRelations,
+    false
+  );
   onLog(`DOM Agent Judge 输入（${judgePrompt.length} 字符）:\n${judgePrompt}`);
   let judgeResult = await invokeModel(body.adapter, judgePrompt, project.path, {
     signal,
@@ -2201,6 +2651,11 @@ async function runAgentSearch(project, body, options = {}) {
       ...ownership.map(item => item.file),
     ])
   );
+  let routeValidation = validateJudgeRouteDecision(judge, inspection, routeRelations);
+  judge = routeValidation.judge;
+  if (routeValidation.rejected) {
+    onLog(`DOM Agent Judge 路由关系校验：拒绝唯一结论；${routeValidation.reason}`);
+  }
   const followUpFilter = filterFollowUpSearchesByEvidence(judge.followUpSearches, body, inspection, ownership);
   if (followUpFilter.removed.length) {
     onLog(`DOM Agent Judge 后续检索词过滤：丢弃未在 DOM/候选源码中出现的词 ${followUpFilter.removed.join('、')}`);
@@ -2231,10 +2686,23 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
     ownership = traceCandidateOwners(
       project,
-      inspection.candidates.slice(0, 4).map(item => item.file),
+      inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
       textCache
     );
-    judgePrompt = buildJudgePrompt(body, inspection, ownership, true);
+    routeRelations = traceRouteCandidateRelations(
+      project,
+      routeResult.trace,
+      inspection.candidates,
+      textCache
+    );
+    judgePrompt = buildJudgePrompt(
+      body,
+      inspection,
+      ownership,
+      routeResult.trace,
+      routeRelations,
+      true
+    );
     onLog(`DOM Agent Judge 第 2 轮输入（${judgePrompt.length} 字符）:\n${judgePrompt}`);
     judgeResult = await invokeModel(body.adapter, judgePrompt, project.path, {
       signal,
@@ -2250,6 +2718,11 @@ async function runAgentSearch(project, body, options = {}) {
         ...ownership.map(item => item.file),
       ])
     );
+    routeValidation = validateJudgeRouteDecision(judge, inspection, routeRelations);
+    judge = routeValidation.judge;
+    if (routeValidation.rejected) {
+      onLog(`DOM Agent Judge 第 2 轮路由关系校验：拒绝唯一结论；${routeValidation.reason}`);
+    }
   }
 
   const hits = agentHits(inspection, judge, ownership);
@@ -2274,6 +2747,7 @@ async function runAgentSearch(project, body, options = {}) {
       inspection: compactInspectionForModel(inspection),
       definitionResolution,
       evidence,
+      routeRelations,
       judge,
     },
   };
@@ -2287,6 +2761,9 @@ module.exports = {
   executeSearchPlan,
   filterFollowUpSearchesByEvidence,
   inspectCandidates,
+  resolveByRouteRelation,
   runAgentSearch,
   traceCandidateOwners,
+  traceRouteCandidateRelations,
+  validateJudgeRouteDecision,
 };

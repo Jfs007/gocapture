@@ -10,7 +10,10 @@ const {
   executeSearchPlan,
   filterFollowUpSearchesByEvidence,
   inspectCandidates,
+  resolveByRouteRelation,
   runAgentSearch,
+  traceRouteCandidateRelations,
+  validateJudgeRouteDecision,
 } = require('./agent-search');
 const {
   buildLocatorSystemPrompt,
@@ -485,6 +488,54 @@ test('static text hits with incompatible DOM tags are removed before candidate j
   }));
 });
 
+test('static text hits with incompatible static classes are removed', () => {
+  const project = fixtureProject({
+    'src/UploadSection.vue': '<template><div class="section-title">商品替换图</div></template>',
+    'src/ShotSection.vue': '<template><div class="section-label">商品替换图</div></template>',
+    'src/ModalA.vue': '<template><div class="modal-label">商品替换图</div></template>',
+    'src/ModalB.vue': '<template><div class="modal-label">商品替换图</div></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['商品替换图'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM text',
+      domTextStructures: {
+        商品替换图: [{ tag: 'div', classes: ['section-title'] }],
+      },
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  assert.equal(candidates.length, 4);
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  assert.deepEqual(inspection.candidates.map(candidate => candidate.file), [
+    'src/UploadSection.vue',
+  ]);
+});
+
+test('dynamic source classes are not rejected by static class consistency checks', () => {
+  const project = fixtureProject({
+    'src/DynamicTitle.vue': '<template><div :class="titleClass">商品替换图</div></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['商品替换图'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM text',
+      domTextStructures: {
+        商品替换图: [{ tag: 'div', classes: ['section-title'] }],
+      },
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  assert.ok(inspection.candidates.some(candidate => candidate.file === 'src/DynamicTitle.vue'));
+});
+
 test('custom component tags are not rejected by native HTML tag consistency checks', () => {
   const project = fixtureProject({
     'src/MenuNode.vue': '<template><NavName>考核列表</NavName></template>',
@@ -504,6 +555,117 @@ test('custom component tags are not rejected by native HTML tag consistency chec
   const candidates = executeSearchPlan(project, plan, new Map());
   const inspection = inspectCandidates(project, candidates, plan, new Map());
   assert.ok(inspection.candidates.some(candidate => candidate.file === 'src/MenuNode.vue'));
+});
+
+test('a unique render candidate covering every DOM anchor removes subset-only candidates', () => {
+  const project = fixtureProject({
+    'src/shot-confirm/index.vue': [
+      '<template>',
+      '  <div class="product-upload-section">',
+      '    <div class="section-title">商品替换图</div>',
+      '  </div>',
+      '</template>',
+    ].join('\n'),
+    'src/prompt-edit-modal.vue': [
+      '<template><div class="modal-label">商品替换图</div></template>',
+    ].join('\n'),
+    'src/shot-confirm/useHook.ts': [
+      "export function validate() { return { message: '已标记商品分镜，请上传商品替换图' } }",
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['product-upload-section'],
+      keywordTypes: { 'product-upload-section': 'class-token' },
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM class',
+    }, {
+      keywords: ['商品替换图'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 2,
+      reason: 'DOM text',
+      domTextStructures: {
+        商品替换图: [{ tag: 'div', classes: ['section-title'] }],
+      },
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  assert.equal(candidates.length, 3);
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  assert.deepEqual(inspection.candidates.map(candidate => candidate.file), [
+    'src/shot-confirm/index.vue',
+  ]);
+});
+
+test('full DOM anchor coverage returns a final hit without requesting another expansion round', async () => {
+  const project = fixtureProject({
+    'src/shot-confirm/index.vue': [
+      '<template>',
+      '  <div class="product-upload-section">',
+      '    <div class="section-title">商品替换图</div>',
+      '  </div>',
+      '</template>',
+    ].join('\n'),
+    'src/prompt-edit-modal.vue': '<template><div class="modal-label">商品替换图</div></template>',
+    'src/shot-confirm/useHook.ts': "export const message = '已标记商品分镜，请上传商品替换图'",
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['product-upload-section'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'DOM class',
+      }, {
+        keywords: ['商品替换图'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 2,
+        reason: 'DOM text',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/shot-confirm/index.vue',
+        role: 'render',
+        confidence: 99,
+        reason: '唯一同时匹配容器 class 和标题节点',
+      }],
+      followUpSearches: [],
+    }),
+  ];
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    selections: [{
+      element: {
+        rawOuterHtml: '<div class="product-upload-section"><div class="section-title">商品替换图</div></div>',
+        text: '商品替换图',
+      },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.needMoreDom, undefined);
+  assert.deepEqual(result.hits.map(hit => hit.file), ['src/shot-confirm/index.vue']);
+  const kindLog = logs.find(log => log.startsWith('DOM Agent 检索词定性：')) || '';
+  assert.match(kindLog, /"keyword": "product-upload-section"/);
+  assert.match(kindLog, /"kind": "class"/);
+  assert.match(kindLog, /"keyword": "商品替换图"/);
+  assert.match(kindLog, /"kind": "text"/);
 });
 
 test('JSON text collections are definition references instead of render candidates', () => {
@@ -1588,4 +1750,178 @@ test('judge follow-up searches cannot use words absent from DOM and candidate fa
   }], body, inspection, []);
   assert.deepEqual(result.searches[0].keywords, ['campaignName', 'columns']);
   assert.deepEqual(result.removed, ['所属店铺']);
+});
+
+test('exact route import relation resolves a duplicated DOM candidate locally', () => {
+  const project = fixtureProject({
+    'src/pages/home/index.js': "import Home from './home.vue'; export default Home;",
+    'src/pages/home/home.vue': [
+      '<template><main><HelpCenter /></main></template>',
+      "<script>import HelpCenter from './help-center'; export default { components: { HelpCenter } };</script>",
+    ].join('\n'),
+    'src/pages/home/help-center/index.vue': '<template><span class="hc-card__title__txt">{{ item.title }}</span></template>',
+    'src/admin/help-center/index.vue': '<template><span class="hc-card__title__txt">{{ item.title }}</span></template>',
+  });
+  const candidates = [
+    {
+      file: 'src/pages/home/help-center/index.vue',
+      referenceOnly: false,
+      keywordFacts: [{ keyword: 'hc-card__title__txt', codeCount: 1, structureMismatch: null }],
+      structureMismatches: [],
+    },
+    {
+      file: 'src/admin/help-center/index.vue',
+      referenceOnly: false,
+      keywordFacts: [{ keyword: 'hc-card__title__txt', codeCount: 1, structureMismatch: null }],
+      structureMismatches: [],
+    },
+  ];
+  const routeTrace = {
+    matched: true,
+    bestPageFile: 'src/pages/home/index.js',
+    hits: [{
+      file: 'src/pages/home/index.js',
+      routePath: '/PersonalProfile',
+      reasons: ['路径精确匹配', '叶子路由', '存在页面组件文件'],
+    }],
+  };
+  const relations = traceRouteCandidateRelations(project, routeTrace, candidates, new Map());
+  assert.deepEqual(relations, [{
+    candidateFile: 'src/pages/home/help-center/index.vue',
+    routeFile: 'src/pages/home/index.js',
+    depth: 2,
+    chain: [
+      'src/pages/home/index.js',
+      'src/pages/home/home.vue',
+      'src/pages/home/help-center/index.vue',
+    ],
+  }]);
+  const decision = resolveByRouteRelation({
+    pagePath: '/PersonalProfile',
+  }, {
+    candidates,
+  }, routeTrace, relations);
+  assert.equal(decision?.status, 'unique');
+  assert.equal(decision?.files[0]?.file, 'src/pages/home/help-center/index.vue');
+});
+
+test('route validation rejects a judge unique result outside an equally matching route closure', () => {
+  const inspection = {
+    candidates: [
+      {
+        file: 'src/pages/home/help-center/index.vue',
+        referenceOnly: false,
+        keywordFacts: [{ keyword: 'hc-card__title__txt', codeCount: 1, structureMismatch: null }],
+        structureMismatches: [],
+      },
+      {
+        file: 'src/admin/help-center/index.vue',
+        referenceOnly: false,
+        keywordFacts: [{ keyword: 'hc-card__title__txt', codeCount: 1, structureMismatch: null }],
+        structureMismatches: [],
+      },
+    ],
+  };
+  const result = validateJudgeRouteDecision({
+    status: 'unique',
+    files: [{
+      file: 'src/admin/help-center/index.vue',
+      role: 'render',
+      confidence: 95,
+      reason: 'DOM 相似',
+    }],
+    followUpSearches: [],
+  }, inspection, [{
+    candidateFile: 'src/pages/home/help-center/index.vue',
+    routeFile: 'src/pages/home/index.js',
+    depth: 2,
+    chain: [
+      'src/pages/home/index.js',
+      'src/pages/home/home.vue',
+      'src/pages/home/help-center/index.vue',
+    ],
+  }]);
+  assert.equal(result.rejected, true);
+  assert.equal(result.judge.status, 'ambiguous');
+  assert.deepEqual(result.judge.files.map(item => item.file), [
+    'src/admin/help-center/index.vue',
+    'src/pages/home/help-center/index.vue',
+  ]);
+});
+
+test('candidate quota preserves structural class hits when descendant text is high frequency', () => {
+  const files = {
+    'src/Main.vue': '<template><span class="nav-name">{{ item.title }}</span></template>',
+    'src/MenuNode.vue': '<template><div class="org-menu-node"><slot /></div></template>',
+  };
+  for (let index = 0; index < 16; index += 1) {
+    files[`src/pages/Page${index}.vue`] = `<template><div>主页 ${index}</div></template>`;
+  }
+  const project = fixtureProject(files);
+  const hits = executeSearchPlan(project, {
+    searches: [{
+      keywords: ['org-menu-node', 'nav-name'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: '结构类',
+      keywordTypes: {
+        'org-menu-node': 'class-token',
+        'nav-name': 'class-token',
+      },
+      evidenceKinds: {
+        'org-menu-node': 'class',
+        'nav-name': 'class',
+      },
+    }, {
+      keywords: ['主页'],
+      mode: 'any',
+      range: 'same-file',
+      priority: 2,
+      reason: '后代文案',
+      evidenceKinds: { '主页': 'text' },
+    }],
+  }, new Map());
+  assert.ok(hits.some(hit => hit.file === 'src/Main.vue'));
+  assert.ok(hits.some(hit => hit.file === 'src/MenuNode.vue'));
+});
+
+test('text evidence does not match a longer source phrase', () => {
+  const project = fixtureProject({
+    'src/Exact.ts': "export const title = '主页'",
+    'src/Longer.ts': "export const title = '主页地址'",
+    'src/Prefixed.ts': "export const title = '项目主页'",
+  });
+  const hits = executeSearchPlan(project, {
+    searches: [{
+      keywords: ['主页'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM 直接文案',
+      evidenceKinds: { '主页': 'text' },
+    }],
+  }, new Map());
+  assert.deepEqual(hits.map(hit => hit.file), ['src/Exact.ts']);
+});
+
+test('route relations stop before infrastructure cycles reach unrelated pages', () => {
+  const project = fixtureProject({
+    'src/router/home.js': "import Main from '../view/Main.vue'",
+    'src/view/Main.vue': "<script>import store from '../store/index.js'</script>",
+    'src/store/index.js': "import routes from '../router/all.js'",
+    'src/router/all.js': "import Other from '../pages/Other.vue'",
+    'src/pages/Other.vue': '<template><div class="nav-name">Other</div></template>',
+  });
+  const candidates = [{
+    file: 'src/pages/Other.vue',
+    referenceOnly: false,
+  }];
+  const relations = traceRouteCandidateRelations(project, {
+    matched: true,
+    bestPageFile: 'src/pages/Home.vue',
+    bestRoute: { sourceFile: 'src/router/home.js' },
+    hits: [],
+  }, candidates, new Map());
+  assert.deepEqual(relations, []);
 });

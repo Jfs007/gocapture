@@ -31,6 +31,13 @@ async function run() {
       '</script>',
     ].join('\n'));
     write(root, 'src/main.ts', "import App from './App.vue'\n");
+    write(root, 'src/imports.ts', [
+      "import helper from './helper'",
+      "import icon from './icon.png'",
+      'export { helper, icon }',
+    ].join('\n'));
+    write(root, 'src/helper.ts', 'export default function helper() { return true }\n');
+    write(root, 'src/icon.png', 'not-real-image');
     write(root, 'src/api/user.ts', [
       "import http from '@/utils/http/axios'",
       "export function getUser() { return http.request({ url: '/api/user', method: 'GET' }) }",
@@ -96,6 +103,17 @@ async function run() {
     });
     assert.equal(tableDiscovery.results['table-frequency'].stats.termStats.find(item => item.term === 'useTable').files >= 2, true);
     assert.equal(tableDiscovery.results['table-frequency'].stats.termStats.find(item => item.term === 'MdTable').files >= 2, true);
+
+    const importDiscovery = executeDiscoveryPlan(project, {
+      domain: 'import-pattern',
+      requests: [{
+        id: 'imports',
+        operation: 'find_imports',
+        target: 'src/imports.ts',
+        maxResults: 10,
+      }],
+    });
+    assert.deepEqual(importDiscovery.results.imports.matches.map(item => item.path), ['src/helper.ts']);
 
     const logs = [];
     const result = await enhanceLocatedPrompt({

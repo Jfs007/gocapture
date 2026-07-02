@@ -205,9 +205,11 @@ function resolveSpecifier(fromFile, specifier, fileSet) {
 }
 
 function executeFindImports(project, request, textCache) {
-  const fileSet = new Set((project.files || []).map(file => file.path));
+  const fileSet = new Set((project.files || [])
+    .filter(file => isTextFile(file.path))
+    .map(file => file.path));
   const target = normalizePath(request.target || requestFiles(request)[0]);
-  const source = (project.files || []).find(file => file.path === target);
+  const source = (project.files || []).find(file => file.path === target && isTextFile(file.path));
   if (!source) return [];
   const text = readProjectText(project, source, textCache);
   return importSpecifiers(text)
