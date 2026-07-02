@@ -17,8 +17,6 @@ const DEFAULT_DOM_AGENT_THRESHOLD = 8000;
 const MAX_DOM_INPUT_CHARS = 180000;
 const MAX_PLAN_SEARCHES = 8;
 const MAX_PLAN_KEYWORDS = 8;
-const MAX_CANDIDATES = 12;
-const MAX_INSPECT_FILES = MAX_CANDIDATES;
 const MAX_EXCERPT_CHARS = 7000;
 const MAX_COMPRESSED_DOM_CHARS = 30000;
 const MAX_INHERITED_KEYWORDS = 4;
@@ -913,28 +911,6 @@ function candidateSort(a, b) {
   return a.file.localeCompare(b.file);
 }
 
-function selectCandidatesWithPlanCoverage(candidates, plan, limit = MAX_CANDIDATES) {
-  const ranked = [...candidates].sort(candidateSort);
-  const selected = [];
-  const selectedFiles = new Set();
-  const add = candidate => {
-    if (!candidate || selectedFiles.has(candidate.file) || selected.length >= limit) return;
-    selected.push(candidate);
-    selectedFiles.add(candidate.file);
-  };
-  const plannedKeywords = uniq((plan.searches || [])
-    .sort((a, b) => a.priority - b.priority)
-    .flatMap(search => search.keywords || []));
-  for (const keyword of plannedKeywords) {
-    ranked
-      .filter(candidate => (candidate.matchedKeywords || []).includes(keyword))
-      .slice(0, 3)
-      .forEach(add);
-  }
-  ranked.forEach(add);
-  return selected;
-}
-
 function executeSearchPlan(project, plan, textCache) {
   const candidateMap = new Map();
   for (const file of sourceFiles(project)) {
@@ -980,7 +956,7 @@ function executeSearchPlan(project, plan, textCache) {
       matchedKeywords: uniq(candidate.matchedKeywords),
       positions: uniq(candidate.positions).sort((a, b) => a - b),
     }));
-  return selectCandidatesWithPlanCoverage(ranked, plan);
+  return ranked.sort(candidateSort);
 }
 
 function previousCandidateKeywords(previousCandidate, fallbackKeywords = []) {
@@ -1015,8 +991,7 @@ function importChainFromParent(project, parentFile, targetFiles, textCache, maxD
 function expansionRelatedCandidateHits(project, currentCandidates, agentState, textCache) {
   if (!agentState?.expansionRetry) return { candidates: [], relations: [] };
   const previousCandidates = (Array.isArray(agentState.previousCandidates) ? agentState.previousCandidates : [])
-    .filter(item => item?.file)
-    .slice(0, MAX_CANDIDATES);
+    .filter(item => item?.file);
   if (!previousCandidates.length || !currentCandidates.length) return { candidates: [], relations: [] };
 
   const inherited = inheritedSearchKeywords(agentState);
@@ -1026,7 +1001,7 @@ function expansionRelatedCandidateHits(project, currentCandidates, agentState, t
   const candidateMap = new Map();
   const relations = [];
 
-  for (const parent of currentCandidates.slice(0, MAX_INSPECT_FILES)) {
+  for (const parent of currentCandidates) {
     const chains = importChainFromParent(project, parent.file, previousFiles, textCache);
     for (const [childFile, chain] of chains.entries()) {
       if (currentFiles.has(childFile)) continue;
@@ -1216,6 +1191,50 @@ function candidateEffectiveKeywordSet(candidate) {
   return new Set((candidate?.keywordFacts || [])
     .filter(item => item.codeCount > 0 && !item.structureMismatch)
     .map(item => item.keyword));
+}
+
+function originalDomClassTokens(body) {
+  const tokens = new Set();
+  for (const selection of selectionList(body)) {
+    const info = selection?.element || selection?.info || selection || {};
+    const values = [String(info.className || '')];
+    const markup = selectionMarkup(selection);
+    const regex = /\bclass\s*=\s*["']([^"']+)["']/gi;
+    let match;
+    while ((match = regex.exec(markup))) values.push(match[1]);
+    for (const value of values) {
+      for (const token of value.split(/\s+/)) {
+        if (token.trim()) tokens.add(token.trim());
+      }
+    }
+  }
+  return tokens;
+}
+
+function sourceDomClassCoverage(text, filePath, domClasses) {
+  const matchedClasses = Array.from(domClasses || []).filter(className => {
+    return classTokenIndexes(text, className, filePath).length > 0;
+  });
+  return {
+    matchedClasses,
+    matchedClassCount: matchedClasses.length,
+    totalDomClassCount: domClasses?.size || 0,
+  };
+}
+
+function pruneStrictDomCoverageSubsets(inspected) {
+  const renderCandidates = inspected.filter(candidate => !candidate.referenceOnly);
+  return inspected.filter(candidate => {
+    if (candidate.referenceOnly) return true;
+    const own = new Set(candidate.domCoverage?.matchedClasses || []);
+    if (!own.size) return true;
+    return !renderCandidates.some(other => {
+      if (other === candidate) return false;
+      const otherClasses = new Set(other.domCoverage?.matchedClasses || []);
+      if (otherClasses.size < 2 || otherClasses.size <= own.size) return false;
+      return Array.from(own).every(className => otherClasses.has(className));
+    });
+  });
 }
 
 function pruneTextOnlyRenderCandidates(inspected, plan) {
@@ -1484,8 +1503,9 @@ function enrichDefinitionCandidates(project, inspected, plan, textCache) {
   return Array.from(byFile.values());
 }
 
-function inspectCandidates(project, candidates, plan, textCache) {
-  let inspected = candidates.slice(0, MAX_INSPECT_FILES).map(candidate => {
+function inspectCandidates(project, candidates, plan, textCache, body = null) {
+  const domClasses = originalDomClassTokens(body);
+  let inspected = candidates.map(candidate => {
     const file = (project.files || []).find(item => item.path === candidate.file);
     const text = file ? readProjectText(project, file, textCache) : '';
     const masked = commentMask(text);
@@ -1546,10 +1566,12 @@ function inspectCandidates(project, candidates, plan, textCache) {
       roleReasons: roleInfo.reasons,
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],
+      domCoverage: sourceDomClassCoverage(masked, candidate.file, domClasses),
       excerpt: candidateExcerpt(text, candidate),
     };
   }).filter(candidate => candidate.matchedGroups.length);
   inspected = pruneTextOnlyRenderCandidates(inspected, plan);
+  inspected = pruneStrictDomCoverageSubsets(inspected);
   inspected = pruneDominatedDomCandidates(inspected, plan);
   inspected = enrichDefinitionCandidates(project, inspected, plan, textCache)
     .sort((a, b) => b.score - a.score);
@@ -1566,6 +1588,7 @@ function inspectCandidates(project, candidates, plan, textCache) {
   return {
     status: unique ? 'unique' : inspected.length ? 'ambiguous' : 'empty',
     selectedFile: unique ? first.file : '',
+    inspectedCount: candidates.length,
     candidates: inspected,
   };
 }
@@ -1712,6 +1735,11 @@ function definitionResolverCorpus(inspection, ownership) {
   ].filter(Boolean).join('\n').toLowerCase();
 }
 
+function keywordExistsInCorpus(keyword, corpus) {
+  const value = String(keyword || '').trim().toLowerCase();
+  return !!value && String(corpus || '').includes(value);
+}
+
 function normalizeDefinitionResolver(parsed, inspection, ownership) {
   const unresolvedFiles = new Set(unresolvedDefinitionCandidates(inspection).map(item => item.file));
   const renderFiles = new Set([
@@ -1733,7 +1761,7 @@ function normalizeDefinitionResolver(parsed, inspection, ownership) {
     .map(search => ({
       ...search,
       keywords: (search.keywords || []).filter(keyword => {
-        const exists = keywordExistsInFollowUpCorpus(keyword, corpus);
+        const exists = keywordExistsInCorpus(keyword, corpus);
         if (!exists) removed.push(keyword);
         return exists;
       }),
@@ -1797,7 +1825,7 @@ function hasPlannedGroupMatch(candidate) {
   });
 }
 
-function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
+function analyzeEvidenceSufficiency(plan, inspection, ownership = [], options = {}) {
   const candidates = inspection?.candidates || [];
   const plannedGroupCandidates = candidates.filter(hasPlannedGroupMatch);
   const importRelationCandidates = candidates.filter(candidate => candidate.importRelation);
@@ -1832,15 +1860,6 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
       ownershipCount,
     };
   }
-  if (plannedGroupCandidates.length === 1) {
-    return {
-      insufficient: false,
-      reason: '存在唯一完整检索组命中，忽略单点 fallback 噪音',
-      candidateCount: candidates.length,
-      plannedGroupCandidateCount: plannedGroupCandidates.length,
-      ownershipCount,
-    };
-  }
   if (importRelationCandidates.length) {
     return {
       insufficient: false,
@@ -1851,20 +1870,10 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
       ownershipCount,
     };
   }
-  if (primaryCandidates.length === 1 && candidates.length > 1) {
+  if (plannedGroupCandidates.length === 1) {
     return {
       insufficient: false,
-      reason: '除样式/定义参考候选外，只剩一个可渲染源码候选，进入 Judge 裁决',
-      candidateCount: candidates.length,
-      primaryCandidateCount: primaryCandidates.length,
-      plannedGroupCandidateCount: plannedGroupCandidates.length,
-      ownershipCount,
-    };
-  }
-  if (primaryCandidates.length > 1 && primaryCandidates.length < candidates.length) {
-    return {
-      insufficient: false,
-      reason: '样式/定义参考候选不参与扩区计数，多个可渲染源码候选进入 Judge 裁决',
+      reason: 'DOM 验证后只有一个渲染候选完整命中同组锚点，其余局部命中仅作为参考',
       candidateCount: candidates.length,
       primaryCandidateCount: primaryCandidates.length,
       referenceCandidateCount: candidates.length - primaryCandidates.length,
@@ -1872,11 +1881,35 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
       ownershipCount,
     };
   }
-  if (candidates.length > 1) {
+  if (primaryCandidates.length === 1 && candidates.length > 1) {
+    return {
+      insufficient: false,
+      reason: 'DOM 验证后只剩一个可渲染源码候选，参考文件不参与主候选计数',
+      candidateCount: candidates.length,
+      primaryCandidateCount: primaryCandidates.length,
+      referenceCandidateCount: candidates.length - primaryCandidates.length,
+      plannedGroupCandidateCount: plannedGroupCandidates.length,
+      ownershipCount,
+    };
+  }
+  if (primaryCandidates.length > 1 && options.expansionRetry) {
+    return {
+      insufficient: false,
+      reason: '自动扩区后仍有多个通过 DOM 验证的渲染候选，进入 Judge 裁决',
+      candidateCount: candidates.length,
+      primaryCandidateCount: primaryCandidates.length,
+      referenceCandidateCount: candidates.length - primaryCandidates.length,
+      plannedGroupCandidateCount: plannedGroupCandidates.length,
+      ownershipCount,
+    };
+  }
+  if (primaryCandidates.length > 1) {
     return {
       insufficient: true,
-      reason: `本地检索命中 ${candidates.length} 个候选文件，需要扩区收敛`,
+      reason: `DOM 验证后仍有 ${primaryCandidates.length} 个候选文件可生成该区域，需要扩区收敛`,
       candidateCount: candidates.length,
+      primaryCandidateCount: primaryCandidates.length,
+      referenceCandidateCount: candidates.length - primaryCandidates.length,
       plannedGroupCandidateCount: plannedGroupCandidates.length,
       ownershipCount,
     };
@@ -1893,6 +1926,8 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = []) {
 function compactInspectionForModel(inspection) {
   return {
     status: inspection.status,
+    inspectedCount: Number(inspection.inspectedCount || 0),
+    retainedCount: (inspection.candidates || []).length,
     candidates: inspection.candidates.map(candidate => ({
       file: candidate.file,
       score: candidate.score,
@@ -1905,6 +1940,7 @@ function compactInspectionForModel(inspection) {
       roleReasons: candidate.roleReasons || [],
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],
+      domCoverage: candidate.domCoverage || null,
       excerpt: candidate.excerpt,
     })),
   };
@@ -2031,7 +2067,7 @@ function traceRouteCandidateRelations(project, routeTrace, candidates, textCache
     .sort((a, b) => a.depth - b.depth || a.candidateFile.localeCompare(b.candidateFile));
 }
 
-function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelations, finalRound = false) {
+function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelations) {
   return [
     '你是源码候选裁决器。候选已经由本地检索并读取局部结构。',
     '比较 DOM 事实与候选源码事实，选择最可能直接生成或控制该选区的文件。',
@@ -2041,14 +2077,10 @@ function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelation
     '页面路由不是最终结论，但候选若能从当前精确路由入口通过真实 import 链到达，这是区分重复组件的重要证据。',
     '多个候选 DOM 结构相似时，必须比较候选路由关系；不得仅凭目录名称猜测哪个文件属于当前页面。',
     '你的目标仍然是定位当前 DOM 对应的源码方向，不是提前设计修改方案；用户需求只能帮助理解焦点，不能驱动你搜索接口名、数据源变量、样式写法等实现细节。',
-    '如果候选中存在唯一 source=planned-group 且包含 2 个以上关键词的命中，通常代表 DOM 多锚点已在同一局部结构命中；除非它明显只是注释或无关定义，否则优先返回该候选，不要继续 follow-up。',
-    'followUpSearches 只能用于寻找更直接生成当前 DOM 的文件，不能用于追踪用户需求里的新接口、新变量、目标样式或修改方案。',
-    finalRound
-      ? '这是最终裁决轮，不再申请后续搜索；证据不足则返回 ambiguous。'
-      : '如果当前只找到 definition/assembly，尚未找到 render，可从 DOM 摘要或已展示候选源码/引用片段里真实出现过的标识符生成一组精确 followUpSearches；不得从用户需求里提取未出现的词，不得凭空猜测标识符。',
-    'followUpSearches.keywords 中每个词都必须能在 DOM 摘要、候选事实 excerpt、候选引用者 excerpt 中逐字找到；不存在的词禁止输出。',
+    '如果候选中存在唯一 source=planned-group 且包含 2 个以上关键词的命中，通常代表 DOM 多锚点已在同一局部结构命中；除非它明显只是注释或无关定义，否则优先返回该候选。',
+    '你只能裁决输入中的候选文件，不得生成新检索词；证据不足时返回 ambiguous。',
     '严格返回 JSON：',
-    '{"status":"unique|ambiguous|needs-follow-up","files":[{"file":"","role":"render|definition|assembly","confidence":0,"reason":""}],"followUpSearches":[{"keywords":[""],"mode":"all|any","range":"same-file|same-structure","priority":1,"reason":""}]}',
+    '{"status":"unique|ambiguous","files":[{"file":"","role":"render|definition|assembly","confidence":0,"reason":""}]}',
     `用户需求: ${body.userPrompt || ''}`,
     `选区摘要: ${JSON.stringify(plannerDomInput(body).map(item => ({
       index: item.index,
@@ -2149,8 +2181,12 @@ function resolveByRouteRelation(body, inspection, routeTrace, routeRelations) {
     .map(file => candidateByFile.get(file))
     .filter(candidate => {
       if (!candidate || candidate.referenceOnly) return false;
-      return candidateKeywordSet(candidate).size > 0
-        && !(candidate.structureMismatches || []).length;
+      const evidenceCount = candidateKeywordSet(candidate).size;
+      const classCoverage = candidate.domCoverage?.matchedClassCount;
+      const hasEnoughStructure = classCoverage == null
+        ? evidenceCount > 0
+        : classCoverage >= 2 || evidenceCount >= 2;
+      return hasEnoughStructure && !(candidate.structureMismatches || []).length;
     });
   if (relatedCandidates.length !== 1) return null;
   const candidate = relatedCandidates[0];
@@ -2163,55 +2199,7 @@ function resolveByRouteRelation(body, inspection, routeTrace, routeRelations) {
       confidence: 100,
       reason: `候选同时命中 DOM 结构，并由当前精确路由入口通过真实 import 链到达：${relation.chain.join(' -> ')}`,
     }],
-    followUpSearches: [],
     source: 'local-route-relation',
-  };
-}
-
-function followUpCorpus(body, inspection, ownership) {
-  return [
-    ...plannerDomInput(body).flatMap(item => [
-      item.tag,
-      item.selector,
-      item.className,
-      item.text,
-      item.markup,
-    ]),
-    ...selectionList(body).flatMap(selectionContextMarkupValues),
-    ...((inspection?.candidates || []).flatMap(candidate => [
-      candidate.file,
-      candidate.excerpt,
-      ...(candidate.keywordFacts || []).map(item => item.keyword),
-      ...((candidate.matchedGroups || []).flatMap(group => group.keywords || [])),
-    ])),
-    ...((ownership || []).flatMap(item => [
-      item.file,
-      item.excerpt,
-      ...(item.chain || []),
-    ])),
-  ].filter(Boolean).join('\n').toLowerCase();
-}
-
-function keywordExistsInFollowUpCorpus(keyword, corpus) {
-  const value = String(keyword || '').trim();
-  if (!value) return false;
-  return corpus.includes(value.toLowerCase());
-}
-
-function filterFollowUpSearchesByEvidence(searches, body, inspection, ownership) {
-  const corpus = followUpCorpus(body, inspection, ownership);
-  const removed = [];
-  const filtered = (searches || []).map(search => {
-    const keywords = (search.keywords || []).filter(keyword => {
-      const ok = keywordExistsInFollowUpCorpus(keyword, corpus);
-      if (!ok) removed.push(keyword);
-      return ok;
-    });
-    return { ...search, keywords };
-  }).filter(search => search.keywords.length);
-  return {
-    searches: filtered,
-    removed: uniq(removed),
   };
 }
 
@@ -2229,13 +2217,8 @@ function normalizeJudge(parsed, project, allowedFiles = []) {
   return {
     status: parsed?.status === 'unique' && files.length
       ? 'unique'
-      : parsed?.status === 'needs-follow-up'
-        ? 'needs-follow-up'
-        : 'ambiguous',
+      : 'ambiguous',
     files,
-    followUpSearches: normalizePlan({
-      searches: parsed?.followUpSearches,
-    }).searches,
   };
 }
 
@@ -2431,16 +2414,7 @@ async function runAgentSearch(project, body, options = {}) {
       candidateMap.set(candidate.file, candidate);
     }
   }
-  const candidateSelectionPlan = {
-    searches: [
-      ...combinedPlan.plan.searches,
-      ...plan.searches,
-    ],
-  };
-  const candidates = selectCandidatesWithPlanCoverage(
-    Array.from(candidateMap.values()),
-    candidateSelectionPlan
-  );
+  const candidates = Array.from(candidateMap.values()).sort(candidateSort);
   onLog(`本地输出：${JSON.stringify({
     candidateCount: candidates.length,
     files: candidates.map(candidate => ({
@@ -2457,7 +2431,7 @@ async function runAgentSearch(project, body, options = {}) {
       ...plan.searches,
     ],
   };
-  let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache);
+  let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache, body);
   onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
 
   let routeRelations = traceRouteCandidateRelations(
@@ -2575,7 +2549,7 @@ async function runAgentSearch(project, body, options = {}) {
         ).values());
         inspection = inspectCandidates(project, mergedDefinitionCandidates, {
           searches: [...inspectionPlan.searches, ...definitionPlan.searches],
-        }, textCache);
+        }, textCache, body);
         const definitionOwnershipFiles = uniq([
           ...inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
           ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
@@ -2597,7 +2571,9 @@ async function runAgentSearch(project, body, options = {}) {
     }
   }
 
-  const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership);
+  const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership, {
+    expansionRetry: body?.agentState?.expansionRetry === true,
+  });
   onLog(`本地调用：analyzeEvidenceSufficiency(plan, inspection, ownership)`);
   onLog(`本地输出：${JSON.stringify(evidence, null, 2)}`);
   if (evidence.insufficient) {
@@ -2656,75 +2632,6 @@ async function runAgentSearch(project, body, options = {}) {
   if (routeValidation.rejected) {
     onLog(`DOM Agent Judge 路由关系校验：拒绝唯一结论；${routeValidation.reason}`);
   }
-  const followUpFilter = filterFollowUpSearchesByEvidence(judge.followUpSearches, body, inspection, ownership);
-  if (followUpFilter.removed.length) {
-    onLog(`DOM Agent Judge 后续检索词过滤：丢弃未在 DOM/候选源码中出现的词 ${followUpFilter.removed.join('、')}`);
-  }
-  judge.followUpSearches = followUpFilter.searches;
-  if (judge.status === 'needs-follow-up' && !judge.followUpSearches.length) {
-    judge.status = 'ambiguous';
-  }
-
-  if (judge.status === 'needs-follow-up' && judge.followUpSearches.length) {
-    const followUpPlan = {
-      searches: judge.followUpSearches,
-      needMoreDom: false,
-    };
-    onLog(`本地调用：executeSearchPlan(project, ${JSON.stringify(followUpPlan)})`);
-    const followUpCandidates = executeSearchPlan(project, followUpPlan, textCache);
-    onLog(`本地输出：${JSON.stringify({
-      candidateCount: followUpCandidates.length,
-      files: followUpCandidates.map(item => item.file),
-    }, null, 2)}`);
-    const mergedCandidates = Array.from(new Map(
-      [...candidates, ...followUpCandidates].map(item => [item.file, item])
-    ).values());
-    inspection = inspectCandidates(project, mergedCandidates, {
-      searches: [...plan.searches, ...followUpPlan.searches],
-    }, textCache);
-    onLog(`本地调用：inspectCandidates(project, ${JSON.stringify(mergedCandidates.map(item => item.file))})`);
-    onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
-    ownership = traceCandidateOwners(
-      project,
-      inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
-      textCache
-    );
-    routeRelations = traceRouteCandidateRelations(
-      project,
-      routeResult.trace,
-      inspection.candidates,
-      textCache
-    );
-    judgePrompt = buildJudgePrompt(
-      body,
-      inspection,
-      ownership,
-      routeResult.trace,
-      routeRelations,
-      true
-    );
-    onLog(`DOM Agent Judge 第 2 轮输入（${judgePrompt.length} 字符）:\n${judgePrompt}`);
-    judgeResult = await invokeModel(body.adapter, judgePrompt, project.path, {
-      signal,
-      onLog,
-      systemPrompt: '你是 Magnus 源码候选裁决器。只根据给定候选事实返回 JSON。',
-    });
-    onLog(`DOM Agent Judge 第 2 轮输出（${judgeResult.rawText.length} 字符）:\n${judgeResult.rawText || '-'}`);
-    judge = normalizeJudge(
-      parseJsonResult(judgeResult.rawText),
-      project,
-      uniq([
-        ...inspection.candidates.map(item => item.file),
-        ...ownership.map(item => item.file),
-      ])
-    );
-    routeValidation = validateJudgeRouteDecision(judge, inspection, routeRelations);
-    judge = routeValidation.judge;
-    if (routeValidation.rejected) {
-      onLog(`DOM Agent Judge 第 2 轮路由关系校验：拒绝唯一结论；${routeValidation.reason}`);
-    }
-  }
-
   const hits = agentHits(inspection, judge, ownership);
   onLog(`DOM Agent 最终输出：${JSON.stringify({
     status: judge?.status || inspection.status,
@@ -2759,7 +2666,6 @@ module.exports = {
   analyzeEvidenceSufficiency,
   domAgentTrigger,
   executeSearchPlan,
-  filterFollowUpSearchesByEvidence,
   inspectCandidates,
   resolveByRouteRelation,
   runAgentSearch,

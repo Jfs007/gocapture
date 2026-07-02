@@ -8,7 +8,6 @@ const {
   analyzeEvidenceSufficiency,
   domAgentTrigger,
   executeSearchPlan,
-  filterFollowUpSearchesByEvidence,
   inspectCandidates,
   resolveByRouteRelation,
   runAgentSearch,
@@ -48,23 +47,11 @@ function fixtureProject(files) {
 test('locator protocol accepts explicit search plans from the model', () => {
   const decision = normalizeLocatorDecision({
     status: 'ready',
-    understanding: {
-      userTarget: '修改供应来源输入框',
-      selectedDomAnchors: ['data-col-key=source', 'placeholder=请输入供应来源'],
-    },
-    evidenceAssessment: { sufficient: true },
-    nextPlan: [{
-      id: 'p1',
-      capability: 'locate-structure',
-      searches: [{
-        keywords: ['source', '请输入供应来源'],
-        mode: 'all',
-        range: 'same-structure',
-        reason: '验证列 key 和 placeholder 是否在同一渲染结构中出现',
-      }],
-      relation: 'same-rendering-context',
-      scopeHint: 'route-entry-first',
-      purpose: '验证列 key 和 placeholder 是否在同一渲染结构中出现',
+    searches: [{
+      keywords: ['source', '请输入供应来源'],
+      mode: 'all',
+      range: 'same-structure',
+      reason: '验证列 key 和 placeholder 是否在同一渲染结构中出现',
     }],
   });
   const validation = validateLocatorDecision(decision);
@@ -76,13 +63,36 @@ test('locator protocol accepts explicit search plans from the model', () => {
 
   const invalid = validateLocatorDecision(normalizeLocatorDecision({
     status: 'ready',
-    nextPlan: [{
-      capability: 'locate-structure',
-      relation: 'same-scope',
-    }],
+    searches: [],
   }));
   assert.equal(invalid.valid, false);
   assert.match(invalid.errors.join('\n'), /searches\.keywords/);
+});
+
+test('locator protocol accepts the minimal planner response', () => {
+  const decision = normalizeLocatorDecision({
+    status: 'ready',
+    searches: [{
+      keywords: ['product-upload-section', 'section-title'],
+      mode: 'all',
+      range: 'same-structure',
+      reason: 'DOM structure anchors',
+    }],
+    reason: '当前 DOM 已有可检索结构',
+  });
+  const validation = validateLocatorDecision(decision);
+  const plan = locatorDecisionToSearchPlan(decision);
+  assert.equal(validation.valid, true);
+  assert.deepEqual(plan.searches[0].keywords, ['product-upload-section', 'section-title']);
+  assert.equal(plan.needMoreDom, false);
+});
+
+test('locator prompt only requests planning fields used by local execution', () => {
+  const prompt = buildLocatorSystemPrompt();
+  assert.match(prompt, /\"searches\"/);
+  assert.doesNotMatch(prompt, /\"hypotheses\"/);
+  assert.doesNotMatch(prompt, /\"scopeHint\"/);
+  assert.doesNotMatch(prompt, /\"evidenceAssessment\"/);
 });
 
 test('locator prompt distinguishes container descendant text from structural anchors', () => {
@@ -97,12 +107,8 @@ test('locator prompt distinguishes container descendant text from structural anc
 test('locator resolve-route plan asks for more DOM instead of searching runtime evidence', () => {
   const decision = normalizeLocatorDecision({
     status: 'need-more-context',
-    nextPlan: [{
-      capability: 'expand-dom',
-      relation: 'same-rendering-context',
-      scopeHint: 'route-entry-first',
-      purpose: '当前选区只有运行时选中值，需要扩区',
-    }],
+    searches: [],
+    reason: '当前选区只有运行时选中值，需要扩区',
   });
   const validation = validateLocatorDecision(decision);
   assert.equal(validation.valid, true);
@@ -748,7 +754,7 @@ test('style and definition candidates do not force expansion when one render can
   assert.match(evidence.reason, /只剩一个可渲染源码候选/);
 });
 
-test('style and definition candidates do not force expansion before judging render candidates', () => {
+test('multiple render candidates expand first while style and definition files stay references', () => {
   const project = fixtureProject({
     'src/views/dashboard/DashboardPage.ts': [
       "import { defineComponent, h } from 'vue'",
@@ -799,10 +805,16 @@ test('style and definition candidates do not force expansion before judging rend
   assert.ok(files.includes('src/locales/zh-CN.ts'));
   assert.ok(files.includes('src/styles.css'));
   const evidence = analyzeEvidenceSufficiency(plan, inspection, []);
-  assert.equal(evidence.insufficient, false);
+  assert.equal(evidence.insufficient, true);
   assert.equal(evidence.primaryCandidateCount, 2);
   assert.equal(evidence.referenceCandidateCount, 2);
-  assert.match(evidence.reason, /多个可渲染源码候选进入 Judge/);
+  assert.match(evidence.reason, /2 个候选文件/);
+
+  const expandedEvidence = analyzeEvidenceSufficiency(plan, inspection, [], {
+    expansionRetry: true,
+  });
+  assert.equal(expandedEvidence.insufficient, false);
+  assert.match(expandedEvidence.reason, /进入 Judge/);
 });
 
 test('definition candidates record import relation to render candidates', () => {
@@ -1105,20 +1117,13 @@ test('style reference candidates are not accepted as final source when render ca
   const outputs = [
     JSON.stringify({
       status: 'ready',
-      understanding: { userTarget: '定位指标卡片', selectedDomAnchors: ['metric-card'] },
-      evidenceAssessment: { sufficient: true },
-      nextPlan: [{
-        capability: 'locate-structure',
-        searches: [{
-          keywords: ['metric-card'],
-          mode: 'all',
-          range: 'same-file',
-          reason: 'DOM class',
-        }],
-        relation: 'same-rendering-context',
-        scopeHint: 'route-entry-first',
-        purpose: '定位指标卡片',
+      searches: [{
+        keywords: ['metric-card'],
+        mode: 'all',
+        range: 'same-file',
+        reason: 'DOM class',
       }],
+      reason: '定位指标卡片',
     }),
     JSON.stringify({
       status: 'unique',
@@ -1414,23 +1419,13 @@ test('agent search can use expanded ancestor DOM anchors for local search', asyn
   const outputs = [
     JSON.stringify({
       status: 'ready',
-      understanding: {
-        userTarget: '定位所属运营选择器',
-        selectedDomAnchors: ['data-col-key=operator'],
-      },
-      evidenceAssessment: { sufficient: true },
-      nextPlan: [{
-        capability: 'locate-structure',
-        searches: [{
-          keywords: ['operator'],
-          mode: 'all',
-          range: 'same-structure',
-          reason: '用扩区后的表格列 key 定位渲染结构',
-        }],
-        relation: 'same-rendering-context',
-        scopeHint: 'route-entry-first',
-        purpose: '用扩区后的表格列 key 定位渲染结构',
+      searches: [{
+        keywords: ['operator'],
+        mode: 'all',
+        range: 'same-structure',
+        reason: '用扩区后的表格列 key 定位渲染结构',
       }],
+      reason: '定位所属运营选择器',
     }),
     JSON.stringify({
       status: 'unique',
@@ -1488,23 +1483,13 @@ test('expanded DOM agent search relates previous child candidates through parent
   const outputs = [
     JSON.stringify({
       status: 'ready',
-      understanding: {
-        userTarget: '定位扩区后的成本列',
-        selectedDomAnchors: ['cost'],
-      },
-      evidenceAssessment: { sufficient: true },
-      nextPlan: [{
-        capability: 'locate-structure',
-        searches: [{
-          keywords: ['cost'],
-          mode: 'all',
-          range: 'same-file',
-          reason: '扩区后列 key',
-        }],
-        relation: 'same-rendering-context',
-        scopeHint: 'route-entry-first',
-        purpose: '验证扩区列 key',
+      searches: [{
+        keywords: ['cost'],
+        mode: 'all',
+        range: 'same-file',
+        reason: '扩区后列 key',
       }],
+      reason: '定位扩区后的成本列',
     }),
     JSON.stringify({
       status: 'unique',
@@ -1583,23 +1568,13 @@ test('expanded DOM agent search prefers child when it directly matches inherited
   const outputs = [
     JSON.stringify({
       status: 'ready',
-      understanding: {
-        userTarget: '定位成本区域查看按钮',
-        selectedDomAnchors: ['cost'],
-      },
-      evidenceAssessment: { sufficient: true },
-      nextPlan: [{
-        capability: 'locate-structure',
-        searches: [{
-          keywords: ['cost'],
-          mode: 'all',
-          range: 'same-file',
-          reason: '扩区后列 key',
-        }],
-        relation: 'same-rendering-context',
-        scopeHint: 'route-entry-first',
-        purpose: '验证扩区列 key',
+      searches: [{
+        keywords: ['cost'],
+        mode: 'all',
+        range: 'same-file',
+        reason: '扩区后列 key',
       }],
+      reason: '定位成本区域查看按钮',
     }),
     JSON.stringify({
       status: 'unique',
@@ -1724,34 +1699,6 @@ test('agent search streams model input, local calls and a verified final file', 
   assert.ok(logs.some(log => log.startsWith('DOM Agent Judge 输入')));
 });
 
-test('judge follow-up searches cannot use words absent from DOM and candidate facts', () => {
-  const body = {
-    userPrompt: '增加所属店铺列',
-    selections: [{
-      element: {
-        rawOuterHtml: '<div class="campaign-name">计划名称</div>',
-      },
-    }],
-  };
-  const inspection = {
-    candidates: [{
-      file: 'src/View.vue',
-      excerpt: 'const field = "campaignName"; const columns = []',
-      keywordFacts: [{ keyword: 'campaignName' }],
-      matchedGroups: [{ keywords: ['campaignName'] }],
-    }],
-  };
-  const result = filterFollowUpSearchesByEvidence([{
-    keywords: ['所属店铺', 'campaignName', 'columns'],
-    mode: 'all',
-    range: 'same-file',
-    priority: 1,
-    reason: 'model output',
-  }], body, inspection, []);
-  assert.deepEqual(result.searches[0].keywords, ['campaignName', 'columns']);
-  assert.deepEqual(result.removed, ['所属店铺']);
-});
-
 test('exact route import relation resolves a duplicated DOM candidate locally', () => {
   const project = fixtureProject({
     'src/pages/home/index.js': "import Home from './home.vue'; export default Home;",
@@ -1849,7 +1796,7 @@ test('route validation rejects a judge unique result outside an equally matching
   ]);
 });
 
-test('candidate quota preserves structural class hits when descendant text is high frequency', () => {
+test('full recall keeps every candidate before DOM inspection', () => {
   const files = {
     'src/Main.vue': '<template><span class="nav-name">{{ item.title }}</span></template>',
     'src/MenuNode.vue': '<template><div class="org-menu-node"><slot /></div></template>',
@@ -1882,8 +1829,60 @@ test('candidate quota preserves structural class hits when descendant text is hi
       evidenceKinds: { '主页': 'text' },
     }],
   }, new Map());
+  assert.equal(hits.length, 18);
   assert.ok(hits.some(hit => hit.file === 'src/Main.vue'));
   assert.ok(hits.some(hit => hit.file === 'src/MenuNode.vue'));
+
+  const inspection = inspectCandidates(project, hits, {
+    searches: [{
+      keywords: ['主页'],
+      mode: 'any',
+      range: 'same-file',
+      priority: 1,
+      reason: '后代文案',
+      evidenceKinds: { '主页': 'text' },
+    }],
+  }, new Map());
+  assert.equal(inspection.inspectedCount, 18);
+});
+
+test('original DOM class coverage removes render candidates that only match a strict subset', () => {
+  const project = fixtureProject({
+    'src/Main.vue': [
+      '<template>',
+      '  <aside class="side-menu-wrapper">',
+      '    <span class="nav-name">{{ item.title }}</span>',
+      '    <div class="menu-collapsed" />',
+      '  </aside>',
+      '</template>',
+    ].join('\n'),
+    'src/Other.vue': '<template><span class="nav-name">{{ title }}</span></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['nav-name'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: 'DOM class',
+      keywordTypes: { 'nav-name': 'class-token' },
+      evidenceKinds: { 'nav-name': 'class' },
+    }],
+  };
+  const cache = new Map();
+  const hits = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, hits, plan, cache, {
+    selections: [{
+      element: {
+        rawOuterHtml: '<aside class="side-menu-wrapper"><span class="nav-name">主页</span><div class="menu-collapsed"></div></aside>',
+      },
+    }],
+  });
+  assert.deepEqual(inspection.candidates.map(item => item.file), ['src/Main.vue']);
+  assert.deepEqual(
+    inspection.candidates[0].domCoverage.matchedClasses.sort(),
+    ['menu-collapsed', 'nav-name', 'side-menu-wrapper']
+  );
 });
 
 test('text evidence does not match a longer source phrase', () => {
