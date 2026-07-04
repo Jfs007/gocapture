@@ -6,8 +6,28 @@ export interface CandidateFile {
   [key: string]: unknown;
 }
 
+export interface CompositeRenderFile {
+  file: string;
+  role?: string;
+  score?: number;
+  anchors?: string[];
+}
+
+export interface CompositeChildFile {
+  file: string;
+  anchor?: string;
+}
+
+export interface CompositeResult {
+  render: CompositeRenderFile;
+  assembly?: { file: string; via?: string; chain?: string[] } | null;
+  children?: CompositeChildFile[];
+  coRenders?: CompositeRenderFile[];
+}
+
 export interface SearchResult {
   hits?: CandidateFile[];
+  composite?: CompositeResult | null;
   routeResolver?: unknown;
   apiTrace?: unknown;
   i18nTrace?: unknown;

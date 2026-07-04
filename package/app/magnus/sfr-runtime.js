@@ -416,13 +416,17 @@
   }
 
   function firstDirectLocation(chain, source) {
-    const item = (chain || []).find(entry => entry.file && entry.isBusinessComponent && Number(entry.line || 0) > 0);
+    // Vue 组件链只带 __file、不带 line/column（仅 React 分支会给行列），
+    // 旧实现要求 line>0，导致 Vue 永远拿不到 directLocation。这里放宽为「有业务源码文件即可」，
+    // 有行列时标 exact、只有文件时标 file，让 Vue 的 __file 也能直接命中源码。
+    const item = (chain || []).find(entry => entry.file && entry.isBusinessComponent);
     if (!item) return null;
+    const hasLine = Number(item.line || 0) > 0;
     return {
       file: item.file,
       line: item.line || 0,
       column: item.column || 0,
-      confidence: 'exact',
+      confidence: hasLine ? 'exact' : 'file',
       source,
     };
   }
@@ -738,6 +742,7 @@
     }
     return null;
   }
+
 
   function scoreContextPromotion(baseEvidence, nextEvidence) {
     const textGrowth = evidenceGrowth(baseEvidence?.textTerms, nextEvidence?.textTerms);

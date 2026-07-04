@@ -1,10 +1,11 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { CandidateFile } from '../app/types/search.types';
+import type { CandidateFile, CompositeResult } from '../app/types/search.types';
 
 export const useSearchStore = defineStore('magnus.search', () => {
   const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle');
   const candidates = ref<CandidateFile[]>([]);
+  const composite = ref<CompositeResult | null>(null);
   const candidateLoading = ref(false);
   const searchRunning = ref(false);
   const selectedCandidatePaths = ref<string[]>([]);
@@ -50,11 +51,13 @@ export const useSearchStore = defineStore('magnus.search', () => {
 
   function applyResult(result: {
     hits?: CandidateFile[];
+    composite?: CompositeResult | null;
     apiTrace?: unknown;
     i18nTrace?: unknown;
     definitionTrace?: unknown;
   }) {
     candidates.value = Array.isArray(result?.hits) ? result.hits : [];
+    composite.value = result?.composite || null;
     selectedCandidatePaths.value = candidates.value[0]?.file ? [candidates.value[0].file] : [];
     expandedCandidatePath.value = '';
     apiTrace.value = result?.apiTrace || null;
@@ -79,6 +82,7 @@ export const useSearchStore = defineStore('magnus.search', () => {
     candidateLoading.value = false;
     searchRunning.value = false;
     candidates.value = [];
+    composite.value = null;
     selectedCandidatePaths.value = [];
     expandedCandidatePath.value = '';
     apiTrace.value = null;
@@ -96,6 +100,7 @@ export const useSearchStore = defineStore('magnus.search', () => {
   return {
     status,
     candidates,
+    composite,
     candidateLoading,
     searchRunning,
     selectedCandidatePaths,

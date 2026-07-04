@@ -11,8 +11,12 @@ const {
   inspectCandidates,
   resolveByRouteRelation,
   runAgentSearch,
+  traceCandidateOwners,
   traceRouteCandidateRelations,
   validateJudgeRouteDecision,
+  dominantRenderCandidate,
+  buildComposite,
+  normalizeConfidence,
 } = require('./agent-search');
 const {
   buildLocatorSystemPrompt,
@@ -45,29 +49,42 @@ function fixtureProject(files) {
   };
 }
 
-test('locator protocol accepts explicit search plans from the model', () => {
+test('locator protocol parses layered anchors and converts to a tagged search plan', () => {
   const decision = normalizeLocatorDecision({
     status: 'ready',
-    searches: [{
-      keywords: ['source', '请输入供应来源'],
-      mode: 'all',
-      range: 'same-structure',
-      reason: '验证列 key 和 placeholder 是否在同一渲染结构中出现',
-    }],
+    renderAnchors: [{ value: '执行人', kind: 'text' }, { value: '反馈附件', kind: 'text' }],
+    scopeAnchors: [{ value: '执行信息', kind: 'text' }, { value: 'dc-fieldset', kind: 'class' }],
+    childComponentAnchors: [{ value: 'file-upload-component', kind: 'class' }],
   });
   const validation = validateLocatorDecision(decision);
   assert.equal(validation.valid, true);
 
   const plan = locatorDecisionToSearchPlan(decision);
+  const render = plan.searches.find(search => search.layer === 'render');
+  assert.deepEqual(render.keywords, ['执行人', '反馈附件']);
+  assert.equal(render.range, 'same-structure');
+  assert.equal(render.mode, 'all');
+  const scope = plan.searches.find(search => search.layer === 'scope');
+  assert.equal(scope.scopeOnly, true);
+  assert.deepEqual(scope.keywords, ['执行信息', 'dc-fieldset']);
+  const child = plan.searches.find(search => search.layer === 'child');
+  assert.equal(child.childAnchor, true);
+  assert.deepEqual(child.keywords, ['file-upload-component']);
+
+  const invalid = validateLocatorDecision(normalizeLocatorDecision({ status: 'ready' }));
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors.join('\n'), /renderAnchors/);
+});
+
+test('locator protocol still accepts legacy flat searches for backward compatibility', () => {
+  const decision = normalizeLocatorDecision({
+    status: 'ready',
+    searches: [{ keywords: ['source', '请输入供应来源'], mode: 'all', range: 'same-structure' }],
+  });
+  assert.equal(validateLocatorDecision(decision).valid, true);
+  const plan = locatorDecisionToSearchPlan(decision);
   assert.deepEqual(plan.searches[0].keywords, ['source', '请输入供应来源']);
   assert.equal(plan.searches[0].range, 'same-structure');
-
-  const invalid = validateLocatorDecision(normalizeLocatorDecision({
-    status: 'ready',
-    searches: [],
-  }));
-  assert.equal(invalid.valid, false);
-  assert.match(invalid.errors.join('\n'), /searches\.keywords/);
 });
 
 test('locator protocol accepts the minimal planner response', () => {
@@ -88,22 +105,22 @@ test('locator protocol accepts the minimal planner response', () => {
   assert.equal(plan.needMoreDom, false);
 });
 
-test('locator prompt only requests planning fields used by local execution', () => {
+test('locator prompt requests layered anchor fields used by local execution', () => {
   const prompt = buildLocatorSystemPrompt();
-  assert.match(prompt, /\"searches\"/);
+  assert.match(prompt, /renderAnchors/);
+  assert.match(prompt, /scopeAnchors/);
+  assert.match(prompt, /childComponentAnchors/);
   assert.doesNotMatch(prompt, /\"hypotheses\"/);
-  assert.doesNotMatch(prompt, /\"scopeHint\"/);
-  assert.doesNotMatch(prompt, /\"evidenceAssessment\"/);
+  assert.doesNotMatch(prompt, /\"searches\"/);
 });
 
-test('locator prompt keeps the planner focused on stable source-search evidence', () => {
+test('locator prompt keeps the extractor focused on stable, layered source-search evidence', () => {
   const prompt = buildLocatorSystemPrompt();
-  assert.match(prompt, /DOM 检索规划 Agent/);
-  assert.match(prompt, /业务 class、id/);
-  assert.match(prompt, /runtime componentChain 中的文件名或组件名/);
+  assert.match(prompt, /DOM 锚点抽取 Agent/);
+  assert.match(prompt, /renderAnchors（主渲染锚点/);
   assert.match(prompt, /UI 框架 class/);
   assert.match(prompt, /订单号、用户名、商品名/);
-  assert.match(prompt, /如果线索不足，明确说明“当前证据不足”/);
+  assert.match(prompt, /need-more-context/);
 });
 
 test('locator resolve-route plan asks for more DOM instead of searching runtime evidence', () => {
@@ -1851,7 +1868,11 @@ test('agent search streams model input, local calls and a verified final file', 
   assert.ok(logs.some(log => log.startsWith('DOM Agent Planner 输入')));
   assert.ok(logs.some(log => log.startsWith('DOM Agent Planner 输出')));
   assert.ok(logs.some(log => log.startsWith('本地调用：inspectCandidates')));
-  assert.ok(logs.some(log => log.startsWith('DOM Agent Judge 输入')));
+  // 新流程：单文件完整结构命中即为占优渲染候选，本地直接收敛并跳过 Judge。
+  assert.ok(logs.some(log => log.startsWith('DOM Agent 本地收敛（跳过 Judge）')));
+  assert.ok(!logs.some(log => log.startsWith('DOM Agent Judge 输入')));
+  assert.equal(result.agent.localConverged, true);
+  assert.equal(result.composite.render.file, 'src/MaterialView.vue');
 });
 
 test('exact route import relation resolves a duplicated DOM candidate locally', () => {
@@ -2163,4 +2184,287 @@ test('route relation does not select a single repeated label when local DOM text
   const decision = resolveByRouteRelation(body, inspection, routeTrace, relations);
   assert.equal(decision.status, 'unique');
   assert.equal(decision.files[0].file, 'src/subtask.vue');
+});
+
+// ——— DOM Agent 改造：稀有度 / 两阶段准入 / 组合结果 ———
+
+function wrapperNoiseProject() {
+  const files = {};
+  // 12 个文件都含通用外壳词 dc-fieldset + 区块标题「执行信息」，但只有 subtask 含完整字段组合。
+  for (let i = 0; i < 12; i += 1) {
+    files[`src/forms/form-${i}.vue`] = [
+      '<template>',
+      '  <fieldset class="dc-fieldset"><legend>执行信息</legend>',
+      `    <Form-item label="字段${i}" />`,
+      '  </fieldset>',
+      '</template>',
+    ].join('\n');
+  }
+  files['src/forms/subtask.vue'] = [
+    '<template>',
+    '  <fieldset class="dc-fieldset"><legend>执行信息</legend>',
+    '    <Form-item label="执行人" />',
+    '    <Form-item label="反馈附件" />',
+    '    <Form-item label="完成时间" />',
+    '    <Form-item label="备注" />',
+    '  </fieldset>',
+    '</template>',
+  ].join('\n');
+  return fixtureProject(files);
+}
+
+test('rarity: generic wrapper anchors never create standalone candidates', () => {
+  const project = wrapperNoiseProject();
+  const plan = {
+    searches: [
+      {
+        keywords: ['执行人', '反馈附件', '完成时间', '备注'],
+        mode: 'all',
+        range: 'same-structure',
+        priority: 1,
+        layer: 'render',
+        reason: 'render',
+      },
+      {
+        keywords: ['执行信息', 'dc-fieldset'],
+        mode: 'any',
+        range: 'same-file',
+        priority: 5,
+        layer: 'scope',
+        scopeOnly: true,
+        reason: 'scope',
+      },
+    ],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  // 通用外壳词 dc-fieldset / 执行信息 命中 13 个文件，绝不能各自生成候选。
+  assert.deepEqual(candidates.map(candidate => candidate.file), ['src/forms/subtask.vue']);
+  assert.ok(candidates[0].matchedGroups.some(group => group.source === 'planned-group'));
+});
+
+test('two-phase admission: an extra absent render anchor still converges to the max-subset file', () => {
+  const project = wrapperNoiseProject();
+  const plan = {
+    searches: [{
+      // 模型多放了一个 subtask 里并不存在的锚点「执行信息」（它在 legend 里但不是字段标签）——
+      // subtask 仍应凭 4 个字段的最大共现子集被保留。这里让 subtask 缺失一个词来模拟。
+      keywords: ['执行人', '反馈附件', '完成时间', '备注', '不存在于任何文件的词XYZ'],
+      mode: 'all',
+      range: 'same-structure',
+      priority: 1,
+      layer: 'render',
+      reason: 'render',
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  assert.deepEqual(candidates.map(candidate => candidate.file), ['src/forms/subtask.vue']);
+  const dominant = dominantRenderCandidate(
+    inspectCandidates(project, candidates, plan, new Map())
+  );
+  assert.ok(dominant);
+  assert.equal(dominant.file, 'src/forms/subtask.vue');
+});
+
+test('buildComposite assembles render + assembly(owner) + child components', () => {
+  const project = fixtureProject({
+    'src/parent.vue': "<script>import Subtask from './subtask.vue'</script>",
+    'src/subtask.vue': '<template><div class="feedback-field">反馈附件</div></template>',
+    'src/file-upload.vue': '<template><div class="file-upload-component" /></template>',
+  });
+  const inspection = {
+    status: 'unique',
+    selectedFile: 'src/subtask.vue',
+    candidates: [
+      {
+        file: 'src/subtask.vue',
+        score: 500,
+        referenceOnly: false,
+        childComponentCandidate: false,
+        matchedGroups: [{ source: 'planned-group', keywords: ['反馈附件'] }],
+      },
+      {
+        file: 'src/file-upload.vue',
+        score: 120,
+        referenceOnly: false,
+        childComponentCandidate: true,
+        matchedGroups: [{ source: 'planned-group', keywords: ['file-upload-component'] }],
+      },
+    ],
+  };
+  const ownership = traceCandidateOwners(project, ['src/subtask.vue'], new Map());
+  const composite = buildComposite(inspection, ownership, 'src/subtask.vue');
+  assert.equal(composite.render.file, 'src/subtask.vue');
+  assert.equal(composite.assembly.file, 'src/parent.vue');
+  assert.deepEqual(composite.children.map(child => child.file), ['src/file-upload.vue']);
+});
+
+test('normalizeConfidence maps 0-1 fractions and 0-100 alike into 0-100', () => {
+  assert.equal(normalizeConfidence(0.95), 95);
+  assert.equal(normalizeConfidence(1), 100);
+  assert.equal(normalizeConfidence(95), 95);
+  assert.equal(normalizeConfidence(0), 0);
+  assert.equal(normalizeConfidence('bad'), 0);
+  assert.equal(normalizeConfidence(250), 100);
+});
+
+test('child component candidates do not count as competing render candidates', () => {
+  const evidence = analyzeEvidenceSufficiency(
+    { searches: [], needMoreDom: false },
+    {
+      candidates: [
+        { file: 'src/subtask.vue', score: 500, referenceOnly: false, childComponentCandidate: false, matchedGroups: [{ source: 'planned-group', keywords: ['执行人', '反馈附件'] }] },
+        { file: 'src/file-upload.vue', score: 120, referenceOnly: false, childComponentCandidate: true, matchedGroups: [{ source: 'planned-group', keywords: ['file-upload-component'] }] },
+      ],
+    },
+    []
+  );
+  assert.equal(evidence.insufficient, false);
+  assert.equal(evidence.primaryCandidateCount, 1);
+});
+
+test('Stage0: runtime component chain __file converges deterministically without any model call', async () => {
+  const project = fixtureProject({
+    'src/layout/SideMenu.vue': '<template><div class="menu">工作台</div></template>',
+    'src/router/index.js': "import SideMenu from '../layout/SideMenu.vue'",
+  });
+  const bigDom = '<div class="menu">' + '工作台'.repeat(4000) + '</div>'; // 超过触发阈值，进入 agent
+  let modelCalls = 0;
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/workbench',
+    selections: [{
+      element: { rawOuterHtml: bigDom },
+      sourceLocate: {
+        componentChain: [
+          { name: 'SideMenu', file: 'src/layout/SideMenu.vue' },
+          { name: 'RouterRoot', file: 'src/router/index.js' },
+        ],
+      },
+    }],
+  }, {
+    runModelTask: async () => {
+      modelCalls += 1;
+      return { adapter: { id: 't', name: 't', type: 'api' }, rawText: '{}', logs: [] };
+    },
+  });
+  assert.equal(modelCalls, 0);
+  assert.equal(result.agent.stage0, true);
+  assert.equal(result.hits[0].file, 'src/layout/SideMenu.vue');
+  assert.equal(result.composite.render.file, 'src/layout/SideMenu.vue');
+  assert.equal(result.composite.assembly.file, 'src/router/index.js');
+});
+
+test('class-token matching covers static, bound object/array/ternary and clsx, but excludes bracket access', () => {
+  const project = fixtureProject({
+    'src/static.vue': '<template><div class="dom-list"></div></template>',
+    'src/objUnquoted.vue': '<template><div :class="{ dom-list: true }"></div></template>',
+    'src/objQuoted.vue': "<template><div :class=\"{ 'dom-list': true }\"></div></template>",
+    'src/array.vue': "<template><div :class=\"['dom-list', on]\"></div></template>",
+    'src/ternary.jsx': "export const A = () => <div className={ok ? 'dom-list' : 'x'} />",
+    'src/clsx.jsx': "export const B = () => <div className={clsx('wrap', 'dom-list')} />",
+    'src/bracket.js': "const a = styles['dom-list']; const b = map['dom-list'];",
+  });
+  const plan = { searches: [{ keywords: ['dom-list'], mode: 'any', range: 'same-file', priority: 1, keywordTypes: { 'dom-list': 'class-token' } }] };
+  const files = executeSearchPlan(project, plan, new Map()).map(candidate => candidate.file).sort();
+  assert.deepEqual(files, [
+    'src/array.vue',
+    'src/clsx.jsx',
+    'src/objQuoted.vue',
+    'src/objUnquoted.vue',
+    'src/static.vue',
+    'src/ternary.jsx',
+  ]);
+  // 纯 JS 括号取值 styles['dom-list'] 不是 class 用法，作为 class 锚点时必须被排除。
+  assert.ok(!files.includes('src/bracket.js'));
+});
+
+test('buildComposite surfaces sibling co-renders when two peer components each render part of the DOM', () => {
+  const inspection = {
+    status: 'ambiguous',
+    selectedFile: 'src/LeftPane.vue',
+    candidates: [
+      { file: 'src/LeftPane.vue', score: 500, referenceOnly: false, childComponentCandidate: false,
+        matchedGroups: [{ source: 'planned-group', keywords: ['筛选条件', '关键词'] }] },
+      { file: 'src/RightPane.vue', score: 460, referenceOnly: false, childComponentCandidate: false,
+        matchedGroups: [{ source: 'planned-group', keywords: ['结果列表', '导出'] }] },
+      { file: 'src/styles.css', score: 80, referenceOnly: true, childComponentCandidate: false,
+        matchedGroups: [{ source: 'keyword-fallback', keywords: ['筛选条件'] }] },
+    ],
+  };
+  const composite = buildComposite(inspection, [], 'src/LeftPane.vue');
+  assert.equal(composite.render.file, 'src/LeftPane.vue');
+  assert.ok(Array.isArray(composite.coRenders));
+  assert.deepEqual(composite.coRenders.map(item => item.file), ['src/RightPane.vue']);
+  // 参考文件(样式)不算并列渲染
+  assert.ok(!composite.coRenders.some(item => item.file === 'src/styles.css'));
+});
+
+test('framework-generated data attributes reduce to their value, author attributes are preserved', () => {
+  // data-col-key 是 Naive UI 表格运行时生成的属性，源码里不存在——只能用它的值 cost。
+  const runtimeAttr = normalizeLocatorDecision({
+    status: 'ready',
+    renderAnchors: [{ value: 'data-col-key="cost"', kind: 'attr' }, { value: '查看', kind: 'text' }],
+  });
+  assert.deepEqual(locatorDecisionToSearchPlan(runtimeAttr).searches[0].keywords, ['cost', '查看']);
+
+  // data-testid 是作者书写的稳定属性，保留 name="value" 交给下游做属性对匹配。
+  const authorAttr = normalizeLocatorDecision({
+    status: 'ready',
+    renderAnchors: [{ value: 'data-testid="cost-cell"', kind: 'attr' }, { value: '查看', kind: 'text' }],
+  });
+  assert.deepEqual(locatorDecisionToSearchPlan(authorAttr).searches[0].keywords, ['data-testid="cost-cell"', '查看']);
+});
+
+test('a Naive UI render-function cell locates its columns source via the reduced attribute value', () => {
+  const project = fixtureProject({
+    'src/order/columns.tsx': [
+      "import { h } from 'vue'",
+      "export const cols = [{ key: 'cost', title: '成本', render: (row) =>",
+      "  h('div', { style: 'display:flex;flex-direction:column' }, [",
+      "    h('div', '¥' + row.total), h(NButton, {}, { default: () => '查看' })]) }]",
+    ].join('\n'),
+    'src/other/columns.tsx': "export const cols = [{ key: 'name', title: '名称' }]",
+  });
+  // 归约后的关键词 cost + 查看，same-structure 共现于 columns.tsx。
+  const plan = { searches: [{ keywords: ['cost', '查看'], mode: 'all', range: 'same-structure', priority: 1, layer: 'render' }] };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  assert.deepEqual(candidates.map(candidate => candidate.file), ['src/order/columns.tsx']);
+});
+
+test('a planned-group match on a renderable file survives sufficiency even if heuristically marked referenceOnly', () => {
+  // 复现真实问题：config-editor-drawer.vue 命中了 planned-group，却被 candidateSourceRole 误判为
+  // definition-like/referenceOnly，导致 analyzeEvidenceSufficiency 以「只命中参考文件」丢弃了真实命中。
+  const evidence = analyzeEvidenceSufficiency(
+    { searches: [], needMoreDom: false },
+    {
+      candidates: [{
+        file: 'src/views/product-card/components/config-editor-drawer.vue',
+        score: 400,
+        referenceOnly: true,
+        childComponentCandidate: false,
+        matchedGroups: [{ source: 'planned-group', keywords: ['配置编辑', '保存模板'] }],
+      }],
+    },
+    []
+  );
+  assert.equal(evidence.insufficient, false);
+  assert.equal(evidence.primaryCandidateCount, 1);
+});
+
+test('a planned-group match on a .json data file stays a reference, not a render candidate', () => {
+  const evidence = analyzeEvidenceSufficiency(
+    { searches: [], needMoreDom: false },
+    {
+      candidates: [{
+        file: 'src/data/labels.json',
+        score: 400,
+        referenceOnly: true,
+        childComponentCandidate: false,
+        matchedGroups: [{ source: 'planned-group', keywords: ['配置编辑', '保存模板'] }],
+      }],
+    },
+    []
+  );
+  assert.equal(evidence.insufficient, true);
+  assert.equal(evidence.primaryCandidateCount, 0);
 });

@@ -1,4 +1,25 @@
 <template>
+  <div v-if="composite" class="mda-composer-options mda-composite">
+    <div class="mda-option-title">源码组合定位</div>
+    <div class="mda-composite-row">
+      <span class="mda-composite-tag mda-composite-render">主渲染</span>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(composite.render.file)">{{ composite.render.file }}</button>
+    </div>
+    <div v-if="composite.assembly" class="mda-composite-row">
+      <span class="mda-composite-tag">装配</span>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(composite.assembly.file)">{{ composite.assembly.file }}</button>
+    </div>
+    <div v-for="co in composite.coRenders || []" :key="`co-${co.file}`" class="mda-composite-row">
+      <span class="mda-composite-tag mda-composite-render">并列渲染</span>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(co.file)">{{ co.file }}</button>
+    </div>
+    <div v-for="child in composite.children || []" :key="`child-${child.file}`" class="mda-composite-row">
+      <span class="mda-composite-tag">子组件</span>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(child.file)">{{ child.file }}</button>
+      <span v-if="child.anchor" class="mda-composite-anchor">{{ child.anchor }}</span>
+    </div>
+  </div>
+
   <div v-if="showCandidatePicker" class="mda-composer-options">
     <div class="mda-collapsible-head">
       <div class="mda-option-title">存在多个命中文件，请确认</div>
@@ -48,6 +69,7 @@ const modelStore = useModelStore();
 const showCandidatePicker = computed(() => searchStore.showCandidatePicker);
 const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
 const candidateHits = computed(() => searchStore.candidates);
+const composite = computed(() => searchStore.composite);
 const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
 const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
 const modelAssistLoading = computed(() => modelStore.status === 'running');

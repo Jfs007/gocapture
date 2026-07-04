@@ -51,6 +51,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       const timeoutMs = search.includeApiEvidence.value ? 30000 : 12000;
       const data = await runSearchWithOptionalRetry(timeoutMs);
       search.candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
+      search.compositeResult.value = data.composite || null;
       route.applyRouteResolverTrace(data.routeResolver || null);
       search.apiTrace.value = data.apiTrace || null;
       search.i18nTrace.value = data.i18nTrace || null;

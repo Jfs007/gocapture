@@ -1,11 +1,7 @@
 const path = require('path');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
-const { makeSnippet, posixPath, uniq } = require('../utils');
-const { isPageLike } = require('./component-trace');
+const { posixPath, uniq } = require('../utils');
 
-const MAX_IMPORT_DEPTH = 28;
-const MAX_IMPORT_SEEDS = 8;
-const MAX_IMPORT_HITS = 24;
 const SOURCE_EXTENSIONS = ['.vue', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'];
 
 function importSpecifiers(text) {
@@ -58,56 +54,6 @@ function importPathCandidates(...bases) {
   return uniq(result);
 }
 
-function isImportAnchor(hit) {
-  if (!hit) return false;
-  if (hit.stage === 'route-resolver') return true;
-  if (hit.uniqueMatchLabel === '用户补充证据' && hit.uniqueMatchCount === 1) return true;
-  return (hit.reasons || []).some(reason => reason.includes('用户补充证据'));
-}
-
-function anchorLabel(anchor) {
-  if (anchor.stage === 'route-resolver') return `页面路由命中文件：${anchor.file}`;
-  return `补充证据命中文件：${anchor.file}`;
-}
-
-function hasReliableEvidence(hit) {
-  return !!(hit && hit.preciseEvidence);
-}
-
-function importChainScore(candidate, anchor, depth) {
-  const fromRoute = anchor.stage === 'route-resolver';
-  const reliable = hasReliableEvidence(candidate);
-  const routeBoost = fromRoute
-    ? (reliable ? 92 : 28)
-    : (reliable ? 72 : 20);
-  const pageBoost = isPageLike(anchor.file) ? 26 : 0;
-  const depthPenalty = Math.min(220, depth * (reliable ? 20 : 34));
-  const chainScore = candidate.score + routeBoost + pageBoost - depthPenalty;
-  if (fromRoute && !reliable) {
-    return Math.min(chainScore, Math.max(0, anchor.score - 18 - depth * 8));
-  }
-  return chainScore;
-}
-
-function importChainStage(anchor) {
-  return anchor.stage === 'route-resolver' ? 'route-import-chain' : 'import-chain';
-}
-
-function importChainReasons(anchor, current, candidate) {
-  return uniq([
-    anchorLabel(anchor),
-    `import 链路命中候选：${current.chain.join(' -> ')}`,
-    current.via ? `最后引用：${current.via}` : '',
-    ...(candidate.reasons || []).slice(0, 6),
-  ]).slice(0, 10);
-}
-
-function shouldRecordChainHit(anchor, candidate) {
-  if (!candidate) return false;
-  if (anchor.stage === 'route-resolver' && candidate.stage === 'reverse') return false;
-  return true;
-}
-
 function buildFileMap(project) {
   const map = new Map();
   for (const file of project.files || []) {
@@ -132,90 +78,8 @@ function importedFiles(project, filePath, fileMap, textCache) {
   return result;
 }
 
-function chainSnippet(project, filePath, textCache) {
-  const file = (project.files || []).find(item => item.path === filePath);
-  if (!file) return '';
-  const text = readProjectText(project, file, textCache);
-  return makeSnippet(text, 0, 0);
-}
-
-function traceImportChainHits(project, anchorHits, candidateHits, textCache) {
-  const candidateMap = new Map();
-  for (const hit of candidateHits) {
-    if (!hit || !hit.file) continue;
-    candidateMap.set(hit.file, hit);
-  }
-  if (!candidateMap.size) return [];
-
-  const anchors = anchorHits
-    .filter(isImportAnchor)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_IMPORT_SEEDS);
-  if (!anchors.length) return [];
-
-  const fileMap = buildFileMap(project);
-  const tracedHits = [];
-
-  for (const anchor of anchors) {
-    const queue = [{
-      file: anchor.file,
-      depth: 0,
-      chain: [anchor.file],
-      via: '',
-    }];
-    const visited = new Set([anchor.file]);
-
-    while (queue.length && tracedHits.length < MAX_IMPORT_HITS) {
-      const current = queue.shift();
-      const candidate = candidateMap.get(current.file);
-      if (candidate && current.file !== anchor.file && shouldRecordChainHit(anchor, candidate)) {
-        tracedHits.push({
-          ...candidate,
-          score: importChainScore(candidate, anchor, current.depth),
-          stage: importChainStage(anchor),
-          from: anchor.file,
-          reasons: importChainReasons(anchor, current, candidate),
-          snippet: candidate.snippet || chainSnippet(project, current.file, textCache),
-          importChain: current.chain,
-          anchorFile: anchor.file,
-          exactMatchLabel: candidate.exactMatchLabel || '',
-          exactMatchText: candidate.exactMatchText || '',
-          exactMatchCount: candidate.exactMatchCount || 0,
-          exactSnippet: candidate.exactSnippet || '',
-          contextScore: candidate.contextScore || 0,
-          contextReasons: candidate.contextReasons || [],
-          contextSelectionIndex: candidate.contextSelectionIndex || 0,
-          preciseEvidence: !!candidate.preciseEvidence,
-          preciseSnippet: candidate.preciseSnippet || '',
-          uniqueSnippet: candidate.uniqueSnippet || '',
-          uniqueMatchLabel: candidate.uniqueMatchLabel || '',
-          uniqueMatchText: candidate.uniqueMatchText || '',
-          uniqueMatchCount: candidate.uniqueMatchCount || 0,
-        });
-      }
-
-      if (current.depth >= MAX_IMPORT_DEPTH) continue;
-      for (const child of importedFiles(project, current.file, fileMap, textCache)) {
-        if (visited.has(child.file)) continue;
-        visited.add(child.file);
-        queue.push({
-          file: child.file,
-          depth: current.depth + 1,
-          chain: [...current.chain, child.file],
-          via: child.specifier,
-        });
-      }
-    }
-  }
-
-  return tracedHits
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_IMPORT_HITS);
-}
-
 module.exports = {
   buildFileMap,
   importedFiles,
   importSpecifiers,
-  traceImportChainHits,
 };

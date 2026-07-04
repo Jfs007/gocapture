@@ -25,6 +25,9 @@ const MAX_DEFINITION_RESOLVER_SEARCHES = 2;
 const MAX_OWNER_DEPTH = 3;
 const MAX_OWNERS_PER_CANDIDATE = 4;
 const MAX_ROUTE_RELATION_DEPTH = 7;
+// 一个锚点命中的源文件数超过此阈值即视为「通用外壳/框架词」，只能缩范围、不能单独生成候选，
+// 也不参与稀有共现加成（否则 dc-fieldset 这类命中 100+ 文件的词会淹没判别性锚点）。
+const DF_SCOPE_LIMIT = 40;
 const STYLE_EXTENSIONS = new Set(['.css', '.less', '.scss', '.sass', '.styl']);
 const NATIVE_HTML_TAGS = new Set([
   'a', 'article', 'aside', 'button', 'canvas', 'caption', 'code', 'col', 'colgroup',
@@ -377,6 +380,37 @@ function resolvedComponentChainFiles(project, body) {
     const srcIndex = normalized.lastIndexOf('/src/');
     return srcIndex !== -1 && projectFiles.has(normalized.slice(srcIndex + 1));
   });
+}
+
+// Stage0：把运行时组件链上的 __file 解析成「项目内相对路径」，保持自近及远的顺序。
+// 命中即为确定性最强信号（Vue/React 运行时直接给出的渲染源码），可据此跳过全部 LLM。
+function resolveChainToProjectFiles(project, body) {
+  const projectFiles = new Set((project?.files || []).map(file => file.path));
+  const result = [];
+  for (const rawFile of componentChainFiles(body)) {
+    const normalized = String(rawFile || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    if (projectFiles.has(normalized)) {
+      result.push(normalized);
+      continue;
+    }
+    const srcIndex = normalized.lastIndexOf('/src/');
+    if (srcIndex !== -1 && projectFiles.has(normalized.slice(srcIndex + 1))) {
+      result.push(normalized.slice(srcIndex + 1));
+    }
+  }
+  return uniq(result);
+}
+
+// Stage0：仅凭运行时组件链构造确定性组合结果（render=最近业务组件，assembly=其上一层）。
+function buildStage0Composite(chainProjectFiles) {
+  const [render, assembly] = chainProjectFiles;
+  return {
+    render: { file: render, role: 'render', score: 4000, anchors: [], source: 'component-chain' },
+    assembly: assembly
+      ? { file: assembly, via: 'component-chain', chain: chainProjectFiles.slice(0, 2) }
+      : null,
+    children: [],
+  };
 }
 
 function domAgentTrigger(body, options = {}) {
@@ -884,6 +918,12 @@ function classTokenIndexes(text, keyword, filePath = '') {
     new RegExp(`\\bclass(?:Name)?\\s*:\\s*[\\[{][\\s\\S]{0,220}(?<![\\w-])["'\`]?${escaped}["'\`]?(?![\\w-])`, 'gi'),
     new RegExp(`['"]class['"]\\s*:\\s*["'\`][^"'\`]*(?<![\\w-])${escaped}(?![\\w-])[^"'\`]*["'\`]`, 'gi'),
     new RegExp(`h\\([^\\n]{0,220}\\bclass\\s*:\\s*[\\s\\S]{0,220}(?<![\\w-])["'\`]?${escaped}["'\`]?(?![\\w-])`, 'gi'),
+    // 绑定类表达式里以「带引号的字符串字面量」出现的类名：
+    //   :class="{ 'dom-list': true }" / :class="['dom-list', x]" / :class="ok ? 'dom-list' : ''"
+    //   className={clsx('dom-list', ...)} 等（Vue :class / v-bind:class / React clsx/classnames 通用）。
+    new RegExp(`(?::|v-bind:)?class(?:Name)?\\s*=\\s*["'{\\[][\\s\\S]{0,300}?(?<![\\w-])["'\`]${escaped}["'\`](?![\\w-])`, 'gi'),
+    new RegExp(`classnames?\\s*\\([\\s\\S]{0,300}?(?<![\\w-])["'\`]${escaped}["'\`](?![\\w-])`, 'gi'),
+    new RegExp(`\\bclsx\\s*\\([\\s\\S]{0,300}?(?<![\\w-])["'\`]${escaped}["'\`](?![\\w-])`, 'gi'),
   ];
   if (STYLE_EXTENSIONS.has(ext)) {
     patterns.push(new RegExp(`(^|[\\s,{>+~])\\.${escaped}(?![\\w-])`, 'g'));
@@ -978,33 +1018,20 @@ function keywordIndexesForSearch(text, keyword, search, filePath = '') {
   return keywordIndexes(text, keyword);
 }
 
-function groupMatch(text, search, filePath = '') {
-  const matches = search.keywords.map(keyword => ({
-    keyword,
-    indexes: keywordIndexesForSearch(text, keyword, search, filePath),
-  }));
-  const accepted = search.mode === 'any'
-    ? matches.some(item => item.indexes.length)
-    : matches.every(item => item.indexes.length);
-  if (!accepted) return null;
-  const positions = matches.flatMap(item => item.indexes.slice(0, 2));
-  const spread = positions.length
-    ? Math.max(...positions) - Math.min(...positions)
-    : Number.MAX_SAFE_INTEGER;
-  const structureAccepted = search.range !== 'same-structure' || spread <= 16000;
-  if (!structureAccepted) return null;
-  return {
-    keywords: matches.filter(item => item.indexes.length).map(item => item.keyword),
-    positions,
-    spread,
-  };
+// 收集某文件内一个检索组各关键词的命中位置。返回 Map<keyword, indexes>，只含真正命中的词。
+function collectGroupHits(text, search, filePath = '') {
+  const hits = new Map();
+  for (const keyword of search.keywords) {
+    const indexes = keywordIndexesForSearch(text, keyword, search, filePath);
+    if (indexes.length) hits.set(keyword, indexes);
+  }
+  return hits;
 }
 
-function shouldCreateKeywordFallback(search) {
-  const keywords = uniq(search?.keywords || []);
-  if (keywords.length <= 1) return true;
-  if (search?.mode === 'all' && search?.range === 'same-structure') return false;
-  return true;
+function searchLayer(search) {
+  if (search?.layer === 'scope' || search?.scopeOnly) return 'scope';
+  if (search?.layer === 'child' || search?.childAnchor) return 'child';
+  return 'render';
 }
 
 function candidateSort(a, b) {
@@ -1016,46 +1043,186 @@ function candidateSort(a, b) {
   return a.file.localeCompare(b.file);
 }
 
+// 稀有度加权 + 共现收敛的候选检索。
+// 关键改动（相对旧实现）：
+//  1. 先做一遍全库文档频率(df)统计，得到每个锚点的稀有度(idf)。
+//  2. 通用外壳/框架词(df>DF_SCOPE_LIMIT)不再单独生成候选，只作为已有候选的缩范围加成——
+//     彻底消除「一个不可满足的 AND 组退化成成百上千个单词候选」的洪水。
+//  3. 判别性锚点(稀有词)在同一文件共现越多，得分越高(共现平方加成)，让真正渲染该区域的文件胜出。
 function executeSearchPlan(project, plan, textCache) {
-  const candidateMap = new Map();
-  for (const file of sourceFiles(project)) {
+  const files = sourceFiles(project);
+  const totalFiles = files.length || 1;
+
+  // Pass 1：收集每个文件的命中并统计文档频率。
+  const df = new Map();
+  const perFile = [];
+  for (const file of files) {
     const text = readProjectText(project, file, textCache);
     if (!text) continue;
+    const groups = [];
+    const seen = new Set();
     for (const search of plan.searches) {
-      const match = groupMatch(text, search, file.path);
-      if (match) {
-        upsertCandidate(candidateMap, file.path, {
-          score: Math.max(40, 260 - (search.priority - 1) * 30) + match.keywords.length * 18,
+      const hits = collectGroupHits(text, search, file.path);
+      if (!hits.size) continue;
+      groups.push({ search, hits });
+      for (const keyword of hits.keys()) {
+        if (seen.has(keyword)) continue;
+        seen.add(keyword);
+        df.set(keyword, (df.get(keyword) || 0) + 1);
+      }
+    }
+    if (groups.length) perFile.push({ file: file.path, groups });
+  }
+
+  const idf = keyword => Math.log((totalFiles + 1) / ((df.get(keyword) || 0) + 1)) + 1;
+  const isRare = keyword => (df.get(keyword) || 0) <= DF_SCOPE_LIMIT;
+
+  // 严格共现组(same-structure all，即 render 组)的两阶段准入：
+  //  1) 优先取「完整 AND 命中」的文件；
+  //  2) 若全库都没有完整命中，则取「最大共现稀有子集(≥2)」的文件——
+  //     这样即便 LLM 把某个并不在真渲染文件里的锚点也放进了 render 组，
+  //     真文件仍能凭「命中最多的稀有子集」被保留，兼顾鲁棒性与精度。
+  const strictAdmission = new Map();
+  for (const search of plan.searches) {
+    if (!(search.mode === 'all' && search.range === 'same-structure')) continue;
+    const matched = [];
+    for (const { file, groups } of perFile) {
+      const group = groups.find(item => item.search === search);
+      if (!group) continue;
+      const keywords = [...group.hits.keys()];
+      const positions = keywords.flatMap(keyword => group.hits.get(keyword).slice(0, 2));
+      const spread = positions.length ? Math.max(...positions) - Math.min(...positions) : 0;
+      if (spread > 16000) continue;
+      matched.push({ file, keywords, rareKeywords: keywords.filter(isRare), positions });
+    }
+    const full = matched.filter(item => item.keywords.length === search.keywords.length);
+    let admitted;
+    if (full.length) {
+      admitted = full;
+    } else {
+      const maxSubset = matched.reduce((max, item) => Math.max(max, item.rareKeywords.length), 0);
+      admitted = maxSubset >= 2
+        ? matched.filter(item => item.rareKeywords.length === maxSubset)
+          .map(item => ({ ...item, keywords: item.rareKeywords }))
+        : [];
+    }
+    strictAdmission.set(search, new Map(admitted.map(item => [item.file, item])));
+  }
+
+  // Pass 2：打分。先处理 render/child 组建立候选，再用 scope 组给已有候选加成。
+  const candidateMap = new Map();
+  for (const { file, groups } of perFile) {
+    const rareRenderAnchors = new Set();
+
+    for (const { search, hits } of groups) {
+      const layer = searchLayer(search);
+      if (layer === 'scope') continue;
+      const isStrict = search.mode === 'all' && search.range === 'same-structure';
+
+      // ——严格共现组：只有通过两阶段准入的文件才生成 planned-group，绝不做单点回退。
+      if (isStrict) {
+        const admitted = strictAdmission.get(search)?.get(file);
+        if (!admitted) continue;
+        const keywords = admitted.keywords;
+        const rareKeywords = keywords.filter(isRare);
+        upsertCandidate(candidateMap, file, {
+          score: Math.round(
+            Math.max(40, 220 - (search.priority - 1) * 30)
+            + keywords.reduce((sum, keyword) => sum + idf(keyword), 0) * 12
+            + rareKeywords.length * rareKeywords.length * 20
+            + (layer === 'child' ? -60 : 0)
+          ),
           matchedGroup: {
             priority: search.priority,
-            keywords: match.keywords,
+            keywords,
             range: search.range,
             reason: search.reason,
             source: 'planned-group',
+            layer,
           },
-          keywords: match.keywords,
-          positions: match.positions,
+          keywords,
+          positions: admitted.positions.slice(0, 6),
         });
+        if (layer === 'child') markChildCandidate(candidateMap, file);
+        if (layer === 'render') for (const keyword of rareKeywords) rareRenderAnchors.add(keyword);
+        continue;
       }
-      if (!shouldCreateKeywordFallback(search)) continue;
-      for (const keyword of search.keywords) {
-        const positions = keywordIndexesForSearch(text, keyword, search, file.path);
-        if (!positions.length) continue;
-        upsertCandidate(candidateMap, file.path, {
-          score: Math.max(12, 80 - (search.priority - 1) * 8),
+
+      // ——非严格组(any / all-same-file)：完整命中记 planned-group；AND 部分命中时对稀有锚点做单点回退。
+      const keywords = [...hits.keys()];
+      const positions = keywords.flatMap(keyword => hits.get(keyword).slice(0, 2));
+      const allMatched = keywords.length === search.keywords.length;
+      const accepted = search.mode === 'any' ? true : allMatched;
+      const rareKeywords = keywords.filter(isRare);
+
+      if (accepted && keywords.length) {
+        upsertCandidate(candidateMap, file, {
+          score: Math.round(
+            Math.max(40, 220 - (search.priority - 1) * 30)
+            + keywords.reduce((sum, keyword) => sum + idf(keyword), 0) * 12
+            + rareKeywords.length * rareKeywords.length * 20
+            + (layer === 'child' ? -60 : 0)
+          ),
           matchedGroup: {
             priority: search.priority,
-            keywords: [keyword],
-            range: 'same-file',
-            reason: `单点证据：${search.reason || keyword}`,
-            source: 'keyword-fallback',
+            keywords,
+            range: search.range,
+            reason: search.reason,
+            source: 'planned-group',
+            layer,
           },
-          keywords: [keyword],
-          positions: positions.slice(0, 3),
+          keywords,
+          positions: positions.slice(0, 6),
         });
+        if (layer === 'child') markChildCandidate(candidateMap, file);
+      }
+
+      if (!accepted) {
+        for (const keyword of rareKeywords) {
+          upsertCandidate(candidateMap, file, {
+            score: Math.round(Math.max(10, 60 - (search.priority - 1) * 8) + idf(keyword) * 10),
+            matchedGroup: {
+              priority: search.priority,
+              keywords: [keyword],
+              range: 'same-file',
+              reason: `单点稀有证据：${search.reason || keyword}`,
+              source: 'keyword-fallback',
+              layer,
+            },
+            keywords: [keyword],
+            positions: hits.get(keyword).slice(0, 3),
+          });
+          if (layer === 'child') markChildCandidate(candidateMap, file);
+        }
+      }
+
+      if (layer === 'render') for (const keyword of rareKeywords) rareRenderAnchors.add(keyword);
+    }
+
+    // ——scope 组：只给已经是候选的文件缩范围加成，绝不单独造候选。
+    if (candidateMap.has(file)) {
+      for (const { search, hits } of groups) {
+        if (searchLayer(search) !== 'scope') continue;
+        const keywords = [...hits.keys()];
+        const candidate = candidateMap.get(file);
+        candidate.score += Math.round(keywords.reduce((sum, keyword) => sum + idf(keyword), 0) * 4);
+        candidate.scopeAnchors = uniq([...(candidate.scopeAnchors || []), ...keywords]);
       }
     }
+
+    // ——稀有锚点共现加成：真正渲染该区域的文件会同时聚集多个判别性锚点。
+    if (rareRenderAnchors.size >= 2 && candidateMap.has(file)) {
+      const anchors = [...rareRenderAnchors];
+      const candidate = candidateMap.get(file);
+      candidate.score += Math.round(
+        anchors.length * anchors.length * 18
+        + anchors.reduce((sum, keyword) => sum + idf(keyword), 0) * 8
+      );
+      candidate.rareAnchorCount = anchors.length;
+      candidate.rareAnchors = anchors;
+    }
   }
+
   const ranked = Array.from(candidateMap.values())
     .map(candidate => ({
       ...candidate,
@@ -1063,6 +1230,11 @@ function executeSearchPlan(project, plan, textCache) {
       positions: uniq(candidate.positions).sort((a, b) => a - b),
     }));
   return ranked.sort(candidateSort);
+}
+
+function markChildCandidate(candidateMap, file) {
+  const candidate = candidateMap.get(file);
+  if (candidate) candidate.childComponentCandidate = true;
 }
 
 function previousCandidateKeywords(previousCandidate, fallbackKeywords = []) {
@@ -1821,6 +1993,8 @@ function inspectCandidates(project, candidates, plan, textCache, body = null) {
       definitionLinks: candidate.definitionLinks || [],
       domCoverage: sourceDomClassCoverage(masked, candidate.file, domClasses),
       domTextCoverage,
+      childComponentCandidate: !!candidate.childComponentCandidate,
+      rareAnchorCount: Number(candidate.rareAnchorCount || 0),
       excerpt: candidateExcerpt(text, candidate),
     };
   }).filter(candidate => candidate.matchedGroups.length);
@@ -2004,7 +2178,7 @@ function normalizeDefinitionResolver(parsed, inspection, ownership) {
     .map(item => ({
       definitionFile: String(item?.definitionFile || '').replace(/^\/+/, ''),
       renderFile: String(item?.renderFile || '').replace(/^\/+/, ''),
-      confidence: Math.max(0, Math.min(100, Number(item?.confidence || 0))),
+      confidence: normalizeConfidence(item?.confidence),
       reason: String(item?.reason || ''),
     }))
     .filter(item => unresolvedFiles.has(item.definitionFile) && renderFiles.has(item.renderFile));
@@ -2079,11 +2253,46 @@ function hasPlannedGroupMatch(candidate) {
   });
 }
 
+// 是否算「主渲染候选」。
+// 关键规则：只要选区 DOM 的锚点在该文件里以 planned-group 形式真实共现，它就是渲染源码——
+// 即便 candidateSourceRole 的启发式把它误判成 referenceOnly（definition-like/样式），
+// 也不能因此把它当参考文件丢弃（否则「明明命中了却在充分性判断里丢了」）。
+// 子组件候选不参与主渲染竞争。
+function isRenderCandidate(candidate) {
+  if (!candidate || candidate.childComponentCandidate) return false;
+  if (!candidate.referenceOnly) return true;
+  // referenceOnly 文件只有在「本身是可渲染源码扩展名」且有 planned-group 真实共现时才提升为渲染候选。
+  // .json 数据集合、.css 等样式文件即便命中锚点，也仍然只是定义/样式参考，不当作渲染源码。
+  if (!hasPlannedGroupMatch(candidate)) return false;
+  const ext = path.posix.extname(candidate.file || '').toLowerCase();
+  if (ext === '.json' || STYLE_EXTENSIONS.has(ext)) return false;
+  return true;
+}
+
+// 判断本地是否已存在明显占优的渲染候选（可据此本地收敛、跳过 Judge）。
+// 只有当榜首候选具备「真实 DOM 共现证据」——一个 ≥2 关键词的 planned-group，或 ≥2 个稀有锚点共现——
+// 时才允许本地收敛；对靠 import/定义反查合成出来的单锚点候选，仍交给 Judge 做兜底校验。
+function dominantRenderCandidate(inspection) {
+  const primary = (inspection?.candidates || [])
+    .filter(isRenderCandidate)
+    .sort((a, b) => b.score - a.score);
+  const first = primary[0];
+  const second = primary[1];
+  if (!first) return null;
+  const strongEvidence = hasPlannedGroupMatch(first) || Number(first.rareAnchorCount || 0) >= 2;
+  if (!strongEvidence) return null;
+  const dominates = !second
+    || first.score - second.score >= 120
+    || (hasPlannedGroupMatch(first) && !hasPlannedGroupMatch(second));
+  return dominates ? first : null;
+}
+
 function analyzeEvidenceSufficiency(plan, inspection, ownership = [], options = {}) {
   const candidates = inspection?.candidates || [];
   const plannedGroupCandidates = candidates.filter(hasPlannedGroupMatch);
   const importRelationCandidates = candidates.filter(candidate => candidate.importRelation);
-  const primaryCandidates = candidates.filter(candidate => !candidate.referenceOnly);
+  // 子组件候选不参与「主渲染候选」竞争；planned-group 命中的候选即便被标 referenceOnly 也算主渲染。
+  const primaryCandidates = candidates.filter(isRenderCandidate);
   const ownershipCount = Array.isArray(ownership) ? ownership.length : 0;
   if (plan.needMoreDom && !candidates.length) {
     return {
@@ -2146,6 +2355,18 @@ function analyzeEvidenceSufficiency(plan, inspection, ownership = [], options = 
       ownershipCount,
     };
   }
+  if (primaryCandidates.length > 1 && dominantRenderCandidate(inspection)) {
+    return {
+      insufficient: false,
+      reason: '存在稀有锚点共现明显占优的渲染候选，本地直接收敛',
+      candidateCount: candidates.length,
+      primaryCandidateCount: primaryCandidates.length,
+      referenceCandidateCount: candidates.length - primaryCandidates.length,
+      plannedGroupCandidateCount: plannedGroupCandidates.length,
+      dominant: true,
+      ownershipCount,
+    };
+  }
   if (primaryCandidates.length > 1 && options.expansionRetry) {
     return {
       insufficient: false,
@@ -2191,6 +2412,7 @@ function compactInspectionForModel(inspection) {
       structureMismatches: candidate.structureMismatches || [],
       sourceRole: candidate.sourceRole || '',
       referenceOnly: !!candidate.referenceOnly,
+      childComponentCandidate: !!candidate.childComponentCandidate,
       roleReasons: candidate.roleReasons || [],
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],
@@ -2464,6 +2686,66 @@ function resolveByRouteRelation(body, inspection, routeTrace, routeRelations) {
   };
 }
 
+// 归一化置信度：模型有时返回 0~1 小数（如 0.95），有时返回 0~100。统一到 0~100。
+function normalizeConfidence(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  const scaled = num > 0 && num <= 1 ? num * 100 : num;
+  return Math.max(0, Math.min(100, scaled));
+}
+
+// 组装结构化组合结果：一段 DOM 通常由 assembly(装配) + render(主渲染) + children(子组件) 协作渲染。
+function buildComposite(inspection, ownership, selectedFile) {
+  const candidates = inspection?.candidates || [];
+  const renderFile = selectedFile
+    || (dominantRenderCandidate(inspection) || {}).file
+    || (candidates.find(isRenderCandidate) || {}).file
+    || '';
+  if (!renderFile) return null;
+  const renderCandidate = candidates.find(item => item.file === renderFile) || null;
+  const owners = (ownership || [])
+    .filter(owner => owner.candidateFile === renderFile)
+    .sort((a, b) => Number(a.depth || 0) - Number(b.depth || 0));
+  const assembly = owners.length
+    ? { file: owners[0].file, via: 'import', chain: owners[0].chain || [] }
+    : null;
+  const children = candidates
+    .filter(item => item.childComponentCandidate && item.file !== renderFile)
+    .map(item => ({
+      file: item.file,
+      anchor: (item.matchedGroups || []).flatMap(group => group.keywords || [])[0] || '',
+    }));
+  // 同级并列渲染：一段 DOM 由多个平级组件各渲染一部分时，除主 render 外，
+  // 把「同样具备真实共现证据、且与主 render 不是父子关系、分数可比」的其它渲染候选也并列出来。
+  const renderScore = renderCandidate ? renderCandidate.score : 0;
+  const assemblyFile = assembly ? assembly.file : '';
+  const childFiles = new Set(children.map(child => child.file));
+  const coRenders = candidates
+    .filter(item => isRenderCandidate(item)
+      && item.file !== renderFile
+      && item.file !== assemblyFile
+      && !childFiles.has(item.file)
+      && hasPlannedGroupMatch(item)
+      && item.score >= renderScore * 0.5)
+    .map(item => ({
+      file: item.file,
+      role: 'render',
+      score: item.score,
+      anchors: uniq((item.matchedGroups || []).flatMap(group => group.keywords || [])).slice(0, 8),
+    }));
+  return {
+    render: {
+      file: renderFile,
+      role: 'render',
+      score: renderScore,
+      anchors: uniq((renderCandidate?.matchedGroups || []).flatMap(group => group.keywords || [])).slice(0, 8),
+    },
+    assembly,
+    children,
+    ...(coRenders.length ? { coRenders } : {}),
+  };
+}
+
 function normalizeJudge(parsed, project, allowedFiles = []) {
   const fileSet = new Set((project.files || []).map(file => file.path));
   const allowed = new Set(allowedFiles);
@@ -2471,7 +2753,7 @@ function normalizeJudge(parsed, project, allowedFiles = []) {
     .map(item => ({
       file: String(item?.file || '').replace(/^\/+/, ''),
       role: ['render', 'definition', 'assembly'].includes(item?.role) ? item.role : 'render',
-      confidence: Math.max(0, Math.min(100, Number(item?.confidence || 0))),
+      confidence: normalizeConfidence(item?.confidence),
       reason: String(item?.reason || ''),
     }))
     .filter(item => fileSet.has(item.file) && allowed.has(item.file));
@@ -2485,11 +2767,12 @@ function normalizeJudge(parsed, project, allowedFiles = []) {
 
 function agentHits(inspection, judge, ownership = []) {
   const candidateByFile = new Map((inspection.candidates || []).map(candidate => [candidate.file, candidate]));
-  const hasPrimaryCandidate = (inspection.candidates || []).some(candidate => !candidate.referenceOnly);
+  const hasPrimaryCandidate = (inspection.candidates || []).some(isRenderCandidate);
   const selected = judge?.files?.length
     ? judge.files.filter(item => {
         const candidate = candidateByFile.get(item.file);
-        return !(hasPrimaryCandidate && candidate?.referenceOnly);
+        // 只丢弃「真正的参考文件」；planned-group 命中的候选即便标了 referenceOnly 也保留为渲染结果。
+        return isRenderCandidate(candidate) || !hasPrimaryCandidate;
       })
     : inspection.status === 'unique'
       ? [{ file: inspection.selectedFile, role: 'render', confidence: 90, reason: '本地候选事实形成唯一匹配' }]
@@ -2563,6 +2846,38 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`本地输出：候选 ${result.hits.length} 个`);
     return { ...result, agent: { enabled: false, trigger } };
   }
+
+  // Stage0：运行时组件链已解析到真实源码文件（__file）——这是最确定的信号，
+  // 直接产出组合结果并返回，跳过 Planner / 检索 / Judge 全部 LLM 调用。
+  const chainProjectFiles = resolveChainToProjectFiles(project, body);
+  if (chainProjectFiles.length) {
+    onLog(`DOM Agent Stage0：运行时组件链命中源码文件，确定性收敛，跳过 LLM：${chainProjectFiles.join(' -> ')}`);
+    const composite = buildStage0Composite(chainProjectFiles);
+    const hits = chainProjectFiles.map((file, index) => ({
+      file,
+      score: 4000 - index * 100,
+      stage: 'dom-agent-stage0',
+      preciseEvidence: index === 0,
+      sourceRole: index === 0 ? 'render' : 'assembly',
+      modelConfidence: index === 0 ? 100 : 0,
+      reasons: ['DOM Agent Stage0：运行时组件链 __file 直接命中源码，无需模型参与'],
+    }));
+    return {
+      hits,
+      composite,
+      routeResolver: null,
+      apiTrace: null,
+      i18nTrace: null,
+      definitionTrace: null,
+      agent: {
+        enabled: true,
+        trigger,
+        stage0: true,
+        componentFiles: chainProjectFiles,
+      },
+    };
+  }
+
   if (!body.adapter) throw new Error('DOM Agent 需要已配置的定位模型。');
 
   const textCache = new Map();
@@ -2732,6 +3047,7 @@ async function runAgentSearch(project, body, options = {}) {
       routeRelationCount: routeRelations.length,
     };
     const hits = agentHits(inspection, localRouteDecision, []);
+    const composite = buildComposite(inspection, [], localRouteDecision.files[0].file);
     onLog(`DOM Agent 本地关系裁决：${localRouteDecision.files[0].reason}`);
     onLog(`DOM Agent 最终输出：${JSON.stringify({
       status: localRouteDecision.status,
@@ -2743,6 +3059,7 @@ async function runAgentSearch(project, body, options = {}) {
     }, null, 2)}`);
     return {
       hits,
+      composite,
       routeResolver: routeResult.trace,
       apiTrace: null,
       i18nTrace: null,
@@ -2874,6 +3191,46 @@ async function runAgentSearch(project, body, options = {}) {
     };
   }
 
+  // 本地已存在明显占优的渲染候选（稀有锚点共现）——直接收敛，不再调用 Judge。
+  // Judge 仅在下面「本地无法收敛的真歧义」时才触发。
+  const localDominant = dominantRenderCandidate(inspection);
+  if (localDominant && !options.forceJudge) {
+    const decision = {
+      status: 'unique',
+      files: [{
+        file: localDominant.file,
+        role: 'render',
+        confidence: 95,
+        reason: '判别性稀有锚点在同一渲染源码内共现，本地唯一收敛，无需模型裁决',
+      }],
+      source: 'local-dominant',
+    };
+    const hits = agentHits(inspection, decision, ownership);
+    const composite = buildComposite(inspection, ownership, localDominant.file);
+    onLog(`DOM Agent 本地收敛（跳过 Judge）：${localDominant.file}`);
+    onLog(`DOM Agent 组合结果：${JSON.stringify(composite, null, 2)}`);
+    return {
+      hits,
+      composite,
+      routeResolver: routeResult.trace,
+      apiTrace: null,
+      i18nTrace: null,
+      definitionTrace: null,
+      agent: {
+        enabled: true,
+        trigger,
+        plan: executionPlan,
+        modelPlan: plan,
+        fallbackPlan,
+        inspection: compactInspectionForModel(inspection),
+        definitionResolution,
+        evidence,
+        judge: decision,
+        localConverged: true,
+      },
+    };
+  }
+
   routeRelations = traceRouteCandidateRelations(
     project,
     routeResult.trace,
@@ -2909,6 +3266,11 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent Judge 路由关系校验：拒绝唯一结论；${routeValidation.reason}`);
   }
   const hits = agentHits(inspection, judge, ownership);
+  const composite = buildComposite(
+    inspection,
+    ownership,
+    judge?.status === 'unique' && judge.files[0] ? judge.files[0].file : ''
+  );
   onLog(`DOM Agent 最终输出：${JSON.stringify({
     status: judge?.status || inspection.status,
     files: hits.slice(0, 6).map(hit => ({
@@ -2919,6 +3281,7 @@ async function runAgentSearch(project, body, options = {}) {
   }, null, 2)}`);
   return {
     hits,
+    composite,
     routeResolver: routeResult.trace,
     apiTrace: null,
     i18nTrace: null,
@@ -2940,8 +3303,12 @@ async function runAgentSearch(project, body, options = {}) {
 
 module.exports = {
   DEFAULT_DOM_AGENT_THRESHOLD,
+  DF_SCOPE_LIMIT,
   compressDomMarkup,
   analyzeEvidenceSufficiency,
+  dominantRenderCandidate,
+  buildComposite,
+  normalizeConfidence,
   domAgentTrigger,
   executeSearchPlan,
   inspectCandidates,

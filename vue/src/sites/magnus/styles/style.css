@@ -348,6 +348,37 @@
   background: #f8fafc;
 }
 
+.mda-composite {
+  background: #f2f7ff;
+  border-color: #c7dbf5;
+}
+
+.mda-composite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mda-composite-tag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+}
+
+.mda-composite-tag.mda-composite-render {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mda-composite-anchor {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
 .mda-composer-options.is-compact {
   display: flex;
   flex-wrap: wrap;
