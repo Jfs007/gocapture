@@ -435,6 +435,92 @@ export function useModelAdapters() {
     }
   }
 
+  async function runSelectionContextAssist(options = {}) {
+    const selectionBindings = Array.isArray(options.selectionBindings) ? options.selectionBindings : [];
+    const userInstruction = String(options.userInstruction || '').trim();
+    if (!useModelAssist.value || !canUseModelAssist.value) return null;
+    if (modelAssistLoading.value) return null;
+    if (!selectionBindings.length) return null;
+    const controller = new AbortController();
+    modelAssistController = controller;
+    modelAssistStartedAt.value = Date.now();
+    modelAssistFinishedAt.value = 0;
+    modelAssistLoading.value = true;
+    modelAssistError.value = '';
+    modelAssistLogs.value = ['选区上下文增强请求已发起'];
+    modelAssistResult.value = null;
+    try {
+      const payload = searchPayload();
+      const result = await sourceServerNdjson('/api/model/selection-context/stream', {
+        method: 'POST',
+        controller,
+        body: {
+          adapter: selectedModel.value,
+          searchPayload: {
+            ...payload,
+            userPrompt: userInstruction || payload.userPrompt || ''
+          },
+          pagePath: routeResolverTrace.value?.pagePath || '',
+          routeResolver: routeResolverTrace.value,
+          selectionBindings: selectionBindings.map(item => ({
+            uid: item.uid,
+            designRequirement: item.binding?.designRequirement || '',
+            projectRoot: item.binding?.projectRoot || '',
+            targets: Array.isArray(item.binding?.targets) ? item.binding.targets : []
+          })),
+          candidateHits: candidateHits.value.slice(0, 4),
+          selectedCandidateHits: candidateHits.value.filter(hit => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4),
+        },
+        timeoutMs: Number(selectedModel.value.timeoutMs || 120000) * 3 + 5000,
+        timeoutMessage: '选区上下文增强超时',
+        abortMessage: '选区上下文增强已停止',
+        onEvent(event) {
+          if (event.type === 'log' && event.log) {
+            modelAssistLogs.value = [...modelAssistLogs.value, event.log];
+          }
+          if (event.type === 'result') {
+            modelAssistResult.value = event.result || null;
+          }
+          if (event.type === 'error' && Array.isArray(event.logs)) {
+            modelAssistLogs.value = event.logs;
+          }
+        }
+      });
+      modelAssistResult.value = result || modelAssistResult.value || null;
+      modelAssistLogs.value = modelAssistResult.value?.logs || [];
+      mergeModelTargets(modelAssistResult.value);
+      appUiStore.setToast('选区上下文增强已完成');
+      return modelAssistResult.value;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        const stoppedLogs = [...modelAssistLogs.value, '已手动停止'];
+        modelAssistLogs.value = stoppedLogs;
+        modelAssistResult.value = {
+          adapter: {
+            id: selectedModel.value?.id || '',
+            name: selectedModel.value?.name || '模型',
+            type: selectedModel.value?.type || ''
+          },
+          stopped: true,
+          modelItems: [],
+          targetFiles: [],
+          logs: stoppedLogs
+        };
+        modelAssistError.value = '';
+        appUiStore.setToast('已手动停止');
+        return modelAssistResult.value;
+      }
+      modelAssistError.value = error.message || String(error);
+      modelAssistLogs.value = error.payload?.logs || modelAssistLogs.value;
+      appUiStore.setToast('选区上下文增强失败');
+      return null;
+    } finally {
+      modelAssistFinishedAt.value = Date.now();
+      modelAssistLoading.value = false;
+      if (modelAssistController === controller) modelAssistController = null;
+    }
+  }
+
   function stopModelAssist() {
     if (!modelAssistLoading.value || !modelAssistController) return;
     modelAssistLogs.value = [...modelAssistLogs.value, '正在停止模型定位...'];
@@ -468,6 +554,7 @@ export function useModelAdapters() {
     setUseModelAssist,
     resetModelAssist,
     runModelAssist,
+    runSelectionContextAssist,
     stopModelAssist
   };
 }

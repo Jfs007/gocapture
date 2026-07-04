@@ -6,7 +6,7 @@ const EXPERIENCE_DIR = '.magnus-project';
 const PROJECT_META_FILE = 'project-meta.json';
 const PROJECT_DOC_FILE = 'Project.md';
 const PROJECT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const PROJECT_CONTEXT_VERSION = 4;
+const PROJECT_CONTEXT_VERSION = 5;
 
 const IMPORTANT_PATH_PATTERNS = [
   /^package\.json$/,
@@ -86,41 +86,8 @@ function directoryDescription(directory) {
   return known[name] || '项目源码目录';
 }
 
-function projectDocument(project, skillMetas = []) {
-  const directories = topLevelDirectories(project, 'src');
-  const routeFiles = (project.files || [])
-    .map(file => file.path)
-    .filter(file => /(^|\/)(router|routes)(\/|\.|$)|(^|\/)config\/routes\./i.test(file))
-    .slice(0, 20);
-  const requestFiles = (project.files || [])
-    .map(file => file.path)
-    .filter(file => /(^|\/)(api|apis|services?|request|requests|http)(\/|\.|$)/i.test(file))
-    .slice(0, 20);
-  const featureApiCount = (project.files || [])
-    .filter(file => /^src\/(?:views?|pages?)\/.+\/api\.(?:js|ts)$/.test(file.path))
-    .length;
+function skillSection(skillMetas = []) {
   return [
-    '# Project Overview',
-    '',
-    '## 技术栈',
-    ...(project.stack || []).map(item => `- ${item}`),
-    '',
-    '## 项目信息',
-    `- 类型：${project.kind || 'unknown'}`,
-    `- 文件数：${project.fileCount || (project.files || []).length}`,
-    '',
-    '## 目录概览',
-    ...directories.map(item => `- ${item}：${directoryDescription(item)}`),
-    ...(featureApiCount ? [`- src/views/**/api.ts：发现 ${featureApiCount} 个 Feature 私有 API 文件`] : []),
-    '',
-    '## 源码定位入口',
-    ...(routeFiles.length
-      ? routeFiles.map(file => `- 路由：${file}`)
-      : ['- 路由：未发现明确的路由文件']),
-    ...(requestFiles.length
-      ? requestFiles.map(file => `- 请求/API：${file}`)
-      : ['- 请求/API：未发现明确的请求目录']),
-    '',
     '## 已发现经验',
     ...(skillMetas.length
       ? skillMetas.map(meta => `- ${meta.id}：${meta.name || meta.id}（${meta.status || 'unknown'}）`)
@@ -130,6 +97,30 @@ function projectDocument(project, skillMetas = []) {
     '- Skill 是已验证或待验证的项目经验，不是不可覆盖的硬规则。',
     '- 当前目标文件和本次任务的真实源码证据优先于 Skill。',
     '',
+  ];
+}
+
+function projectDocument(project, skillMetas = [], interpretedMarkdown = '') {
+  const interpreted = String(interpretedMarkdown || '').trim();
+  if (interpreted) {
+    return [
+      interpreted,
+      '',
+      ...skillSection(skillMetas),
+    ].join('\n');
+  }
+  return [
+    '# Project Overview',
+    '',
+    '## 状态',
+    '- Project Interpreter 尚未运行；当前 Project.md 不提供项目技术栈或 UI 框架结论。',
+    '- 绑定项目后应由模型读取 package.json、项目结构和配置文件生成项目快照。',
+    '',
+    '## 项目信息',
+    `- 文件数：${project.fileCount || (project.files || []).length}`,
+    `- 本地扫描类型：${project.kind || 'unknown'}`,
+    '',
+    ...skillSection(skillMetas),
   ].join('\n');
 }
 
@@ -150,10 +141,12 @@ function projectSearchHints(project) {
 function projectTechnicalStackMarkdown(project, markdown = '') {
   const source = String(markdown || '');
   const match = source.match(/## 技术栈\s*\n([\s\S]*?)(?=\n## |\s*$)/);
-  if (match) {
-    return `## 技术栈\n${match[1].trim()}`.trim();
-  }
-  const stack = project.stack || [];
+  if (!match) return '## 技术栈\n- unknown';
+  const fromMarkdown = match[1]
+    .split(/\r?\n/)
+    .map(line => line.replace(/^\s*-\s*/, '').trim())
+    .filter(Boolean);
+  const stack = Array.from(new Set(fromMarkdown));
   return [
     '## 技术栈',
     ...(stack.length ? stack.map(item => `- ${item}`) : ['- unknown']),
@@ -168,6 +161,7 @@ function projectContextSummary(project, context) {
     technicalStackMarkdown: projectTechnicalStackMarkdown(project, context.markdown),
     fingerprint: context.meta?.fingerprint || '',
     generatedAt: context.meta?.generatedAt || '',
+    interpreted: !!context.meta?.interpreted,
     rebuilt: !!context.rebuilt,
     writable: context.writable !== false,
     error: context.error || '',
@@ -208,11 +202,11 @@ function ensureProjectContext(project, options = {}) {
     version: PROJECT_CONTEXT_VERSION,
     projectName: project.name,
     projectKind: project.kind,
-    stack: project.stack || [],
+    interpreted: !!options.interpretedMarkdown,
     fingerprint,
     generatedAt: new Date().toISOString(),
   };
-  const markdown = projectDocument(project, options.skillMetas || []);
+  const markdown = projectDocument(project, options.skillMetas || [], options.interpretedMarkdown || '');
   try {
     atomicWrite(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
     atomicWrite(docFile, markdown);
@@ -229,11 +223,37 @@ function ensureProjectContext(project, options = {}) {
   }
 }
 
+function writeProjectContext(project, markdown, options = {}) {
+  const root = experienceRoot(project);
+  const fingerprint = projectFingerprint(project);
+  const meta = {
+    version: PROJECT_CONTEXT_VERSION,
+    projectName: project.name,
+    projectKind: project.kind,
+    interpreted: true,
+    fingerprint,
+    generatedAt: new Date().toISOString(),
+    ...(options.meta || {}),
+  };
+  const content = projectDocument(project, options.skillMetas || [], markdown);
+  atomicWrite(path.join(root, PROJECT_META_FILE), `${JSON.stringify(meta, null, 2)}\n`);
+  atomicWrite(path.join(root, PROJECT_DOC_FILE), content);
+  return {
+    root,
+    meta,
+    markdown: content,
+    rebuilt: true,
+    writable: true,
+  };
+}
+
 function refreshProjectDocument(project, skillMetas) {
   const context = ensureProjectContext(project, { skillMetas });
   if (!context.writable) return context;
   try {
-    atomicWrite(path.join(context.root, PROJECT_DOC_FILE), projectDocument(project, skillMetas));
+    const current = safeRead(path.join(context.root, PROJECT_DOC_FILE));
+    const withoutSkillSection = current.split(/\n## 已发现经验\n/)[0].trim();
+    atomicWrite(path.join(context.root, PROJECT_DOC_FILE), projectDocument(project, skillMetas, withoutSkillSection));
   } catch (error) {
     return { ...context, writable: false, error: error.message || String(error) };
   }
@@ -251,4 +271,5 @@ module.exports = {
   refreshProjectDocument,
   safeJson,
   safeRead,
+  writeProjectContext,
 };

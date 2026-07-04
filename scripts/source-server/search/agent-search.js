@@ -11,6 +11,7 @@ const {
   normalizeLocatorDecision,
   validateLocatorDecision,
   locatorDecisionToSearchPlan,
+  locatorTechnicalStackMarkdown,
 } = require('./locator-protocol');
 
 const DEFAULT_DOM_AGENT_THRESHOLD = 8000;
@@ -23,7 +24,7 @@ const MAX_INHERITED_KEYWORDS = 4;
 const MAX_DEFINITION_RESOLVER_SEARCHES = 2;
 const MAX_OWNER_DEPTH = 3;
 const MAX_OWNERS_PER_CANDIDATE = 4;
-const MAX_ROUTE_RELATION_DEPTH = 5;
+const MAX_ROUTE_RELATION_DEPTH = 7;
 const STYLE_EXTENSIONS = new Set(['.css', '.less', '.scss', '.sass', '.styl']);
 const NATIVE_HTML_TAGS = new Set([
   'a', 'article', 'aside', 'button', 'canvas', 'caption', 'code', 'col', 'colgroup',
@@ -754,6 +755,103 @@ function expansionCombinedSearchPlan(plan, agentState) {
   };
 }
 
+function stableDomSearchText(value) {
+  const text = compactWhitespace(value);
+  if (!text || text.length < 2 || text.length > 24) return '';
+  if (/^https?:\/\//i.test(text)) return '';
+  if (/^\d+(?:[.,:/-]\d+)*$/.test(text)) return '';
+  if (/^[¥$]\s*\d/.test(text)) return '';
+  return text;
+}
+
+function isLikelyRuntimeClassToken(token) {
+  const value = String(token || '').trim();
+  if (!value || value.length < 3) return true;
+  if (/^(?:n|el|ant|ivu|van|arco|semi|q)-/i.test(value)) return true;
+  if (/^data-v-[a-f0-9]+$/i.test(value)) return true;
+  return false;
+}
+
+function rootClassTokensFromSelections(body) {
+  const tokens = [];
+  for (const selection of selectionList(body)) {
+    const info = selection?.element || selection?.info || selection || {};
+    const rawMarkup = selectionMarkup(selection);
+    const parsed = parseHtmlLite(rawMarkup);
+    const root = (parsed.children || []).find(child => child.type === 'element') || null;
+    const values = [
+      String(info.className || ''),
+      root?.attrs?.class || '',
+    ];
+    for (const value of values) {
+      for (const token of String(value || '').split(/\s+/)) {
+        const text = token.trim();
+        if (text && !isLikelyRuntimeClassToken(text)) tokens.push(text);
+      }
+    }
+  }
+  return uniq(tokens).slice(0, 4);
+}
+
+function domFieldLabelTexts(body) {
+  return uniq(domDirectTextStructures(body)
+    .filter(item => {
+      if (String(item.tag || '').toLowerCase() === 'label') return true;
+      return (item.classes || []).some(className => /(?:^|[-_])label(?:$|[-_])|form-item-label/i.test(className));
+    })
+    .map(item => stableDomSearchText(item.text))
+    .filter(Boolean));
+}
+
+function domSectionTitleTexts(body) {
+  return uniq(domDirectTextStructures(body)
+    .filter(item => {
+      if (String(item.tag || '').toLowerCase() === 'legend') return true;
+      return (item.classes || []).some(className => /(?:^|[-_])(?:title|legend|header)(?:$|[-_])/i.test(className));
+    })
+    .map(item => stableDomSearchText(item.text))
+    .filter(Boolean));
+}
+
+function deriveLocalDomSearchPlan(body) {
+  const searches = [];
+  const prompt = compactWhitespace(body?.userPrompt || '');
+  const labels = domFieldLabelTexts(body);
+  const targetLabels = labels.filter(text => prompt.includes(text));
+  if (labels.length >= 2) {
+    const selected = uniq([
+      ...(targetLabels.length ? targetLabels : labels.slice(0, 1)),
+      ...labels,
+    ]).slice(0, 4);
+    if (selected.length >= 2) {
+      searches.push({
+        keywords: selected,
+        mode: 'all',
+        range: 'same-structure',
+        priority: 1,
+        reason: '本地派生：目标字段与同块兄弟字段共同定位内部渲染结构',
+      });
+    }
+  }
+
+  const rootClasses = rootClassTokensFromSelections(body);
+  const sectionTitles = domSectionTitleTexts(body);
+  if (rootClasses.length && sectionTitles.length) {
+    searches.push({
+      keywords: uniq([rootClasses[0], sectionTitles[0]]),
+      mode: 'all',
+      range: 'same-file',
+      priority: 2,
+      reason: '本地派生：根容器 class 与区域标题定位外层装配结构',
+    });
+  }
+
+  return {
+    searches,
+    needMoreDom: false,
+  };
+}
+
 function sourceFiles(project) {
   return (project.files || []).filter(file => isTextFile(file.path));
 }
@@ -902,6 +1000,13 @@ function groupMatch(text, search, filePath = '') {
   };
 }
 
+function shouldCreateKeywordFallback(search) {
+  const keywords = uniq(search?.keywords || []);
+  if (keywords.length <= 1) return true;
+  if (search?.mode === 'all' && search?.range === 'same-structure') return false;
+  return true;
+}
+
 function candidateSort(a, b) {
   const scoreDiff = b.score - a.score;
   if (scoreDiff) return scoreDiff;
@@ -932,6 +1037,7 @@ function executeSearchPlan(project, plan, textCache) {
           positions: match.positions,
         });
       }
+      if (!shouldCreateKeywordFallback(search)) continue;
       for (const keyword of search.keywords) {
         const positions = keywordIndexesForSearch(text, keyword, search, file.path);
         if (!positions.length) continue;
@@ -1155,6 +1261,16 @@ function sourceDirectTextStructures(text, keyword) {
       index: match.index,
     });
   }
+  const attrPattern = new RegExp(`\\b(label|title|placeholder|aria-label)\\s*=\\s*["']${escaped}["']`, 'gi');
+  while ((match = attrPattern.exec(source)) && structures.length < 16) {
+    const attrName = String(match[1] || '').toLowerCase();
+    structures.push({
+      tag: attrName === 'label' ? 'label' : '',
+      classes: [],
+      dynamicClass: false,
+      index: match.index,
+    });
+  }
   return structures;
 }
 
@@ -1185,6 +1301,73 @@ function directTextStructureMismatch(text, keyword, plan) {
     domClasses: uniq(domStructures.flatMap(item => item.classes || [])),
     sourceClasses: uniq(sourceStructures.flatMap(item => item.classes || [])),
   };
+}
+
+function domTextAnchors(body) {
+  const anchors = domDirectTextStructures(body)
+    .map(item => ({
+      text: compactWhitespace(item.text),
+      tag: item.tag,
+      classes: item.classes || [],
+    }))
+    .filter(item => {
+      const text = item.text;
+      if (!text || text.length < 2 || text.length > 24) return false;
+      if (/^https?:\/\//i.test(text)) return false;
+      if (/^\d+(?:[.,:/-]\d+)*$/.test(text)) return false;
+      if (/^[¥$]\s*\d/.test(text)) return false;
+      return true;
+    });
+  return uniq(anchors.map(item => JSON.stringify(item))).map(item => JSON.parse(item)).slice(0, 24);
+}
+
+function sourceTextAnchorIndexes(text, anchor) {
+  const source = String(text || '');
+  const keyword = String(anchor?.text || '').trim();
+  if (!source || !keyword) return [];
+  const escaped = escapeRegExp(keyword);
+  const patterns = [
+    new RegExp(`>[^<]{0,120}${escaped}[^<]{0,120}<`, 'g'),
+    new RegExp(`\\b(?:label|title|placeholder|aria-label)\\s*=\\s*["']${escaped}["']`, 'g'),
+    new RegExp(`\\b(?:label|title|text|name)\\s*:\\s*["'\`]${escaped}["'\`]`, 'g'),
+  ];
+  const indexes = [];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) && indexes.length < 20) indexes.push(match.index);
+  }
+  if (!indexes.length) {
+    indexes.push(...textEvidenceIndexes(source, keyword));
+  }
+  return uniq(indexes).sort((a, b) => a - b);
+}
+
+function sourceDomTextCoverage(text, domAnchors) {
+  const matchedTexts = [];
+  for (const anchor of domAnchors || []) {
+    if (sourceTextAnchorIndexes(text, anchor).length) matchedTexts.push(anchor.text);
+  }
+  return {
+    matchedTexts: uniq(matchedTexts),
+    matchedTextCount: uniq(matchedTexts).length,
+    totalTextCount: domAnchors?.length || 0,
+  };
+}
+
+function plannedGroupTargetBonus(matchedGroups, body) {
+  const prompt = compactWhitespace(body?.userPrompt || '');
+  if (!prompt) return 0;
+  let bonus = 0;
+  for (const group of matchedGroups || []) {
+    if (group?.source !== 'planned-group') continue;
+    const keywords = group.keywords || [];
+    if (keywords.length < 2) continue;
+    bonus += keywords.length * 30;
+    if (keywords.some(keyword => prompt.includes(String(keyword || '').trim()))) {
+      bonus += 180;
+    }
+  }
+  return bonus;
 }
 
 function candidateEffectiveKeywordSet(candidate) {
@@ -1226,12 +1409,16 @@ function pruneStrictDomCoverageSubsets(inspected) {
   const renderCandidates = inspected.filter(candidate => !candidate.referenceOnly);
   return inspected.filter(candidate => {
     if (candidate.referenceOnly) return true;
+    if (hasPlannedGroupMatch(candidate)) return true;
     const own = new Set(candidate.domCoverage?.matchedClasses || []);
     if (!own.size) return true;
+    const ownTextCount = candidate.domTextCoverage?.matchedTextCount || 0;
     return !renderCandidates.some(other => {
       if (other === candidate) return false;
       const otherClasses = new Set(other.domCoverage?.matchedClasses || []);
       if (otherClasses.size < 2 || otherClasses.size <= own.size) return false;
+      const otherTextCount = other.domTextCoverage?.matchedTextCount || 0;
+      if (ownTextCount > otherTextCount) return false;
       return Array.from(own).every(className => otherClasses.has(className));
     });
   });
@@ -1256,6 +1443,7 @@ function pruneTextOnlyRenderCandidates(inspected, plan) {
   if (!hasStructuralRender) return inspected;
   return inspected.filter(candidate => {
     if (candidate.referenceOnly) return true;
+    if (hasPlannedGroupMatch(candidate)) return true;
     const evidence = candidateEffectiveKeywordSet(candidate);
     const structuralMatch = Array.from(structuralKeywords).some(keyword => evidence.has(keyword));
     if (structuralMatch) return true;
@@ -1276,33 +1464,94 @@ function candidateHasExactQuotedKeyword(candidate) {
   });
 }
 
+function candidateSearchKeywords(candidate, search, includeCommentOnly = false) {
+  const facts = candidate?.keywordFacts || [];
+  return uniq((search?.keywords || []).filter(keyword => {
+    const expectedType = keywordType(search, keyword);
+    return facts.some(item => {
+      if (item.keyword !== keyword || item.type !== expectedType || item.structureMismatch) return false;
+      return includeCommentOnly ? item.count > 0 : item.codeCount > 0;
+    });
+  }));
+}
+
 function pruneDominatedDomCandidates(inspected, plan) {
+  const searches = (plan?.searches || []).filter(search => {
+    return uniq(search.keywords || []).length >= 2;
+  });
+  const dominantGroups = searches.flatMap(search => {
+    const required = uniq(search.keywords || []);
+    const complete = inspected.filter(candidate => {
+      if (candidate.referenceOnly || candidate.sourceRole !== 'render-like') return false;
+      return candidateSearchKeywords(candidate, search).length === required.length;
+    });
+    return complete.length === 1 ? [{
+      search,
+      required,
+      winner: complete[0],
+      matches: (candidate, includeCommentOnly = false) => {
+        return candidateSearchKeywords(candidate, search, includeCommentOnly);
+      },
+    }] : [];
+  });
+
   const plannedKeywords = uniq((plan?.searches || [])
     .flatMap(search => search.keywords || [])
     .map(keyword => String(keyword || '').trim())
     .filter(Boolean));
-  if (plannedKeywords.length < 2) return inspected;
-  const completeRenderCandidates = inspected.filter(candidate => {
-    if (candidate.referenceOnly || candidate.sourceRole !== 'render-like') return false;
-    const evidence = candidateEffectiveKeywordSet(candidate);
-    return plannedKeywords.every(keyword => evidence.has(keyword));
-  });
-  if (completeRenderCandidates.length !== 1) return inspected;
-  const winner = completeRenderCandidates[0];
-  const winnerEvidence = candidateEffectiveKeywordSet(winner);
-  winner.roleReasons = uniq([
-    ...(winner.roleReasons || []),
-    '唯一覆盖本轮全部 DOM 检索锚点，淘汰只命中其证据子集的候选',
-  ]);
+  if (plannedKeywords.length >= 2) {
+    const completeAcrossGroups = inspected.filter(candidate => {
+      if (candidate.referenceOnly || candidate.sourceRole !== 'render-like') return false;
+      const evidence = candidateEffectiveKeywordSet(candidate);
+      return plannedKeywords.every(keyword => evidence.has(keyword));
+    });
+    if (completeAcrossGroups.length === 1 && !dominantGroups.some(group => {
+      return group.winner === completeAcrossGroups[0]
+        && group.required.length === plannedKeywords.length;
+    })) {
+      dominantGroups.push({
+        search: null,
+        required: plannedKeywords,
+        winner: completeAcrossGroups[0],
+        matches: (candidate, includeCommentOnly = false) => {
+          const facts = candidate?.keywordFacts || [];
+          return plannedKeywords.filter(keyword => facts.some(item => {
+            if (item.keyword !== keyword || item.structureMismatch) return false;
+            return includeCommentOnly ? item.count > 0 : item.codeCount > 0;
+          }));
+        },
+      });
+    }
+  }
+  if (!dominantGroups.length) return inspected;
+
+  for (const group of dominantGroups) {
+    group.winner.roleReasons = uniq([
+      ...(group.winner.roleReasons || []),
+      `唯一完整覆盖检索组（${group.required.join(' + ')}），局部命中候选按组淘汰`,
+    ]);
+  }
+
   return inspected.filter(candidate => {
-    if (candidate === winner) return true;
-    const evidence = candidateEffectiveKeywordSet(candidate);
-    if (!evidence.size || evidence.size >= winnerEvidence.size) return true;
-    const dominated = Array.from(evidence).every(keyword => winnerEvidence.has(keyword));
-    if (!dominated) return true;
-    if (!candidate.referenceOnly) return false;
-    if (candidate.sourceRole === 'style-reference') return true;
-    return candidateHasExactQuotedKeyword(candidate);
+    if (dominantGroups.some(group => candidate === group.winner)) return true;
+    if (candidate.importRelation || (candidate.definitionLinks || []).length) return true;
+    if (candidate.referenceOnly) {
+      if (candidate.sourceRole === 'style-reference') return true;
+      return candidateHasExactQuotedKeyword(candidate);
+    }
+
+    const completesAnotherGroup = searches.some(search => {
+      const required = uniq(search.keywords || []);
+      return candidateSearchKeywords(candidate, search).length === required.length;
+    });
+    if (completesAnotherGroup) return true;
+
+    return !dominantGroups.some(group => {
+      const effectiveMatches = group.matches(candidate);
+      if (effectiveMatches.length > 0 && effectiveMatches.length < group.required.length) return true;
+      const rawMatches = group.matches(candidate, true);
+      return rawMatches.length > 0 && effectiveMatches.length === 0;
+    });
   });
 }
 
@@ -1505,6 +1754,7 @@ function enrichDefinitionCandidates(project, inspected, plan, textCache) {
 
 function inspectCandidates(project, candidates, plan, textCache, body = null) {
   const domClasses = originalDomClassTokens(body);
+  const textAnchors = domTextAnchors(body);
   let inspected = candidates.map(candidate => {
     const file = (project.files || []).find(item => item.path === candidate.file);
     const text = file ? readProjectText(project, file, textCache) : '';
@@ -1549,8 +1799,11 @@ function inspectCandidates(project, candidates, plan, textCache, body = null) {
       keywords: (group.keywords || []).filter(keyword => !mismatchedKeywords.has(keyword)),
     })).filter(group => group.keywords.length);
     const rolePenalty = roleInfo.referenceOnly ? 80 : 0;
+    const domTextCoverage = sourceDomTextCoverage(masked, textAnchors);
     const localScore = candidate.score
       + codeMatches * 24
+      + domTextCoverage.matchedTextCount * 50
+      + plannedGroupTargetBonus(matchedGroups, body)
       - commentOnly.length * 40
       - structureMismatches.length * 140
       - rolePenalty;
@@ -1567,6 +1820,7 @@ function inspectCandidates(project, candidates, plan, textCache, body = null) {
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],
       domCoverage: sourceDomClassCoverage(masked, candidate.file, domClasses),
+      domTextCoverage,
       excerpt: candidateExcerpt(text, candidate),
     };
   }).filter(candidate => candidate.matchedGroups.length);
@@ -2183,10 +2437,17 @@ function resolveByRouteRelation(body, inspection, routeTrace, routeRelations) {
       if (!candidate || candidate.referenceOnly) return false;
       const evidenceCount = candidateKeywordSet(candidate).size;
       const classCoverage = candidate.domCoverage?.matchedClassCount;
+      const textCoverage = candidate.domTextCoverage?.matchedTextCount || 0;
+      const totalTextCoverage = candidate.domTextCoverage?.totalTextCount || 0;
       const hasEnoughStructure = classCoverage == null
         ? evidenceCount > 0
-        : classCoverage >= 2 || evidenceCount >= 2;
-      return hasEnoughStructure && !(candidate.structureMismatches || []).length;
+        : classCoverage >= 2 || evidenceCount >= 2 || textCoverage >= 2;
+      const hasEnoughLocalTextContext = totalTextCoverage >= 3
+        ? textCoverage >= 2
+        : true;
+      return hasEnoughStructure
+        && hasEnoughLocalTextContext
+        && !(candidate.structureMismatches || []).length;
     });
   if (relatedCandidates.length !== 1) return null;
   const candidate = relatedCandidates[0];
@@ -2324,13 +2585,14 @@ async function runAgentSearch(project, body, options = {}) {
     })),
   }, null, 2)}`);
   const plannerPrompt = buildPlannerPrompt(project, body, routeResult.trace, domSelections);
-  const plannerSystemPrompt = buildLocatorSystemPrompt();
+  const plannerSystemPrompt = buildLocatorSystemPrompt(locatorTechnicalStackMarkdown(project));
   onLog(`DOM Agent System Prompt（${plannerSystemPrompt.length} 字符）:\n${plannerSystemPrompt}`);
   onLog(`DOM Agent Planner 输入（${plannerPrompt.length} 字符）:\n${plannerPrompt}`);
   const plannerResult = await invokeModel(body.adapter, plannerPrompt, project.path, {
     signal,
     onLog,
     systemPrompt: plannerSystemPrompt,
+    temperature: 0.2,
   });
   onLog(`DOM Agent Planner 输出（${plannerResult.rawText.length} 字符）:\n${plannerResult.rawText || '-'}`);
   const plannerParsed = parseJsonResult(plannerResult.rawText);
@@ -2351,13 +2613,25 @@ async function runAgentSearch(project, body, options = {}) {
   }
   plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
   onLog(`DOM Agent 检索词定性：${JSON.stringify(planEvidenceKinds(plan), null, 2)}`);
+  let executionPlan = plan;
+  let fallbackPlan = null;
+  if (!plan.searches.length) {
+    const derivedPlan = annotatePlanKeywordTypes(deriveLocalDomSearchPlan(body), body);
+    if (derivedPlan.searches.length) {
+      onLog('本地调用：deriveLocalDomSearchPlan(body)');
+      onLog(`本地输出：${JSON.stringify(derivedPlan, null, 2)}`);
+      onLog('DOM Agent Planner 未返回可执行检索词，本地派生计划作为兜底执行。');
+      executionPlan = derivedPlan;
+      fallbackPlan = derivedPlan;
+    }
+  }
   const inheritedKeywords = inheritedSearchKeywords(body?.agentState || null);
   if (inheritedKeywords.length) {
     onLog(`DOM Agent 扩区保留上一轮检索锚点用于引用链验证：${inheritedKeywords.join('、')}`);
   }
-  const combinedPlan = expansionCombinedSearchPlan(plan, body?.agentState || null);
-  if (!plan.searches.length) {
-    if (plan.needMoreDom) {
+  const combinedPlan = expansionCombinedSearchPlan(executionPlan, body?.agentState || null);
+  if (!executionPlan.searches.length) {
+    if (executionPlan.needMoreDom || plan.needMoreDom) {
       const evidence = {
         insufficient: true,
         reason: 'Planner 判断当前选区无法形成稳定检索计划',
@@ -2375,7 +2649,9 @@ async function runAgentSearch(project, body, options = {}) {
         agent: {
           enabled: true,
           trigger,
-          plan,
+          plan: executionPlan,
+          modelPlan: plan,
+          fallbackPlan,
           evidence,
           needMoreDom: true,
         },
@@ -2401,8 +2677,8 @@ async function runAgentSearch(project, body, options = {}) {
     }, null, 2)}`);
   }
 
-  onLog(`本地调用：executeSearchPlan(project, ${JSON.stringify(plan)})`);
-  const currentCandidates = executeSearchPlan(project, plan, textCache);
+  onLog(`本地调用：executeSearchPlan(project, ${JSON.stringify(executionPlan)})`);
+  const currentCandidates = executeSearchPlan(project, executionPlan, textCache);
   const related = expansionRelatedCandidateHits(project, currentCandidates, body?.agentState || null, textCache);
   if (related.relations.length) {
     onLog(`DOM Agent 扩区引用链命中：${JSON.stringify(related.relations, null, 2)}`);
@@ -2428,7 +2704,7 @@ async function runAgentSearch(project, body, options = {}) {
   const inspectionPlan = {
     searches: [
       ...combinedPlan.plan.searches,
-      ...plan.searches,
+      ...executionPlan.searches,
     ],
   };
   let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache, body);
@@ -2650,7 +2926,9 @@ async function runAgentSearch(project, body, options = {}) {
     agent: {
       enabled: true,
       trigger,
-      plan,
+      plan: executionPlan,
+      modelPlan: plan,
+      fallbackPlan,
       inspection: compactInspectionForModel(inspection),
       definitionResolution,
       evidence,

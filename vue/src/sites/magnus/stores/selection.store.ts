@@ -1,6 +1,11 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { RuntimeSelectionPayload, SelectionAsset, SelectionId } from '../app/types/selection.types';
+import type {
+  RuntimeSelectionPayload,
+  SelectionAsset,
+  SelectionId,
+  SelectionSourceBinding
+} from '../app/types/selection.types';
 import { compactText } from '../app/utils/text';
 
 export const useSelectionStore = defineStore('magnus.selection', () => {
@@ -44,7 +49,11 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     });
   });
 
-  function mapRuntimeSelection(raw: RuntimeSelectionPayload, index: number): SelectionAsset {
+  function mapRuntimeSelection(
+    raw: RuntimeSelectionPayload,
+    index: number,
+    previous?: SelectionAsset
+  ): SelectionAsset {
     const element = raw?.element || raw?.info || raw || {};
     const uid = raw?.uid || element.uid || `remote-selection-${Date.now()}-${index}`;
     return {
@@ -52,16 +61,33 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
       element,
       asset: raw?.asset || element,
       sourceLocate: raw?.sourceLocate || raw?.sourceEvidence || element.sourceLocate || null,
+      sourceBinding: raw?.sourceBinding || previous?.sourceBinding || null,
       thumbnailUrl: raw?.thumbnailUrl || raw?.thumbnail || '',
       thumbnailCaptured: !!(raw?.thumbnailUrl || raw?.thumbnail)
     };
   }
 
   function replaceSelections(rawSelections: RuntimeSelectionPayload[]) {
-    items.value = (Array.isArray(rawSelections) ? rawSelections : []).map(mapRuntimeSelection);
+    const previousById = new Map(items.value.map(item => [item.uid, item]));
+    items.value = (Array.isArray(rawSelections) ? rawSelections : []).map((raw, index) => {
+      const element = raw?.element || raw?.info || raw || {};
+      const uid = raw?.uid || element.uid || '';
+      return mapRuntimeSelection(raw, index, uid ? previousById.get(uid) : undefined);
+    });
     activeId.value = latest.value?.uid || null;
     confirmed.value = false;
     filesConfirmed.value = false;
+  }
+
+  function bindSourceContext(id: SelectionId, binding: SelectionSourceBinding) {
+    const item = items.value.find(selection => selection.uid === id);
+    if (!item) return false;
+    item.sourceBinding = binding;
+    return true;
+  }
+
+  function sourceBinding(id: SelectionId) {
+    return items.value.find(selection => selection.uid === id)?.sourceBinding || null;
   }
 
   function removeSelection(id: SelectionId) {
@@ -100,6 +126,8 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     hasSelection,
     promptAssets,
     replaceSelections,
+    bindSourceContext,
+    sourceBinding,
     removeSelection,
     clear,
     setActive,

@@ -1,0 +1,303 @@
+const path = require('path');
+const { isTextFile, readProjectText } = require('../core/fs-utils');
+const { runModelTask } = require('../model/model-adapters');
+const { writeProjectContext } = require('./project-context');
+
+const MAX_CONFIG_CHARS = 12000;
+const MAX_FILE_LIST = 420;
+const MAX_VERIFY_FILES = 40;
+const MAX_VERIFY_SNIPPETS = 5;
+
+function appendLog(logs, text) {
+  if (!Array.isArray(logs) || !text) return;
+  logs.push(text);
+  if (typeof logs.onAppend === 'function') logs.onAppend(text, logs.slice());
+}
+
+function importantConfigFiles(project) {
+  const patterns = [
+    /^package\.json$/,
+    /^(vite|webpack|next|nuxt)\.config\./,
+    /^vue\.config\./,
+    /^tsconfig\.json$/,
+    /^jsconfig\.json$/,
+    /^babel\.config\./,
+    /^postcss\.config\./,
+    /^tailwind\.config\./,
+    /^src\/main\.(?:js|ts|jsx|tsx)$/,
+    /^src\/App\.vue$/,
+    /^src\/app\.(?:jsx|tsx)$/,
+    /^src\/index\.(?:js|ts|jsx|tsx)$/,
+    /(^|\/)(router|routes)(\/|\.|$)/,
+  ];
+  return (project.files || [])
+    .map(file => file.path)
+    .filter(file => patterns.some(pattern => pattern.test(file)))
+    .slice(0, 40);
+}
+
+function directorySummary(project) {
+  const counts = new Map();
+  for (const file of project.files || []) {
+    const parts = String(file.path || '').split('/');
+    const key = parts.length > 1 ? `${parts[0]}/${parts[1]}` : parts[0];
+    if (!key) continue;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 80)
+    .map(([dir, count]) => ({ dir, count }));
+}
+
+function readConfigFacts(project) {
+  const cache = new Map();
+  return importantConfigFiles(project).map(filePath => {
+    const file = (project.files || []).find(item => item.path === filePath);
+    const raw = file ? readProjectText(project, file, cache) : '';
+    const content = raw.length > MAX_CONFIG_CHARS ? `${raw.slice(0, MAX_CONFIG_CHARS)}\n...<truncated>` : raw;
+    return { path: filePath, content };
+  }).filter(item => item.content);
+}
+
+function projectFacts(project) {
+  return {
+    name: project.name,
+    fileCount: project.fileCount || (project.files || []).length,
+    directories: directorySummary(project),
+    files: (project.files || []).map(file => file.path).slice(0, MAX_FILE_LIST),
+    configFiles: readConfigFacts(project),
+  };
+}
+
+function parseJsonObject(text) {
+  const raw = String(text || '').trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start !== -1 && end > start) {
+      return JSON.parse(raw.slice(start, end + 1));
+    }
+    throw error;
+  }
+}
+
+function buildDiscoveryPrompt(project) {
+  return [
+    '你是 Magnus 的 Project Interpreter。',
+    '你不能访问文件系统，只能阅读输入中的 package.json、配置文件、入口文件片段和目录结构。',
+    '你的任务是推测项目快照，并提出需要本地验证的关键词。',
+    '',
+    '规则：',
+    '- 不要使用内置框架知识表，不要编造源码中没有证据的结论。',
+    '- 技术栈、UI 框架、路由、状态管理、请求库都必须从输入配置或入口文件中推断。',
+    '- 如果怀疑存在 UI 框架，请输出用于本地验证的关键词，例如包名、样式文件名、入口 import 片段、可能的 class 前缀候选。',
+    '- class 前缀只能作为待验证关键词，不能在第一轮当成已确认事实。',
+    '- 返回严格 JSON，不输出 Markdown。',
+    '',
+    '返回格式：',
+    JSON.stringify({
+      summary: '',
+      technicalStack: [],
+      uiFrameworkCandidates: [{
+        name: '',
+        evidence: [],
+        verificationKeywords: [],
+      }],
+      verificationSearches: [{
+        id: '',
+        keywords: [],
+        mode: 'all | any',
+        purpose: '',
+      }],
+      uncertainty: [],
+    }),
+    '',
+    '项目事实：',
+    JSON.stringify(projectFacts(project), null, 2),
+  ].join('\n');
+}
+
+function searchVerification(project, searches) {
+  const normalizedSearches = (Array.isArray(searches) ? searches : [])
+    .map((search, index) => ({
+      id: String(search?.id || `search-${index + 1}`),
+      keywords: (Array.isArray(search?.keywords) ? search.keywords : [])
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
+        .slice(0, 10),
+      mode: search?.mode === 'any' ? 'any' : 'all',
+      purpose: String(search?.purpose || ''),
+    }))
+    .filter(search => search.keywords.length);
+  const files = (project.files || [])
+    .filter(file => isTextFile(file.path))
+    .filter(file => !/(^|\/)(node_modules|dist|build|coverage)\//.test(file.path))
+    .slice(0, 5000);
+  const cache = new Map();
+  return normalizedSearches.map(search => {
+    const matches = [];
+    for (const file of files) {
+      if (matches.length >= MAX_VERIFY_FILES) break;
+      const text = readProjectText(project, file, cache);
+      if (!text) continue;
+      const checks = search.keywords.map(keyword => text.includes(keyword));
+      const matched = search.mode === 'any' ? checks.some(Boolean) : checks.every(Boolean);
+      if (!matched) continue;
+      const snippets = search.keywords
+        .flatMap(keyword => excerptMatches(text, keyword))
+        .slice(0, MAX_VERIFY_SNIPPETS);
+      matches.push({
+        path: file.path,
+        ext: path.extname(file.path).toLowerCase(),
+        isStyle: /\.(?:css|less|s[ac]ss|styl)$/.test(file.path),
+        snippets,
+      });
+    }
+    return { ...search, matches };
+  });
+}
+
+function excerptMatches(text, keyword) {
+  const result = [];
+  const value = String(keyword || '');
+  if (!value) return result;
+  let offset = 0;
+  while (result.length < 2) {
+    const index = text.indexOf(value, offset);
+    if (index === -1) break;
+    const start = Math.max(0, index - 90);
+    const end = Math.min(text.length, index + value.length + 140);
+    result.push(text.slice(start, end).replace(/\s+/g, ' ').trim());
+    offset = index + value.length;
+  }
+  return result;
+}
+
+function buildFinalPrompt(project, discovery, verification) {
+  return [
+    '你是 Magnus 的 Project Interpreter。',
+    '你现在会收到第一轮项目推测和本地真实检索验证结果。',
+    '请生成 Project.md 内容，用于后续源码定位。必须只写经过配置或本地验证支持的结论；不确定的内容写入“不确定/待验证”。',
+    '',
+    '必须包含这些 Markdown 章节：',
+    '- # Project Overview',
+    '- ## 技术栈',
+    '- ## UI 框架与 DOM class 判断',
+    '- ## 项目信息',
+    '- ## 目录概览',
+    '- ## 源码定位入口',
+    '- ## 不确定/待验证',
+    '',
+    '技术栈要求：',
+    '- 技术栈只列结论，不需要解释每一项来自哪里。',
+    '',
+    'UI 框架与 DOM class 判断要求：',
+    '- 如果本地验证找到了样式文件、入口 import 或高频 class 前缀，可以写成“建议 Planner 优先跳过/降权的 UI 框架 class 前缀”。',
+    '- 如果本地验证不足，不要写已确认前缀。',
+    '- 不要输出 JSON，只输出 Markdown。',
+    '',
+    '项目基础信息：',
+    JSON.stringify({
+      name: project.name,
+      fileCount: project.fileCount || (project.files || []).length,
+    }, null, 2),
+    '',
+    '第一轮推测：',
+    JSON.stringify(discovery, null, 2),
+    '',
+    '本地验证结果：',
+    JSON.stringify(verification, null, 2),
+  ].join('\n');
+}
+
+async function interpretProject(project, rawAdapter, options = {}) {
+  const logs = [];
+  if (typeof options.onLog === 'function') logs.onAppend = options.onLog;
+  if (project?.context?.interpreted && project?.context?.markdown) {
+    appendLog(logs, 'Project Interpreter: 已存在未过期 Project.md，跳过解释器');
+    return {
+      project,
+      context: project.context,
+      discovery: null,
+      verification: [],
+      logs,
+      skipped: true,
+    };
+  }
+  appendLog(logs, 'Project Interpreter: 开始读取 package.json、配置文件和目录结构');
+  const discoveryPrompt = buildDiscoveryPrompt(project);
+  appendLog(logs, `Project Interpreter 第一轮输入：${discoveryPrompt.length} 字符`);
+  const discoveryResult = await runModelTask(rawAdapter, discoveryPrompt, project.path, {
+    signal: options.signal,
+    onLog: log => appendLog(logs, log),
+    systemPrompt: '你是项目解释器，只返回严格 JSON。',
+  });
+  appendLog(logs, `Project Interpreter 第一轮输出：${discoveryResult.rawText.length} 字符`);
+  const discovery = parseJsonObject(discoveryResult.rawText);
+  const verification = searchVerification(project, discovery.verificationSearches);
+  appendLog(logs, `Project Interpreter 本地验证：执行 ${verification.length} 组检索`);
+  const finalPrompt = buildFinalPrompt(project, discovery, verification);
+  appendLog(logs, `Project Interpreter 第二轮输入：${finalPrompt.length} 字符`);
+  const finalResult = await runModelTask(rawAdapter, finalPrompt, project.path, {
+    signal: options.signal,
+    onLog: log => appendLog(logs, log),
+    systemPrompt: '你是项目解释器，只输出 Project.md Markdown。',
+  });
+  appendLog(logs, `Project Interpreter 第二轮输出：${finalResult.rawText.length} 字符`);
+  const context = writeProjectContext(project, finalResult.rawText, {
+    skillMetas: options.skillMetas || [],
+    meta: {
+      interpreterAdapter: discoveryResult.adapter,
+      verificationCount: verification.length,
+    },
+  });
+  const interpretedStack = technicalStackItems(context.markdown);
+  project.stack = interpretedStack;
+  project.stackText = interpretedStack.join(' / ');
+  project.context = {
+    path: path.join(context.root, 'Project.md'),
+    markdown: context.markdown,
+    technicalStackMarkdown: technicalStackMarkdown(context.markdown),
+    fingerprint: context.meta?.fingerprint || '',
+    generatedAt: context.meta?.generatedAt || '',
+    interpreted: true,
+    rebuilt: true,
+    writable: true,
+    error: '',
+    searchHints: {},
+  };
+  return {
+    project,
+    context,
+    discovery,
+    verification,
+    logs,
+  };
+}
+
+function technicalStackMarkdown(markdown) {
+  const match = String(markdown || '').match(/## 技术栈\s*\n([\s\S]*?)(?=\n## |\s*$)/);
+  return match ? `## 技术栈\n${match[1].trim()}` : '## 技术栈\n- unknown';
+}
+
+function technicalStackItems(markdown) {
+  const match = String(markdown || '').match(/## 技术栈\s*\n([\s\S]*?)(?=\n## |\s*$)/);
+  if (!match) return [];
+  return match[1]
+    .split(/\r?\n/)
+    .map(line => line.replace(/^\s*-\s*/, '').trim())
+    .filter(Boolean)
+    .filter(item => item !== 'unknown');
+}
+
+module.exports = {
+  interpretProject,
+  projectFacts,
+  searchVerification,
+};

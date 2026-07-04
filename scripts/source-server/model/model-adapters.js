@@ -3074,7 +3074,9 @@ async function runApiAdapter(adapter, prompt, logs, signal, runtimeOptions = {})
   if (adapter.apiKey) headers.Authorization = `Bearer ${adapter.apiKey}`;
   const body = {
     model: adapter.model || undefined,
-    temperature: 0,
+    temperature: Number.isFinite(runtimeOptions.temperature)
+      ? runtimeOptions.temperature
+      : 0,
     messages: [
       {
         role: 'system',
@@ -3115,6 +3117,7 @@ async function runModelTask(rawAdapter, prompt, cwd, options = {}) {
   const rawText = adapter.type === 'api'
     ? await runApiAdapter(adapter, prompt, logs, options.signal, {
         systemPrompt: options.systemPrompt || '你是严谨的本地源码检索 agent，只返回 JSON。',
+        temperature: options.temperature,
       })
     : await runExecAdapter(adapter, prompt, cwd, logs, options.signal, {
         rawPrompt: true,
@@ -3128,6 +3131,146 @@ async function runModelTask(rawAdapter, prompt, cwd, options = {}) {
     rawText,
     logs,
   };
+}
+
+function modelItemsFromSelectionContext(project, body) {
+  const bindings = Array.isArray(body.selectionBindings) ? body.selectionBindings : [];
+  const targets = [];
+  const seen = new Set();
+  for (const binding of bindings) {
+    for (const target of binding?.targets || []) {
+      const file = String(target?.file || '').trim();
+      if (!file || seen.has(file)) continue;
+      seen.add(file);
+      const exists = !!(project.files || []).some(entry => entry.path === file);
+      targets.push({
+        file,
+        exists,
+        fileOnly: false,
+        confidence: 100,
+        localScore: 1200,
+        localPreciseEvidence: true,
+        localReasons: ['复用选区已确认源码上下文'],
+        locateLevel: target.locateLevel || 'direction',
+        codeSnippet: target.codeSnippet || '',
+        rawCodeSnippet: target.codeSnippet || '',
+        snippetVerified: true,
+        snippetSource: 'selection-context-binding',
+        directionGuess: target.directionGuess || '',
+        prompt: [
+          `页面: ${body.searchPayload?.url || body.url || ''}`,
+          `文件: ${file}`,
+          target.codeSnippet ? `已绑定源码片段:\n${target.codeSnippet}` : '',
+          target.directionGuess ? `已绑定方向: ${target.directionGuess}` : '',
+          binding.designRequirement ? `原始设计需求: ${binding.designRequirement}` : '',
+          body.searchPayload?.userPrompt ? `本轮新需求: ${body.searchPayload.userPrompt}` : '',
+        ].filter(Boolean).join('\n'),
+        reason: [
+          '该文件来自此前 @选区 源码定位结果，本轮只复用该上下文重新生成修改提示词。',
+          ...(Array.isArray(target.reasons) ? target.reasons.slice(0, 4) : []),
+        ].join('\n'),
+      });
+    }
+  }
+  return targets.slice(0, MAX_MODEL_FILES);
+}
+
+async function runSelectionContextEnhancement(project, body, textCache = new Map(), options = {}) {
+  if (!project) throw new Error('No project selected.');
+  const logs = [];
+  if (typeof options.onLog === 'function') {
+    logs.onAppend = options.onLog;
+  }
+  try {
+    throwIfAborted(options.signal);
+    const adapter = normalizeAdapter(body.adapter);
+    appendLog(logs, `选区上下文增强开始：${adapter.name}（${adapter.type}）`);
+    appendLog(logs, '本轮复用已绑定的选区源码上下文，跳过 DOM Agent、本地源码检索和源码定位。');
+    const modelItems = modelItemsFromSelectionContext(project, body);
+    appendLog(logs, `复用目标文件：${modelItems.length} 个`);
+    for (const item of modelItems) {
+      appendLog(logs, `复用文件：${item.file}${item.exists ? '' : '（文件不存在）'}`);
+    }
+    const validItems = modelItems.filter(item => item.exists);
+    let experience = {
+      enhancedPrompt: fallbackEnhancedPrompt({
+        pageUrl: body.searchPayload?.url || body.url || '',
+        pagePath: body.pagePath || body.routeResolver?.pagePath || '',
+        userRequirement: body.searchPayload?.userPrompt || '',
+        targets: validItems.map(item => ({
+          file: item.file,
+          locateLevel: item.locateLevel,
+          codeSnippet: item.codeSnippet || item.rawCodeSnippet || '',
+          directionGuess: item.directionGuess || '',
+        })),
+      }),
+      mode: 'fallback',
+      usedSkillIds: [],
+    };
+    if (validItems.length) {
+      experience = await enhanceLocatedPrompt({
+        project,
+        body,
+        modelItems: validItems,
+        textCache,
+        log: message => appendLog(logs, message),
+        invoke: (stage, prompt) => {
+          throwIfAborted(options.signal);
+          if (adapter.type === 'api') {
+            return runApiAdapter(adapter, prompt, logs, options.signal, {
+              stage,
+              systemPrompt: '你是 Magnus 项目经验发现与需求增强 agent。严格按用户提示的 JSON 协议返回，不执行代码修改。',
+            });
+          }
+          return runExecAdapter(adapter, prompt, project.path, logs, options.signal, {
+            stage,
+            rawPrompt: true,
+          });
+        },
+      });
+      appendLog(logs, `选区上下文提示词增强完成：mode=${experience.mode}；Skill ${experience.usedSkillIds?.length || 0} 个`);
+    }
+    const enhancedModelItems = validItems.map(item => ({
+      ...item,
+      enhancedPrompt: experience.enhancedPrompt,
+      experienceMode: experience.mode,
+      usedSkillIds: experience.usedSkillIds || [],
+    }));
+    return {
+      adapter: {
+        id: adapter.id,
+        name: adapter.name,
+        type: adapter.type,
+      },
+      rawText: '',
+      parsed: null,
+      parsedBatches: [],
+      modelItems: enhancedModelItems,
+      targetFiles: enhancedModelItems.map(item => ({
+        file: item.file,
+        confidence: item.confidence,
+        reason: item.reason,
+        codeSnippet: item.codeSnippet,
+        snippetSource: item.snippetSource,
+        snippetVerified: item.snippetVerified,
+        prompt: item.prompt,
+        enhancedPrompt: item.enhancedPrompt,
+        experienceMode: item.experienceMode,
+        usedSkillIds: item.usedSkillIds,
+        locateLevel: item.locateLevel || 'direction',
+        directionGuess: item.directionGuess || '',
+        localScore: item.localScore,
+        localPreciseEvidence: item.localPreciseEvidence,
+        exists: item.exists,
+      })),
+      experience,
+      logs,
+    };
+  } catch (error) {
+    appendLog(logs, `选区上下文增强失败：${error.message || error}`);
+    error.modelLogs = logs;
+    throw error;
+  }
 }
 
 async function runModelLocate(project, body, textCache = new Map(), options = {}) {
@@ -3291,6 +3434,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
 module.exports = {
   buildModelPrompt,
   runModelLocate,
+  runSelectionContextEnhancement,
   runModelTask,
   splitCommandLine,
 };

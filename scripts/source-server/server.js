@@ -11,6 +11,7 @@ const { createBridge } = require('./bridge');
 const { selectDirectory } = require('./resource/dialog');
 const { scanProject } = require('./core/project');
 const { bindProjectContext } = require('./experience/project-context');
+const { interpretProject } = require('./experience/project-interpreter');
 const { loadSkillMetas } = require('./experience/skill-store');
 const {
   memorySnapshot,
@@ -21,7 +22,10 @@ const {
 const { searchProjectWithMeta } = require('./search');
 const { runAgentSearch } = require('./search/agent-search');
 const { resolvePageRouteTrace } = require('./route-resolvers/registry');
-const { runModelLocate } = require('./model/model-adapters');
+const {
+  runModelLocate,
+  runSelectionContextEnhancement,
+} = require('./model/model-adapters');
 const { handleUiRequest } = require('./ui/serve-ui');
 
 const ACCESS_CONTROL_ALLOW_HEADERS = 'content-type,x-magnus-internal';
@@ -122,11 +126,17 @@ function createSourceServer() {
   let currentProject = null;
   const bridge = createBridge();
 
-  function bindSourceProject(selectedPath) {
+  async function bindSourceProject(selectedPath, options = {}) {
     const project = scanProject(selectedPath);
-    return bindProjectContext(project, {
-      skillMetas: loadSkillMetas(project),
+    const skillMetas = loadSkillMetas(project);
+    const withContext = bindProjectContext(project, { skillMetas });
+    if (!options.adapter) return withContext;
+    const interpreted = await interpretProject(withContext, options.adapter, {
+      skillMetas,
+      signal: options.signal,
+      onLog: options.onLog,
     });
+    return interpreted.project;
   }
 
   function memoryProject(projectPath) {
@@ -136,7 +146,10 @@ function createSourceServer() {
       return currentProject;
     }
     if (currentProject?.path === requested) return currentProject;
-    return bindSourceProject(requested);
+    const project = scanProject(requested);
+    return bindProjectContext(project, {
+      skillMetas: loadSkillMetas(project),
+    });
   }
 
   async function handle(req, res) {
@@ -176,15 +189,43 @@ function createSourceServer() {
       if (req.method === 'POST' && url.pathname === '/api/source/select') {
         const body = await readBody(req);
         const selectedPath = body.path || await selectDirectory();
-        currentProject = bindSourceProject(selectedPath);
+        currentProject = await bindSourceProject(selectedPath);
         sendJson(res, 200, { success: true, project: currentProject });
         return;
       }
 
       if (req.method === 'POST' && url.pathname === '/api/source/scan') {
         const body = await readBody(req);
-        currentProject = bindSourceProject(body.path);
+        currentProject = await bindSourceProject(body.path);
         sendJson(res, 200, { success: true, project: currentProject });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/source/interpret/stream') {
+        const body = await readBody(req);
+        const selectedPath = body.path || currentProject?.path;
+        if (!selectedPath) throw new Error('No project selected.');
+        if (!body.adapter) throw new Error('Project Interpreter 需要模型配置。');
+        sendStreamHeaders(res);
+        const controller = new AbortController();
+        let finished = false;
+        req.on('close', () => {
+          if (!finished) controller.abort();
+        });
+        try {
+          currentProject = await bindSourceProject(selectedPath, {
+            adapter: body.adapter,
+            signal: controller.signal,
+            onLog: log => writeStreamEvent(res, { type: 'log', log }),
+          });
+          finished = true;
+          writeStreamEvent(res, { type: 'result', result: { project: currentProject } });
+          res.end();
+        } catch (error) {
+          finished = true;
+          writeStreamEvent(res, { type: 'error', error: error.message || String(error) });
+          res.end();
+        }
         return;
       }
 
@@ -257,6 +298,35 @@ function createSourceServer() {
         });
         try {
           const result = await runModelLocate(currentProject, body, new Map(), {
+            signal: controller.signal,
+            onLog: log => writeStreamEvent(res, { type: 'log', log }),
+          });
+          finished = true;
+          writeStreamEvent(res, { type: 'result', result });
+          res.end();
+        } catch (error) {
+          finished = true;
+          writeStreamEvent(res, {
+            type: 'error',
+            error: error.message || String(error),
+            logs: Array.isArray(error.modelLogs) ? error.modelLogs : undefined,
+          });
+          res.end();
+        }
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/model/selection-context/stream') {
+        if (!currentProject) throw new Error('No project selected.');
+        const body = await readBody(req);
+        sendStreamHeaders(res);
+        const controller = new AbortController();
+        let finished = false;
+        req.on('close', () => {
+          if (!finished) controller.abort();
+        });
+        try {
+          const result = await runSelectionContextEnhancement(currentProject, body, new Map(), {
             signal: controller.signal,
             onLog: log => writeStreamEvent(res, { type: 'log', log }),
           });

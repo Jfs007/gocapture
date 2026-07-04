@@ -34,6 +34,15 @@
         <ChatThread />
         <ComposerPanel />
       </div>
+      <div v-if="projectChecking" class="mda-project-checking" role="status" aria-live="polite">
+        <div class="mda-project-checking-box">
+          <div class="mda-project-checking-spinner" />
+          <div>
+            <div class="mda-project-checking-title">正在检查项目</div>
+            <div class="mda-project-checking-text">{{ projectCheckingText }}</div>
+          </div>
+        </div>
+      </div>
       <MemorySettingsPanel />
     </section>
   </main>
@@ -43,14 +52,23 @@
 import ChatThread from '../components/chat/ChatThread.vue';
 import ComposerPanel from '../components/composer/ComposerPanel.vue';
 import MemorySettingsPanel from '../components/settings/MemorySettingsPanel.vue';
+import { computed } from 'vue';
 import { createMagnusRuntime } from '../app/runtime/create-runtime';
 import { useMemoryStore } from '../stores/memory.store';
+import { useProjectStore } from '../stores/project.store';
 import magnusLogo from '../resources/logo.jpg';
 
 const props = defineProps<{
   api: Record<string, any>;
 }>();
 const memory = useMemoryStore();
+const projectStore = useProjectStore();
+const projectChecking = computed(() => {
+  return !!projectStore.current && projectStore.serviceStatus === 'loading';
+});
+const projectCheckingText = computed(() => {
+  return projectStore.serviceMessage || '正在读取配置并生成项目上下文...';
+});
 
 const {
   fileInputRef,

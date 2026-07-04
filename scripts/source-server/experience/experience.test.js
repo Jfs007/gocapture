@@ -5,7 +5,7 @@ const path = require('path');
 const { scanProject } = require('../core/project');
 const { executeDiscoveryPlan } = require('./discovery-executor');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
-const { ensureProjectContext } = require('./project-context');
+const { ensureProjectContext, projectTechnicalStackMarkdown } = require('./project-context');
 const { loadSkillContexts, loadSkillMetas } = require('./skill-store');
 const {
   memorySnapshot,
@@ -24,7 +24,7 @@ async function run() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-experience-'));
   try {
     write(root, 'package.json', JSON.stringify({
-      dependencies: { vue: '^3.0.0', axios: '^1.0.0' },
+      dependencies: { vue: '^3.0.0', axios: '^1.0.0', 'naive-ui': '^2.0.0' },
       devDependencies: { vite: '^5.0.0', typescript: '^5.0.0' },
     }));
     const longAppBody = Array.from({ length: 900 }, (_, index) => `const marker${index} = ${index}`).join('\n');
@@ -79,7 +79,12 @@ async function run() {
     const project = scanProject(root);
     const context = ensureProjectContext(project);
     assert.equal(context.writable, true);
-    assert.match(context.markdown, /Vue/);
+    assert.match(context.markdown, /Project Interpreter 尚未运行/);
+    assert.doesNotMatch(context.markdown, /Naive UI/);
+    assert.match(
+      projectTechnicalStackMarkdown(project, '## 技术栈\n- Vue\n\n## 项目信息\n- old'),
+      /Vue/
+    );
     assert.ok(fs.existsSync(path.join(root, '.magnus-project', 'Project.md')));
 
     const discovery = executeDiscoveryPlan(project, {

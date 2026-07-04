@@ -18,6 +18,7 @@
 
 .mda-panel {
   /* position: fixed; */
+  position: relative;
   inset: 0;
   width: 100%;
   max-width: none;
@@ -28,6 +29,57 @@
   box-shadow: none;
   pointer-events: auto;
   overflow: hidden;
+}
+
+.mda-project-checking {
+  position: absolute;
+  inset: 56px 0 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(247, 248, 250, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.mda-project-checking-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(360px, 92%);
+  padding: 16px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.16);
+}
+
+.mda-project-checking-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #dbe4ef;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: mda-spin 0.8s linear infinite;
+  flex: 0 0 auto;
+}
+
+.mda-project-checking-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+.mda-project-checking-text {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes mda-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mda-floating-note {

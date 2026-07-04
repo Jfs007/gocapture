@@ -1,6 +1,11 @@
 import { sourceServerNdjson } from '../services/source-service';
+import {
+  candidateHitsFromBindings,
+  sourceTargetsFromCandidates
+} from '../services/selection-source-context';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import type { MagnusRuntimeState } from '../runtime/context';
+import type { SelectionSourceBinding } from '../types/selection.types';
 
 const MAX_AUTO_EXPAND_ATTEMPTS = 3;
 
@@ -16,6 +21,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     if (!source.project.value) return;
     const instruction = composer.promptIntent.value.trim();
     if (!instruction) return;
+    if (await reuseSelectionSourceContext(instruction)) return;
     if (search.showCandidatePicker.value) {
       await runModelAssistForCandidates(instruction);
       return;
@@ -136,6 +142,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     if (modelResult?.stopped) return true;
     if (hasUsableModelResult(modelResult)) {
       selection.filesConfirmed.value = true;
+      bindResolvedSelectionContext(userInstruction);
       prompt.generatePrompt({ userInstruction });
       return true;
     }
@@ -182,6 +189,68 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       return '模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。';
     }
     return '模型定位不可用：请检查模型配置。';
+  }
+
+  function projectRoot() {
+    return String(source.project.value?.path || source.project.value?.root || '').trim();
+  }
+
+  function bindResolvedSelectionContext(userInstruction: string) {
+    const ids = selection.referencedSelectionIds(userInstruction);
+    if (ids.length !== 1) return;
+    const selected = search.selectedCandidateHits.value.length
+      ? search.selectedCandidateHits.value
+      : search.candidateHits.value.slice(0, 1);
+    const targets = sourceTargetsFromCandidates(selected);
+    const root = projectRoot();
+    if (!root || !targets.length) return;
+    selection.bindSourceContext(ids, {
+      projectRoot: root,
+      designRequirement: userInstruction,
+      targets,
+      resolvedAt: Date.now()
+    } satisfies SelectionSourceBinding);
+    search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map(target => target.file).join('、')}`);
+  }
+
+  async function reuseSelectionSourceContext(userInstruction: string) {
+    const bindings = selection.reusableSourceBindings(userInstruction, projectRoot());
+    if (!bindings.length) return false;
+    search.candidateHits.value = candidateHitsFromBindings(bindings);
+    if (!search.candidateHits.value.length) return false;
+    search.selectedCandidatePaths.value = search.candidateHits.value.map((hit: any) => hit.file);
+    search.candidateError.value = '';
+    search.processLogs.value = [
+      `复用选区源码上下文：${bindings.map((item: any) => item.uid).join('、')}`,
+      '已跳过 DOM Agent、本地源码检索和源码定位模型'
+    ];
+    search.searchRunning.value = false;
+    search.candidateLoading.value = false;
+    search.searchStartedAt.value = Date.now();
+    search.searchFinishedAt.value = 0;
+    search.modelAssistAttempted.value = true;
+    selection.filesConfirmed.value = false;
+    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
+      const text = modelAssistUnavailableText();
+      search.candidateError.value = text;
+      search.searchFinishedAt.value = Date.now();
+      appUiStore.setToast(text);
+      return true;
+    }
+    const modelResult = await model.runSelectionContextAssist({
+      userInstruction,
+      selectionBindings: bindings
+    });
+    search.searchFinishedAt.value = Date.now();
+    if (modelResult?.stopped) return true;
+    if (hasUsableModelResult(modelResult)) {
+      selection.filesConfirmed.value = true;
+      prompt.generatePrompt({ userInstruction });
+      appUiStore.setToast('已复用选区源码上下文并完成模型增强');
+      return true;
+    }
+    search.candidateError.value = model.modelAssistError.value || '选区源码上下文增强失败，请重试。';
+    return true;
   }
 
   return {

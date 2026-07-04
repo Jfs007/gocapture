@@ -280,12 +280,17 @@ export function useSearchPrompt() {
       const directionLevel = hit.modelLocateLevel === 'direction';
       const directionGuess = sanitizeModelInstructionText(hit.modelDirectionGuess || '');
       const shouldShowUiSource = directionLevel && uiSource && uiSource !== location;
+      const importChain = Array.isArray(hit.importChain) && hit.importChain.length
+        ? hit.importChain.join(' -> ')
+        : '';
       return [
         hits.length > 1 ? `任务 ${index + 1}:` : '',
         `文件: ${hit.file}`,
+        hit.selectionDesignRequirement ? `已确认设计需求: ${hit.selectionDesignRequirement}` : '',
         shouldShowUiSource ? `UI源码:\n${uiSource}` : '',
         location ? `${directionLevel ? '源码方向' : '位置'}:\n${location}` : '',
         source && !directionLevel ? `源码:\n${source}` : '',
+        importChain ? `相关引用链: ${importChain}` : '',
         directionGuess ? `推测方向: ${directionGuess}` : '',
         `需求: ${requirement}`
       ].filter(Boolean).join('\n');

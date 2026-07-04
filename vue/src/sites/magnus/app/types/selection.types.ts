@@ -23,11 +23,28 @@ export interface ElementInfo {
   [key: string]: unknown;
 }
 
+export interface SelectionSourceTarget {
+  file: string;
+  codeSnippet?: string;
+  importChain?: string[];
+  directionGuess?: string;
+  locateLevel?: string;
+  reasons?: string[];
+}
+
+export interface SelectionSourceBinding {
+  projectRoot: string;
+  designRequirement: string;
+  targets: SelectionSourceTarget[];
+  resolvedAt: number;
+}
+
 export interface SelectionAsset {
   uid: SelectionId;
   element: ElementInfo;
   asset?: ElementInfo | null;
   sourceLocate?: unknown;
+  sourceBinding?: SelectionSourceBinding | null;
   thumbnailUrl?: string;
   thumbnailCaptured?: boolean;
 }
@@ -39,6 +56,7 @@ export interface RuntimeSelectionPayload {
   asset?: ElementInfo;
   sourceLocate?: unknown;
   sourceEvidence?: unknown;
+  sourceBinding?: SelectionSourceBinding | null;
   thumbnailUrl?: string;
   thumbnail?: string;
   [key: string]: unknown;

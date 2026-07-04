@@ -1,5 +1,6 @@
 import { computed } from 'vue';
 import type { SelectionStore } from '../usecases/selection-command.deps';
+import type { SelectionSourceBinding } from '../types/selection.types';
 import { useAppUiStore } from '../../stores/app-ui.store';
 
 export function createSelectionFacade(store: SelectionStore) {
@@ -11,6 +12,7 @@ export function createSelectionFacade(store: SelectionStore) {
       info: item.element || {},
       assetElement: null,
       assetInfo: item.asset || item.element || {},
+      sourceBinding: item.sourceBinding || null,
       thumbnailUrl: item.thumbnailUrl || ''
     }));
   });
@@ -55,6 +57,35 @@ export function createSelectionFacade(store: SelectionStore) {
     return true;
   }
 
+  function referencedSelectionIds(instruction: string) {
+    const value = String(instruction || '');
+    const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
+    if (!matches.length) return [];
+    if (matches.some(match => !match[1])) return store.items.map(item => item.uid);
+    return Array.from(new Set(matches
+      .map(match => store.items[Number(match[1]) - 1]?.uid || '')
+      .filter(Boolean)));
+  }
+
+  function reusableSourceBindings(instruction: string, projectRoot: string) {
+    const ids = referencedSelectionIds(instruction);
+    if (!ids.length) return [];
+    const bindings = ids.map(uid => ({
+      uid,
+      binding: store.sourceBinding(uid)
+    }));
+    if (bindings.some(item => {
+      return !item.binding
+        || item.binding.projectRoot !== projectRoot
+        || !item.binding.targets.length;
+    })) return [];
+    return bindings as Array<{ uid: string; binding: SelectionSourceBinding }>;
+  }
+
+  function bindSourceContext(ids: string[], binding: SelectionSourceBinding) {
+    for (const uid of ids) store.bindSourceContext(uid, binding);
+  }
+
   return {
     selectedItems,
     filesConfirmed,
@@ -62,6 +93,9 @@ export function createSelectionFacade(store: SelectionStore) {
     customEvidence,
     evidenceMessages,
     selectionPayloads,
-    confirmSelectionContext
+    confirmSelectionContext,
+    referencedSelectionIds,
+    reusableSourceBindings,
+    bindSourceContext
   };
 }

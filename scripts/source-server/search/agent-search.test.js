@@ -20,6 +20,7 @@ const {
   normalizeLocatorDecision,
   validateLocatorDecision,
   locatorDecisionToSearchPlan,
+  locatorTechnicalStackMarkdown,
 } = require('./locator-protocol');
 
 function fixtureProject(files) {
@@ -95,13 +96,14 @@ test('locator prompt only requests planning fields used by local execution', () 
   assert.doesNotMatch(prompt, /\"evidenceAssessment\"/);
 });
 
-test('locator prompt distinguishes container descendant text from structural anchors', () => {
+test('locator prompt keeps the planner focused on stable source-search evidence', () => {
   const prompt = buildLocatorSystemPrompt();
-  assert.match(prompt, /后代文本的扁平汇总/);
-  assert.match(prompt, /<magnus-repeat>/);
-  assert.match(prompt, /componentChain 中即使 file 为空/);
-  assert.match(prompt, /mode=any 只用于同一语义锚点的替代写法/);
-  assert.match(prompt, /页面路由只提供页面范围/);
+  assert.match(prompt, /DOM 检索规划 Agent/);
+  assert.match(prompt, /业务 class、id/);
+  assert.match(prompt, /runtime componentChain 中的文件名或组件名/);
+  assert.match(prompt, /UI 框架 class/);
+  assert.match(prompt, /订单号、用户名、商品名/);
+  assert.match(prompt, /如果线索不足，明确说明“当前证据不足”/);
 });
 
 test('locator resolve-route plan asks for more DOM instead of searching runtime evidence', () => {
@@ -117,13 +119,14 @@ test('locator resolve-route plan asks for more DOM instead of searching runtime 
   assert.equal(plan.needMoreDom, true);
 });
 
-test('locator planner input carries Project.md tech stack context', () => {
-  const input = buildLocatorUserInput({
-    project: {
-      context: {
-        technicalStackMarkdown: '## 技术栈\n- Vue\n- Naive UI',
-      },
+test('locator system prompt carries Project.md tech stack context', () => {
+  const project = {
+    context: {
+      technicalStackMarkdown: '## 技术栈\n- Vue\n- Naive UI',
     },
+  };
+  const input = buildLocatorUserInput({
+    project,
     body: {
       userPrompt: '按钮加粗',
       pagePath: '/demo',
@@ -142,7 +145,9 @@ test('locator planner input carries Project.md tech stack context', () => {
       compression: { enabled: false, repeatedGroupCount: 0, repeatedGroups: [] },
     }],
   });
-  assert.equal(input.techStack.markdown, '## 技术栈\n- Vue\n- Naive UI');
+  const prompt = buildLocatorSystemPrompt(locatorTechnicalStackMarkdown(project));
+  assert.match(prompt, /## 技术栈\n- Vue\n- Naive UI/);
+  assert.equal(Object.prototype.hasOwnProperty.call(input, 'techStack'), false);
   assert.equal(input.pageContext.route.bestPageFile, 'src/views/demo.vue');
   assert.equal(Object.prototype.hasOwnProperty.call(input, 'selectionFacts'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(input, 'evidenceCatalog'), false);
@@ -266,7 +271,7 @@ test('candidate inspection prefers complete code matches over comment-only match
   const inspection = inspectCandidates(project, candidates, plan, cache);
   assert.equal(inspection.candidates[0].file, 'src/Exact.vue');
   assert.deepEqual(inspection.candidates[0].commentOnly, []);
-  assert.equal(inspection.candidates[1].commentOnly.length, 3);
+  assert.deepEqual(inspection.candidates.map(candidate => candidate.file), ['src/Exact.vue']);
 });
 
 test('search plan keeps partial structural evidence when planner over-constrains a group', () => {
@@ -296,6 +301,156 @@ test('search plan keeps partial structural evidence when planner over-constrains
   const regionShell = candidates.find(candidate => candidate.file === 'src/RegionShell.vue');
   assert.ok(regionShell.matchedGroups.some(group => group.source === 'keyword-fallback'));
   assert.deepEqual(regionShell.matchedKeywords.sort(), ['feature-shell', 'stable-region']);
+});
+
+test('same-structure all plans do not split into single keyword fallbacks', () => {
+  const project = fixtureProject({
+    'src/Subtask.vue': [
+      '<template>',
+      '  <Form-item label="执行人"><Input class="input-w" /></Form-item>',
+      '  <Form-item label="反馈附件"><Upload /></Form-item>',
+      '  <Form-item label="备注"><Input /></Form-item>',
+      '</template>',
+    ].join('\n'),
+    'src/Other.vue': [
+      '<template>',
+      '  <Form-item label="执行人"><Input /></Form-item>',
+      '  <Form-item label="备注"><Input /></Form-item>',
+      '</template>',
+    ].join('\n'),
+  });
+  const plan = {
+    searches: [{
+      keywords: ['执行人', '反馈附件', '备注'],
+      mode: 'all',
+      range: 'same-structure',
+      priority: 1,
+      reason: 'compound field context',
+      evidenceKinds: {
+        '执行人': 'text',
+        '反馈附件': 'text',
+        '备注': 'text',
+      },
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  assert.deepEqual(candidates.map(candidate => candidate.file), ['src/Subtask.vue']);
+  assert.deepEqual(candidates[0].matchedGroups.map(group => group.source), ['planned-group']);
+});
+
+test('field sibling group outranks shell-only matches in split render structures', () => {
+  const project = fixtureProject({
+    'src/Parent.vue': [
+      '<template>',
+      '  <fieldset class="dc-fieldset">',
+      '    <legend class="dc-legend">执行信息</legend>',
+      '    <Subtask />',
+      '  </fieldset>',
+      '</template>',
+    ].join('\n'),
+    'src/Subtask.vue': [
+      '<template>',
+      '  <Form-item label="执行人"><Input class="input-w" /></Form-item>',
+      '  <Form-item label="反馈附件"><Upload /></Form-item>',
+      '  <Form-item label="备注"><Input /></Form-item>',
+      '</template>',
+    ].join('\n'),
+    'src/WrongFull.vue': [
+      '<template>',
+      '  <fieldset class="dc-fieldset">',
+      '    <legend class="dc-legend">执行信息</legend>',
+      '    <Form-item label="执行人"><Input class="input-w" /></Form-item>',
+      '  </fieldset>',
+      '</template>',
+    ].join('\n'),
+  });
+  const body = {
+    userPrompt: '@选区1 执行人输入框右边增加一个 更多按钮',
+    selections: [{
+      element: {
+        className: 'dc-fieldset',
+        rawOuterHtml: [
+          '<fieldset class="dc-fieldset">',
+          '<legend class="dc-legend">执行信息</legend>',
+          '<label class="ivu-form-item-label">执行人</label>',
+          '<div class="input-w"></div>',
+          '<label class="ivu-form-item-label">反馈附件</label>',
+          '<span class="il">暂无反馈附件</span>',
+          '<label class="ivu-form-item-label">备注</label>',
+          '</fieldset>',
+        ].join(''),
+      },
+    }],
+  };
+  const plan = {
+    searches: [{
+      keywords: ['执行人', '反馈附件', '备注'],
+      mode: 'all',
+      range: 'same-structure',
+      priority: 1,
+      reason: 'field group',
+      evidenceKinds: {
+        '执行人': 'text',
+        '反馈附件': 'text',
+        '备注': 'text',
+      },
+      domTextStructures: {
+        '执行人': [{ text: '执行人', tag: 'label', classes: ['ivu-form-item-label'] }],
+        '反馈附件': [{ text: '反馈附件', tag: 'label', classes: ['ivu-form-item-label'] }],
+        '备注': [{ text: '备注', tag: 'label', classes: ['ivu-form-item-label'] }],
+      },
+    }, {
+      keywords: ['dc-fieldset', '执行信息'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 2,
+      reason: 'shell group',
+      keywordTypes: { 'dc-fieldset': 'class-token' },
+      evidenceKinds: {
+        'dc-fieldset': 'class',
+        '执行信息': 'text',
+      },
+      domTextStructures: {
+        '执行信息': [{ text: '执行信息', tag: 'legend', classes: ['dc-legend'] }],
+      },
+    }],
+  };
+  const cache = new Map();
+  const candidates = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, candidates, plan, cache, body);
+  assert.equal(inspection.candidates[0].file, 'src/Subtask.vue');
+  assert.equal(inspection.status, 'unique');
+});
+
+test('complete coverage in one search group removes only its subset candidates', () => {
+  const project = fixtureProject({
+    'src/Exact.vue': '<template><div>原商品信息 上架配置 商品标题</div></template>',
+    'src/Subset.vue': '<template><div>商品标题 状态</div></template>',
+    'src/Independent.vue': '<template><div>originalProduct</div></template>',
+  });
+  const plan = {
+    searches: [{
+      keywords: ['原商品信息', '上架配置', '商品标题'],
+      mode: 'any',
+      range: 'same-file',
+      priority: 1,
+      reason: 'table headers',
+    }, {
+      keywords: ['originalProduct', 'uploadConfig'],
+      mode: 'any',
+      range: 'same-file',
+      priority: 2,
+      reason: 'column keys',
+    }],
+  };
+  const cache = new Map();
+  const candidates = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, candidates, plan, cache);
+  assert.deepEqual(inspection.candidates.map(candidate => candidate.file), [
+    'src/Exact.vue',
+    'src/Independent.vue',
+  ]);
+  assert.match(inspection.candidates[0].roleReasons.join(' '), /唯一完整覆盖检索组/);
 });
 
 test('class-token searches require class context instead of bare object values', () => {
@@ -1923,4 +2078,89 @@ test('route relations stop before infrastructure cycles reach unrelated pages', 
     hits: [],
   }, candidates, new Map());
   assert.deepEqual(relations, []);
+});
+
+test('route relation does not select a single repeated label when local DOM text context disagrees', () => {
+  const project = fixtureProject({
+    'src/route.vue': '<script>import Parent from "./parent.vue"</script>',
+    'src/parent.vue': '<template><task-module /></template><script>import TaskModule from "./task-module.vue"</script>',
+    'src/task-module.vue': [
+      '<template>',
+      '  <fieldset class="dc-fieldset">',
+      '    <legend class="dc-legend">执行信息</legend>',
+      '    <component :is="component"></component>',
+      '  </fieldset>',
+      '</template>',
+      '<script>import SubtaskFactory from "./subtask.js"; export default { computed: { component(){ return SubtaskFactory } } }</script>',
+    ].join('\n'),
+    'src/subtask.js': 'import Subtask from "./subtask.vue"; export default Subtask;',
+    'src/subtask.vue': [
+      '<template>',
+      '  <span>',
+      '    <Form-item label="执行人"><Input class="input-w" /></Form-item>',
+      '    <Form-item label="反馈附件"><FileUpload /></Form-item>',
+      '    <Form-item label="备注"><Input type="textarea" /></Form-item>',
+      '  </span>',
+      '</template>',
+    ].join('\n'),
+    'src/add.batch.vue': [
+      '<template>',
+      '  <fieldset class="dc-fieldset">',
+      '    <legend class="dc-legend">任务类型</legend>',
+      '    <Form-item label="执行部门"><Input class="input-w" /></Form-item>',
+      '    <Form-item label="执行人"><Input class="input-w" /></Form-item>',
+      '  </fieldset>',
+      '</template>',
+    ].join('\n'),
+  });
+  const body = {
+    pagePath: '/Mission/TaskManage/TaskManageList',
+    selections: [{
+      element: {
+        rawOuterHtml: [
+          '<fieldset class="dc-fieldset">',
+          '<legend class="dc-legend">执行信息</legend>',
+          '<label class="ivu-form-item-label">执行人</label>',
+          '<div class="input-w"></div>',
+          '<label class="ivu-form-item-label">反馈附件</label>',
+          '<span>暂无反馈附件</span>',
+          '<label class="ivu-form-item-label">备注</label>',
+          '</fieldset>',
+        ].join(''),
+      },
+    }],
+  };
+  const plan = {
+    searches: [{
+      keywords: ['执行人'],
+      mode: 'all',
+      range: 'same-file',
+      priority: 1,
+      reason: '单点后代文案',
+      evidenceKinds: { '执行人': 'text' },
+      domTextStructures: {
+        '执行人': [{ text: '执行人', tag: 'label', classes: ['ivu-form-item-label'] }],
+      },
+    }],
+  };
+  const cache = new Map();
+  const hits = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, hits, plan, cache, body);
+  assert.equal(inspection.candidates[0].file, 'src/subtask.vue');
+  assert.ok(inspection.candidates[0].domTextCoverage.matchedTexts.includes('反馈附件'));
+  assert.ok(inspection.candidates[0].domTextCoverage.matchedTexts.includes('备注'));
+
+  const routeTrace = {
+    matched: true,
+    bestPageFile: 'src/route.vue',
+    hits: [{
+      file: 'src/route.vue',
+      routePath: '/Mission/TaskManage/TaskManageList',
+      reasons: ['路径精确匹配'],
+    }],
+  };
+  const relations = traceRouteCandidateRelations(project, routeTrace, inspection.candidates, cache);
+  const decision = resolveByRouteRelation(body, inspection, routeTrace, relations);
+  assert.equal(decision.status, 'unique');
+  assert.equal(decision.files[0].file, 'src/subtask.vue');
 });

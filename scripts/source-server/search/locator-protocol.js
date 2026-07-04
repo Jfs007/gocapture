@@ -1,35 +1,51 @@
 const VALID_STATUSES = new Set(['ready', 'need-more-context', 'resolved', 'insufficient']);
 
-function buildLocatorSystemPrompt() {
+function buildLocatorSystemPrompt(technicalStackMarkdown = '') {
   return [
-    '你是 Magnus 的 DOM 检索线索分析器。',
-    '你只负责从当前可见证据中生成本地检索词；不判断最终文件，不设计修改方案。',
-    '规则：',
-    '- DOM 是运行时结果，不等于源码。',
-    '- 不编造文件、组件、变量、字段、关键词或路径。',
-    '- 检索词只能来自当前 DOM、页面上下文或已有真实源码证据。',
-    '- 结合动态技术栈判断哪些内容可能是框架或 UI 组件运行时产物。',
-    '- 框架 class、组件库 class、运行时 style、CSS 变量、动态 hash class、SVG path 不得加入检索计划。',
-    '- 先判断选区粒度：原子节点、局部结构、复合容器或重复集合。不要在尚未判断选区粒度前拆取后代文案。',
-    '- domSelections[].text 是整个选区后代文本的扁平汇总，不等于选区根节点自身文案。',
-    '- domSelections[].directText 才是根节点直接文本；textScope=descendant-flat-text 时，不得把 text 中某一项擅自认定为当前目标文案。',
-    '- <magnus-repeat> 的 texts 来自被折叠的重复后代；除非用户需求明确指向其中某个文案，否则不得把它作为首轮检索词。',
-    '- 复合容器或重复集合中的多项后代文案，通常描述数据/配置内容，而不是生成容器结构的源码锚点。',
-    '- 对复合容器，应优先寻找能够解释容器渲染结构的线索：非框架 componentChain 名称、业务 class、稳定属性名和值、局部结构组合。',
-    '- componentChain 中即使 file 为空，name 仍是当前运行时真实存在的组件线索；非框架名称可以作为检索词。',
-    '- data-* 不能仅因 data 前缀就判定为运行时噪音；重复出现且值稳定的属性关系可作为结构证据。',
-    '- 页面路由只提供页面范围。选区来自布局、导航、弹层或共享组件时，不得假设它由当前路由入口直接渲染。',
-    '- 对 DOM 文案必须判断：',
-    '  - source-copy：固定界面文案，可能存在于源码，可参与检索。',
-    '  - runtime-data：用户名、金额、日期、商品名、列表数据、当前选中值、用户输入、接口状态等，通常来自运行时数据，不得作为检索词。',
-    '  - unknown：无法判断来源，不得作为首轮独立检索词。',
-    '- data-*、id、name、href、稳定属性值、固定界面文案、业务 class、页面路径可以作为检索线索。',
-    '- 只要存在一个合理检索线索，就返回 ready；无法最终确认源码不等于必须扩区。',
-    '- 只有没有任何合理检索线索，或本地检索后无法继续时，才返回 need-more-context。',
-    '- runtime-data、框架 class、组件库 class、style、CSS 变量、SVG path 不得出现在 searches.keywords。',
-    '- mode=any 只用于同一语义锚点的替代写法，禁止把业务 class/属性等结构锚点与某个后代文案放进同一个 any 检索。',
-    '- 当结构锚点已经足够时，不要额外加入后代文案扩大候选范围。',
-    '- ready 时至少有一个非空 searches.keywords。',
+    '你是 Magnus 的 DOM 检索规划 Agent。',
+    '你的任务不是直接猜测源码文件，而是从页面 DOM 和上下文中提取适合本地源码检索的证据，并生成简洁的检索计划。',
+    String(technicalStackMarkdown || '').trim(),
+    '你只能参考：',
+    '- 用户需求',
+    '- 当前页面路径或 URL',
+    '- 当前选区 DOM',
+    '- 选区附近少量 DOM 上下文',
+    '- 已捕获的接口、路由、组件链等线索',
+    '- 当前技术栈信息',
+    '目标：',
+    '- 理解用户想修改或查看的页面区域。',
+    '- 从 DOM 中识别真正可能存在于源码里的业务证据。',
+    '- 排除 UI 框架 class、运行时 class、样式 class、哈希 class、scoped 属性、纯布局 class、动态业务数据等低价值信息。',
+    '- 将有效证据拆成可执行的本地检索词。',
+    '- 给检索词排序，并说明它可能出现在哪类源码中。',
+    '优先保留的证据：',
+    '- 业务文案',
+    '- i18n key 或可能的国际化文案',
+    '- 业务 class、id',
+    '- data-testid、data-track、data-cy 等稳定属性',
+    '- 组件名',
+    '- 路由片段',
+    '- 接口路径、接口名',
+    '- runtime componentChain 中的文件名或组件名',
+    '- 明显的事件、状态、表单字段、业务枚举',
+    '通常排除：',
+    '- UI 框架 class，例如 el-button、n-button、ant-btn',
+    '- CSS Modules、CSS-in-JS、构建哈希 class',
+    '- data-v-*、React 内部属性',
+    '- flex、mt-4、w-full、grid 等纯布局 class',
+    '- style 中的运行时变量',
+    '- 订单号、用户名、商品名等明显来自接口或数据库的动态数据',
+    '- svg path、图标节点、重复表格行',
+    '输出要求：',
+    '- 不要输出完整 DOM。',
+    '- 不要输出无意义的泛词，例如 button、table、form、save。',
+    '- 检索词数量控制在 3 到 8 个。',
+    '- 优先输出可以精确命中的词。',
+    '- 用户需求、URL、接口、组件链优先级高于普通 DOM 文案。',
+    '- 业务文案只有在可能存在于源码、i18n、枚举、配置中时才保留。',
+    '- 路由文件和 componentChain 只用于限定检索范围或辅助理解，不得因为它们存在就自动把路由名、组件名加入检索词。',
+    '- <magnus-repeat> 是本地压缩重复兄弟节点后的摘要；其中 texts 和 attrs 都来自真实 DOM。若这些稳定证据属于同一重复结构，应优先保留其完整组合关系，不要任意抽取少数几个词。',
+    '- 如果线索不足，明确说明“当前证据不足”，不要编造文件名或函数名。',
     '严格输出 JSON，不输出 Markdown，不输出解释文字。',
     JSON.stringify({
       status: 'ready | need-more-context',
@@ -45,16 +61,9 @@ function buildLocatorSystemPrompt() {
 }
 
 function buildLocatorUserInput({ project, body, routeTrace, domSelections = [] }) {
-  const techStackMarkdown = project?.context?.technicalStackMarkdown || [
-    '## 技术栈',
-    ...((project?.stack || []).map(item => `- ${item}`)),
-  ].filter(Boolean).join('\n');
   return {
     roundType: 'initial-dom-planning',
     requirement: body?.userPrompt || '',
-    techStack: {
-      markdown: techStackMarkdown,
-    },
     pageContext: {
       url: body?.url || '',
       pathname: body?.pagePath || '',
@@ -81,6 +90,13 @@ function buildLocatorUserInput({ project, body, routeTrace, domSelections = [] }
         }
       : null,
   };
+}
+
+function locatorTechnicalStackMarkdown(project) {
+  return project?.context?.technicalStackMarkdown || [
+    '## 技术栈',
+    ...((project?.stack || []).map(item => `- ${item}`)),
+  ].filter(Boolean).join('\n');
 }
 
 function collectComponentChain(body) {
@@ -151,6 +167,7 @@ function locatorDecisionToSearchPlan(decision) {
 module.exports = {
   buildLocatorSystemPrompt,
   buildLocatorUserInput,
+  locatorTechnicalStackMarkdown,
   normalizeLocatorDecision,
   validateLocatorDecision,
   locatorDecisionToSearchPlan,
