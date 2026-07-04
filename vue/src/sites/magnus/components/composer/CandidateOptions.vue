@@ -3,7 +3,9 @@
     <div class="mda-option-title">源码组合定位</div>
     <div class="mda-composite-row">
       <span class="mda-composite-tag mda-composite-render">主渲染</span>
-      <button class="mda-file-link" type="button" @click="commands.openSourceFile(composite.render.file)">{{ composite.render.file }}</button>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(composite.render.file, composite.render.line, composite.render.column)">
+        {{ composite.render.file }}<span v-if="composite.render.line" class="mda-composite-line">:{{ composite.render.line }}</span>
+      </button>
     </div>
     <div v-if="composite.assembly" class="mda-composite-row">
       <span class="mda-composite-tag">装配</span>
@@ -39,7 +41,9 @@
       >
         <div class="mda-choice-check">
           <input type="checkbox" :checked="isCandidateSelected(hit)" @change="commands.toggleCandidateFile(hit)">
-          <button class="mda-file-link" type="button" @click.stop="commands.openSourceFile(hit.file)">{{ hit.file }}</button>
+          <button class="mda-file-link" type="button" @click.stop="commands.openSourceFile(hit.file, hit.line, hit.column)">
+            {{ hit.file }}<span v-if="hit.line" class="mda-composite-line">:{{ hit.line }}</span>
+          </button>
         </div>
         <div class="mda-choice-meta">{{ candidateStageLabel(hit) }} · {{ hit.score }}</div>
         <button class="mda-link-btn" type="button" @click="commands.toggleCandidateDetail(hit)">

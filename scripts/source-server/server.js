@@ -107,17 +107,33 @@ function resolveProjectFile(project, filePath) {
   return fullPath;
 }
 
-function openFileInEditor(fullPath) {
+function openFileInEditor(fullPath, line = 0, column = 0) {
   const editor = process.env.MAGNUS_EDITOR || '';
-  const command = editor || (process.platform === 'darwin' ? 'open' : 'xdg-open');
-  const args = editor
-    ? [fullPath]
-    : process.platform === 'darwin'
-      ? ['-a', 'Visual Studio Code', fullPath]
-      : [fullPath];
-  const child = spawn(command, args, {
-    detached: true,
-    stdio: 'ignore',
+  const target = Number(line) > 0
+    ? `${fullPath}:${Math.max(1, Number(line))}:${Math.max(1, Number(column) || 1)}`
+    : fullPath;
+  let command;
+  let args;
+  if (editor) {
+    // 允许 MAGNUS_EDITOR 形如 "code --goto"；有行号时用 file:line:column 定位。
+    const parts = editor.split(/\s+/).filter(Boolean);
+    command = parts[0];
+    args = [...parts.slice(1), target];
+  } else if (process.platform === 'darwin') {
+    // VS Code 支持 code --goto file:line:column 直接跳到行；退化到 open。
+    command = 'code';
+    args = Number(line) > 0 ? ['--goto', target] : ['-a', 'Visual Studio Code', fullPath];
+  } else {
+    command = 'code';
+    args = Number(line) > 0 ? ['--goto', target] : [fullPath];
+  }
+  const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+  // code CLI 不在 PATH 时回退到系统打开，避免跳转失败。
+  child.on('error', () => {
+    const fallbackCommand = process.platform === 'darwin' ? 'open' : 'xdg-open';
+    const fallback = spawn(fallbackCommand, [fullPath], { detached: true, stdio: 'ignore' });
+    fallback.on('error', () => {});
+    fallback.unref();
   });
   child.unref();
 }
@@ -386,7 +402,7 @@ function createSourceServer() {
       if (req.method === 'POST' && url.pathname === '/api/source/open') {
         const body = await readBody(req);
         const fullPath = resolveProjectFile(currentProject, body.file);
-        openFileInEditor(fullPath);
+        openFileInEditor(fullPath, body.line, body.column);
         sendJson(res, 200, { success: true, path: fullPath });
         return;
       }

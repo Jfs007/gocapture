@@ -85,14 +85,44 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     }
   }
 
+  // 直接从「当前选区 DOM」提取原始选区的稳定锚点——不依赖 Planner 是否成计划。
+  // 因为像 ¥3/查看/cost 这种，Planner 常判为 need-more-context（无计划），若从计划取就永远丢了。
+  // 用途：① 扩区收敛后回到用户最初选的那处做细定位；② 校验最终文件是否真的与原始选区有渲染/引用关系。
+  function originAnchorsFromSelection(): string[] {
+    const items = selection.selectedItems?.value || [];
+    const latest: any = items[items.length - 1];
+    const el: any = latest?.element || latest?.info || {};
+    const anchors: string[] = [];
+    const markup = String(el.rawOuterHtml || el.outerHtml || '');
+    for (const match of markup.matchAll(/\bdata-(?!v-)[\w-]+="([^"]{2,})"/g)) {
+      const value = String(match[1] || '').trim();
+      if (value && !/^__.*__$/.test(value) && !/^[\d.]+$/.test(value)) anchors.push(value);
+    }
+    for (const word of String(el.text || '').split(/\s+/)) {
+      const token = word.trim();
+      if (token.length >= 2 && token.length <= 12
+        && !/^[¥$]?[\d.,:：/%\-]+$/.test(token) && !/^ID[:：]/i.test(token)) anchors.push(token);
+    }
+    for (const cls of String(el.className || '').split(/\s+/)) {
+      const token = cls.trim();
+      if (token && !/^(n-|el-|ivu-|ant-|van-|flex|grid|is-|has-|mt-|mb-|ml-|mr-|w-|h-|p-|m-)/.test(token)) anchors.push(token);
+    }
+    return Array.from(new Set(anchors)).slice(0, 6);
+  }
+
   async function runSearchWithOptionalRetry(timeoutMs: number) {
     try {
+      // 原始选区锚点从 DOM 直接提取并全程保持（取第一版非空的，之后不覆盖）。
+      let focusAnchors = originAnchorsFromSelection();
       let firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs, '第 1 轮：原始选区检索');
       for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
         const expanded = await expandLatestSelectionForMoreEvidence(attempt);
         if (!expanded) break;
+        if (!focusAnchors.length) focusAnchors = originAnchorsFromSelection();
+        const retryState: any = buildAgentRetryState(firstPass, attempt);
+        if (focusAnchors.length) retryState.focusAnchors = focusAnchors;
         firstPass = await runSearchRequest(prompt.searchPayload({
-          agentState: buildAgentRetryState(firstPass, attempt)
+          agentState: retryState
         }), timeoutMs, `第 ${attempt + 1} 轮：自动扩区后继续检索`);
       }
       const firstHits = Array.isArray(firstPass?.hits) ? firstPass.hits : [];
@@ -261,6 +291,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
   };
 }
 
+// 从一次检索结果里取「原始选区的稳定锚点」候选（用于扩区全程保持的 focusAnchors）。
 function buildAgentRetryState(previousResult: any, attempt: number) {
   const agent = previousResult?.agent || {};
   const inspectionCandidates = Array.isArray(agent?.inspection?.candidates)

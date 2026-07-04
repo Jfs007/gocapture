@@ -38,13 +38,13 @@ export function createMagnusActions(state: MagnusRuntimeState): MagnusActions {
   };
 }
 
-async function openSourceFile(file: string) {
+async function openSourceFile(file: string, line?: number, column?: number) {
   if (!file) return;
   const appUiStore = useAppUiStore();
   try {
     await sourceServerJson('/api/source/open', {
       method: 'POST',
-      body: { file },
+      body: { file, line: Number(line) > 0 ? line : undefined, column: Number(column) > 0 ? column : undefined },
       timeoutMs: 5000,
       timeoutMessage: '打开源码文件超时，请确认本地源码服务可用'
     });

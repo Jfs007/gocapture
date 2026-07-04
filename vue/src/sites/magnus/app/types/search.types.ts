@@ -11,6 +11,9 @@ export interface CompositeRenderFile {
   role?: string;
   score?: number;
   anchors?: string[];
+  line?: number;
+  column?: number;
+  anchor?: string;
 }
 
 export interface CompositeChildFile {

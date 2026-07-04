@@ -4,7 +4,7 @@ export interface MagnusCommands {
   sendRequest(): Promise<void>;
   resolveRoute(): Promise<void>;
   selectProject(): Promise<void>;
-  openSourceFile(file: string): Promise<void>;
+  openSourceFile(file: string, line?: number, column?: number): Promise<void>;
   copyPrompt(): void;
   copyText(text: string): void;
   previewSelection(asset: any): void;

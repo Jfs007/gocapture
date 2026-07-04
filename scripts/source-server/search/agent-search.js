@@ -1079,9 +1079,10 @@ function executeSearchPlan(project, plan, textCache) {
 
   // 严格共现组(same-structure all，即 render 组)的两阶段准入：
   //  1) 优先取「完整 AND 命中」的文件；
-  //  2) 若全库都没有完整命中，则取「最大共现稀有子集(≥2)」的文件——
-  //     这样即便 LLM 把某个并不在真渲染文件里的锚点也放进了 render 组，
-  //     真文件仍能凭「命中最多的稀有子集」被保留，兼顾鲁棒性与精度。
+  //  2) 若全库都没有完整命中，则取「所有共现≥2 个稀有锚点」的文件——
+  //     不再只取「命中最多的那一个」。因为数据驱动场景里，配置/路由文件常常命中最多的文案/路径锚点，
+  //     若只保留最大子集会把「只命中业务 class（如 main-layout-left-menu）」的真实渲染组件挤掉。
+  //     这里把它们都保留为候选，再由角色判定(definition-like 参考文件不算渲染)与 Judge 收敛。
   const strictAdmission = new Map();
   for (const search of plan.searches) {
     if (!(search.mode === 'all' && search.range === 'same-structure')) continue;
@@ -1096,16 +1097,11 @@ function executeSearchPlan(project, plan, textCache) {
       matched.push({ file, keywords, rareKeywords: keywords.filter(isRare), positions });
     }
     const full = matched.filter(item => item.keywords.length === search.keywords.length);
-    let admitted;
-    if (full.length) {
-      admitted = full;
-    } else {
-      const maxSubset = matched.reduce((max, item) => Math.max(max, item.rareKeywords.length), 0);
-      admitted = maxSubset >= 2
-        ? matched.filter(item => item.rareKeywords.length === maxSubset)
-          .map(item => ({ ...item, keywords: item.rareKeywords }))
-        : [];
-    }
+    const admitted = full.length
+      ? full
+      : matched
+        .filter(item => item.rareKeywords.length >= 2)
+        .map(item => ({ ...item, keywords: item.rareKeywords }));
     strictAdmission.set(search, new Map(admitted.map(item => [item.file, item])));
   }
 
@@ -1199,11 +1195,31 @@ function executeSearchPlan(project, plan, textCache) {
       if (layer === 'render') for (const keyword of rareKeywords) rareRenderAnchors.add(keyword);
     }
 
-    // ——scope 组：只给已经是候选的文件缩范围加成，绝不单独造候选。
-    if (candidateMap.has(file)) {
-      for (const { search, hits } of groups) {
-        if (searchLayer(search) !== 'scope') continue;
-        const keywords = [...hits.keys()];
+    // ——scope 组：
+    //  · 稀有(判别性)范围锚点(df≤DF_SCOPE_LIMIT，如业务 class x-menu)可以独立生成一个弱候选——
+    //    它往往正是「渲染该 DOM 的组件」的身份标识；不能因为 LLM 把它放进了 scope 层就永远搜不到它所在的文件。
+    //  · 通用外壳词(df>DF_SCOPE_LIMIT，如 dc-fieldset)仍然只做缩范围加成、不造候选，避免噪音。
+    //  · 对已是候选的文件，所有 scope 锚点都追加一点加成。
+    for (const { search, hits } of groups) {
+      if (searchLayer(search) !== 'scope') continue;
+      const keywords = [...hits.keys()];
+      for (const keyword of keywords) {
+        if (!isRare(keyword)) continue;
+        upsertCandidate(candidateMap, file, {
+          score: Math.round(Math.max(8, 36 - (search.priority - 1) * 4) + idf(keyword) * 8),
+          matchedGroup: {
+            priority: search.priority,
+            keywords: [keyword],
+            range: 'same-file',
+            reason: `范围锚点(稀有，可能是渲染组件身份)：${keyword}`,
+            source: 'scope-anchor',
+            layer: 'scope',
+          },
+          keywords: [keyword],
+          positions: hits.get(keyword).slice(0, 3),
+        });
+      }
+      if (candidateMap.has(file)) {
         const candidate = candidateMap.get(file);
         candidate.score += Math.round(keywords.reduce((sum, keyword) => sum + idf(keyword), 0) * 4);
         candidate.scopeAnchors = uniq([...(candidate.scopeAnchors || []), ...keywords]);
@@ -1367,6 +1383,15 @@ function candidateSourceRole(filePath, text) {
       role: 'definition-like',
       referenceOnly: true,
       reasons: ['JSON 只承载数据/配置，不能直接生成 DOM，需要追踪其渲染使用处'],
+    };
+  }
+  // .vue 单文件组件本质上就是渲染 DOM 的组件（无论用 <template> 还是 setup/render），
+  // 一律视为渲染源码，避免因为脚本里有 export default {}/常量定义等信号被误判成 definition-like 参考文件。
+  if (ext === '.vue') {
+    return {
+      role: 'render-like',
+      referenceOnly: false,
+      reasons: ['.vue 单文件组件是 DOM 渲染源码'],
     };
   }
   const renderSignals = [
@@ -2253,20 +2278,11 @@ function hasPlannedGroupMatch(candidate) {
   });
 }
 
-// 是否算「主渲染候选」。
-// 关键规则：只要选区 DOM 的锚点在该文件里以 planned-group 形式真实共现，它就是渲染源码——
-// 即便 candidateSourceRole 的启发式把它误判成 referenceOnly（definition-like/样式），
-// 也不能因此把它当参考文件丢弃（否则「明明命中了却在充分性判断里丢了」）。
-// 子组件候选不参与主渲染竞争。
+// 是否算「主渲染候选」。渲染角色由 candidateSourceRole 在源头判定（见其中对 .vue / 路由配置的处理），
+// 这里不再按扩展名去「提升」参考文件——否则像路由配置 workbench.ts 这类命中了菜单文案/路径、
+// 但根本不渲染 DOM 的 .ts 文件会被错当成渲染源码返回。referenceOnly 一律不算主渲染，子组件候选也不算。
 function isRenderCandidate(candidate) {
-  if (!candidate || candidate.childComponentCandidate) return false;
-  if (!candidate.referenceOnly) return true;
-  // referenceOnly 文件只有在「本身是可渲染源码扩展名」且有 planned-group 真实共现时才提升为渲染候选。
-  // .json 数据集合、.css 等样式文件即便命中锚点，也仍然只是定义/样式参考，不当作渲染源码。
-  if (!hasPlannedGroupMatch(candidate)) return false;
-  const ext = path.posix.extname(candidate.file || '').toLowerCase();
-  if (ext === '.json' || STYLE_EXTENSIONS.has(ext)) return false;
-  return true;
+  return !!candidate && !candidate.referenceOnly && !candidate.childComponentCandidate;
 }
 
 // 判断本地是否已存在明显占优的渲染候选（可据此本地收敛、跳过 Judge）。
@@ -2285,6 +2301,62 @@ function dominantRenderCandidate(inspection) {
     || first.score - second.score >= 120
     || (hasPlannedGroupMatch(first) && !hasPlannedGroupMatch(second));
   return dominates ? first : null;
+}
+
+// 收集与某文件在 import 图上「N 跳内相关」的所有文件（向下：它 import 的；向上：import 它的）。
+function filesRelatedByImport(project, file, textCache, maxHops = 2) {
+  const fileMap = buildFileMap(project);
+  const related = new Set([file]);
+  let frontier = [file];
+  for (let hop = 0; hop < maxHops; hop += 1) {
+    const next = [];
+    for (const current of frontier) {
+      for (const child of importedFiles(project, current, fileMap, textCache)) {
+        if (!related.has(child.file)) { related.add(child.file); next.push(child.file); }
+      }
+    }
+    frontier = next;
+  }
+  const reverse = new Map();
+  for (const source of fileMap.keys()) {
+    for (const child of importedFiles(project, source, fileMap, textCache)) {
+      const parents = reverse.get(child.file) || [];
+      parents.push(source);
+      reverse.set(child.file, parents);
+    }
+  }
+  frontier = [file];
+  for (let hop = 0; hop < maxHops; hop += 1) {
+    const next = [];
+    for (const current of frontier) {
+      for (const parent of reverse.get(current) || []) {
+        if (!related.has(parent)) { related.add(parent); next.push(parent); }
+      }
+    }
+    frontier = next;
+  }
+  return related;
+}
+
+// 原始选区关系校验：一个收敛出来的渲染文件，必须与「用户最初选中的区域(origin 锚点)」有真实关系——
+// 要么自身包含 origin 锚点，要么通过 import 引用链(N 跳内)关联到包含它的文件。
+// 否则说明它只是命中了「扩区后的大区域」里别的东西，跟用户真正选的那块毫无渲染/引用关系，即找错了。
+function validateOriginRelation(project, renderFile, originAnchors, textCache) {
+  const anchors = uniq((originAnchors || []).map(value => String(value || '').trim()).filter(value => value.length >= 2));
+  if (!anchors.length) return { valid: true, reason: 'no-origin-anchors' };
+  const containsAnchor = filePath => {
+    const fileObj = (project.files || []).find(item => item.path === filePath);
+    if (!fileObj) return false;
+    const text = readProjectText(project, fileObj, textCache);
+    return anchors.some(anchor => keywordIndexes(text, anchor).length > 0);
+  };
+  if (containsAnchor(renderFile)) return { valid: true, reason: 'direct' };
+  for (const related of filesRelatedByImport(project, renderFile, textCache, 2)) {
+    if (related !== renderFile && containsAnchor(related)) {
+      return { valid: true, reason: `reference:${related}` };
+    }
+  }
+  return { valid: false, reason: '与原始选区锚点既无直接包含、也无 import 引用关系' };
 }
 
 function analyzeEvidenceSufficiency(plan, inspection, ownership = [], options = {}) {
@@ -2746,6 +2818,114 @@ function buildComposite(inspection, ownership, selectedFile) {
   };
 }
 
+// 字符偏移 → 1 基 line:column。
+function offsetToLineColumn(text, offset) {
+  const clamped = Math.max(0, Math.min(String(text).length, Number(offset) || 0));
+  const before = String(text).slice(0, clamped);
+  const line = before.split('\n').length;
+  const column = clamped - before.lastIndexOf('\n');
+  return { line, column };
+}
+
+// 收集计划里各关键词在文件中的所有命中偏移（按各自的匹配器：class/attr/style/text/literal）。
+function collectPlanKeywordOffsets(text, searches, filePath) {
+  const map = new Map();
+  for (const search of searches || []) {
+    for (const keyword of search.keywords || []) {
+      const offsets = keywordIndexesForSearch(text, keyword, search, filePath);
+      if (offsets.length) map.set(keyword, uniq([...(map.get(keyword) || []), ...offsets]));
+    }
+  }
+  return map;
+}
+
+// 原始选区的稳定锚点：扩区时前端全程保持不变地带回来（即使中间某轮 Planner 返回 need-more、计划为空，
+// 也不会丢），保证「细定位」永远能回到用户最初选的那一处，而不是退化成扩区大区域的质心。
+function focusAnchorsFromState(agentState) {
+  const raw = Array.isArray(agentState?.focusAnchors) ? agentState.focusAnchors : [];
+  return uniq(raw.map(value => String(value || '').trim()).filter(value => value.length >= 2))
+    .slice(0, MAX_INHERITED_KEYWORDS);
+}
+
+// 收敛后「细定位」：文件已确定，回到「原始选区最具体的锚点」在该文件里的精确位置。
+//  · 聚焦优先级：显式 focusAnchors（前端全程保持的原始选区锚点）> 上一轮继承锚点 > render 层锚点。
+//  · 一个锚点在文件里可能出现多次，取「离其它命中锚点簇最近」的那一次——即真正落在目标渲染结构里的那处。
+//  · 返回精确 offset + line:column + 该处代码片段，供编辑器直接跳转。
+function computeFineLocation(project, file, plan, agentState, textCache) {
+  const fileObj = (project.files || []).find(item => item.path === file);
+  if (!fileObj) return null;
+  const text = readProjectText(project, fileObj, textCache);
+  if (!text) return null;
+
+  const focusFromState = focusAnchorsFromState(agentState);
+  const inherited = inheritedSearchKeywords(agentState);
+  const extraFocus = uniq([...focusFromState, ...inherited]);
+  const searchesForOffsets = [...(plan?.searches || [])];
+  if (extraFocus.length) {
+    searchesForOffsets.push({
+      keywords: extraFocus,
+      evidenceKinds: Object.fromEntries(extraFocus.map(keyword => [keyword, 'text'])),
+    });
+  }
+  const offsets = collectPlanKeywordOffsets(text, searchesForOffsets, file);
+  if (!offsets.size) return null;
+
+  const renderKeywords = (plan?.searches || [])
+    .filter(search => searchLayer(search) === 'render')
+    .flatMap(search => search.keywords || []);
+  const focusPriority = focusFromState.length
+    ? focusFromState
+    : (inherited.length ? inherited : renderKeywords);
+  const focusKeywords = focusPriority.filter(keyword => offsets.has(keyword));
+
+  const allOffsets = [...offsets.values()].flat();
+  const contextCentroid = allOffsets.reduce((sum, value) => sum + value, 0) / allOffsets.length;
+
+  let bestOffset;
+  let anchor = '';
+  if (focusKeywords.length) {
+    const focusOffsets = focusKeywords.flatMap(keyword => offsets.get(keyword).map(offset => ({ keyword, offset })));
+    const others = [...offsets.entries()]
+      .filter(([keyword]) => !focusKeywords.includes(keyword))
+      .flatMap(([, list]) => list);
+    const pick = focusOffsets.reduce((best, item) => {
+      const distance = others.length
+        ? Math.min(...others.map(other => Math.abs(other - item.offset)))
+        : Math.abs(item.offset - contextCentroid);
+      return distance < best.distance ? { ...item, distance } : best;
+    }, { offset: focusOffsets[0].offset, keyword: focusOffsets[0].keyword, distance: Infinity });
+    bestOffset = pick.offset;
+    anchor = pick.keyword;
+  } else {
+    bestOffset = Math.round(contextCentroid);
+  }
+
+  const { line, column } = offsetToLineColumn(text, bestOffset);
+  return { file, offset: bestOffset, line, column, anchor, snippet: makeSnippet(text, bestOffset, 0) };
+}
+
+// 把细定位结果写回主渲染命中与 composite.render（供前端跳转到精确行）。
+function attachFineLocation(result, project, plan, agentState, textCache) {
+  const file = result?.composite?.render?.file || result?.hits?.[0]?.file;
+  if (!file || !plan) return result;
+  const location = computeFineLocation(project, file, plan, agentState, textCache);
+  if (!location) return result;
+  const topHit = (result.hits || []).find(hit => hit.file === file);
+  if (topHit) {
+    topHit.line = location.line;
+    topHit.column = location.column;
+    topHit.preciseOffset = location.offset;
+    topHit.locatedAnchor = location.anchor;
+    if (location.snippet) topHit.preciseSnippet = location.snippet;
+  }
+  if (result.composite && result.composite.render && result.composite.render.file === file) {
+    result.composite.render.line = location.line;
+    result.composite.render.column = location.column;
+    result.composite.render.anchor = location.anchor;
+  }
+  return result;
+}
+
 function normalizeJudge(parsed, project, allowedFiles = []) {
   const fileSet = new Set((project.files || []).map(file => file.path));
   const allowed = new Set(allowedFiles);
@@ -2767,16 +2947,29 @@ function normalizeJudge(parsed, project, allowedFiles = []) {
 
 function agentHits(inspection, judge, ownership = []) {
   const candidateByFile = new Map((inspection.candidates || []).map(candidate => [candidate.file, candidate]));
-  const hasPrimaryCandidate = (inspection.candidates || []).some(isRenderCandidate);
-  const selected = judge?.files?.length
-    ? judge.files.filter(item => {
-        const candidate = candidateByFile.get(item.file);
-        // 只丢弃「真正的参考文件」；planned-group 命中的候选即便标了 referenceOnly 也保留为渲染结果。
-        return isRenderCandidate(candidate) || !hasPrimaryCandidate;
-      })
-    : inspection.status === 'unique'
-      ? [{ file: inspection.selectedFile, role: 'render', confidence: 90, reason: '本地候选事实形成唯一匹配' }]
-      : [];
+  const renderCandidates = (inspection.candidates || []).filter(isRenderCandidate);
+  const hasPrimaryCandidate = renderCandidates.length > 0;
+  let selected;
+  if (judge?.files?.length) {
+    // 只丢弃「真正的参考文件」；planned-group 命中的候选即便标了 referenceOnly 也保留为渲染结果。
+    selected = judge.files.filter(item => {
+      const candidate = candidateByFile.get(item.file);
+      return isRenderCandidate(candidate) || !hasPrimaryCandidate;
+    });
+  } else {
+    selected = [];
+  }
+  // 无有效 Judge 结论时的兜底：从「渲染候选」里挑，而不是直接用可能是参考文件(如路由配置)的最高分 selectedFile。
+  if (!selected.length) {
+    const renderPick = dominantRenderCandidate(inspection)
+      || renderCandidates.sort((a, b) => b.score - a.score)[0]
+      || (inspection.status === 'unique'
+        ? candidateByFile.get(inspection.selectedFile)
+        : null);
+    if (renderPick) {
+      selected = [{ file: renderPick.file, role: 'render', confidence: 85, reason: '本地渲染候选事实收敛（排除定义/参考文件）' }];
+    }
+  }
   const uniqueDecision = judge?.status === 'unique';
   const selectedMap = new Map(selected.map(item => [item.file, item]));
   const baseCandidates = selected.length
@@ -3057,7 +3250,7 @@ async function runAgentSearch(project, body, options = {}) {
         role: hit.sourceRole || '',
       })),
     }, null, 2)}`);
-    return {
+    return attachFineLocation({
       hits,
       composite,
       routeResolver: routeResult.trace,
@@ -3074,7 +3267,7 @@ async function runAgentSearch(project, body, options = {}) {
         routeRelations,
         judge: localRouteDecision,
       },
-    };
+    }, project, executionPlan, body?.agentState || null, textCache);
   }
 
   const initialOwnershipFiles = uniq([
@@ -3164,6 +3357,55 @@ async function runAgentSearch(project, body, options = {}) {
     }
   }
 
+  // 原始选区关系校验：扩区是为了找文件，但最终文件必须与「用户最初选中的那块」有渲染/引用关系。
+  // 剔除那些只命中了扩区大区域、却与原始选区锚点毫无关系的渲染候选。
+  const originAnchors = focusAnchorsFromState(body?.agentState || null);
+  if (originAnchors.length) {
+    const renderCandidates = inspection.candidates.filter(isRenderCandidate);
+    const validRenderFiles = new Set(
+      renderCandidates
+        .filter(candidate => validateOriginRelation(project, candidate.file, originAnchors, textCache).valid)
+        .map(candidate => candidate.file)
+    );
+    if (renderCandidates.length && !validRenderFiles.size) {
+      onLog(`DOM Agent 原始选区关系校验：全部渲染候选都与最初选区锚点(${originAnchors.join('、')})无渲染/引用关系，判定为「扩区命中了别处、并非你选的那块」`);
+      return {
+        hits: [],
+        composite: null,
+        routeResolver: routeResult.trace,
+        apiTrace: null,
+        i18nTrace: null,
+        definitionTrace: null,
+        needMoreDom: true,
+        needsMoreEvidence: true,
+        agent: {
+          enabled: true,
+          trigger,
+          plan: executionPlan,
+          modelPlan: plan,
+          inspection: compactInspectionForModel(inspection),
+          definitionResolution,
+          originMismatch: true,
+          originAnchors,
+          evidence: {
+            insufficient: true,
+            reason: '扩区命中的文件与原始选区无渲染/引用关系，真正渲染该区域的组件可能在被压缩省略的部分，请直接选中该区域本身重试',
+          },
+          needMoreDom: true,
+        },
+      };
+    }
+    if (validRenderFiles.size && validRenderFiles.size < renderCandidates.length) {
+      // 只保留与原始选区相关的渲染候选；参考/子组件/定义候选保留以维持引用链。
+      inspection = {
+        ...inspection,
+        candidates: inspection.candidates.filter(candidate =>
+          !isRenderCandidate(candidate) || validRenderFiles.has(candidate.file)),
+      };
+      onLog(`DOM Agent 原始选区关系校验：保留与最初选区相关的渲染候选 ${[...validRenderFiles].join('、')}`);
+    }
+  }
+
   const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership, {
     expansionRetry: body?.agentState?.expansionRetry === true,
   });
@@ -3209,7 +3451,7 @@ async function runAgentSearch(project, body, options = {}) {
     const composite = buildComposite(inspection, ownership, localDominant.file);
     onLog(`DOM Agent 本地收敛（跳过 Judge）：${localDominant.file}`);
     onLog(`DOM Agent 组合结果：${JSON.stringify(composite, null, 2)}`);
-    return {
+    return attachFineLocation({
       hits,
       composite,
       routeResolver: routeResult.trace,
@@ -3228,7 +3470,7 @@ async function runAgentSearch(project, body, options = {}) {
         judge: decision,
         localConverged: true,
       },
-    };
+    }, project, executionPlan, body?.agentState || null, textCache);
   }
 
   routeRelations = traceRouteCandidateRelations(
@@ -3279,7 +3521,7 @@ async function runAgentSearch(project, body, options = {}) {
       role: hit.sourceRole || '',
     })),
   }, null, 2)}`);
-  return {
+  return attachFineLocation({
     hits,
     composite,
     routeResolver: routeResult.trace,
@@ -3298,7 +3540,7 @@ async function runAgentSearch(project, body, options = {}) {
       routeRelations,
       judge,
     },
-  };
+  }, project, executionPlan, body?.agentState || null, textCache);
 }
 
 module.exports = {
@@ -3308,6 +3550,9 @@ module.exports = {
   analyzeEvidenceSufficiency,
   dominantRenderCandidate,
   buildComposite,
+  computeFineLocation,
+  offsetToLineColumn,
+  validateOriginRelation,
   normalizeConfidence,
   domAgentTrigger,
   executeSearchPlan,

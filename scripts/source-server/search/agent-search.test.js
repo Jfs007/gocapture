@@ -16,6 +16,9 @@ const {
   validateJudgeRouteDecision,
   dominantRenderCandidate,
   buildComposite,
+  computeFineLocation,
+  offsetToLineColumn,
+  validateOriginRelation,
   normalizeConfidence,
 } = require('./agent-search');
 const {
@@ -2190,8 +2193,9 @@ test('route relation does not select a single repeated label when local DOM text
 
 function wrapperNoiseProject() {
   const files = {};
-  // 12 个文件都含通用外壳词 dc-fieldset + 区块标题「执行信息」，但只有 subtask 含完整字段组合。
-  for (let i = 0; i < 12; i += 1) {
+  // 45 个文件都含通用外壳词 dc-fieldset + 区块标题「执行信息」——超过 DF_SCOPE_LIMIT(40)，
+  // 因此它们是真正的「通用词」，不应生成候选；只有 subtask 含完整字段组合。
+  for (let i = 0; i < 45; i += 1) {
     files[`src/forms/form-${i}.vue`] = [
       '<template>',
       '  <fieldset class="dc-fieldset"><legend>执行信息</legend>',
@@ -2431,40 +2435,208 @@ test('a Naive UI render-function cell locates its columns source via the reduced
   assert.deepEqual(candidates.map(candidate => candidate.file), ['src/order/columns.tsx']);
 });
 
-test('a planned-group match on a renderable file survives sufficiency even if heuristically marked referenceOnly', () => {
-  // 复现真实问题：config-editor-drawer.vue 命中了 planned-group，却被 candidateSourceRole 误判为
-  // definition-like/referenceOnly，导致 analyzeEvidenceSufficiency 以「只命中参考文件」丢弃了真实命中。
-  const evidence = analyzeEvidenceSufficiency(
-    { searches: [], needMoreDom: false },
-    {
-      candidates: [{
-        file: 'src/views/product-card/components/config-editor-drawer.vue',
-        score: 400,
-        referenceOnly: true,
-        childComponentCandidate: false,
-        matchedGroups: [{ source: 'planned-group', keywords: ['配置编辑', '保存模板'] }],
-      }],
-    },
-    []
-  );
-  assert.equal(evidence.insufficient, false);
-  assert.equal(evidence.primaryCandidateCount, 1);
+test('a .vue SFC is a render source even when its script has definition-like signals; a router config .ts stays a reference', () => {
+  // 数据驱动菜单：路由配置里含菜单文案/路径(铺品 /ai-product)，会被检索命中，
+  // 但它不渲染 DOM，必须保持 referenceOnly；而 .vue 组件即使脚本里有 export default {}，也应是渲染源码。
+  const project = fixtureProject({
+    'src/layout/side-menu.vue': [
+      '<template><div class="x-menu main-layout-left-menu">铺品</div></template>',
+      "<script>export default { name: 'SideMenu' }</script>",
+    ].join('\n'),
+    'src/router/modules/workbench.ts': [
+      'export default [',
+      "  { path: '/ai-product', name: 'AiProduct', meta: { title: '铺品' },",
+      "    children: [{ path: 'product-card', meta: { title: 'AI铺品' } }] }",
+      ']',
+    ].join('\n'),
+  });
+  const plan = { searches: [{ keywords: ['铺品', '铺品'], mode: 'any', range: 'same-file', priority: 1 }] };
+  const candidates = [
+    { file: 'src/layout/side-menu.vue', score: 200, matchedGroups: [{ source: 'planned-group', keywords: ['铺品'] }], keywords: ['铺品'], positions: [0] },
+    { file: 'src/router/modules/workbench.ts', score: 300, matchedGroups: [{ source: 'planned-group', keywords: ['铺品'] }], keywords: ['铺品'], positions: [0] },
+  ];
+  const inspection = inspectCandidates(project, candidates, plan, new Map());
+  const byFile = new Map(inspection.candidates.map(candidate => [candidate.file, candidate]));
+  assert.equal(byFile.get('src/layout/side-menu.vue')?.referenceOnly, false);
+  assert.equal(byFile.get('src/router/modules/workbench.ts')?.referenceOnly, true);
 });
 
-test('a planned-group match on a .json data file stays a reference, not a render candidate', () => {
+test('a definition-like config file is never returned as a render candidate', () => {
+  // 即便路由配置命中了 planned-group，也不能算主渲染候选（否则会把 .ts 路由当成 DOM 源码返回）。
   const evidence = analyzeEvidenceSufficiency(
     { searches: [], needMoreDom: false },
     {
       candidates: [{
-        file: 'src/data/labels.json',
+        file: 'src/router/modules/workbench.ts',
         score: 400,
         referenceOnly: true,
         childComponentCandidate: false,
-        matchedGroups: [{ source: 'planned-group', keywords: ['配置编辑', '保存模板'] }],
+        matchedGroups: [{ source: 'planned-group', keywords: ['铺品', '/ai-product'] }],
       }],
     },
     []
   );
   assert.equal(evidence.insufficient, true);
   assert.equal(evidence.primaryCandidateCount, 0);
+});
+
+test('data-driven menu: locates the menu component by its business class, not the router config that holds the labels', async () => {
+  const project = fixtureProject({
+    'src/layout/side-menu.vue': [
+      '<template><div class="x-menu main-layout-left-menu n-menu"><n-menu :options="opts" /></div></template>',
+      "<script setup>const opts = buildFromRoutes()</script>",
+    ].join('\n'),
+    'src/router/modules/workbench.ts': [
+      'export default [',
+      "  { path: '/ai-product', meta: { title: '铺品' }, children: [",
+      "    { path: 'product-card', meta: { title: 'AI铺品' } }] }",
+      ']',
+    ].join('\n'),
+  });
+  const dom = '<div class="x-menu main-layout-left-menu n-menu"><a href="/ai-product">铺品</a><a href="/ai-product/product-card">AI铺品</a></div>';
+  const outputs = [
+    JSON.stringify({ status: 'ready', renderAnchors: [
+      { value: 'main-layout-left-menu', kind: 'class' }, { value: 'x-menu', kind: 'class' },
+      { value: '铺品', kind: 'text' }, { value: '/ai-product', kind: 'attr' }] }),
+    JSON.stringify({ status: 'unique', files: [{ file: 'src/layout/side-menu.vue', role: 'render', confidence: 0.95, reason: '菜单组件' }] }),
+  ];
+  let calls = 0;
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' }, userPrompt: '定位左侧菜单',
+    selections: [{ element: { className: 'x-menu main-layout-left-menu n-menu', selector: 'div.x-menu.main-layout-left-menu.n-menu', rawOuterHtml: dom } }],
+  }, { runModelTask: async () => ({ adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs[calls++] || '{}', logs: [] }) });
+  const files = (result.hits || []).map(hit => hit.file);
+  // 关键断言：不渲染 DOM 的路由配置绝不能作为渲染结果；真正的菜单组件应被 business class 命中。
+  assert.ok(!files.includes('src/router/modules/workbench.ts'));
+  assert.equal(result.composite?.render.file, 'src/layout/side-menu.vue');
+});
+
+test('a rare business class in the scope layer still surfaces the render component (x-menu), and the router is never returned', async () => {
+  // 复现真实日志：Planner 把菜单文案/路径放进 render 组(只命中路由配置)，把 business class x-menu 放进 scope。
+  // 旧实现里 scope 锚点从不生成候选 → 含 x-menu 的菜单组件被丢弃，只剩路由配置。
+  const project = fixtureProject({
+    'src/layout/side-menu.vue': [
+      '<template><div class="x-menu main-layout-left-menu n-menu"><n-menu :options="opts" /></div></template>',
+      '<script setup>const opts = buildFromRoutes()</script>',
+    ].join('\n'),
+    'src/router/modules/workbench.ts': [
+      "import Layout from '@/layout/index.vue'",
+      'export default [{ path: \'/ai-product\', component: Layout, meta: { title: \'铺品\' },',
+      "  children: [{ path: 'product-card', meta: { title: 'AI铺品' } }, { path: 'goods-manage', meta: { title: '店搬店' } }] }]",
+    ].join('\n'),
+  });
+  const dom = '<div class="x-menu main-layout-left-menu n-menu"><a href="/ai-product">铺品</a><a href="/ai-product/product-card">AI铺品</a><a href="/ai-product/goods-manage">店搬店</a></div>';
+  const outputs = [
+    JSON.stringify({ status: 'ready',
+      renderAnchors: [{ value: 'AI铺品', kind: 'text' }, { value: '店搬店', kind: 'text' }, { value: '/ai-product/product-card', kind: 'attr' }],
+      scopeAnchors: [{ value: '铺品', kind: 'text' }, { value: 'x-menu', kind: 'class' }] }),
+  ];
+  let calls = 0;
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' }, userPrompt: '定位左侧菜单',
+    selections: [{ element: { className: 'x-menu main-layout-left-menu n-menu', selector: 'div.x-menu.main-layout-left-menu.n-menu', rawOuterHtml: dom } }],
+  }, { runModelTask: async () => ({ adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs[calls++] || '{}', logs: [] }) });
+  const files = (result.hits || []).map(hit => hit.file);
+  assert.ok(!files.includes('src/router/modules/workbench.ts'));
+  assert.equal(files[0], 'src/layout/side-menu.vue');
+  assert.equal(result.composite?.render.file, 'src/layout/side-menu.vue');
+});
+
+test('offsetToLineColumn computes 1-based line:column', () => {
+  const text = 'a\nbc\nxyz';
+  assert.deepEqual(offsetToLineColumn(text, 0), { line: 1, column: 1 });   // 'a'
+  assert.deepEqual(offsetToLineColumn(text, 2), { line: 2, column: 1 });   // 'b'
+  assert.deepEqual(offsetToLineColumn(text, 6), { line: 3, column: 2 });   // 'y'
+});
+
+test('coarse-to-fine: after expansion finds the file, the hit pins back to the original selection anchor line', async () => {
+  const files = {};
+  for (let i = 0; i < 41; i += 1) files[`src/pages/list-${i}.vue`] = '<template><button>查看</button></template>';
+  files['src/pages/order-detail.vue'] = [
+    '<template>',
+    '  <div class="order-detail-panel">',
+    '    <span>订单</span>',
+    '    <button class="op-btn" @click="view">查看</button>',
+    '  </div>',
+    '</template>',
+  ].join('\n');
+  const project = fixtureProject(files);
+  const dom = '<div class="order-detail-panel"><span>订单</span><button class="op-btn">查看</button></div>';
+  const outputs = [
+    JSON.stringify({ status: 'ready', renderAnchors: [{ value: 'order-detail-panel', kind: 'class' }, { value: '查看', kind: 'text' }] }),
+    JSON.stringify({ status: 'unique', files: [{ file: 'src/pages/order-detail.vue', role: 'render', confidence: 0.9, reason: 'x' }] }),
+  ];
+  let calls = 0;
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' }, userPrompt: '定位查看',
+    agentState: { expansionRetry: true, previousPlan: { searches: [{ keywords: ['查看'], mode: 'any', range: 'same-file' }] } },
+    selections: [{ element: { className: 'order-detail-panel', rawOuterHtml: dom } }],
+  }, { runModelTask: async () => ({ adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs[calls++] || '{}', logs: [] }) });
+  const hit = (result.hits || [])[0];
+  assert.equal(hit.file, 'src/pages/order-detail.vue');
+  assert.equal(hit.line, 4);              // 「查看」所在行，而不是扩区锚点 order-detail-panel(第2行)
+  assert.equal(hit.locatedAnchor, '查看');
+  assert.equal(result.composite.render.line, 4);
+});
+
+test('fine-location honors sticky focusAnchors: after expanding to a whole table row, it returns to the originally selected column', () => {
+  const project = fixtureProject({
+    'src/views/product/columns.tsx': [
+      "import { h } from 'vue'",
+      'export const cols = [',
+      "  { key: 'productInfo', render: (row) => h('div', row.title) },",
+      "  { key: 'cost', render: (row) => h('div', [h('div', '¥' + row.x), h(NButton, {}, { default: () => '点击设置' })]) },",
+      "  { key: 'action', render: () => h(NFlex, [h(NButton, {}, { default: () => '复制' }), h(NButton, {}, { default: () => '删除' })]) },",
+      ']',
+    ].join('\n'),
+  });
+  // 扩区到整行：render 组包含所有列的锚点。
+  const plan = { searches: [{ layer: 'render', mode: 'all', range: 'same-structure', keywords: ['点击设置', '复制', '删除'], evidenceKinds: { '点击设置': 'text', '复制': 'text', '删除': 'text' } }] };
+  // 用户最初选的是 cost 单元格 → focusAnchors=[点击设置] → 定位到 cost 那行(第4行)。
+  const costLoc = computeFineLocation(project, 'src/views/product/columns.tsx', plan,
+    { expansionRetry: true, previousPlan: { searches: [] }, focusAnchors: ['点击设置'] }, new Map());
+  assert.equal(costLoc.anchor, '点击设置');
+  assert.equal(costLoc.line, 4);
+  // 若最初选的是 action 单元格 → focusAnchors=[复制] → 定位到 action 那行(第5行)，证明是真回到用户选的列。
+  const actionLoc = computeFineLocation(project, 'src/views/product/columns.tsx', plan,
+    { expansionRetry: true, previousPlan: { searches: [] }, focusAnchors: ['复制'] }, new Map());
+  assert.equal(actionLoc.anchor, '复制');
+  assert.equal(actionLoc.line, 5);
+});
+
+test('validateOriginRelation: valid on direct-contain or import-reference, invalid when unrelated', () => {
+  const project = fixtureProject({
+    'src/A.vue': '<template><button>查看</button></template>',
+    'src/B.vue': "<script>import A from './A.vue'</script><template><A /></template>",
+    'src/C.vue': '<template><div>无关</div></template>',
+  });
+  const cache = new Map();
+  assert.equal(validateOriginRelation(project, 'src/A.vue', ['查看'], cache).valid, true);   // 直接包含
+  assert.equal(validateOriginRelation(project, 'src/B.vue', ['查看'], cache).valid, true);   // 引用了含锚点的文件
+  assert.equal(validateOriginRelation(project, 'src/C.vue', ['查看'], cache).valid, false);  // 毫无关系
+  assert.equal(validateOriginRelation(project, 'src/C.vue', [], cache).valid, true);         // 无 origin 锚点则跳过
+});
+
+test('origin mismatch: an expanded-row match that has no relation to the original cell is rejected, not returned', async () => {
+  // 复现 winsup：扩到整行后命中了 quick-edit-modal（含 operator/channels），但它与原始选区(查看)毫无关系。
+  const project = fixtureProject({
+    'src/views/quick-edit-modal.vue': [
+      '<template><n-select :options="operatorOptions" /><n-checkbox-group :value="channels" /></template>',
+      '<script setup>const operatorOptions = []; const channels = []</script>',
+    ].join('\n'),
+    'src/views/unrelated.vue': '<template><div>别的</div></template>',
+  });
+  const dom = '<tr><td data-col-key="operator">薛俊峰</td><td data-col-key="channels">快手CID</td></tr>';
+  const outputs = [
+    JSON.stringify({ status: 'ready', renderAnchors: [{ value: 'operator', kind: 'attr' }, { value: 'channels', kind: 'attr' }] }),
+  ];
+  let calls = 0;
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' }, userPrompt: '定位查看按钮',
+    agentState: { expansionRetry: true, previousPlan: { searches: [] }, focusAnchors: ['查看'] },
+    selections: [{ element: { rawOuterHtml: dom } }],
+  }, { runModelTask: async () => ({ adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs[calls++] || '{}', logs: [] }) });
+  assert.equal((result.hits || []).length, 0);
+  assert.equal(result.agent.originMismatch, true);
+  assert.equal(result.needMoreDom, true);
 });

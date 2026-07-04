@@ -379,6 +379,11 @@
   font-size: 11px;
 }
 
+.mda-composite-line {
+  color: #2563eb;
+  font-weight: 600;
+}
+
 .mda-composer-options.is-compact {
   display: flex;
   flex-wrap: wrap;
