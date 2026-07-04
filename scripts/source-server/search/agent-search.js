@@ -25,6 +25,7 @@ const MAX_DEFINITION_RESOLVER_SEARCHES = 2;
 const MAX_OWNER_DEPTH = 3;
 const MAX_OWNERS_PER_CANDIDATE = 4;
 const MAX_ROUTE_RELATION_DEPTH = 7;
+const MAX_KEYWORD_INDEXES = 120;
 // 一个锚点命中的源文件数超过此阈值即视为「通用外壳/框架词」，只能缩范围、不能单独生成候选，
 // 也不参与稀有共现加成（否则 dc-fieldset 这类命中 100+ 文件的词会淹没判别性锚点）。
 const DF_SCOPE_LIMIT = 40;
@@ -896,7 +897,7 @@ function keywordIndexes(text, keyword) {
   const needle = String(keyword || '').toLowerCase();
   if (!needle) return indexes;
   let from = 0;
-  while (indexes.length < 20) {
+  while (indexes.length < MAX_KEYWORD_INDEXES) {
     const index = lowerText.indexOf(needle, from);
     if (index === -1) break;
     indexes.push(index);
@@ -1043,6 +1044,42 @@ function candidateSort(a, b) {
   return a.file.localeCompare(b.file);
 }
 
+function bestKeywordWindow(hits, keywordOrder, maxSpread = 16000) {
+  const allowed = new Set(keywordOrder || []);
+  const events = [];
+  for (const [keyword, indexes] of hits.entries()) {
+    if (!allowed.has(keyword)) continue;
+    for (const index of indexes) events.push({ keyword, index });
+  }
+  events.sort((a, b) => a.index - b.index);
+  let best = null;
+  for (let left = 0; left < events.length; left += 1) {
+    const counts = new Map();
+    for (let right = left; right < events.length; right += 1) {
+      const event = events[right];
+      if (event.index - events[left].index > maxSpread) break;
+      counts.set(event.keyword, (counts.get(event.keyword) || 0) + 1);
+      const keywords = keywordOrder.filter(keyword => counts.has(keyword));
+      const spread = event.index - events[left].index;
+      if (
+        !best
+        || keywords.length > best.keywords.length
+        || (keywords.length === best.keywords.length && spread < best.spread)
+      ) {
+        const windowEvents = events.slice(left, right + 1);
+        best = {
+          keywords,
+          positions: keywords.map(keyword => {
+            return windowEvents.find(item => item.keyword === keyword)?.index;
+          }).filter(Number.isFinite),
+          spread,
+        };
+      }
+    }
+  }
+  return best || { keywords: [], positions: [], spread: 0 };
+}
+
 // 稀有度加权 + 共现收敛的候选检索。
 // 关键改动（相对旧实现）：
 //  1. 先做一遍全库文档频率(df)统计，得到每个锚点的稀有度(idf)。
@@ -1090,18 +1127,29 @@ function executeSearchPlan(project, plan, textCache) {
     for (const { file, groups } of perFile) {
       const group = groups.find(item => item.search === search);
       if (!group) continue;
-      const keywords = [...group.hits.keys()];
-      const positions = keywords.flatMap(keyword => group.hits.get(keyword).slice(0, 2));
-      const spread = positions.length ? Math.max(...positions) - Math.min(...positions) : 0;
-      if (spread > 16000) continue;
-      matched.push({ file, keywords, rareKeywords: keywords.filter(isRare), positions });
+      const window = bestKeywordWindow(group.hits, search.keywords);
+      const rareWindow = bestKeywordWindow(
+        group.hits,
+        search.keywords.filter(isRare)
+      );
+      matched.push({
+        file,
+        keywords: window.keywords,
+        rareKeywords: rareWindow.keywords,
+        positions: window.positions,
+        rarePositions: rareWindow.positions,
+      });
     }
     const full = matched.filter(item => item.keywords.length === search.keywords.length);
     const admitted = full.length
       ? full
       : matched
         .filter(item => item.rareKeywords.length >= 2)
-        .map(item => ({ ...item, keywords: item.rareKeywords }));
+        .map(item => ({
+          ...item,
+          keywords: item.rareKeywords,
+          positions: item.rarePositions,
+        }));
     strictAdmission.set(search, new Map(admitted.map(item => [item.file, item])));
   }
 

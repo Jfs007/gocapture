@@ -2269,6 +2269,49 @@ test('two-phase admission: an extra absent render anchor still converges to the 
   assert.equal(dominant.file, 'src/forms/subtask.vue');
 });
 
+test('same-structure uses the best local window instead of the first keyword occurrences', () => {
+  const unrelatedPrefix = [
+    ...Array.from({ length: 25 }, (_, index) => `const category${index} = category; const operator${index} = operator`),
+    'x'.repeat(17000),
+  ].join('\n');
+  const project = fixtureProject({
+    'src/views/target.vue': [
+      unrelatedPrefix,
+      "const columns = [{ key: 'productInfo', render: () => h('div', [",
+      "  h('span', { class: 'source-tag' }),",
+      "  h('span', { class: 'product-price-text' }),",
+      "  h('span', { class: 'similar-tag' })",
+      "]) }, { key: 'category' }, { key: 'operator' }]",
+    ].join('\n'),
+    'src/views/product-only.vue': "const columns = [{ key: 'productInfo' }, { key: 'operator' }]",
+    'src/views/category-only.ts': "export const fields = { category: '', operator: '' }",
+  });
+  const plan = {
+    searches: [{
+      keywords: [
+        'productInfo',
+        'category',
+        'operator',
+        'similar-tag',
+        'source-tag',
+        'product-price-text',
+      ],
+      mode: 'all',
+      range: 'same-structure',
+      priority: 1,
+      layer: 'render',
+      keywordTypes: {
+        'similar-tag': 'class-token',
+        'source-tag': 'class-token',
+        'product-price-text': 'class-token',
+      },
+    }],
+  };
+  const candidates = executeSearchPlan(project, plan, new Map());
+  assert.deepEqual(candidates.map(candidate => candidate.file), ['src/views/target.vue']);
+  assert.deepEqual(candidates[0].matchedGroups[0].keywords, plan.searches[0].keywords);
+});
+
 test('buildComposite assembles render + assembly(owner) + child components', () => {
   const project = fixtureProject({
     'src/parent.vue': "<script>import Subtask from './subtask.vue'</script>",
