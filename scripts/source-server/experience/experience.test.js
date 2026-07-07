@@ -185,7 +185,15 @@ async function run() {
         assert.match(prompt, /http\.request/);
         assert.match(prompt, /MAGNUS_FULL_TARGET_FILE_MARKER/);
         return JSON.stringify({
-          enhancedPrompt: '任务: 在 App.vue 按项目现有 API 层接入 /api/setup。',
+          changePlan: {
+            summary: '在 App.vue 按项目现有 API 层接入 /api/setup',
+            targets: [{ file: 'src/App.vue', anchor: 'onMounted', line: 0, whatToChange: '挂载时调用 /api/setup 初始化接口', why: '默认请求初始化接口' }],
+            affected: [],
+            reusePatterns: ['复用项目现有 API 层封装'],
+            risks: [],
+            verification: ['构建通过'],
+            openQuestions: ['接口方法与响应结构仍需确认'],
+          },
           confirmedFacts: ['项目通过 API 模块调用统一 HTTP 实例'],
           assumptions: ['接口方法与响应结构仍需确认'],
           usedSkillIds: [],
@@ -194,6 +202,8 @@ async function run() {
       },
     });
     assert.match(result.enhancedPrompt, /API 层/);
+    assert.ok(result.changePlan.targets.length >= 1);
+    assert.equal(result.changePlan.targets[0].file, 'src/App.vue');
     assert.equal(result.savedSkill, null);
     assert.equal(loadSkillMetas(project).length, 0);
 
@@ -303,7 +313,15 @@ async function run() {
           });
         }
         return JSON.stringify({
-          enhancedPrompt: '任务: 复用 MdTable + useTable 新增表格。',
+          changePlan: {
+            summary: '复用 MdTable + useTable 新增业务表格',
+            targets: [{ file: 'src/views/order/index.vue', anchor: 'MdTable', line: 0, whatToChange: '按 useTable 模式新增分页表格', why: '需求新增表格' }],
+            affected: [],
+            reusePatterns: ['复用 MdTable + useTable 公共表格模式'],
+            risks: [],
+            verification: [],
+            openQuestions: [],
+          },
           confirmedFacts: ['MdTable + useTable 是高频公共模式'],
           assumptions: [],
           usedSkillIds: [],
@@ -371,3 +389,71 @@ run().then(() => {
   console.error(error);
   process.exitCode = 1;
 });
+
+(function changePlanHelperChecks() {
+  const { normalizeChangePlan, changePlanToText, changePlanMatchesRoughSource } = require('./prompt-enhancer');
+
+  // normalize: 缺字段/脏类型 → 结构齐备
+  const plan = normalizeChangePlan({
+    summary: '  改成本单元格  ',
+    targets: [{ file: 'src/columns.tsx', anchor: '点击设置', line: '15', whatToChange: '改文案', why: '需求' }, { file: '' }],
+    affected: [{ file: 'src/types.ts', reason: '类型' }, {}],
+    reusePatterns: ['复用 useTable', ''],
+    risks: [], verification: ['构建通过'], openQuestions: [],
+  });
+  assert.equal(plan.summary, '改成本单元格');
+  assert.equal(plan.targets.length, 1);
+  assert.equal(plan.targets[0].line, 15);
+  assert.equal(plan.affected.length, 1);
+  assert.deepEqual(plan.reusePatterns, ['复用 useTable']);
+
+  // 派生文本包含关键信息
+  const text = changePlanToText(plan, { userRequirement: 'x' });
+  assert.match(text, /修改计划/);
+  assert.match(text, /src\/columns\.tsx:15/);
+  assert.match(text, /点击设置/);
+
+  // 护栏：粗定位源码有 ≥3 锚点时，计划必须引用其中 ≥2，否则视为跑偏
+  const task = { targets: [{ file: 'src/columns.tsx', codeSnippet: 'renderCostCell useTable NButton clickSetup' }] };
+  const good = normalizeChangePlan({ summary: '', targets: [{ file: 'src/columns.tsx', whatToChange: '在 renderCostCell 用 useTable 调整 NButton' }] });
+  const bad = normalizeChangePlan({ summary: '', targets: [{ file: 'src/other.vue', whatToChange: '改了别的无关内容' }] });
+  assert.equal(changePlanMatchesRoughSource(task, good), true);
+  assert.equal(changePlanMatchesRoughSource(task, bad), false);
+  console.log('changePlan helper checks passed');
+})();
+
+(function trimDiscoveryChecks() {
+  const { trimDiscoveryForPlan } = require('./prompt-enhancer');
+  const discovery = { plan: {}, results: {
+    r1: { operation: 'read_file', matches: [{ path: 'src/target.vue', snippet: 'x'.repeat(3000) }] },
+    r2: { operation: 'search_text', matches: [{ path: 'src/target.vue' }, { path: 'src/a.ts', snippet: 'aa' }] },
+    r3: { operation: 'find_related_examples', stats: { matchedFiles: 81 }, matches: [{ path: 'src/b.vue' }, { path: 'src/c.vue' }] },
+    r4: { operation: 'find_imports', matches: [{ path: 'src/a.ts', snippet: 'dup' }, { path: 'src/d.ts', snippet: 'dd' }] },
+  } };
+  const t = trimDiscoveryForPlan(discovery, ['src/target.vue']);
+  const files = Object.values(t.results).flatMap(r => r.matches.map(m => m.path));
+  assert.deepEqual(files.sort(), ['src/a.ts', 'src/d.ts']);   // 目标去重、过泛略去、跨请求去重
+  assert.equal(t.results.r1.matches.length, 0);
+  assert.equal(t.results.r3.trimmed, 'too-generic');
+  assert.ok(t.results.r2.matches.find(m => m.path === 'src/a.ts'));
+  console.log('trimDiscoveryForPlan checks passed');
+})();
+
+(function roughTaskOriginSelectionCheck() {
+  const { roughTask, buildChangePlanPrompt } = require('./prompt-enhancer');
+  // 扩区后 selectionInstructions 只剩「删除选区」；但 body.originSelections 保住了扩区前的原始选区 ¥3。
+  const body = {
+    searchPayload: { url: 'http://x', userPrompt: '@选区1 删除选区', selectionInstructions: [{ index: 1, instruction: '删除选区' }] },
+    originSelections: [{ token: '@选区1', tag: 'div', text: '¥3', className: '', attrs: { style: 'color: rgb(153, 153, 153)' }, ancestors: 'td[data-col-key=cost] > div', summary: '¥3' }],
+  };
+  const task = roughTask(body, [{ file: 'src/index.vue', codeSnippet: 'region', scopeAlignment: 'approximate' }]);
+  assert.equal(task.selections[0].text, '¥3');                       // 原始选区优先于指令文本
+  assert.equal(task.selections[0].ancestors, 'td[data-col-key=cost] > div');
+  const prompt = buildChangePlanPrompt({ roughTask: task, targetFiles: [], discovery: {}, matchedSkills: [] });
+  assert.ok(prompt.includes('¥3'));                                  // 变更计划 LLM 能看到用户到底选了什么
+  assert.ok(prompt.includes('data-col-key=cost'));
+  // 没有 originSelections 时退回指令文本，不报错
+  const fallback = roughTask({ searchPayload: { selectionInstructions: [{ index: 1, instruction: 'x' }] } }, []);
+  assert.equal(fallback.selections[0].instruction, 'x');
+  console.log('roughTask origin-selection checks passed');
+})();

@@ -513,11 +513,16 @@ function roughTask(body, modelItems) {
       file: item.file,
       locateLevel: item.locateLevel,
       codeSnippet: item.codeSnippet || item.rawCodeSnippet || '',
+      alignment: item.scopeAlignment || 'approximate',   // 该 codeSnippet 与选区 DOM 的对齐置信度
       directionGuess: item.directionGuess || '',
       coarsePrompt: item.prompt || '',
       confidence: item.confidence || 0,
     })),
-    selections: (payload.selectionInstructions || []).slice(0, 8),
+    // 优先用「原始选区 DOM 快照」（扩区前抓取，含 tag/文案/class/父级列 data-col-key/邻域）——
+    // 这是判断「用户到底选了哪个节点」的第一依据；没有时才退回指令文本。
+    selections: (Array.isArray(body.originSelections) && body.originSelections.length
+      ? body.originSelections
+      : (payload.selectionInstructions || [])).slice(0, 8),
   };
 }
 
@@ -577,7 +582,7 @@ function buildSkillMatchPrompt(projectContext, metas, task) {
 
 function buildDiscoveryPlanPrompt(projectContext, task) {
   return [
-    '你负责发现当前项目完成此类任务的真实实现经验。只返回 JSON 对象。',
+    '你负责发现「落实本次用户需求」所需的项目真实用法与引用关系。只返回 JSON 对象。',
     '',
     '不要返回 rg/grep/find 或任何 shell 命令。',
     'requests.operation 只能使用：read_file、search_text、find_files、find_symbol、find_endpoint、find_imports、find_importers、find_related_examples。',
@@ -587,6 +592,7 @@ function buildDiscoveryPlanPrompt(projectContext, task) {
     '- import: {"operation":"find_imports","target":"src/目标文件","scope":{"roots":["src"]},"maxResults":20,"maxLinesPerResult":60,"reason":"..."}',
     '禁止使用 path 代替 scope，禁止省略 search/find 操作的 terms。',
     '优先读取目标文件，再通过少量代表案例回答项目通常怎么做；不要扫描并返回整仓源码。',
+    '发现范围由用户需求的字面意图与已定位的目标文件决定：只发现「落实本次需求真正需要的」项目用法/引用关系，不要按需求中的某个词去发散成另一类任务的经验发现。',
     '每个请求必须说明 reason，并设置 maxResults 和 maxLinesPerResult。',
     '',
     '返回格式：',
@@ -818,6 +824,140 @@ function enhancedPromptMatchesRoughSource(task, enhancedPrompt) {
   });
 }
 
+// 精简喂给变更规划的 discovery：避免「又多又重」。
+//  - 目标文件已在 targetFiles 完整提供 → 从 discovery 里剔除，去重复；
+//  - 某条检索命中文件数过多（通用词/框架组件，如 n-button 命中 80+ 文件）→ 判为噪音，略去其匹配；
+//  - 跨请求按 path 去重，封顶文件数与单片段长度。
+//  仅用于变更规划输入；skill 沉淀仍用全量 discovery。
+function trimDiscoveryForPlan(discovery, targetPaths) {
+  if (!discovery || !discovery.results) return discovery;
+  const targets = new Set((targetPaths || []).filter(Boolean));
+  const GENERIC_FILE_THRESHOLD = 30;
+  const MAX_FILES = 8;
+  const MAX_SNIPPET_CHARS = 1500;
+  const seen = new Set();
+  const results = {};
+  let kept = 0;
+  for (const [id, result] of Object.entries(discovery.results)) {
+    if (result?.stats && Number(result.stats.matchedFiles || 0) > GENERIC_FILE_THRESHOLD) {
+      results[id] = { ...result, matches: [], trimmed: 'too-generic' };
+      continue;
+    }
+    const matches = [];
+    for (const item of result.matches || []) {
+      const path = item?.path || '';
+      if (!path || targets.has(path) || seen.has(path)) continue;
+      if (kept >= MAX_FILES) break;
+      seen.add(path);
+      kept += 1;
+      matches.push({ ...item, snippet: String(item.snippet || '').slice(0, MAX_SNIPPET_CHARS) });
+    }
+    results[id] = { ...result, matches };
+  }
+  return { ...discovery, results };
+}
+
+// 变更规划阶段：把「定位到的源码 + 用户需求 + 项目经验/发现证据」增强成一份结构化「修改计划」。
+// 由 buildEnhancementPrompt 改造——同样的输入上下文，但输出从「增强提示词文本」改为结构化计划 JSON。
+function buildChangePlanPrompt(input) {
+  return [
+    '你负责把 Magnus 粗定位到的源码块 + 用户在页面上的选区，翻译成一份可直接落地的「结构化修改计划」。只返回 JSON 对象。',
+    '',
+    '核心：用户只会给「选中某个 DOM + 一句话意图」这种毛坯输入（如选中一个价格、说“删除”）。',
+    '你的首要工作是「读懂选区、把它对应到源码里的具体节点」，再把需求用源码语义讲清楚——这一步用户不会替你做，正是你的价值。',
+    '',
+    '第一步 · 理解选区并对应到源码节点（写入 selectionUnderstanding）：',
+    '- roughTask.selections 是用户真正选中的原始 DOM，保留了结构：tag / 可见文案 / style 样式(颜色/字号等) / 判别性属性 / container 所在容器(如列的 data-col-key 值) / 邻域兄弟。',
+    '- 可见文案常是运行时值（如页面 ¥3.5 对应源码 `¥${expressCost}`），**不要按字面找**；要用「所在容器 + 在兄弟中的第几个 + 样式(颜色/字号) + 语义」这些结构特征，把选区对应到 roughTask.targets[].codeSnippet 这个源码块里的**具体那个节点**。',
+    '- selectionUnderstanding 用一句话讲清：选的是什么、对应源码哪个节点（引用真实符号/变量，如「cost 列第二行灰色价格 → 渲染 expressCost 的那个 h(\'div\',{color:#999})」）。',
+    '',
+    '第二步 · 用源码语义表达需求：不要回显「删除 ¥3.5」这种页面话；按第一步的对应关系，用源码术语说清改动',
+    '（如「删除 cost 列 render 中渲染 expressCost 的那个 h(\'div\') 节点，保留 itemCost 那行与 action 查看按钮」）。',
+    '',
+    '第三步 · 产出计划：',
+    '- roughTask.targets[].codeSnippet 是「粗定位源码块」（选区大致所在的那一列/那一块，**不一定是精确节点**），作用是把你限定在正确区块内；精确到哪个节点由你在第一步对齐得出。若块里根本没有选区对应的节点、或对不齐 → 写 openQuestions，绝不改成相邻/兄弟节点。',
+    '- targetFiles.content（完整文件）用于确认真实符号、判断连带影响。',
+    '- 项目经验(matchedSkills)/发现证据(discovery) 只用于约束「应复用哪些项目模式/组件/hook/API」；无真实证据不写。',
+    '- 不得臆造接口字段、响应结构、函数名、导入路径、状态变量或组件 API。',
+    '- 连带影响(affected) 基于真实代码判断（类型定义、调用方、props/emits、样式、i18n、测试）；缺证据放 openQuestions。',
+    '- 只规划与本次需求直接相关的改动，不顺带重构。',
+    '',
+    '字段说明：',
+    '- changePlan.selectionUnderstanding：第一步的结论（选区 → 源码节点的对应，引用真实符号）。',
+    '- changePlan.summary：一句源码语义的话说明本次改动。',
+    '- changePlan.targets[]：{file, anchor, line, whatToChange(源码语义级：改哪个节点/符号), why}。',
+    '- changePlan.affected[]：{file, reason}，连带影响的文件与原因。',
+    '- changePlan.reusePatterns[]：应复用的项目模式/组件/hook/API（引用真实证据）。',
+    '- changePlan.risks[] / verification[] / openQuestions[]：风险 / 如何验证 / 需用户确认的点。',
+    '- candidateSkill 必须返回 null。',
+    '',
+    '返回格式：',
+    '{"changePlan":{"selectionUnderstanding":"","summary":"","targets":[{"file":"","anchor":"","line":0,"whatToChange":"","why":""}],"affected":[{"file":"","reason":""}],"reusePatterns":[],"risks":[],"verification":[],"openQuestions":[]},"confirmedFacts":[],"assumptions":[],"usedSkillIds":[],"candidateSkill":null}',
+    '',
+    `输入上下文:\n${safeJson(input)}`,
+  ].join('\n');
+}
+
+// 规范化模型返回的 changePlan（防缺字段/类型错）。
+function normalizeChangePlan(raw) {
+  const plan = raw && typeof raw === 'object' ? raw : {};
+  const strList = value => (Array.isArray(value) ? value : []).map(item => String(item || '').trim()).filter(Boolean).slice(0, 20);
+  return {
+    selectionUnderstanding: String(plan.selectionUnderstanding || '').trim(),
+    summary: String(plan.summary || '').trim(),
+    targets: (Array.isArray(plan.targets) ? plan.targets : []).slice(0, 20).map(item => ({
+      file: String(item?.file || '').trim(),
+      anchor: String(item?.anchor || '').trim(),
+      line: Math.max(0, Number(item?.line || 0)),
+      whatToChange: String(item?.whatToChange || '').trim(),
+      why: String(item?.why || '').trim(),
+    })).filter(item => item.file || item.whatToChange),
+    affected: (Array.isArray(plan.affected) ? plan.affected : []).slice(0, 20).map(item => ({
+      file: String(item?.file || '').trim(),
+      reason: String(item?.reason || '').trim(),
+    })).filter(item => item.file),
+    reusePatterns: strList(plan.reusePatterns),
+    risks: strList(plan.risks),
+    verification: strList(plan.verification),
+    openQuestions: strList(plan.openQuestions),
+  };
+}
+
+// 把结构化 changePlan 派生成一段可复制文本（保证旧的「复制提示词」UX 不断）。
+function changePlanToText(changePlan, task) {
+  if (!changePlan || !changePlan.summary && !changePlan.targets.length && !changePlan.selectionUnderstanding) return '';
+  const lines = [];
+  lines.push(`# 修改计划：${changePlan.summary || task?.userRequirement || ''}`.trim());
+  if (changePlan.selectionUnderstanding) {
+    lines.push('', '## 选区理解', `- ${changePlan.selectionUnderstanding}`);
+  }
+  if (changePlan.targets.length) {
+    lines.push('', '## 改动点');
+    for (const target of changePlan.targets) {
+      const loc = target.line ? `${target.file}:${target.line}` : target.file;
+      lines.push(`- ${loc}${target.anchor ? `（锚点：${target.anchor}）` : ''}`);
+      if (target.whatToChange) lines.push(`  改什么：${target.whatToChange}`);
+      if (target.why) lines.push(`  为什么：${target.why}`);
+    }
+  }
+  const section = (title, items) => {
+    if (!items.length) return;
+    lines.push('', `## ${title}`);
+    for (const item of items) lines.push(`- ${typeof item === 'string' ? item : `${item.file}：${item.reason}`}`);
+  };
+  section('连带影响', changePlan.affected);
+  section('可复用模式', changePlan.reusePatterns);
+  section('风险', changePlan.risks);
+  section('验证', changePlan.verification);
+  section('待确认', changePlan.openQuestions);
+  return lines.join('\n').trim();
+}
+
+// 变更计划护栏：计划必须引用定位源码的核心锚点，否则可能改判到同文件其它相似块 → 回退。
+function changePlanMatchesRoughSource(task, changePlan) {
+  return enhancedPromptMatchesRoughSource(task, safeJson(changePlan));
+}
+
 function buildSkillCandidatePrompt(input) {
   return [
     '你负责判断一组“高频触发后的项目实现模式证据”是否值得沉淀为 Magnus Skill。只返回 JSON 对象。',
@@ -954,21 +1094,26 @@ async function enhanceLocatedPrompt(options) {
     targetFiles: targetFileContext(project, modelItems, textCache),
     matchedSkills: skills,
     taskFacts,
-    discovery,
+    // 变更规划输入用精简后的 discovery（去重目标文件、略去过泛检索、封顶）；skill 沉淀仍用全量 discovery。
+    discovery: trimDiscoveryForPlan(discovery, (modelItems || []).map(item => item.file).filter(Boolean)),
   };
+  // 变更规划阶段：产出结构化「修改计划」（取代旧的「增强提示词」阶段）。
   const enhanced = await invokeJson(
     invoke,
-    'prompt-enhancement',
-    buildEnhancementPrompt(enhancementInput),
+    'change-plan',
+    buildChangePlanPrompt(enhancementInput),
     log
   );
-  let enhancedPrompt = String(enhanced.parsed?.enhancedPrompt || '').trim() || fallback;
+  let changePlan = normalizeChangePlan(enhanced.parsed?.changePlan);
   let usedSkillIds = (enhanced.parsed?.usedSkillIds || matchedSkillIds).map(String).filter(Boolean).slice(0, 4);
-  if (!enhancedPromptMatchesRoughSource(task, enhancedPrompt)) {
-    log('需求提示词增强被回退：增强结果未引用粗定位源码核心锚点，可能改判到同文件其它相似代码');
-    enhancedPrompt = fallback;
+  const hasPlan = !!(changePlan.summary || changePlan.targets.length);
+  if (hasPlan && !changePlanMatchesRoughSource(task, changePlan)) {
+    log('变更规划被回退：计划未引用粗定位源码核心锚点，可能改判到同文件其它相似代码');
+    changePlan = normalizeChangePlan(null);
     usedSkillIds = matchedSkillIds;
   }
+  // 由 changePlan 派生一段可复制文本，旧的「复制提示词」UX 仍可用；无有效计划则回退。
+  const enhancedPrompt = changePlanToText(changePlan, task) || fallback;
 
   if (usedSkillIds.length) {
     recordSkillVerification(project, usedSkillIds);
@@ -1028,6 +1173,7 @@ async function enhanceLocatedPrompt(options) {
   }
 
   return {
+    changePlan,
     enhancedPrompt,
     confirmedFacts: enhanced.parsed?.confirmedFacts || [],
     assumptions: enhanced.parsed?.assumptions || [],
@@ -1040,5 +1186,11 @@ async function enhanceLocatedPrompt(options) {
 module.exports = {
   enhanceLocatedPrompt,
   fallbackEnhancedPrompt,
+  normalizeChangePlan,
+  changePlanToText,
+  changePlanMatchesRoughSource,
+  trimDiscoveryForPlan,
+  roughTask,
+  buildChangePlanPrompt,
   parseJson,
 };

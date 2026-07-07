@@ -17,6 +17,8 @@ const {
   dominantRenderCandidate,
   buildComposite,
   computeFineLocation,
+  computeSourceScope,
+  regionByContainerAnchors,
   offsetToLineColumn,
   validateOriginRelation,
   normalizeConfidence,
@@ -2682,4 +2684,120 @@ test('origin mismatch: an expanded-row match that has no relation to the origina
   assert.equal((result.hits || []).length, 0);
   assert.equal(result.agent.originMismatch, true);
   assert.equal(result.needMoreDom, true);
+});
+
+// 修改范围锚定在已确定的精确定位点 location.offset 上（不再另起独立文本搜索）。
+const CARD_SRC = [
+  '<template>',                                                                 // 1
+  '  <div class="config-card">',                                               // 2
+  '    <n-button @click="handleApplyConfig">应用上架、店铺配置</n-button>',      // 3
+  '    <div class="row-left"><span class="row-label">选择店铺</span></div>',    // 4
+  '    <div class="row-right">',                                               // 5
+  '      <n-button @click="showStoreDrawer = true" type="primary">选择店铺</n-button>', // 6
+  '      <n-button @click="handleClearStores">清空</n-button>',                 // 7
+  '    </div>',                                                                // 8
+  '  </div>',                                                                  // 9
+  '</template>',                                                               // 10
+].join('\n');
+const secondIndexOf = (text, needle) => text.indexOf(needle, text.indexOf(needle) + 1);
+
+test('computeSourceScope: exact only when the original selection anchors uniquely pin one node', () => {
+  const project = fixtureProject({ 'src/card.vue': CARD_SRC });
+  const cache = new Map();
+  // 唯一文案「清空」→ 唯一钉住那个按钮 → exact（不依赖 location）。
+  const btn = computeSourceScope(
+    project, 'src/card.vue', { selections: [{ element: { rawOuterHtml: '<button class="n-button">清空</button>' } }] },
+    cache, null, ['清空']
+  );
+  assert.equal(btn.alignment, 'exact');
+  assert.equal(btn.needsAlign, false);
+  assert.equal(btn.startLine, 7);
+  assert.match(btn.snippet, /handleClearStores/);
+  assert.ok(!btn.snippet.includes('选择店铺'));
+
+  // 「选择店铺」+「清空」共现 → 唯一钉住 row-right（含两按钮），不吞外层卡片 → exact。
+  const rr = computeSourceScope(
+    project, 'src/card.vue', { selections: [{ element: { rawOuterHtml: '<div class="row-right"><button>选择店铺</button><button>清空</button></div>' } }] },
+    cache, null, ['选择店铺', '清空']
+  );
+  assert.equal(rr.alignment, 'exact');
+  assert.equal(rr.startLine, 5);
+  assert.equal(rr.endLine, 8);
+  assert.ok(!rr.snippet.includes('应用上架'));
+});
+
+test('computeSourceScope: ambiguous/non-literal selection defers to LLM (approximate + needsAlign, never fakes a node)', () => {
+  const project = fixtureProject({ 'src/card.vue': CARD_SRC });
+  const cache = new Map();
+  // 「选择店铺」在 label 和按钮各出现一次 → 多义。本地不硬凑一个，判 approximate + needsAlign，交给 LLM。
+  const amb = computeSourceScope(
+    project, 'src/card.vue', { selections: [{ element: { rawOuterHtml: '<button>选择店铺</button>' } }] },
+    cache, { offset: secondIndexOf(CARD_SRC, '选择店铺') }, ['选择店铺']
+  );
+  assert.equal(amb.alignment, 'approximate');
+  assert.equal(amb.needsAlign, true);
+
+  // 模板里文案唯一命中 → 仍走 exact（唯一钉住）。
+  const inTpl = computeSourceScope(
+    project, 'src/card.vue', { selections: [{ element: { rawOuterHtml: '<button>应用上架、店铺配置</button>' } }] },
+    cache, null, ['应用上架、店铺配置']
+  );
+  assert.equal(inTpl.alignment, 'exact');
+  assert.equal(inTpl.startLine, 3);
+});
+
+test('computeSourceScope: runtime-only text (¥3) with no source anchor → unlocated, no misleading snippet', () => {
+  const src = [
+    '<template>',                                                              // 1
+    '  <n-data-table :columns="columns" />',                                   // 2
+    '</template>',                                                             // 3
+    '<script setup lang="ts">',                                               // 4
+    'const columns = [{',                                                     // 5
+    '  key: "cost",',                                                         // 6
+    '  render: (row) => {',                                                   // 7
+    '    return h("div", { style: "display:flex;" }, [',                      // 8
+    '      h("div", { style: "font-size:12px;" }, `¥${row.itemCost || 0}`),',  // 9
+    '      h("div", { style: "font-size:12px; color:#999;" }, `¥${row.expressCost || 0}`),', // 10
+    '      h(NButton, { style: "--x: cubic-bezier(.4, 0, .2, 1);" }, () => "查看")', // 11
+    '    ])',                                                                 // 12
+    '  }',                                                                    // 13
+    '}]',                                                                     // 14
+    '</script>',                                                             // 15
+  ].join('\n');
+  const project = fixtureProject({ 'src/cost.vue': src });
+  // ¥3 是运行时值，源码是 `¥${expressCost}`，原始锚点在源码里零命中 → 本地无法可靠定位。
+  const body = { selections: [{ element: { rawOuterHtml: '<div style="color: rgb(153,153,153);">¥3</div>' } }] };
+  // 关键：即便 fine-location 的定位点被兄弟带偏，也绝不硬凑一个区域（会漂到别的列误导 LLM）。
+  // 判 unlocated + 空片段，交给变更计划 LLM 依据原始选区身份(值/样式/所在容器)+完整文件自己定位。
+  const s = computeSourceScope(project, 'src/cost.vue', body, new Map(), { offset: src.indexOf('查看') }, ['¥3']);
+  assert.equal(s.alignment, 'unlocated');
+  assert.equal(s.needsAlign, true);
+  assert.equal(s.snippet, '');
+  // 原始锚点为空（无 focusAnchors）时同样 unlocated，绝不回退到扩区后选区文案硬凑。
+  const s2 = computeSourceScope(project, 'src/cost.vue', body, new Map(), { offset: src.indexOf('查看') }, []);
+  assert.equal(s2.alignment, 'unlocated');
+});
+
+test('regionByContainerAnchors: locates the selection\'s column block by its container key (not the whole array/other columns)', () => {
+  const project = fixtureProject({
+    'src/idx.vue': [
+      'const columns = [',
+      '  { title: "商品信息", key: "productInfo", render: (row) => h("div", {}, [',
+      '      h("span", `花费: ${row.itemCost}`)',                                   // productInfo 里也有一处 cost
+      '    ]) },',
+      '  { title: "成本", key: "cost", render: (row) => {',
+      '      const action = h(NButton, { onClick: () => handleViewCost(row) }, () => "查看")',
+      '      return h("div", {}, [ h("div",{},`¥${row.itemCost}`), h("div",{style:"color:#999"},`¥${row.expressCost}`), action ]) } },',
+      '  { title: "操作", key: "action", render: (row) => h(NButton, {}, () => "复制") },',
+      ']',
+    ].join('\n'),
+  });
+  // 选区(¥3)自身无锚点，但所在列 data-col-key=cost → 用 'cost' 定位到 cost 列这一块。
+  const region = regionByContainerAnchors(project, 'src/idx.vue', ['cost'], new Map());
+  assert.ok(region.snippet.includes('expressCost'));        // 命中 cost 列
+  assert.ok(region.snippet.includes('key: "cost"'));
+  assert.ok(!region.snippet.includes('商品信息'));           // 不吞相邻的 productInfo 列
+  assert.ok(!region.snippet.includes('复制'));               // 不吞 action 列
+  // 无可命中容器锚点 → null
+  assert.equal(regionByContainerAnchors(project, 'src/idx.vue', ['nonexistent'], new Map()), null);
 });

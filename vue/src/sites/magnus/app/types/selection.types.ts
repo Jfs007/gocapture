@@ -29,6 +29,7 @@ export interface SelectionSourceTarget {
   importChain?: string[];
   directionGuess?: string;
   locateLevel?: string;
+  scopeAlignment?: string;
   reasons?: string[];
 }
 
@@ -36,6 +37,7 @@ export interface SelectionSourceBinding {
   projectRoot: string;
   designRequirement: string;
   targets: SelectionSourceTarget[];
+  originSelections?: unknown[];
   resolvedAt: number;
 }
 

@@ -6168,6 +6168,46 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const vShowOriginalDisplay = /* @__PURE__ */ Symbol("_vod");
   const vShowHidden = /* @__PURE__ */ Symbol("_vsh");
+  const vShow = {
+    // used for prop mismatch check during hydration
+    name: "show",
+    beforeMount(el, { value }, { transition }) {
+      el[vShowOriginalDisplay] = el.style.display === "none" ? "" : el.style.display;
+      if (transition && value) {
+        transition.beforeEnter(el);
+      } else {
+        setDisplay(el, value);
+      }
+    },
+    mounted(el, { value }, { transition }) {
+      if (transition && value) {
+        transition.enter(el);
+      }
+    },
+    updated(el, { value, oldValue }, { transition }) {
+      if (!value === !oldValue) return;
+      if (transition) {
+        if (value) {
+          transition.beforeEnter(el);
+          setDisplay(el, true);
+          transition.enter(el);
+        } else {
+          transition.leave(el, () => {
+            setDisplay(el, false);
+          });
+        }
+      } else {
+        setDisplay(el, value);
+      }
+    },
+    beforeUnmount(el, { value }) {
+      setDisplay(el, value);
+    }
+  };
+  function setDisplay(el, value) {
+    el.style.display = value ? el[vShowOriginalDisplay] : "none";
+    el[vShowHidden] = !value;
+  }
   const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("");
   const displayRE = /(?:^|;)\s*display\s*:/;
   function patchStyle(el, prev, next) {
@@ -7130,6 +7170,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const status = /* @__PURE__ */ ref("idle");
     const candidates = /* @__PURE__ */ ref([]);
     const composite = /* @__PURE__ */ ref(null);
+    const changePlan = /* @__PURE__ */ ref(null);
     const candidateLoading = /* @__PURE__ */ ref(false);
     const searchRunning = /* @__PURE__ */ ref(false);
     const selectedCandidatePaths = /* @__PURE__ */ ref([]);
@@ -7196,6 +7237,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       searchRunning.value = false;
       candidates.value = [];
       composite.value = null;
+      changePlan.value = null;
       selectedCandidatePaths.value = [];
       expandedCandidatePath.value = "";
       apiTrace.value = null;
@@ -7213,6 +7255,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       status,
       candidates,
       composite,
+      changePlan,
       candidateLoading,
       searchRunning,
       selectedCandidatePaths,
@@ -7273,16 +7316,16 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     key: 1,
     class: "mda-message-text"
   };
-  const _hoisted_14$4 = {
+  const _hoisted_14$5 = {
     key: 2,
     class: "mda-message-pre"
   };
-  const _hoisted_15$4 = {
+  const _hoisted_15$5 = {
     key: 3,
     class: "mda-message-actions"
   };
-  const _hoisted_16$4 = ["disabled"];
-  const _hoisted_17$3 = {
+  const _hoisted_16$5 = ["disabled"];
+  const _hoisted_17$4 = {
     key: 4,
     class: "mda-message-actions"
   };
@@ -7511,20 +7554,20 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                         )) : createCommentVNode("v-if", true),
                         message.pre ? (openBlock(), createElementBlock(
                           "pre",
-                          _hoisted_14$4,
+                          _hoisted_14$5,
                           toDisplayString(message.pre),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
-                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$4, [
+                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$5, [
                           createBaseVNode("button", {
                             class: "mda-btn mda-btn-primary",
                             type: "button",
                             disabled: sourceServiceStatus.value === "loading",
                             onClick: _cache[0] || (_cache[0] = (...args) => unref(commands).selectProject && unref(commands).selectProject(...args))
-                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$4)
+                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$5)
                         ])) : createCommentVNode("v-if", true),
-                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$3, [
+                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$4, [
                           createBaseVNode("button", {
                             class: "mda-btn",
                             type: "button",
@@ -7984,32 +8027,69 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   };
   const _hoisted_8$5 = {
     key: 1,
-    class: "mda-composer-options"
+    class: "mda-composer-options mda-plan"
   };
-  const _hoisted_9$5 = { class: "mda-collapsible-head" };
+  const _hoisted_9$5 = { class: "mda-plan-body" };
   const _hoisted_10$5 = {
     key: 0,
-    class: "mda-collapsed-summary"
+    class: "mda-plan-summary"
   };
   const _hoisted_11$5 = {
     key: 1,
-    class: "mda-choice-list"
+    class: "mda-plan-block"
   };
-  const _hoisted_12$4 = { class: "mda-choice-check" };
-  const _hoisted_13$4 = ["checked", "onChange"];
-  const _hoisted_14$3 = ["onClick"];
-  const _hoisted_15$3 = {
+  const _hoisted_12$4 = ["onClick"];
+  const _hoisted_13$4 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_16$3 = { class: "mda-choice-meta" };
-  const _hoisted_17$2 = ["onClick"];
-  const _hoisted_18$2 = {
+  const _hoisted_14$4 = {
+    key: 0,
+    class: "mda-composite-anchor"
+  };
+  const _hoisted_15$4 = {
+    key: 1,
+    class: "mda-plan-what"
+  };
+  const _hoisted_16$4 = {
+    key: 2,
+    class: "mda-plan-why"
+  };
+  const _hoisted_17$3 = {
+    key: 2,
+    class: "mda-plan-block"
+  };
+  const _hoisted_18$2 = ["onClick"];
+  const _hoisted_19$2 = { class: "mda-composite-anchor" };
+  const _hoisted_20$2 = { class: "mda-plan-block-title" };
+  const _hoisted_21$1 = {
+    key: 2,
+    class: "mda-composer-options"
+  };
+  const _hoisted_22$1 = { class: "mda-collapsible-head" };
+  const _hoisted_23$1 = {
+    key: 0,
+    class: "mda-collapsed-summary"
+  };
+  const _hoisted_24$1 = {
+    key: 1,
+    class: "mda-choice-list"
+  };
+  const _hoisted_25$1 = { class: "mda-choice-check" };
+  const _hoisted_26$1 = ["checked", "onChange"];
+  const _hoisted_27$1 = ["onClick"];
+  const _hoisted_28$1 = {
+    key: 0,
+    class: "mda-composite-line"
+  };
+  const _hoisted_29$1 = { class: "mda-choice-meta" };
+  const _hoisted_30$1 = ["onClick"];
+  const _hoisted_31$1 = {
     key: 0,
     class: "mda-candidate-log"
   };
-  const _hoisted_19$2 = {
-    key: 2,
+  const _hoisted_32$1 = {
+    key: 3,
     class: "mda-composer-options"
   };
   const _sfc_main$9 = {
@@ -8022,6 +8102,13 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
       const candidateHits = computed(() => searchStore.candidates);
       const composite = computed(() => searchStore.composite);
+      const changePlan = computed(() => searchStore.changePlan);
+      const planSections = [
+        { key: "reusePatterns", label: "可复用模式" },
+        { key: "risks", label: "风险" },
+        { key: "verification", label: "验证" },
+        { key: "openQuestions", label: "待确认" }
+      ];
       const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
       const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
       const modelAssistLoading = computed(() => modelStore.status === "running");
@@ -8150,9 +8237,168 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 /* KEYED_FRAGMENT */
               ))
             ])) : createCommentVNode("v-if", true),
-            showCandidatePicker.value ? (openBlock(), createElementBlock("div", _hoisted_8$5, [
+            changePlan.value && (changePlan.value.summary || (changePlan.value.targets || []).length) ? (openBlock(), createElementBlock("div", _hoisted_8$5, [
+              _cache[10] || (_cache[10] = createBaseVNode(
+                "div",
+                { class: "mda-option-title" },
+                "修改计划",
+                -1
+                /* CACHED */
+              )),
               createBaseVNode("div", _hoisted_9$5, [
-                _cache[8] || (_cache[8] = createBaseVNode(
+                changePlan.value.summary ? (openBlock(), createElementBlock(
+                  "div",
+                  _hoisted_10$5,
+                  toDisplayString(changePlan.value.summary),
+                  1
+                  /* TEXT */
+                )) : createCommentVNode("v-if", true),
+                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_11$5, [
+                  _cache[8] || (_cache[8] = createBaseVNode(
+                    "div",
+                    { class: "mda-plan-block-title" },
+                    "改动点",
+                    -1
+                    /* CACHED */
+                  )),
+                  (openBlock(true), createElementBlock(
+                    Fragment,
+                    null,
+                    renderList(changePlan.value.targets, (target, index) => {
+                      return openBlock(), createElementBlock("div", {
+                        key: `t-${index}`,
+                        class: "mda-plan-target"
+                      }, [
+                        createBaseVNode("button", {
+                          class: "mda-file-link",
+                          type: "button",
+                          onClick: ($event) => unref(commands).openSourceFile(target.file, target.line)
+                        }, [
+                          createTextVNode(
+                            toDisplayString(target.file),
+                            1
+                            /* TEXT */
+                          ),
+                          target.line ? (openBlock(), createElementBlock(
+                            "span",
+                            _hoisted_13$4,
+                            ":" + toDisplayString(target.line),
+                            1
+                            /* TEXT */
+                          )) : createCommentVNode("v-if", true)
+                        ], 8, _hoisted_12$4),
+                        target.anchor ? (openBlock(), createElementBlock(
+                          "span",
+                          _hoisted_14$4,
+                          toDisplayString(target.anchor),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        target.whatToChange ? (openBlock(), createElementBlock(
+                          "div",
+                          _hoisted_15$4,
+                          "改：" + toDisplayString(target.whatToChange),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true),
+                        target.why ? (openBlock(), createElementBlock(
+                          "div",
+                          _hoisted_16$4,
+                          "因：" + toDisplayString(target.why),
+                          1
+                          /* TEXT */
+                        )) : createCommentVNode("v-if", true)
+                      ]);
+                    }),
+                    128
+                    /* KEYED_FRAGMENT */
+                  ))
+                ])) : createCommentVNode("v-if", true),
+                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_17$3, [
+                  _cache[9] || (_cache[9] = createBaseVNode(
+                    "div",
+                    { class: "mda-plan-block-title" },
+                    "连带影响",
+                    -1
+                    /* CACHED */
+                  )),
+                  (openBlock(true), createElementBlock(
+                    Fragment,
+                    null,
+                    renderList(changePlan.value.affected, (item, index) => {
+                      return openBlock(), createElementBlock("div", {
+                        key: `a-${index}`,
+                        class: "mda-plan-line"
+                      }, [
+                        createBaseVNode("button", {
+                          class: "mda-file-link",
+                          type: "button",
+                          onClick: ($event) => unref(commands).openSourceFile(item.file)
+                        }, toDisplayString(item.file), 9, _hoisted_18$2),
+                        createBaseVNode(
+                          "span",
+                          _hoisted_19$2,
+                          toDisplayString(item.reason),
+                          1
+                          /* TEXT */
+                        )
+                      ]);
+                    }),
+                    128
+                    /* KEYED_FRAGMENT */
+                  ))
+                ])) : createCommentVNode("v-if", true),
+                (openBlock(), createElementBlock(
+                  Fragment,
+                  null,
+                  renderList(planSections, (section) => {
+                    return createBaseVNode("div", {
+                      key: section.key,
+                      class: "mda-plan-block"
+                    }, [
+                      (changePlan.value[section.key] || []).length ? (openBlock(), createElementBlock(
+                        Fragment,
+                        { key: 0 },
+                        [
+                          createBaseVNode(
+                            "div",
+                            _hoisted_20$2,
+                            toDisplayString(section.label),
+                            1
+                            /* TEXT */
+                          ),
+                          (openBlock(true), createElementBlock(
+                            Fragment,
+                            null,
+                            renderList(changePlan.value[section.key], (line, index) => {
+                              return openBlock(), createElementBlock(
+                                "div",
+                                {
+                                  key: `${section.key}-${index}`,
+                                  class: "mda-plan-line"
+                                },
+                                "· " + toDisplayString(line),
+                                1
+                                /* TEXT */
+                              );
+                            }),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
+                        ],
+                        64
+                        /* STABLE_FRAGMENT */
+                      )) : createCommentVNode("v-if", true)
+                    ]);
+                  }),
+                  64
+                  /* STABLE_FRAGMENT */
+                ))
+              ])
+            ])) : createCommentVNode("v-if", true),
+            showCandidatePicker.value ? (openBlock(), createElementBlock("div", _hoisted_21$1, [
+              createBaseVNode("div", _hoisted_22$1, [
+                _cache[11] || (_cache[11] = createBaseVNode(
                   "div",
                   { class: "mda-option-title" },
                   "存在多个命中文件，请确认",
@@ -8173,11 +8419,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ]),
               collapsed.value ? (openBlock(), createElementBlock(
                 "div",
-                _hoisted_10$5,
+                _hoisted_23$1,
                 " 已选 " + toDisplayString(selectedCandidatePaths.value.length || 0) + " / " + toDisplayString(candidateHits.value.length) + " 个文件 ",
                 1
                 /* TEXT */
-              )) : (openBlock(), createElementBlock("div", _hoisted_11$5, [
+              )) : (openBlock(), createElementBlock("div", _hoisted_24$1, [
                 (openBlock(true), createElementBlock(
                   Fragment,
                   null,
@@ -8189,12 +8435,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         class: normalizeClass(["mda-choice-card", { "is-selected": isCandidateSelected(hit) }])
                       },
                       [
-                        createBaseVNode("div", _hoisted_12$4, [
+                        createBaseVNode("div", _hoisted_25$1, [
                           createBaseVNode("input", {
                             type: "checkbox",
                             checked: isCandidateSelected(hit),
                             onChange: ($event) => unref(commands).toggleCandidateFile(hit)
-                          }, null, 40, _hoisted_13$4),
+                          }, null, 40, _hoisted_26$1),
                           createBaseVNode("button", {
                             class: "mda-file-link",
                             type: "button",
@@ -8207,16 +8453,16 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                             ),
                             hit.line ? (openBlock(), createElementBlock(
                               "span",
-                              _hoisted_15$3,
+                              _hoisted_28$1,
                               ":" + toDisplayString(hit.line),
                               1
                               /* TEXT */
                             )) : createCommentVNode("v-if", true)
-                          ], 8, _hoisted_14$3)
+                          ], 8, _hoisted_27$1)
                         ]),
                         createBaseVNode(
                           "div",
-                          _hoisted_16$3,
+                          _hoisted_29$1,
                           toDisplayString(unref(candidateStageLabel)(hit)) + " · " + toDisplayString(hit.score),
                           1
                           /* TEXT */
@@ -8225,10 +8471,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           class: "mda-link-btn",
                           type: "button",
                           onClick: ($event) => unref(commands).toggleCandidateDetail(hit)
-                        }, toDisplayString(expandedCandidatePath.value === hit.file ? "收起" : unref(candidateDetailTitle)(hit)), 9, _hoisted_17$2),
+                        }, toDisplayString(expandedCandidatePath.value === hit.file ? "收起" : unref(candidateDetailTitle)(hit)), 9, _hoisted_30$1),
                         expandedCandidatePath.value === hit.file ? (openBlock(), createElementBlock(
                           "pre",
-                          _hoisted_18$2,
+                          _hoisted_31$1,
                           toDisplayString(unref(candidateLogText)(hit)),
                           1
                           /* TEXT */
@@ -8243,7 +8489,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 ))
               ]))
             ])) : createCommentVNode("v-if", true),
-            needsMoreEvidence.value ? (openBlock(), createElementBlock("div", _hoisted_19$2, [..._cache[9] || (_cache[9] = [
+            needsMoreEvidence.value ? (openBlock(), createElementBlock("div", _hoisted_32$1, [..._cache[12] || (_cache[12] = [
               createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -8673,10 +8919,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_11$4 = { class: "mda-asset-popover-title-wrap" };
   const _hoisted_12$3 = { class: "mda-asset-popover-title" };
   const _hoisted_13$3 = { class: "mda-asset-popover-subtitle" };
-  const _hoisted_14$2 = { class: "mda-asset-popover-grid" };
-  const _hoisted_15$2 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_16$2 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_17$1 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_14$3 = { class: "mda-asset-popover-grid" };
+  const _hoisted_15$3 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_16$3 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_17$2 = { class: "mda-asset-popover-grid-item" };
   const _hoisted_18$1 = { class: "mda-asset-popover-grid-item" };
   const _hoisted_19$1 = { class: "mda-asset-popover-grid-item" };
   const _hoisted_20$1 = { class: "mda-asset-popover-grid-item" };
@@ -8893,8 +9139,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     )
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_14$2, [
-                  createBaseVNode("div", _hoisted_15$2, [
+                createBaseVNode("div", _hoisted_14$3, [
+                  createBaseVNode("div", _hoisted_15$3, [
                     _cache[2] || (_cache[2] = createBaseVNode(
                       "span",
                       null,
@@ -8910,7 +9156,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       /* TEXT */
                     )
                   ]),
-                  createBaseVNode("div", _hoisted_16$2, [
+                  createBaseVNode("div", _hoisted_16$3, [
                     _cache[3] || (_cache[3] = createBaseVNode(
                       "span",
                       null,
@@ -8926,7 +9172,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       /* TEXT */
                     )
                   ]),
-                  createBaseVNode("div", _hoisted_17$1, [
+                  createBaseVNode("div", _hoisted_17$2, [
                     _cache[4] || (_cache[4] = createBaseVNode(
                       "span",
                       null,
@@ -9305,9 +9551,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_11$3 = { key: 4 };
   const _hoisted_12$2 = { key: 5 };
   const _hoisted_13$2 = { class: "is-wide" };
-  const _hoisted_14$1 = { class: "mda-model-hint" };
-  const _hoisted_15$1 = { class: "mda-model-actions" };
-  const _hoisted_16$1 = ["disabled"];
+  const _hoisted_14$2 = { class: "mda-model-hint" };
+  const _hoisted_15$2 = { class: "mda-model-actions" };
+  const _hoisted_16$2 = ["disabled"];
   const _sfc_main$4 = {
     __name: "ModelEditorPanel",
     setup(__props) {
@@ -9675,19 +9921,19 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           ]),
           createBaseVNode(
             "p",
-            _hoisted_14$1,
+            _hoisted_14$2,
             toDisplayString(modelTypeHint.value),
             1
             /* TEXT */
           ),
-          createBaseVNode("div", _hoisted_15$1, [
+          createBaseVNode("div", _hoisted_15$2, [
             selectedModel.value ? (openBlock(), createElementBlock("button", {
               key: 0,
               class: "mda-mini-btn",
               type: "button",
               disabled: candidateLoading.value || modelAssistLoading.value,
               onClick: _cache[10] || (_cache[10] = (...args) => unref(commands).removeSelectedModel && unref(commands).removeSelectedModel(...args))
-            }, "删除模型", 8, _hoisted_16$1)) : createCommentVNode("v-if", true),
+            }, "删除模型", 8, _hoisted_16$2)) : createCommentVNode("v-if", true),
             createBaseVNode("button", {
               class: "mda-btn mda-btn-primary",
               type: "button",
@@ -9699,34 +9945,42 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     }
   };
   const _hoisted_1$2 = { class: "mda-composer-wrap" };
-  const _hoisted_2$2 = { class: "mda-composer" };
-  const _hoisted_3$2 = { class: "mda-composer-toolbar" };
-  const _hoisted_4$2 = { class: "mda-toolbar-left" };
-  const _hoisted_5$2 = ["disabled"];
-  const _hoisted_6$2 = { class: "mda-toolbar-right" };
-  const _hoisted_7$2 = ["title", "disabled"];
-  const _hoisted_8$2 = {
+  const _hoisted_2$2 = { class: "mda-result-module" };
+  const _hoisted_3$2 = {
+    key: 0,
+    class: "mda-result-module-head"
+  };
+  const _hoisted_4$2 = { class: "mda-result-module-body" };
+  const _hoisted_5$2 = { class: "mda-composer" };
+  const _hoisted_6$2 = { class: "mda-composer-toolbar" };
+  const _hoisted_7$2 = { class: "mda-toolbar-left" };
+  const _hoisted_8$2 = ["disabled"];
+  const _hoisted_9$2 = ["title"];
+  const _hoisted_10$2 = { class: "mda-toolbar-right" };
+  const _hoisted_11$2 = ["title", "disabled"];
+  const _hoisted_12$1 = {
     key: 0,
     class: "mda-stop-icon"
   };
-  const _hoisted_9$2 = { key: 1 };
-  const _hoisted_10$2 = {
+  const _hoisted_13$1 = { key: 1 };
+  const _hoisted_14$1 = {
     key: 2,
     class: "mda-send-arrow"
   };
-  const _hoisted_11$2 = {
+  const _hoisted_15$1 = {
     key: 0,
     class: "mda-route-inline"
   };
-  const _hoisted_12$1 = {
+  const _hoisted_16$1 = {
     key: 1,
     class: "mda-route-empty"
   };
-  const _hoisted_13$1 = { class: "mda-toast" };
+  const _hoisted_17$1 = { class: "mda-toast" };
   const _sfc_main$3 = {
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
+      const buildVersion = "20260707.195655.387";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -9736,6 +9990,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const searchStore = useSearchStore();
       const selectionStore = useSelectionStore();
       const candidateLoading = computed(() => searchStore.status === "loading");
+      const resultModuleCollapsed = /* @__PURE__ */ ref(false);
+      const hasResultModule = computed(() => {
+        var _a;
+        return (((_a = searchStore.candidates) == null ? void 0 : _a.length) || 0) > 0 || !!searchStore.composite || !!searchStore.changePlan;
+      });
       const selectedItems = computed(() => selectionStore.items);
       const project = computed(() => projectStore.current);
       const modelAssistLoading = computed(() => modelStore.status === "running");
@@ -9775,10 +10034,42 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       }
       return (_ctx, _cache) => {
         return openBlock(), createElementBlock("section", _hoisted_1$2, [
-          createVNode(_sfc_main$9),
-          createVNode(_sfc_main$4),
-          createVNode(_sfc_main$6, { onInsertAsset: handleAssetInsert }),
           createBaseVNode("div", _hoisted_2$2, [
+            hasResultModule.value ? (openBlock(), createElementBlock("div", _hoisted_3$2, [
+              _cache[5] || (_cache[5] = createBaseVNode(
+                "span",
+                { class: "mda-result-module-title" },
+                "定位与修改计划",
+                -1
+                /* CACHED */
+              )),
+              createBaseVNode(
+                "button",
+                {
+                  class: "mda-collapse-btn",
+                  type: "button",
+                  onClick: _cache[0] || (_cache[0] = ($event) => resultModuleCollapsed.value = !resultModuleCollapsed.value)
+                },
+                toDisplayString(resultModuleCollapsed.value ? "展开" : "收起"),
+                1
+                /* TEXT */
+              )
+            ])) : createCommentVNode("v-if", true),
+            withDirectives(createBaseVNode(
+              "div",
+              _hoisted_4$2,
+              [
+                createVNode(_sfc_main$9),
+                createVNode(_sfc_main$4),
+                createVNode(_sfc_main$6, { onInsertAsset: handleAssetInsert })
+              ],
+              512
+              /* NEED_PATCH */
+            ), [
+              [vShow, !(hasResultModule.value && resultModuleCollapsed.value)]
+            ])
+          ]),
+          createBaseVNode("div", _hoisted_5$2, [
             createVNode(
               _sfc_main$8,
               {
@@ -9789,39 +10080,43 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               512
               /* NEED_PATCH */
             ),
-            createBaseVNode("div", _hoisted_3$2, [
-              createBaseVNode("div", _hoisted_4$2, [
+            createBaseVNode("div", _hoisted_6$2, [
+              createBaseVNode("div", _hoisted_7$2, [
                 project.value ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-tool-icon-btn",
                   type: "button",
                   title: "重新选择项目",
                   disabled: sourceServiceStatus.value === "loading",
-                  onClick: _cache[0] || (_cache[0] = (...args) => unref(commands).selectProject && unref(commands).selectProject(...args))
-                }, null, 8, _hoisted_5$2)) : createCommentVNode("v-if", true),
+                  onClick: _cache[1] || (_cache[1] = (...args) => unref(commands).selectProject && unref(commands).selectProject(...args))
+                }, null, 8, _hoisted_8$2)) : createCommentVNode("v-if", true),
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 1,
                   class: "mda-inline-text-btn",
                   type: "button",
-                  onClick: _cache[1] || (_cache[1] = (...args) => unref(commands).clearSelections && unref(commands).clearSelections(...args))
-                }, "清空选区")) : createCommentVNode("v-if", true)
+                  onClick: _cache[2] || (_cache[2] = (...args) => unref(commands).clearSelections && unref(commands).clearSelections(...args))
+                }, "清空选区")) : createCommentVNode("v-if", true),
+                createBaseVNode("span", {
+                  class: "mda-build-version",
+                  title: `构建版本 ${unref(buildVersion)}`
+                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_9$2)
               ]),
-              createBaseVNode("div", _hoisted_6$2, [
+              createBaseVNode("div", _hoisted_10$2, [
                 createVNode(_sfc_main$5),
                 createBaseVNode("button", {
                   class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value }]),
                   type: "button",
                   title: modelAssistLoading.value ? "停止模型定位" : "提交",
                   disabled: !composerCanSend.value,
-                  onClick: _cache[2] || (_cache[2] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
+                  onClick: _cache[3] || (_cache[3] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
                 }, [
-                  modelAssistLoading.value ? (openBlock(), createElementBlock("span", _hoisted_8$2)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_9$2, "检索")) : (openBlock(), createElementBlock("span", _hoisted_10$2))
-                ], 10, _hoisted_7$2)
+                  modelAssistLoading.value ? (openBlock(), createElementBlock("span", _hoisted_12$1)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_13$1, "检索")) : (openBlock(), createElementBlock("span", _hoisted_14$1))
+                ], 10, _hoisted_11$2)
               ])
             ])
           ]),
-          routeResolverTrace.value ? (openBlock(), createElementBlock("div", _hoisted_11$2, [
-            _cache[4] || (_cache[4] = createBaseVNode(
+          routeResolverTrace.value ? (openBlock(), createElementBlock("div", _hoisted_15$1, [
+            _cache[6] || (_cache[6] = createBaseVNode(
               "span",
               { class: "mda-route-label" },
               "页面源码地址",
@@ -9834,12 +10129,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 key: 0,
                 class: "mda-route-file",
                 type: "button",
-                onClick: _cache[3] || (_cache[3] = ($event) => unref(commands).openSourceFile(routeFilePath.value))
+                onClick: _cache[4] || (_cache[4] = ($event) => unref(commands).openSourceFile(routeFilePath.value))
               },
               toDisplayString(routeFilePath.value),
               1
               /* TEXT */
-            )) : (openBlock(), createElementBlock("span", _hoisted_12$1, "暂无命中")),
+            )) : (openBlock(), createElementBlock("span", _hoisted_16$1, "暂无命中")),
             routeFilePath.value ? (openBlock(), createElementBlock("button", {
               key: 2,
               class: "mda-copy-icon",
@@ -9851,7 +10146,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           ])) : createCommentVNode("v-if", true),
           createBaseVNode(
             "div",
-            _hoisted_13$1,
+            _hoisted_17$1,
             toDisplayString(toastText.value),
             1
             /* TEXT */
@@ -11851,6 +12146,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     const {
       candidates: candidateHits,
       composite: compositeResult,
+      changePlan: changePlanResult,
       apiTrace,
       i18nTrace,
       definitionTrace,
@@ -11911,6 +12207,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     function clearCandidateState() {
       candidateHits.value = [];
       compositeResult.value = null;
+      changePlanResult.value = null;
       candidateError.value = "";
       searchRunning.value = false;
       candidateLoading.value = false;
@@ -11926,6 +12223,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     return {
       candidateHits,
       compositeResult,
+      changePlanResult,
       apiTrace,
       i18nTrace,
       definitionTrace,
@@ -13059,6 +13357,7 @@ ${source}` : "",
           ].filter(Boolean).slice(0, 10),
           modelPrompt: target.enhancedPrompt || target.prompt || target.reason || "",
           modelEnhancedPrompt: target.enhancedPrompt || "",
+          modelChangePlan: target.changePlan || null,
           modelExperienceMode: target.experienceMode || "",
           modelUsedSkillIds: target.usedSkillIds || [],
           modelCodeSnippet: target.codeSnippet || "",
@@ -13187,12 +13486,13 @@ ${source}` : "",
               pagePath: ((_a = routeResolverTrace.value) == null ? void 0 : _a.pagePath) || "",
               routeResolver: routeResolverTrace.value,
               selectionBindings: selectionBindings.map((item) => {
-                var _a2, _b2, _c2;
+                var _a2, _b2, _c2, _d2;
                 return {
                   uid: item.uid,
                   designRequirement: ((_a2 = item.binding) == null ? void 0 : _a2.designRequirement) || "",
                   projectRoot: ((_b2 = item.binding) == null ? void 0 : _b2.projectRoot) || "",
-                  targets: Array.isArray((_c2 = item.binding) == null ? void 0 : _c2.targets) ? item.binding.targets : []
+                  targets: Array.isArray((_c2 = item.binding) == null ? void 0 : _c2.targets) ? item.binding.targets : [],
+                  originSelections: Array.isArray((_d2 = item.binding) == null ? void 0 : _d2.originSelections) ? item.binding.originSelections : []
                 };
               }),
               candidateHits: candidateHits.value.slice(0, 4),
@@ -13587,16 +13887,22 @@ ${result.rawText}` : ""
     };
   }
   function sourceTargetsFromCandidates(candidates) {
-    return (Array.isArray(candidates) ? candidates : []).filter((hit) => hit == null ? void 0 : hit.file).map((hit) => ({
-      file: String(hit.file),
-      codeSnippet: String(
-        hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || ""
-      ),
-      importChain: Array.isArray(hit.importChain) ? hit.importChain.map(String) : [],
-      directionGuess: String(hit.modelDirectionGuess || ""),
-      locateLevel: String(hit.modelLocateLevel || "exact"),
-      reasons: Array.isArray(hit.reasons) ? hit.reasons.map(String).slice(0, 8) : []
-    }));
+    return (Array.isArray(candidates) ? candidates : []).filter((hit) => hit == null ? void 0 : hit.file).map((hit) => {
+      var _a, _b;
+      return {
+        file: String(hit.file),
+        // unlocated：本地未能把选区定位到具体源码，绝不用漂移的粗片段（会误导 LLM 到别的列）——
+        // 留空，让变更计划 LLM 依据原始选区身份 + 完整文件自己定位。
+        codeSnippet: hit.scopeAlignment === "unlocated" ? "" : String(
+          hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || ""
+        ),
+        importChain: Array.isArray(hit.importChain) ? hit.importChain.map(String) : [],
+        directionGuess: String(hit.modelDirectionGuess || ""),
+        locateLevel: String(hit.modelLocateLevel || "exact"),
+        scopeAlignment: String(hit.scopeAlignment || ((_b = (_a = hit.composite) == null ? void 0 : _a.render) == null ? void 0 : _b.scopeAlignment) || ""),
+        reasons: Array.isArray(hit.reasons) ? hit.reasons.map(String).slice(0, 8) : []
+      };
+    });
   }
   function candidateHitsFromBindings(bindings) {
     const targets = dedupeBoundTargets(bindings.flatMap((item) => {
@@ -13616,6 +13922,7 @@ ${result.rawText}` : ""
       modelCodeSnippet: target.codeSnippet || "",
       modelDirectionGuess: target.directionGuess || "",
       modelLocateLevel: target.locateLevel || "exact",
+      scopeAlignment: target.scopeAlignment || "",
       modelSnippetVerified: true,
       importChain: target.importChain || [],
       selectionDesignRequirement: target.designRequirement || ""
@@ -13644,6 +13951,48 @@ ${result.rawText}` : ""
   function createComposerWorkflow(state) {
     const { source, route, search, selection, composer, model, prompt } = state;
     const appUiStore = useAppUiStore();
+    let lastOriginSelections = [];
+    function ancestorContainerAnchors(el) {
+      const out = [];
+      for (const ancestor of Array.isArray(el == null ? void 0 : el.ancestors) ? el.ancestors.slice(0, 5) : []) {
+        for (const [key, rawValue] of Object.entries((ancestor == null ? void 0 : ancestor.attrs) || {})) {
+          const k = String(key || "").toLowerCase();
+          if (!/^data-/.test(k) && k !== "id" && k !== "name" || /^data-v-/.test(k)) continue;
+          const value = String(rawValue || "").trim();
+          if (/^[A-Za-z][\w-]{1,39}$/.test(value) && !/^__.*__$/.test(value) && !/^\d+$/.test(value)) {
+            out.push(`${key}=${value}`);
+          }
+        }
+        for (const cls of String((ancestor == null ? void 0 : ancestor.className) || "").split(/\s+/)) {
+          const t = cls.trim();
+          if (t && !/^(n-|el-|ivu-|ant-|van-|flex|grid|is-|has-|mt-|mb-|ml-|mr-|w-|h-|p-|m-)/.test(t)) out.push(t);
+        }
+      }
+      return Array.from(new Set(out)).slice(0, 6);
+    }
+    function captureOriginSelections() {
+      var _a, _b;
+      try {
+        const assets = ((_a = prompt.promptAssetItems) == null ? void 0 : _a.call(prompt)) || [];
+        const items = ((_b = selection.selectedItems) == null ? void 0 : _b.value) || [];
+        return assets.map((asset, index) => {
+          var _a2;
+          return {
+            token: asset.token,
+            tag: asset.tag,
+            text: asset.text,
+            className: asset.className,
+            attrs: asset.attrs,
+            ancestors: asset.ancestors,
+            container: ancestorContainerAnchors((_a2 = items[index]) == null ? void 0 : _a2.element),
+            // 选区所在容器/列的标识
+            summary: asset.summary
+          };
+        });
+      } catch (e) {
+        return [];
+      }
+    }
     function sendComposer() {
       return __async(this, null, function* () {
         if (model.modelAssistLoading.value) {
@@ -13664,7 +14013,7 @@ ${result.rawText}` : ""
     }
     function searchCandidateFiles() {
       return __async(this, null, function* () {
-        var _a, _b;
+        var _a, _b, _c;
         search.candidateLoading.value = true;
         search.candidateError.value = "";
         search.serverNeedsMoreEvidence.value = false;
@@ -13701,9 +14050,20 @@ ${result.rawText}` : ""
             search.expandedCandidatePath.value = "";
             appUiStore.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
           }
+          if (((_b = data.agent) == null ? void 0 : _b.enabled) && search.candidateHits.value.length) {
+            const instruction = composer.promptIntent.value.trim();
+            const topHit = search.candidateHits.value[0];
+            const resolvedConfidently = search.candidateHits.value.length === 1 || !!(topHit == null ? void 0 : topHit.preciseEvidence);
+            if (resolvedConfidently) {
+              selection.filesConfirmed.value = true;
+              bindResolvedSelectionContext(instruction);
+              yield runChangePlanForResolved(instruction);
+            }
+            return search.candidateHits.value;
+          }
           if (shouldAutoRunModelAssist(search.candidateHits.value)) {
             const modelHandled = yield runModelAssistForCandidates(composer.promptIntent.value.trim());
-            if (modelHandled) return ((_b = model.modelAssistResult.value) == null ? void 0 : _b.stopped) ? [] : search.candidateHits.value;
+            if (modelHandled) return ((_c = model.modelAssistResult.value) == null ? void 0 : _c.stopped) ? [] : search.candidateHits.value;
           }
           return search.candidateHits.value;
         } catch (error) {
@@ -13740,12 +14100,12 @@ ${result.rawText}` : ""
       return __async(this, null, function* () {
         var _a;
         try {
-          let focusAnchors = originAnchorsFromSelection();
+          const focusAnchors = originAnchorsFromSelection();
+          lastOriginSelections = captureOriginSelections();
           let firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs, "第 1 轮：原始选区检索");
           for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
             const expanded = yield expandLatestSelectionForMoreEvidence(attempt);
             if (!expanded) break;
-            if (!focusAnchors.length) focusAnchors = originAnchorsFromSelection();
             const retryState = buildAgentRetryState(firstPass, attempt);
             if (focusAnchors.length) retryState.focusAnchors = focusAnchors;
             firstPass = yield runSearchRequest(prompt.searchPayload({
@@ -13762,6 +14122,25 @@ ${result.rawText}` : ""
           search.searchFinishedAt.value = Date.now();
           search.searchRunning.value = false;
         }
+      });
+    }
+    function runChangePlanForResolved(instruction) {
+      return __async(this, null, function* () {
+        var _a;
+        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
+          prompt.generatePrompt({ userInstruction: instruction });
+          return;
+        }
+        const bindings = selection.reusableSourceBindings(instruction, projectRoot());
+        if (!bindings.length) {
+          prompt.generatePrompt({ userInstruction: instruction });
+          return;
+        }
+        search.modelAssistAttempted.value = true;
+        const modelResult = yield model.runSelectionContextAssist({ userInstruction: instruction, selectionBindings: bindings });
+        if (modelResult == null ? void 0 : modelResult.stopped) return;
+        search.changePlanResult.value = (modelResult == null ? void 0 : modelResult.changePlan) || ((_a = search.candidateHits.value[0]) == null ? void 0 : _a.modelChangePlan) || null;
+        prompt.generatePrompt({ userInstruction: instruction });
       });
     }
     function runSearchRequest(body, timeoutMs, label = "") {
@@ -13866,6 +14245,7 @@ ${result.rawText}` : ""
         projectRoot: root,
         designRequirement: userInstruction,
         targets,
+        originSelections: lastOriginSelections,
         resolvedAt: Date.now()
       });
       search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map((target) => target.file).join("、")}`);
@@ -14428,7 +14808,7 @@ ${result.rawText}` : ""
       }
     };
   }
-  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  background: #f7f8fa;\n  pointer-events: auto;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  /* position: fixed; */\n  position: relative;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 0;\n  box-shadow: none;\n  pointer-events: auto;\n  overflow: hidden;\n}\n\n.mda-project-checking {\n  position: absolute;\n  inset: 56px 0 0;\n  z-index: 40;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(247, 248, 250, 0.78);\n  backdrop-filter: blur(2px);\n}\n\n.mda-project-checking-box {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  width: min(360px, 92%);\n  padding: 16px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.16);\n}\n\n.mda-project-checking-spinner {\n  width: 22px;\n  height: 22px;\n  border: 2px solid #dbe4ef;\n  border-top-color: #2563eb;\n  border-radius: 999px;\n  animation: mda-spin 0.8s linear infinite;\n  flex: 0 0 auto;\n}\n\n.mda-project-checking-title {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-checking-text {\n  margin-top: 3px;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n}\n\n@keyframes mda-spin {\n  to {\n    transform: rotate(360deg);\n  }\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composite {\n  background: #f2f7ff;\n  border-color: #c7dbf5;\n}\n\n.mda-composite-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n}\n\n.mda-composite-tag {\n  flex: 0 0 auto;\n  padding: 1px 6px;\n  border-radius: 4px;\n  background: #e2e8f0;\n  color: #475569;\n  font-size: 11px;\n}\n\n.mda-composite-tag.mda-composite-render {\n  background: #dbeafe;\n  color: #1d4ed8;\n}\n\n.mda-composite-anchor {\n  color: #94a3b8;\n  font-size: 11px;\n}\n\n.mda-composite-line {\n  color: #2563eb;\n  font-weight: 600;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 100%;\n  /* max-width: min(440px, calc(100vw - 18px)); */\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-settings-trigger {\n  flex: 0 0 auto;\n  font-size: 16px;\n}\n\n.mda-memory-shell {\n  position: absolute;\n  z-index: 50;\n  inset: 0;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  background: #f7f8fa;\n  color: #1f2328;\n}\n\n.mda-memory-head {\n  min-height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 8px 10px 8px 14px;\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-head > div {\n  min-width: 0;\n  display: grid;\n  gap: 1px;\n}\n\n.mda-memory-head strong {\n  font-size: 14px;\n}\n\n.mda-memory-head span {\n  overflow: hidden;\n  color: #6b7280;\n  font-size: 12px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-memory-close {\n  font-size: 21px;\n}\n\n.mda-memory-tabs {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-tabs button {\n  min-width: 0;\n  height: 38px;\n  padding: 0 8px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.mda-memory-tabs button:hover {\n  color: #111827;\n  background: #f8fafc;\n}\n\n.mda-memory-tabs button.is-active {\n  border-bottom-color: #2563eb;\n  color: #111827;\n  font-weight: 700;\n}\n\n.mda-memory-body {\n  flex: 1 1 auto;\n  min-height: 0;\n  padding: 14px;\n  overflow: auto;\n}\n\n.mda-memory-feedback {\n  margin-bottom: 12px;\n  padding: 8px 10px;\n  border: 1px solid #abefc6;\n  border-radius: 6px;\n  background: #ecfdf3;\n  color: #067647;\n  font-size: 12px;\n}\n\n.mda-memory-feedback.is-error {\n  border-color: #fecdca;\n  background: #fef3f2;\n  color: #b42318;\n}\n\n.mda-memory-state,\n.mda-memory-empty {\n  display: grid;\n  place-items: center;\n  gap: 10px;\n  min-height: 180px;\n  padding: 24px;\n  color: #667085;\n  text-align: center;\n}\n\n.mda-memory-state.is-error {\n  color: #b42318;\n}\n\n.mda-memory-state button {\n  height: 30px;\n  padding: 0 12px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  cursor: pointer;\n}\n\n.mda-memory-form {\n  display: grid;\n  gap: 12px;\n  margin-top: 14px;\n}\n\n.mda-memory-field {\n  min-width: 0;\n  display: grid;\n  gap: 6px;\n}\n\n.mda-memory-field > span {\n  color: #344054;\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-memory-field small {\n  color: #98a2b3;\n  font-size: 11px;\n  font-weight: 400;\n}\n\n.mda-memory-field input,\n.mda-memory-field select,\n.mda-memory-field textarea {\n  width: 100%;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #1f2937;\n  outline: none;\n  font: inherit;\n}\n\n.mda-memory-field input,\n.mda-memory-field select {\n  height: 34px;\n  padding: 0 9px;\n}\n\n.mda-memory-field textarea {\n  min-height: 66px;\n  padding: 8px 9px;\n  resize: vertical;\n  line-height: 1.5;\n}\n\n.mda-memory-field textarea.is-code {\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-memory-field input:focus,\n.mda-memory-field select:focus,\n.mda-memory-field textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);\n}\n\n.mda-memory-row {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 10px;\n}\n\n.mda-memory-advanced {\n  border-top: 1px solid #e4e7ec;\n  padding-top: 10px;\n}\n\n.mda-memory-advanced summary {\n  cursor: pointer;\n  color: #344054;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-memory-advanced[open] {\n  display: grid;\n  gap: 12px;\n}\n\n.mda-memory-advanced[open] summary {\n  margin-bottom: 2px;\n}\n\n.mda-memory-actions {\n  position: sticky;\n  bottom: -14px;\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 8px;\n  padding: 12px 0 14px;\n  background: #f7f8fa;\n}\n\n.mda-memory-actions button {\n  height: 34px;\n  padding: 0 13px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font-weight: 650;\n}\n\n.mda-memory-actions button.is-primary {\n  border-color: #2563eb;\n  background: #2563eb;\n  color: #ffffff;\n}\n\n.mda-memory-actions button.is-danger {\n  border-color: #fda29b;\n  color: #b42318;\n}\n\n.mda-memory-actions button:disabled {\n  cursor: not-allowed;\n  opacity: 0.55;\n}\n\n.mda-memory-project-note {\n  margin-bottom: 10px;\n  color: #667085;\n  font-size: 12px;\n}\n\n.mda-memory-project-doc {\n  min-height: 240px;\n  margin: 0;\n  padding: 12px;\n  overflow: auto;\n  border: 1px solid #d8dee6;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n';
+  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  background: #f7f8fa;\n  pointer-events: auto;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  /* position: fixed; */\n  position: relative;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 0;\n  box-shadow: none;\n  pointer-events: auto;\n  overflow: hidden;\n}\n\n.mda-project-checking {\n  position: absolute;\n  inset: 56px 0 0;\n  z-index: 40;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(247, 248, 250, 0.78);\n  backdrop-filter: blur(2px);\n}\n\n.mda-project-checking-box {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  width: min(360px, 92%);\n  padding: 16px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.16);\n}\n\n.mda-project-checking-spinner {\n  width: 22px;\n  height: 22px;\n  border: 2px solid #dbe4ef;\n  border-top-color: #2563eb;\n  border-radius: 999px;\n  animation: mda-spin 0.8s linear infinite;\n  flex: 0 0 auto;\n}\n\n.mda-project-checking-title {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-checking-text {\n  margin-top: 3px;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n}\n\n@keyframes mda-spin {\n  to {\n    transform: rotate(360deg);\n  }\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composite {\n  background: #f2f7ff;\n  border-color: #c7dbf5;\n}\n\n.mda-composite-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n}\n\n.mda-composite-tag {\n  flex: 0 0 auto;\n  padding: 1px 6px;\n  border-radius: 4px;\n  background: #e2e8f0;\n  color: #475569;\n  font-size: 11px;\n}\n\n.mda-composite-tag.mda-composite-render {\n  background: #dbeafe;\n  color: #1d4ed8;\n}\n\n.mda-composite-anchor {\n  color: #94a3b8;\n  font-size: 11px;\n}\n\n.mda-composite-line {\n  color: #2563eb;\n  font-weight: 600;\n}\n\n.mda-plan {\n  background: #f6fdf7;\n  border-color: #c7e8cf;\n}\n\n/* 修改计划正文限高滚动，避免内容过长挡住聊天区与输入框 */\n.mda-plan-body {\n  display: grid;\n  gap: 8px;\n  max-height: 38vh;\n  overflow-y: auto;\n}\n\n/* 「定位与修改计划」整块模块：一个头部、一个收起开关，整块折叠 */\n.mda-result-module {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-result-module-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 2px 2px 0;\n}\n\n.mda-result-module-title {\n  font-size: 12px;\n  font-weight: 600;\n  color: #334155;\n}\n\n.mda-result-module-body {\n  display: grid;\n  gap: 8px;\n  max-height: 60vh;\n  overflow-y: auto;\n}\n\n.mda-plan-summary {\n  font-size: 12px;\n  color: #14532d;\n  font-weight: 600;\n}\n\n.mda-plan-block {\n  display: grid;\n  gap: 4px;\n}\n\n.mda-plan-block-title {\n  font-size: 11px;\n  color: #64748b;\n  font-weight: 600;\n}\n\n.mda-plan-target {\n  display: grid;\n  gap: 2px;\n  padding: 4px 6px;\n  border-left: 2px solid #86efac;\n  background: #fff;\n  border-radius: 4px;\n}\n\n.mda-plan-what,\n.mda-plan-why {\n  font-size: 12px;\n  color: #334155;\n}\n\n.mda-plan-why {\n  color: #94a3b8;\n}\n\n.mda-plan-line {\n  font-size: 12px;\n  color: #475569;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 100%;\n  /* max-width: min(440px, calc(100vw - 18px)); */\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-build-version {\n  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;\n  font-size: 10px;\n  line-height: 31px;\n  color: #98a2b3;\n  white-space: nowrap;\n  user-select: text;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-settings-trigger {\n  flex: 0 0 auto;\n  font-size: 16px;\n}\n\n.mda-memory-shell {\n  position: absolute;\n  z-index: 50;\n  inset: 0;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  background: #f7f8fa;\n  color: #1f2328;\n}\n\n.mda-memory-head {\n  min-height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 8px 10px 8px 14px;\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-head > div {\n  min-width: 0;\n  display: grid;\n  gap: 1px;\n}\n\n.mda-memory-head strong {\n  font-size: 14px;\n}\n\n.mda-memory-head span {\n  overflow: hidden;\n  color: #6b7280;\n  font-size: 12px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-memory-close {\n  font-size: 21px;\n}\n\n.mda-memory-tabs {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-tabs button {\n  min-width: 0;\n  height: 38px;\n  padding: 0 8px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.mda-memory-tabs button:hover {\n  color: #111827;\n  background: #f8fafc;\n}\n\n.mda-memory-tabs button.is-active {\n  border-bottom-color: #2563eb;\n  color: #111827;\n  font-weight: 700;\n}\n\n.mda-memory-body {\n  flex: 1 1 auto;\n  min-height: 0;\n  padding: 14px;\n  overflow: auto;\n}\n\n.mda-memory-feedback {\n  margin-bottom: 12px;\n  padding: 8px 10px;\n  border: 1px solid #abefc6;\n  border-radius: 6px;\n  background: #ecfdf3;\n  color: #067647;\n  font-size: 12px;\n}\n\n.mda-memory-feedback.is-error {\n  border-color: #fecdca;\n  background: #fef3f2;\n  color: #b42318;\n}\n\n.mda-memory-state,\n.mda-memory-empty {\n  display: grid;\n  place-items: center;\n  gap: 10px;\n  min-height: 180px;\n  padding: 24px;\n  color: #667085;\n  text-align: center;\n}\n\n.mda-memory-state.is-error {\n  color: #b42318;\n}\n\n.mda-memory-state button {\n  height: 30px;\n  padding: 0 12px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  cursor: pointer;\n}\n\n.mda-memory-form {\n  display: grid;\n  gap: 12px;\n  margin-top: 14px;\n}\n\n.mda-memory-field {\n  min-width: 0;\n  display: grid;\n  gap: 6px;\n}\n\n.mda-memory-field > span {\n  color: #344054;\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-memory-field small {\n  color: #98a2b3;\n  font-size: 11px;\n  font-weight: 400;\n}\n\n.mda-memory-field input,\n.mda-memory-field select,\n.mda-memory-field textarea {\n  width: 100%;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #1f2937;\n  outline: none;\n  font: inherit;\n}\n\n.mda-memory-field input,\n.mda-memory-field select {\n  height: 34px;\n  padding: 0 9px;\n}\n\n.mda-memory-field textarea {\n  min-height: 66px;\n  padding: 8px 9px;\n  resize: vertical;\n  line-height: 1.5;\n}\n\n.mda-memory-field textarea.is-code {\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-memory-field input:focus,\n.mda-memory-field select:focus,\n.mda-memory-field textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);\n}\n\n.mda-memory-row {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 10px;\n}\n\n.mda-memory-advanced {\n  border-top: 1px solid #e4e7ec;\n  padding-top: 10px;\n}\n\n.mda-memory-advanced summary {\n  cursor: pointer;\n  color: #344054;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-memory-advanced[open] {\n  display: grid;\n  gap: 12px;\n}\n\n.mda-memory-advanced[open] summary {\n  margin-bottom: 2px;\n}\n\n.mda-memory-actions {\n  position: sticky;\n  bottom: -14px;\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 8px;\n  padding: 12px 0 14px;\n  background: #f7f8fa;\n}\n\n.mda-memory-actions button {\n  height: 34px;\n  padding: 0 13px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font-weight: 650;\n}\n\n.mda-memory-actions button.is-primary {\n  border-color: #2563eb;\n  background: #2563eb;\n  color: #ffffff;\n}\n\n.mda-memory-actions button.is-danger {\n  border-color: #fda29b;\n  color: #b42318;\n}\n\n.mda-memory-actions button:disabled {\n  cursor: not-allowed;\n  opacity: 0.55;\n}\n\n.mda-memory-project-note {\n  margin-bottom: 10px;\n  color: #667085;\n  font-size: 12px;\n}\n\n.mda-memory-project-doc {\n  min-height: 240px;\n  margin: 0;\n  padding: 12px;\n  overflow: auto;\n  border: 1px solid #d8dee6;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n';
   (function bootstrapMagnusSidePanel() {
     const APP_KEY = "__MAGNUS_DEV_ASSISTANT__";
     const ROOT_ID = "magnus-side-panel-root";

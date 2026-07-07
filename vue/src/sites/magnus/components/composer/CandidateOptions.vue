@@ -22,6 +22,37 @@
     </div>
   </div>
 
+  <div v-if="changePlan && (changePlan.summary || (changePlan.targets || []).length)" class="mda-composer-options mda-plan">
+    <div class="mda-option-title">修改计划</div>
+    <div class="mda-plan-body">
+    <div v-if="changePlan.summary" class="mda-plan-summary">{{ changePlan.summary }}</div>
+    <div v-if="(changePlan.targets || []).length" class="mda-plan-block">
+      <div class="mda-plan-block-title">改动点</div>
+      <div v-for="(target, index) in changePlan.targets" :key="`t-${index}`" class="mda-plan-target">
+        <button class="mda-file-link" type="button" @click="commands.openSourceFile(target.file, target.line)">
+          {{ target.file }}<span v-if="target.line" class="mda-composite-line">:{{ target.line }}</span>
+        </button>
+        <span v-if="target.anchor" class="mda-composite-anchor">{{ target.anchor }}</span>
+        <div v-if="target.whatToChange" class="mda-plan-what">改：{{ target.whatToChange }}</div>
+        <div v-if="target.why" class="mda-plan-why">因：{{ target.why }}</div>
+      </div>
+    </div>
+    <div v-if="(changePlan.affected || []).length" class="mda-plan-block">
+      <div class="mda-plan-block-title">连带影响</div>
+      <div v-for="(item, index) in changePlan.affected" :key="`a-${index}`" class="mda-plan-line">
+        <button class="mda-file-link" type="button" @click="commands.openSourceFile(item.file)">{{ item.file }}</button>
+        <span class="mda-composite-anchor">{{ item.reason }}</span>
+      </div>
+    </div>
+    <div v-for="section in planSections" :key="section.key" class="mda-plan-block">
+      <template v-if="(changePlan[section.key] || []).length">
+        <div class="mda-plan-block-title">{{ section.label }}</div>
+        <div v-for="(line, index) in changePlan[section.key]" :key="`${section.key}-${index}`" class="mda-plan-line">· {{ line }}</div>
+      </template>
+    </div>
+    </div>
+  </div>
+
   <div v-if="showCandidatePicker" class="mda-composer-options">
     <div class="mda-collapsible-head">
       <div class="mda-option-title">存在多个命中文件，请确认</div>
@@ -74,6 +105,13 @@ const showCandidatePicker = computed(() => searchStore.showCandidatePicker);
 const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
 const candidateHits = computed(() => searchStore.candidates);
 const composite = computed(() => searchStore.composite);
+const changePlan = computed(() => searchStore.changePlan);
+const planSections = [
+  { key: 'reusePatterns', label: '可复用模式' },
+  { key: 'risks', label: '风险' },
+  { key: 'verification', label: '验证' },
+  { key: 'openQuestions', label: '待确认' }
+];
 const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
 const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
 const modelAssistLoading = computed(() => modelStore.status === 'running');

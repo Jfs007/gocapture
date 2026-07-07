@@ -632,6 +632,7 @@ async function main() {
     appType: 'custom',
     define: {
       'process.env.NODE_ENV': JSON.stringify(nodeEnv),
+      __MAGNUS_BUILD_VERSION__: JSON.stringify(makeVersion()),
     },
     plugins,
     build: {

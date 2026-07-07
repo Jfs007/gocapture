@@ -384,6 +384,86 @@
   font-weight: 600;
 }
 
+.mda-plan {
+  background: #f6fdf7;
+  border-color: #c7e8cf;
+}
+
+/* 修改计划正文限高滚动，避免内容过长挡住聊天区与输入框 */
+.mda-plan-body {
+  display: grid;
+  gap: 8px;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+
+/* 「定位与修改计划」整块模块：一个头部、一个收起开关，整块折叠 */
+.mda-result-module {
+  display: grid;
+  gap: 8px;
+}
+
+.mda-result-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 0;
+}
+
+.mda-result-module-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.mda-result-module-body {
+  display: grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.mda-plan-summary {
+  font-size: 12px;
+  color: #14532d;
+  font-weight: 600;
+}
+
+.mda-plan-block {
+  display: grid;
+  gap: 4px;
+}
+
+.mda-plan-block-title {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.mda-plan-target {
+  display: grid;
+  gap: 2px;
+  padding: 4px 6px;
+  border-left: 2px solid #86efac;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.mda-plan-what,
+.mda-plan-why {
+  font-size: 12px;
+  color: #334155;
+}
+
+.mda-plan-why {
+  color: #94a3b8;
+}
+
+.mda-plan-line {
+  font-size: 12px;
+  color: #475569;
+}
+
 .mda-composer-options.is-compact {
   display: flex;
   flex-wrap: wrap;
@@ -2037,6 +2117,15 @@
 
 .mda-inline-text-btn:hover {
   color: #101828;
+}
+
+.mda-build-version {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 31px;
+  color: #98a2b3;
+  white-space: nowrap;
+  user-select: text;
 }
 
 .mda-model-menu {

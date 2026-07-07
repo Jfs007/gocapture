@@ -2558,6 +2558,7 @@ function reconcileModelItems(items, body) {
     const local = localMap.get(item.file);
     const enriched = {
       ...item,
+      scopeAlignment: item.scopeAlignment || local?.scopeAlignment || '',
       localScore: local?.score || 0,
       localPreciseEvidence: !!local?.preciseEvidence,
       localStages: mergeList(local?.stages || local?.stage, item.localStages || []),
@@ -3154,6 +3155,7 @@ function modelItemsFromSelectionContext(project, body) {
         locateLevel: target.locateLevel || 'direction',
         codeSnippet: target.codeSnippet || '',
         rawCodeSnippet: target.codeSnippet || '',
+        scopeAlignment: target.scopeAlignment || '',
         snippetVerified: true,
         snippetSource: 'selection-context-binding',
         directionGuess: target.directionGuess || '',
@@ -3187,7 +3189,28 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
     appendLog(logs, `选区上下文增强开始：${adapter.name}（${adapter.type}）`);
     appendLog(logs, '本轮复用已绑定的选区源码上下文，跳过 DOM Agent、本地源码检索和源码定位。');
     const modelItems = modelItemsFromSelectionContext(project, body);
-    appendLog(logs, `复用目标文件：${modelItems.length} 个`);
+    // 把「原始选区 DOM 身份」汇总到 body，供变更计划知道用户到底选了什么（否则只能在区域里瞎猜）。
+    body.originSelections = (Array.isArray(body.selectionBindings) ? body.selectionBindings : [])
+      .flatMap(binding => (Array.isArray(binding?.originSelections) ? binding.originSelections : []));
+    appendLog(logs, `复用目标文件：${modelItems.length} 个；原始选区快照 ${body.originSelections.length} 个`);
+    // 选区自身没有锚点(unlocated，如纯运行时数值)时：用「所在容器标识」(如列 data-col-key=cost)
+    // 把 LLM 引到大致所在的那一列区块，让它在里面判定——而不是给空、逼它从整份文件裸找。
+    const containerAnchors = body.originSelections
+      .flatMap(sel => (Array.isArray(sel?.container) ? sel.container : []))
+      .map(entry => String(entry).split('=').pop());   // 'data-col-key=cost' → 'cost'
+    if (containerAnchors.length) {
+      const { regionByContainerAnchors } = require('../search/agent-search');   // 懒加载，避开循环依赖
+      for (const item of modelItems) {
+        if (item.scopeAlignment !== 'unlocated' || item.codeSnippet) continue;
+        const region = regionByContainerAnchors(project, item.file, containerAnchors, textCache);
+        if (region) {
+          item.codeSnippet = region.snippet;
+          item.rawCodeSnippet = region.snippet;
+          item.scopeAlignment = 'approximate';   // 已引到正确区块，交 LLM 在块内对齐
+          appendLog(logs, `选区无自身锚点，已按容器(${containerAnchors.join(',')})定位到区块 ${item.file}:${region.startLine}-${region.endLine}`);
+        }
+      }
+    }
     for (const item of modelItems) {
       appendLog(logs, `复用文件：${item.file}${item.exists ? '' : '（文件不存在）'}`);
     }
@@ -3233,6 +3256,7 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
     const enhancedModelItems = validItems.map(item => ({
       ...item,
       enhancedPrompt: experience.enhancedPrompt,
+      changePlan: experience.changePlan || null,
       experienceMode: experience.mode,
       usedSkillIds: experience.usedSkillIds || [],
     }));
@@ -3246,6 +3270,7 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
       parsed: null,
       parsedBatches: [],
       modelItems: enhancedModelItems,
+      changePlan: experience.changePlan || null,
       targetFiles: enhancedModelItems.map(item => ({
         file: item.file,
         confidence: item.confidence,
@@ -3255,6 +3280,7 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
         snippetVerified: item.snippetVerified,
         prompt: item.prompt,
         enhancedPrompt: item.enhancedPrompt,
+        changePlan: item.changePlan,
         experienceMode: item.experienceMode,
         usedSkillIds: item.usedSkillIds,
         locateLevel: item.locateLevel || 'direction',
@@ -3384,6 +3410,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     const enhancedModelItems = modelItems.map(item => ({
       ...item,
       enhancedPrompt: experience.enhancedPrompt,
+      changePlan: experience.changePlan || null,
       experienceMode: experience.mode,
       usedSkillIds: experience.usedSkillIds || [],
     }));
@@ -3397,6 +3424,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
       parsed: parsedList[0] || null,
       parsedBatches: parsedList,
       modelItems: enhancedModelItems,
+      changePlan: experience.changePlan || null,
       targetFiles: enhancedModelItems.map(item => ({
         file: item.file,
         confidence: item.confidence,
@@ -3408,6 +3436,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         downgradedToDirection: !!item.downgradedToDirection,
         prompt: item.prompt,
         enhancedPrompt: item.enhancedPrompt,
+        changePlan: item.changePlan,
         experienceMode: item.experienceMode,
         usedSkillIds: item.usedSkillIds,
         locateLevel: item.locateLevel || 'exact',

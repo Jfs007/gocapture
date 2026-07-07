@@ -336,6 +336,7 @@ export function useModelAdapters() {
         ].filter(Boolean).slice(0, 10),
         modelPrompt: target.enhancedPrompt || target.prompt || target.reason || '',
         modelEnhancedPrompt: target.enhancedPrompt || '',
+        modelChangePlan: target.changePlan || null,
         modelExperienceMode: target.experienceMode || '',
         modelUsedSkillIds: target.usedSkillIds || [],
         modelCodeSnippet: target.codeSnippet || '',
@@ -466,7 +467,8 @@ export function useModelAdapters() {
             uid: item.uid,
             designRequirement: item.binding?.designRequirement || '',
             projectRoot: item.binding?.projectRoot || '',
-            targets: Array.isArray(item.binding?.targets) ? item.binding.targets : []
+            targets: Array.isArray(item.binding?.targets) ? item.binding.targets : [],
+            originSelections: Array.isArray(item.binding?.originSelections) ? item.binding.originSelections : []
           })),
           candidateHits: candidateHits.value.slice(0, 4),
           selectedCandidateHits: candidateHits.value.filter(hit => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4),

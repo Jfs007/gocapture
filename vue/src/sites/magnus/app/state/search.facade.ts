@@ -17,6 +17,7 @@ export function useSearchFacade() {
   const {
     candidates: candidateHits,
     composite: compositeResult,
+    changePlan: changePlanResult,
     apiTrace,
     i18nTrace,
     definitionTrace,
@@ -79,6 +80,7 @@ export function useSearchFacade() {
   function clearCandidateState() {
     candidateHits.value = [];
     compositeResult.value = null;
+    changePlanResult.value = null;
     candidateError.value = '';
     searchRunning.value = false;
     candidateLoading.value = false;
@@ -95,6 +97,7 @@ export function useSearchFacade() {
   return {
     candidateHits,
     compositeResult,
+    changePlanResult,
     apiTrace,
     i18nTrace,
     definitionTrace,

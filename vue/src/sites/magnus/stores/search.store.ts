@@ -1,11 +1,12 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { CandidateFile, CompositeResult } from '../app/types/search.types';
+import type { CandidateFile, CompositeResult, ChangePlan } from '../app/types/search.types';
 
 export const useSearchStore = defineStore('magnus.search', () => {
   const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle');
   const candidates = ref<CandidateFile[]>([]);
   const composite = ref<CompositeResult | null>(null);
+  const changePlan = ref<ChangePlan | null>(null);
   const candidateLoading = ref(false);
   const searchRunning = ref(false);
   const selectedCandidatePaths = ref<string[]>([]);
@@ -83,6 +84,7 @@ export const useSearchStore = defineStore('magnus.search', () => {
     searchRunning.value = false;
     candidates.value = [];
     composite.value = null;
+    changePlan.value = null;
     selectedCandidatePaths.value = [];
     expandedCandidatePath.value = '';
     apiTrace.value = null;
@@ -101,6 +103,7 @@ export const useSearchStore = defineStore('magnus.search', () => {
     status,
     candidates,
     composite,
+    changePlan,
     candidateLoading,
     searchRunning,
     selectedCandidatePaths,

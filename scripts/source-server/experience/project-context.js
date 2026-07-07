@@ -6,7 +6,7 @@ const EXPERIENCE_DIR = '.magnus-project';
 const PROJECT_META_FILE = 'project-meta.json';
 const PROJECT_DOC_FILE = 'Project.md';
 const PROJECT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const PROJECT_CONTEXT_VERSION = 5;
+const PROJECT_CONTEXT_VERSION = 6;
 
 const IMPORTANT_PATH_PATTERNS = [
   /^package\.json$/,

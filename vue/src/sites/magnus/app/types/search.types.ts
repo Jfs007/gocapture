@@ -28,6 +28,24 @@ export interface CompositeResult {
   coRenders?: CompositeRenderFile[];
 }
 
+export interface ChangePlanTarget {
+  file: string;
+  anchor?: string;
+  line?: number;
+  whatToChange?: string;
+  why?: string;
+}
+
+export interface ChangePlan {
+  summary: string;
+  targets: ChangePlanTarget[];
+  affected?: { file: string; reason: string }[];
+  reusePatterns?: string[];
+  risks?: string[];
+  verification?: string[];
+  openQuestions?: string[];
+}
+
 export interface SearchResult {
   hits?: CandidateFile[];
   composite?: CompositeResult | null;

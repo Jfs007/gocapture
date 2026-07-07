@@ -1,9 +1,18 @@
 <template>
   <section class="mda-composer-wrap">
-    <CandidateOptions />
-    <ModelEditorPanel />
-
-    <ComposerPrebar @insert-asset="handleAssetInsert" />
+    <div class="mda-result-module">
+      <div v-if="hasResultModule" class="mda-result-module-head">
+        <span class="mda-result-module-title">定位与修改计划</span>
+        <button class="mda-collapse-btn" type="button" @click="resultModuleCollapsed = !resultModuleCollapsed">
+          {{ resultModuleCollapsed ? '展开' : '收起' }}
+        </button>
+      </div>
+      <div v-show="!(hasResultModule && resultModuleCollapsed)" class="mda-result-module-body">
+        <CandidateOptions />
+        <ModelEditorPanel />
+        <ComposerPrebar @insert-asset="handleAssetInsert" />
+      </div>
+    </div>
 
     <div class="mda-composer">
       <ComposerInput ref="composerInputRef" />
@@ -18,6 +27,7 @@
             @click="commands.selectProject"
           />
           <button v-if="selectedItems.length" class="mda-inline-text-btn" type="button" @click="commands.clearSelections">清空选区</button>
+          <span class="mda-build-version" :title="`构建版本 ${buildVersion}`">build {{ buildVersion }}</span>
         </div>
         <div class="mda-toolbar-right">
           <ModelMenu />
@@ -74,6 +84,8 @@ import ModelMenu from './ModelMenu.vue';
 import ModelEditorPanel from './ModelEditorPanel.vue';
 
 const composerInputRef = ref(null);
+// 构建版本号（构建时由 app-build.js 通过 vite define 注入）。用于判断当前扩展加载的是不是最新 bundle。
+const buildVersion = typeof __MAGNUS_BUILD_VERSION__ !== 'undefined' ? __MAGNUS_BUILD_VERSION__ : 'dev';
 const commands = useMagnusCommands();
 const appUiStore = useAppUiStore();
 const composerStore = useComposerStore();
@@ -84,6 +96,10 @@ const searchStore = useSearchStore();
 const selectionStore = useSelectionStore();
 
 const candidateLoading = computed(() => searchStore.status === 'loading');
+const resultModuleCollapsed = ref(false);
+// 有定位/组合/修改计划结果时，才显示「整块收起」头部（prebar 在无结果时仍正常展示）。
+const hasResultModule = computed(() =>
+  (searchStore.candidates?.length || 0) > 0 || !!searchStore.composite || !!searchStore.changePlan);
 const selectedItems = computed(() => selectionStore.items);
 const project = computed(() => projectStore.current);
 const modelAssistLoading = computed(() => modelStore.status === 'running');

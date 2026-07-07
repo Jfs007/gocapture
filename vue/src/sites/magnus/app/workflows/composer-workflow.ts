@@ -13,6 +13,48 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
   const { source, route, search, selection, composer, model, prompt } = state;
   const appUiStore = useAppUiStore();
 
+  // 原始选区 DOM 身份的快照（扩区前抓取，全程保留）。用于把「用户到底选了什么」传给变更计划 LLM——
+  // 否则扩区后 selectedItems 变成整行、¥3 这类无锚点选区身份就彻底丢了，LLM 只能在区域里瞎猜。
+  let lastOriginSelections: any[] = [];
+  // 从祖先链提取「稳定容器标识」，说明选区落在哪（如所在列 data-col-key=cost → 源码列配置 key:'cost'）。
+  // 通用机制：任何祖先上形如业务标识符的 data-*/id/name 值都算，排除运行时/框架内部值。
+  function ancestorContainerAnchors(el: any): string[] {
+    const out: string[] = [];
+    for (const ancestor of (Array.isArray(el?.ancestors) ? el.ancestors.slice(0, 5) : [])) {
+      for (const [key, rawValue] of Object.entries(ancestor?.attrs || {})) {
+        const k = String(key || '').toLowerCase();
+        if ((!/^data-/.test(k) && k !== 'id' && k !== 'name') || /^data-v-/.test(k)) continue;
+        const value = String(rawValue || '').trim();
+        if (/^[A-Za-z][\w-]{1,39}$/.test(value) && !/^__.*__$/.test(value) && !/^\d+$/.test(value)) {
+          out.push(`${key}=${value}`);
+        }
+      }
+      for (const cls of String(ancestor?.className || '').split(/\s+/)) {
+        const t = cls.trim();
+        if (t && !/^(n-|el-|ivu-|ant-|van-|flex|grid|is-|has-|mt-|mb-|ml-|mr-|w-|h-|p-|m-)/.test(t)) out.push(t);
+      }
+    }
+    return Array.from(new Set(out)).slice(0, 6);
+  }
+  function captureOriginSelections(): any[] {
+    try {
+      const assets = prompt.promptAssetItems?.() || [];
+      const items = selection.selectedItems?.value || [];
+      return assets.map((asset: any, index: number) => ({
+        token: asset.token,
+        tag: asset.tag,
+        text: asset.text,
+        className: asset.className,
+        attrs: asset.attrs,
+        ancestors: asset.ancestors,
+        container: ancestorContainerAnchors(items[index]?.element),   // 选区所在容器/列的标识
+        summary: asset.summary
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   async function sendComposer() {
     if (model.modelAssistLoading.value) {
       model.stopModelAssist();
@@ -71,6 +113,23 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
         appUiStore.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
       }
 
+      // DOM Agent 已经在内部用模型完成定位并收敛，就不再走老的「模型定位/model-assist」那一步
+      //（那是没有 agent 之前用来从候选里挑文件、读源码发给模型的流程，现已完全冗余）。
+      if (data.agent?.enabled && search.candidateHits.value.length) {
+        const instruction = composer.promptIntent.value.trim();
+        const topHit = search.candidateHits.value[0];
+        const resolvedConfidently = search.candidateHits.value.length === 1 || !!topHit?.preciseEvidence;
+        if (resolvedConfidently) {
+          // DOM Agent 已定位并收敛：不再重复定位，直接进入「变更规划」——
+          // 复用经验系统(跳过重复定位)针对需求产出结构化修改计划。
+          selection.filesConfirmed.value = true;
+          bindResolvedSelectionContext(instruction);
+          await runChangePlanForResolved(instruction);
+        }
+        // 多候选且不确定时：保持候选选择器让用户挑，同样不重复调用模型定位。
+        return search.candidateHits.value;
+      }
+
       if (shouldAutoRunModelAssist(search.candidateHits.value)) {
         const modelHandled = await runModelAssistForCandidates(composer.promptIntent.value.trim());
         if (modelHandled) return model.modelAssistResult.value?.stopped ? [] : search.candidateHits.value;
@@ -112,13 +171,17 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
 
   async function runSearchWithOptionalRetry(timeoutMs: number) {
     try {
-      // 原始选区锚点从 DOM 直接提取并全程保持（取第一版非空的，之后不覆盖）。
-      let focusAnchors = originAnchorsFromSelection();
+      // 原始选区锚点 = 用户「最初选中」那个元素的锚点，只在扩区前(轮1)抓取一次，全程保持。
+      // 绝不能在扩区后重抓：扩区后的选区已包含兄弟/父级节点，重抓会把兄弟(如与 ¥3 并排的「查看」)
+      // 误当成原始选区锚点，导致细定位把选区钉到一个用户没选的相邻元素上。
+      // 轮1为空(原始选区本就没有字面锚点，如纯运行时数值)时就保持空——这是「本地无法确定」的诚实信号，
+      // 交给带原始选区 DOM 快照的变更计划去做结构对齐。
+      const focusAnchors = originAnchorsFromSelection();
+      lastOriginSelections = captureOriginSelections();   // 扩区前快照原始选区 DOM 身份
       let firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs, '第 1 轮：原始选区检索');
       for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
         const expanded = await expandLatestSelectionForMoreEvidence(attempt);
         if (!expanded) break;
-        if (!focusAnchors.length) focusAnchors = originAnchorsFromSelection();
         const retryState: any = buildAgentRetryState(firstPass, attempt);
         if (focusAnchors.length) retryState.focusAnchors = focusAnchors;
         firstPass = await runSearchRequest(prompt.searchPayload({
@@ -135,6 +198,27 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       search.searchFinishedAt.value = Date.now();
       search.searchRunning.value = false;
     }
+  }
+
+  // DOM Agent 定位收敛后的「变更规划」：跳过重复定位，走经验系统(selection-context)产出结构化修改计划。
+  async function runChangePlanForResolved(instruction: string) {
+    // 模型不可用：退回纯文本提示词，不产出结构化计划。
+    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
+      prompt.generatePrompt({ userInstruction: instruction });
+      return;
+    }
+    const bindings = selection.reusableSourceBindings(instruction, projectRoot());
+    if (!bindings.length) {
+      prompt.generatePrompt({ userInstruction: instruction });
+      return;
+    }
+    search.modelAssistAttempted.value = true;
+    const modelResult: any = await model.runSelectionContextAssist({ userInstruction: instruction, selectionBindings: bindings });
+    if (modelResult?.stopped) return;
+    search.changePlanResult.value = modelResult?.changePlan
+      || (search.candidateHits.value[0] as any)?.modelChangePlan
+      || null;
+    prompt.generatePrompt({ userInstruction: instruction });
   }
 
   async function runSearchRequest(body: unknown, timeoutMs: number, label = '') {
@@ -239,6 +323,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       projectRoot: root,
       designRequirement: userInstruction,
       targets,
+      originSelections: lastOriginSelections,
       resolvedAt: Date.now()
     } satisfies SelectionSourceBinding);
     search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map(target => target.file).join('、')}`);
