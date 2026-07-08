@@ -1,0 +1,95 @@
+const path = require('path');
+const { makeSnippet, uniq } = require('../../utils');
+const {
+  MAX_EXCERPT_CHARS,
+  STYLE_EXTENSIONS,
+} = require('./dom-utils');
+
+function commentMask(text) {
+  return String(text || '')
+    .replace(/<!--[\s\S]*?-->/g, match => ' '.repeat(match.length))
+    .replace(/\/\*[\s\S]*?\*\//g, match => ' '.repeat(match.length))
+    .replace(/(^|[^:])\/\/.*$/gm, match => ' '.repeat(match.length));
+}
+
+function candidateExcerpt(text, candidate) {
+  const positions = candidate.positions || [];
+  if (!positions.length) return makeSnippet(text, 0, 0).slice(0, MAX_EXCERPT_CHARS);
+  const start = Math.max(0, Math.min(...positions) - 1800);
+  const end = Math.min(text.length, Math.max(...positions) + 2600);
+  if (end - start <= MAX_EXCERPT_CHARS) return text.slice(start, end).trim();
+  const chunks = positions.slice(0, 3).map(position => makeSnippet(text, position, 0));
+  return uniq(chunks).join('\n\n').slice(0, MAX_EXCERPT_CHARS).trim();
+}
+
+function candidateSourceRole(filePath, text) {
+  const ext = path.posix.extname(filePath || '').toLowerCase();
+  const source = String(text || '');
+  if (STYLE_EXTENSIONS.has(ext)) {
+    return {
+      role: 'style-reference',
+      referenceOnly: true,
+      reasons: ['样式文件只作为 UI 样式参考，不作为 DOM 渲染源码'],
+    };
+  }
+  if (ext === '.json') {
+    return {
+      role: 'definition-like',
+      referenceOnly: true,
+      reasons: ['JSON 只承载数据/配置，不能直接生成 DOM，需要追踪其渲染使用处'],
+    };
+  }
+  // .vue 单文件组件本质上就是渲染 DOM 的组件（无论用 <template> 还是 setup/render），
+  // 一律视为渲染源码，避免因为脚本里有 export default {}/常量定义等信号被误判成 definition-like 参考文件。
+  if (ext === '.vue') {
+    return {
+      role: 'render-like',
+      referenceOnly: false,
+      reasons: ['.vue 单文件组件是 DOM 渲染源码'],
+    };
+  }
+  const renderSignals = [
+    /<template[\s>]/i,
+    /\bdefineComponent\s*\(/,
+    /\bh\s*\(/,
+    /\bcreateElement\s*\(/,
+    /\bReact\.createElement\s*\(/,
+    /\breturn\s*\(\s*</,
+    /\bclassName\s*[=:]/,
+    /\bclass\s*:\s*/,
+    /\bclass\s*=/,
+    /\bsetup\s*\(/,
+    /\brender\s*[:=]\s*/,
+  ];
+  if (renderSignals.some(pattern => pattern.test(source))) {
+    return {
+      role: 'render-like',
+      referenceOnly: false,
+      reasons: ['源码包含渲染/组件结构信号'],
+    };
+  }
+  const definitionSignals = [
+    /\bexport\s+default\s+\{/,
+    /\bexport\s+const\s+\w+\s*=/,
+    /\bexport\s+default\s+\[/,
+    /\bconst\s+\w+\s*=\s*(?:\{|\[)/,
+  ];
+  if (definitionSignals.some(pattern => pattern.test(source))) {
+    return {
+      role: 'definition-like',
+      referenceOnly: true,
+      reasons: ['源码更像常量/文案/配置定义，需要结合引用链确认真实使用处'],
+    };
+  }
+  return {
+    role: 'unknown',
+    referenceOnly: false,
+    reasons: [],
+  };
+}
+
+module.exports = {
+  commentMask,
+  candidateExcerpt,
+  candidateSourceRole,
+};
