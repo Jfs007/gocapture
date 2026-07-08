@@ -778,21 +778,6 @@ function recallByStructuredEvidence(project, routeHits, evidence, textCache, opt
   const searchableEvidences = scopedEvidences.filter(shouldSearchEvidence);
   const candidates = new Map();
 
-  for (const hit of (routeHits || []).slice(0, 1)) {
-    const routeValue = (evidence.structuredEvidences || []).find(item => item.kind === 'route')?.value || '';
-    upsertRecallCandidate(candidates, hit.file, 120, {
-      evidence: {
-        kind: 'route',
-        value: routeValue || 'route-hit',
-        weight: 120,
-        strong: true,
-        scope: 'page',
-      },
-      line: 0,
-      snippet: 'route-hit',
-    });
-  }
-
   if (!searchableEvidences.length) return Array.from(candidates.values());
 
   for (const file of project.files || []) {
@@ -1642,52 +1627,7 @@ function bundleInitialHits(project, hits, evidence, textCache, routeEntry, scope
 }
 
 function promoteImportingCandidateScores(hits, routeEntry, graph) {
-  const candidates = mergeHits(hits || []);
-  const sourceScores = new Map(candidates.map(hit => [hit.file, Number(hit.score || 0)]));
-  return candidates.map(parentHit => {
-    let best = null;
-    for (const childHit of candidates) {
-      if (!childHit?.file || childHit.file === parentHit.file) continue;
-      if (!(childHit.domGroupCoverage > 0
-        || childHit.preciseEvidence
-        || childHit.exactMatchText
-        || childHit.uniqueMatchText
-        || childHit.contextStrongMatchCount > 0)) {
-        continue;
-      }
-      const chain = findImportPath(graph, parentHit.file, childHit.file, 12);
-      if (chain.length < 2) continue;
-      const isRouteOwner = parentHit.file === routeEntry;
-      if (!isRouteOwner && chain.length !== 2) continue;
-      if (isRouteOwner && chain.length > 8) continue;
-      const ownershipBonus = isRouteOwner ? 28 : 16;
-      const inheritedScore = (sourceScores.get(childHit.file) || 0) + ownershipBonus;
-      if (!best || inheritedScore > best.score) {
-        best = {
-          file: childHit.file,
-          score: inheritedScore,
-          chain,
-        };
-      }
-    }
-    if (!best || best.score <= Number(parentHit.score || 0)) return parentHit;
-    return {
-      ...parentHit,
-      score: best.score,
-      stage: parentHit.stage || 'import-parent-promoted',
-      stages: mergeList(parentHit.stages || parentHit.stage, 'import-parent-promoted'),
-      importChain: best.chain,
-      relationshipPromoted: true,
-      relationshipEvidenceFile: best.file,
-      reasons: uniq([
-        parentHit.file === routeEntry
-          ? `页面所有权提分：当前路由入口通过引用链使用候选 ${best.file}`
-          : `父级引用提分：该文件通过引用链使用候选 ${best.file}`,
-        `引用关系：${best.chain.join(' -> ')}`,
-        ...(parentHit.reasons || []),
-      ]).slice(0, 12),
-    };
-  }).sort((a, b) => b.score - a.score);
+  return mergeHits(hits || []).sort((a, b) => b.score - a.score);
 }
 
 function firstLayerSnippetSource(text, layer) {
@@ -2557,56 +2497,12 @@ function layeredSelectionHits(project, routeHits, evidence, textCache, scopes, o
       continue;
     }
 
-    const fallbackHits = recallByStructuredEvidence(project, routeHits, evidence, textCache, {
-      scopeFiles: scope.files,
-    }).map(hit => ({
-      ...hit,
-      score: Math.round((hit.score || 0) * 0.82),
-      reasons: uniq([
-        `检索层级：${scope.name}`,
-        '当前选区未形成候选，启用扩区证据兜底召回',
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    }));
-    const fallbackDefinitionUsageHits = promoteDefinitionUsageHits(project, fallbackHits, evidence, textCache, scope.files, graph)
-      .map(hit => ({
-        ...hit,
-        score: Math.round((hit.score || 0) * 0.92),
-        reasons: uniq([
-          `检索层级：${scope.name}`,
-          '当前选区未形成候选，启用扩区证据兜底召回',
-          ...(hit.reasons || []),
-        ]).slice(0, 12),
-      }));
-    const fallbackGroupHits = domGroupCoverageHits(project, evidence, textCache, scope.files, {
-      fileFilter: isUiOrStyleSourceFile,
-    }).map(hit => ({
-      ...hit,
-      score: Math.round((hit.score || 0) * 0.82),
-      reasons: uniq([
-        `检索层级：${scope.name}`,
-        '当前选区未形成候选，启用扩区证据兜底召回',
-        ...(hit.reasons || []),
-      ]).slice(0, 12),
-    }));
-    const fallbackMergedHits = validateExpandedHypothesisHits(project, mergeHits([
-      ...fallbackHits,
-      ...fallbackGroupHits,
-      ...fallbackDefinitionUsageHits,
-    ]), evidence, textCache, {
-      initialHits: baseLocalStructuredHits,
-      routeEntry,
-      graph,
-    }).sort((a, b) => b.score - a.score);
-    const meaningfulFallbackHits = fallbackMergedHits.filter(hit => !isOnlyRouteHitWithoutLocalEvidence(hit));
     last = {
-      hits: fallbackMergedHits,
+      hits: mergedScopeHits,
       activeScope: scope,
       layer: scope.name.replace(/：.*$/, ''),
       graph,
     };
-    if (meaningfulFallbackHits.length && stableLocalHits(fallbackMergedHits)) return last;
-    if (meaningfulFallbackHits.length && exactTextIsUniqueEnough(fallbackMergedHits)) return last;
   }
   return last;
 }
@@ -2654,14 +2550,6 @@ function searchProjectWithMeta(project, body) {
   const apiHits = traceApiReferences(project, body, evidence, textCache);
   const apiTrace = apiHits.apiTrace || null;
 
-  const routeDisplayHits = routeHits.slice(0, 1).map(hit => ({
-    ...hit,
-    score: Math.min(hit.score || 120, 120),
-    reasons: uniq([
-      ...(hit.reasons || []),
-      '路由只作为入口基础分；最终优先看本文件局部证据',
-    ]).slice(0, 12),
-  }));
   const exactRuntimeFiles = new Set(runtimeHits
     .filter(hit => hit.sourceConfidence === 'exact')
     .map(hit => hit.file));
@@ -2670,7 +2558,6 @@ function searchProjectWithMeta(project, body) {
     : sortedKeywordHits;
   const hits = mergeHits([
     ...runtimeHits,
-    ...routeDisplayHits,
     ...keywordHitsForMerge,
     ...i18nHits,
     ...definitionHits,

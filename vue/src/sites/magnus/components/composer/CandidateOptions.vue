@@ -22,7 +22,7 @@
     </div>
   </div>
 
-  <div v-if="changePlan && (changePlan.summary || (changePlan.targets || []).length)" class="mda-composer-options mda-plan">
+  <div v-if="hasChangePlanContent" class="mda-composer-options mda-plan">
     <div class="mda-option-title">修改计划</div>
     <div class="mda-plan-body">
     <div v-if="changePlan.summary" class="mda-plan-summary">{{ changePlan.summary }}</div>
@@ -44,11 +44,23 @@
         <span class="mda-composite-anchor">{{ item.reason }}</span>
       </div>
     </div>
-    <div v-for="section in planSections" :key="section.key" class="mda-plan-block">
+    <div v-for="section in plainPlanSections" :key="section.key" class="mda-plan-block">
       <template v-if="(changePlan[section.key] || []).length">
         <div class="mda-plan-block-title">{{ section.label }}</div>
         <div v-for="(line, index) in changePlan[section.key]" :key="`${section.key}-${index}`" class="mda-plan-line">· {{ line }}</div>
       </template>
+    </div>
+    <div v-if="openQuestions.length" class="mda-plan-block">
+      <div class="mda-plan-block-title">待确认</div>
+      <label
+        v-for="(line, index) in openQuestions"
+        :key="`open-${index}-${line}`"
+        class="mda-plan-check"
+        :class="{ 'is-checked': isQuestionChecked(line) }"
+      >
+        <input type="checkbox" :checked="isQuestionChecked(line)" @change="toggleQuestion(line)">
+        <span>{{ line }}</span>
+      </label>
     </div>
     </div>
   </div>
@@ -106,12 +118,26 @@ const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
 const candidateHits = computed(() => searchStore.candidates);
 const composite = computed(() => searchStore.composite);
 const changePlan = computed(() => searchStore.changePlan);
-const planSections = [
+const checkedQuestions = ref([]);
+const hasChangePlanContent = computed(() => {
+  const plan = changePlan.value;
+  if (!plan) return false;
+  return !!(
+    plan.summary
+    || (plan.targets || []).length
+    || (plan.affected || []).length
+    || (plan.reusePatterns || []).length
+    || (plan.risks || []).length
+    || (plan.verification || []).length
+    || (plan.openQuestions || []).length
+  );
+});
+const plainPlanSections = [
   { key: 'reusePatterns', label: '可复用模式' },
   { key: 'risks', label: '风险' },
-  { key: 'verification', label: '验证' },
-  { key: 'openQuestions', label: '待确认' }
+  { key: 'verification', label: '验证' }
 ];
+const openQuestions = computed(() => Array.isArray(changePlan.value?.openQuestions) ? changePlan.value.openQuestions : []);
 const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
 const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
 const modelAssistLoading = computed(() => modelStore.status === 'running');
@@ -121,7 +147,24 @@ watch(modelAssistLoading, value => {
   if (value) collapsed.value = true;
 });
 
+watch(openQuestions, questions => {
+  const allowed = new Set(questions);
+  checkedQuestions.value = checkedQuestions.value.filter(item => allowed.has(item));
+}, { immediate: true });
+
 function isCandidateSelected(hit) {
   return !!hit && selectedCandidatePaths.value.includes(hit.file);
+}
+
+function isQuestionChecked(line) {
+  return checkedQuestions.value.includes(line);
+}
+
+function toggleQuestion(line) {
+  if (isQuestionChecked(line)) {
+    checkedQuestions.value = checkedQuestions.value.filter(item => item !== line);
+    return;
+  }
+  checkedQuestions.value = [...checkedQuestions.value, line];
 }
 </script>

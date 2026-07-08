@@ -168,6 +168,7 @@ export function useModelAdapters() {
   const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
   const {
     candidates: candidateHits,
+    changePlan,
     selectedCandidatePaths,
     apiTrace,
     i18nTrace,
@@ -306,6 +307,8 @@ export function useModelAdapters() {
 
   function mergeModelTargets(result) {
     const targets = (result?.modelItems || result?.targetFiles || []).filter(item => item.exists);
+    const nextChangePlan = result?.changePlan || targets.find(item => item.changePlan)?.changePlan || null;
+    if (nextChangePlan) changePlan.value = nextChangePlan;
     if (!targets.length) return;
 
     const oldHits = candidateHits.value.slice();

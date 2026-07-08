@@ -3491,6 +3491,18 @@ async function runAgentSearch(project, body, options = {}) {
   const invokeModel = options.runModelTask || runModelTask;
   const trigger = domAgentTrigger(body, { ...options, project });
   onLog(`DOM Agent 触发判断：${trigger.enabled ? '启用' : '跳过'}；${trigger.reason || 'ComponentChain 可用且选区未超长'}`);
+  const localPreflight = localPreflightConvergence(project, body, onLog);
+  if (localPreflight) {
+    onLog(`DOM Agent 前置本地收敛：命中文件 ${localPreflight.agent.directFiles.join('、')}；跳过 Planner/Judge`);
+    return {
+      ...localPreflight,
+      agent: {
+        ...localPreflight.agent,
+        trigger,
+      },
+    };
+  }
+
   if (!trigger.enabled) {
     onLog('本地调用：searchProjectWithMeta(body)');
     const result = searchProjectWithMeta(project, body);
@@ -3527,12 +3539,6 @@ async function runAgentSearch(project, body, options = {}) {
         componentFiles: chainProjectFiles,
       },
     };
-  }
-
-  const localPreflight = localPreflightConvergence(project, body, onLog);
-  if (localPreflight) {
-    onLog(`DOM Agent 前置本地收敛：命中文件 ${localPreflight.agent.directFiles.join('、')}；跳过 Planner/Judge`);
-    return localPreflight;
   }
 
   if (!body.adapter) throw new Error('DOM Agent 需要已配置的定位模型。');
