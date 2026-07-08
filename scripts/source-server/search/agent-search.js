@@ -615,6 +615,40 @@ function collectDirectTextStructures(node, result = []) {
   return result;
 }
 
+function vueScopeAttrs(attrs) {
+  return Object.keys(attrs || {}).filter(key => /^data-v-[\w-]+$/i.test(key)).sort();
+}
+
+function collectScopedDirectTextStructures(node, inheritedScopes = [], result = []) {
+  if (!node || node.type !== 'element') return result;
+  const ownScopes = vueScopeAttrs(node.attrs);
+  const activeScopes = ownScopes.length ? ownScopes : inheritedScopes;
+  const text = directText(node);
+  if (text && node.tag !== 'root') {
+    result.push({
+      text,
+      tag: String(node.tag || '').toLowerCase(),
+      classes: classTokens(node.attrs),
+      scopes: activeScopes,
+      scope: activeScopes[activeScopes.length - 1] || '',
+    });
+  }
+  for (const child of node.children || []) {
+    if (child.type === 'element') collectScopedDirectTextStructures(child, activeScopes, result);
+  }
+  return result;
+}
+
+function domScopedTextStructures(body) {
+  const structures = [];
+  for (const selection of selectionList(body)) {
+    for (const markup of selectionContextMarkupValues(selection)) {
+      collectScopedDirectTextStructures(parseHtmlLite(markup), [], structures);
+    }
+  }
+  return uniq(structures.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+}
+
 function domDirectTextStructures(body) {
   const structures = [];
   for (const selection of selectionList(body)) {
@@ -623,6 +657,82 @@ function domDirectTextStructures(body) {
     }
   }
   return uniq(structures.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
+}
+
+function splitRenderSearchesByDomScopes(plan, body) {
+  const scopedTexts = domScopedTextStructures(body);
+  if (!scopedTexts.some(item => item.scope)) return { ...plan, splitCount: 0 };
+  let splitCount = 0;
+  const searches = [];
+  for (const search of plan.searches || []) {
+    const isStrictRender = searchLayer(search) === 'render'
+      && search.mode === 'all'
+      && search.range === 'same-structure'
+      && (search.keywords || []).length >= 3;
+    if (!isStrictRender) {
+      searches.push(search);
+      continue;
+    }
+    const byScope = new Map();
+    const unscoped = [];
+    for (const keyword of search.keywords || []) {
+      const matches = scopedTexts.filter(item => String(item.text || '').includes(keyword));
+      const scoped = matches.find(item => item.scope) || null;
+      if (!scoped) {
+        unscoped.push(keyword);
+        continue;
+      }
+      const old = byScope.get(scoped.scope) || {
+        scope: scoped.scope,
+        scopes: scoped.scopes || [],
+        keywords: [],
+      };
+      old.keywords.push(keyword);
+      byScope.set(scoped.scope, old);
+    }
+    const groups = Array.from(byScope.values()).filter(group => group.keywords.length);
+    if (groups.length <= 1) {
+      searches.push(search);
+      continue;
+    }
+    splitCount += 1;
+    groups.forEach((group, index) => {
+      const keywords = uniq(index === 0 ? [...group.keywords, ...unscoped] : group.keywords);
+      if (!keywords.length) return;
+      const layer = index === 0 ? 'render' : 'child';
+      searches.push({
+        ...search,
+        keywords,
+        priority: Number(search.priority || 1) + index,
+        layer,
+        ...(layer === 'child' ? { childAnchor: true } : {}),
+        reason: `${search.reason || '同一渲染块内共现的判别性锚点'}；按 DOM scoped 渲染块拆分(${group.scope})`,
+        evidenceKinds: Object.fromEntries(keywords.map(keyword => [
+          keyword,
+          search.evidenceKinds?.[keyword] || 'text',
+        ])),
+        ...(search.keywordTypes
+          ? {
+              keywordTypes: Object.fromEntries(keywords
+                .filter(keyword => search.keywordTypes[keyword])
+                .map(keyword => [keyword, search.keywordTypes[keyword]])),
+            }
+          : {}),
+        ...(search.domTextStructures
+          ? {
+              domTextStructures: Object.fromEntries(keywords
+                .filter(keyword => search.domTextStructures[keyword])
+                .map(keyword => [keyword, search.domTextStructures[keyword]])),
+            }
+          : {}),
+      });
+    });
+  }
+  return {
+    ...plan,
+    searches,
+    splitCount,
+  };
 }
 
 function domStyleTokenSet(body) {
@@ -2829,8 +2939,16 @@ function buildComposite(inspection, ownership, selectedFile) {
   const assembly = owners.length
     ? { file: owners[0].file, via: 'import', chain: owners[0].chain || [] }
     : null;
+  const childHasRenderRelation = item => {
+    const relatedOwners = (ownership || []).filter(owner => owner.candidateFile === item.file);
+    if (!relatedOwners.length) return true;
+    return relatedOwners.some(owner => {
+      const chain = owner.chain || [];
+      return chain.includes(renderFile) || (assembly?.file && chain.includes(assembly.file));
+    });
+  };
   const children = candidates
-    .filter(item => item.childComponentCandidate && item.file !== renderFile)
+    .filter(item => item.childComponentCandidate && item.file !== renderFile && childHasRenderRelation(item))
     .map(item => ({
       file: item.file,
       anchor: (item.matchedGroups || []).flatMap(group => group.keywords || [])[0] || '',
@@ -3425,6 +3543,10 @@ function selectionMarkupTotalLength(body) {
 }
 
 function localPreflightConvergence(project, body, onLog) {
+  if (body?.agentState?.expansionRetry) {
+    onLog('DOM Agent 前置本地检索跳过：自动扩区轮次必须继续进入 Planner/Judge 校验');
+    return null;
+  }
   if (selectionMarkupTotalLength(body) > DEFAULT_DOM_AGENT_THRESHOLD) {
     return null;
   }
@@ -3590,6 +3712,11 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent Planner 计划过滤：丢弃未在 DOM/路由证据中出现的词 ${filteredPlan.removed.join('、')}`);
   }
   plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
+  const scopedSplitPlan = splitRenderSearchesByDomScopes(plan, body);
+  if (scopedSplitPlan.splitCount) {
+    onLog(`DOM Agent scoped 渲染块拆分：${scopedSplitPlan.splitCount} 个 render 组被拆分为父组件/子组件检索组`);
+    plan = scopedSplitPlan;
+  }
   onLog(`DOM Agent 检索词定性：${JSON.stringify(planEvidenceKinds(plan), null, 2)}`);
   let executionPlan = plan;
   let fallbackPlan = null;

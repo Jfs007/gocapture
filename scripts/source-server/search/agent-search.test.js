@@ -2314,6 +2314,105 @@ test('same-structure uses the best local window instead of the first keyword occ
   assert.deepEqual(candidates[0].matchedGroups[0].keywords, plan.searches[0].keywords);
 });
 
+test('scoped DOM blocks split mixed parent and child render anchors before source comparison', async () => {
+  const project = fixtureProject({
+    'src/views/put/@module/new/_default.vue': [
+      '<template>',
+      '<el-form class="note-new put-component-note-new">',
+      '<div class="clearfix">',
+      '<div style="display: flex; align-items: center">',
+      '<el-form-item label="作品链接:" prop="url"></el-form-item>',
+      '<el-form-item label="投放类型:" prop="price_type"></el-form-item>',
+      '</div>',
+      '<pay-items v-model="formData" :platform="platform"></pay-items>',
+      '</div>',
+      '</el-form>',
+      '</template>',
+      '<script>import payItems from "./component/pay.vue"; export default { components: { payItems } }</script>',
+    ].join('\n'),
+    'src/views/put/@module/new/component/pay.vue': [
+      '<template><div>',
+      '<el-form-item label="报价(不含税):" prop="offer"></el-form-item>',
+      '<el-form-item label="应付金额(含税)" prop="money"></el-form-item>',
+      '<el-form-item label="返点金额:" prop="rebate"></el-form-item>',
+      '<el-form-item label="实际返点(不含税):" prop="rebate_actual"></el-form-item>',
+      '<el-button type="text">上传附件</el-button>',
+      '</div></template>',
+    ].join('\n'),
+    'src/views/put/note/component/price-change.vue': [
+      '<template><el-form>',
+      '<el-form-item label="投放类型:"></el-form-item>',
+      '<el-form-item label="应付金额(含税)"></el-form-item>',
+      '<el-form-item label="返点金额:"></el-form-item>',
+      '<el-form-item label="实际返点(不含税):"></el-form-item>',
+      '</el-form></template>',
+    ].join('\n'),
+    'src/views/project/my/detail/component/adjusting-list.vue': [
+      '<script>import PriceChange from "../../../../put/note/component/price-change.vue"; export default { components: { PriceChange } }</script>',
+    ].join('\n'),
+  });
+  const plannerOutput = JSON.stringify({
+    status: 'ready',
+    renderAnchors: [
+      { value: '作品链接:', kind: 'text' },
+      { value: '投放类型:', kind: 'text' },
+      { value: '报价(不含税):', kind: 'text' },
+      { value: '应付金额(含税)', kind: 'text' },
+      { value: '返点金额:', kind: 'text' },
+      { value: '实际返点(不含税):', kind: 'text' },
+    ],
+    scopeAnchors: [
+      { value: 'note-new', kind: 'class' },
+      { value: 'put-component-note-new', kind: 'class' },
+    ],
+    childComponentAnchors: [
+      { value: '上传附件', kind: 'text' },
+    ],
+    reason: '模拟模型把父组件与子组件字段混在一个 render 组里',
+  });
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/put/new',
+    userPrompt: '@选区1 增加字段',
+    selections: [{
+      element: {
+        rawOuterHtml: [
+          '<div data-v-parent class="clearfix">',
+          '<div data-v-parent style="display:flex;align-items:center">',
+          '<label data-v-parent class="el-form-item__label">作品链接:</label>',
+          '<label data-v-parent class="el-form-item__label">投放类型:</label>',
+          '</div>',
+          '<div data-v-child data-v-parent>',
+          '<div data-v-child style="display:flex;align-items:center">',
+          '<label data-v-child class="el-form-item__label">报价(不含税):</label>',
+          '<label data-v-child class="el-form-item__label">应付金额(含税)</label>',
+          '</div>',
+          '<div data-v-child style="display:flex;align-items:center">',
+          '<label data-v-child class="el-form-item__label">返点金额:</label>',
+          '<label data-v-child class="el-form-item__label">实际返点(不含税):</label>',
+          '</div>',
+          '<button data-v-child><span>上传附件</span></button>',
+          '</div>',
+          '</div>',
+        ].join(''),
+      },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: plannerOutput,
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0]?.file, 'src/views/put/@module/new/_default.vue');
+  assert.equal(result.composite?.render?.file, 'src/views/put/@module/new/_default.vue');
+  assert.deepEqual(result.composite?.children?.map(item => item.file), [
+    'src/views/put/@module/new/component/pay.vue',
+  ]);
+  assert.ok(!result.hits.some(hit => hit.file === 'src/views/put/note/component/price-change.vue'));
+});
+
 test('buildComposite assembles render + assembly(owner) + child components', () => {
   const project = fixtureProject({
     'src/parent.vue': "<script>import Subtask from './subtask.vue'</script>",
