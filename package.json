@@ -5,6 +5,19 @@
   "bin": {
     "magnus": "bin/magnus.js"
   },
+  "files": [
+    "bin",
+    "scripts/source-server.js",
+    "scripts/source-server",
+    "package",
+    "README.md",
+    "!**/*.test.js",
+    "!**/__dev__",
+    "!**/*.log"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "app:build": "node scripts/app-build.js",
     "app:dev": "node scripts/app-build.js --watch",
@@ -29,9 +42,7 @@
     "archiver": "^7.0.1",
     "chokidar": "^3.6.0",
     "vitepress": "^1.6.4",
-    "vue-tsc": "^2.0.0"
-  },
-  "dependencies": {
+    "vue-tsc": "^2.0.0",
     "axios": "^1.13.2",
     "pinia": "^3.0.4"
   }
