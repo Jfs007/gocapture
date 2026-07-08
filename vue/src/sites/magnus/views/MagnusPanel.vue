@@ -22,6 +22,27 @@
         </button>
       </header>
 
+      <div v-if="serviceOnline === false" class="mda-service-down" role="alert">
+        <span class="mda-service-down-icon">⚠</span>
+        <div class="mda-service-down-main">
+          <div class="mda-service-down-title">本地服务未运行</div>
+          <div class="mda-service-down-hint">请在终端运行 <code>magnus start</code> 启动本地服务后重试</div>
+        </div>
+        <button class="mda-service-down-retry" type="button" :disabled="retryChecking" @click="retryHealth">
+          {{ retryChecking ? '检查中…' : '重试' }}
+        </button>
+      </div>
+
+      <div v-else-if="updateInfo?.updateAvailable" class="mda-update-bar" role="status">
+        <span class="mda-update-icon">⬆</span>
+        <div class="mda-update-main">
+          <div class="mda-update-title">{{ updateApplying ? '更新中…' : `发现新版本 v${updateInfo.latest}` }}</div>
+          <div class="mda-update-hint">{{ updateApplying ? updateMessage : `当前 v${updateInfo.current}，可一键更新（服务会自动重启）` }}</div>
+        </div>
+        <button v-if="!updateApplying" class="mda-update-btn" type="button" @click="applyUpdate">更新</button>
+        <span v-else class="mda-update-spinner" aria-hidden="true" />
+      </div>
+
       <div class="mda-body mda-chat-body">
         <input
           ref="fileInputRef"
@@ -52,8 +73,12 @@
 import ChatThread from '../components/chat/ChatThread.vue';
 import ComposerPanel from '../components/composer/ComposerPanel.vue';
 import MemorySettingsPanel from '../components/settings/MemorySettingsPanel.vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { createMagnusRuntime } from '../app/runtime/create-runtime';
+import { useServiceHealth } from '../app/services/use-service-health';
+import { useUpdateCheck } from '../app/services/use-update-check';
+import { useAppUiStore } from '../stores/app-ui.store';
 import { useMemoryStore } from '../stores/memory.store';
 import { useProjectStore } from '../stores/project.store';
 import magnusLogo from '../resources/logo.jpg';
@@ -63,6 +88,20 @@ const props = defineProps<{
 }>();
 const memory = useMemoryStore();
 const projectStore = useProjectStore();
+const appUiStore = useAppUiStore();
+const { serviceOnline } = storeToRefs(appUiStore);
+const { probe: probeHealth } = useServiceHealth();
+const retryChecking = ref(false);
+async function retryHealth() {
+  retryChecking.value = true;
+  try {
+    await probeHealth();
+  } finally {
+    retryChecking.value = false;
+  }
+}
+
+const { info: updateInfo, applying: updateApplying, applyMessage: updateMessage, apply: applyUpdate } = useUpdateCheck();
 const projectChecking = computed(() => {
   return !!projectStore.current && projectStore.serviceStatus === 'loading';
 });

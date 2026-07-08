@@ -1,7 +1,10 @@
 {
-  "name": "chrome-extension-scaffold",
+  "name": "@you/magnus",
   "version": "1.0.0",
-  "description": "A Chrome extension scaffold for injecting scripts and bridging web pages with extension APIs.",
+  "description": "Magnus —— 本地源码定位 + 修改计划服务与 Chrome 扩展（占位包名，发布前请改成你的真实 npm 包名，或设 MAGNUS_UPDATE_PACKAGE）。",
+  "bin": {
+    "magnus": "bin/magnus.js"
+  },
   "scripts": {
     "app:build": "node scripts/app-build.js",
     "app:dev": "node scripts/app-build.js --watch",

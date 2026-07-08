@@ -1,4 +1,8 @@
-export const SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
+// 前端由本地服务的 /ui 页面加载，服务已把自己的地址注入 window.__MAGNUS_SIDE_PANEL__.sourceServerUrl。
+// 优先用它「调用加载自己的那个服务」——端口/host 无关，便于打成可安装包后在任意端口运行；否则回退默认端口。
+export const SOURCE_SERVER_URL =
+  (typeof window !== 'undefined' && (window as any).__MAGNUS_SIDE_PANEL__?.sourceServerUrl)
+  || 'http://127.0.0.1:17321';
 export const MAGNUS_INTERNAL_REQUEST_HEADER = 'X-Magnus-Internal';
 export const MAGNUS_INTERNAL_REQUEST_VALUE = 'source-server';
 
@@ -127,6 +131,16 @@ export async function sourceServerNdjson(pathname: string, options: SourceServer
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
+  }
+}
+
+// 轻量探活：本地服务是否在跑（供前端「服务未启动」提示用）。不抛错，只回布尔。
+export async function pingSourceServer(timeoutMs = 2500): Promise<boolean> {
+  try {
+    await sourceServerJson('/health', { timeoutMs, timeoutMessage: 'health timeout' });
+    return true;
+  } catch (error) {
+    return false;
   }
 }
 

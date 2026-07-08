@@ -27,6 +27,7 @@ const {
   runSelectionContextEnhancement,
 } = require('./model/model-adapters');
 const { handleUiRequest } = require('./ui/serve-ui');
+const updateService = require('./update/update-service');
 
 const ACCESS_CONTROL_ALLOW_HEADERS = 'content-type,x-magnus-internal';
 
@@ -187,6 +188,23 @@ function createSourceServer() {
           version: VERSION,
           currentProject: currentProjectSummary(currentProject),
         });
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/version') {
+        sendJson(res, 200, { success: true, ...updateService.packageInfo() });
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/update/check') {
+        const result = await updateService.checkForUpdate();
+        sendJson(res, 200, { success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/update/apply') {
+        const result = updateService.applyUpdate(message => console.log(`[update] ${message}`));
+        sendJson(res, result.started ? 200 : 400, { success: result.started, ...result });
         return;
       }
 
