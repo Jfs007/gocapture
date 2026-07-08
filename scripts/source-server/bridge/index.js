@@ -27,6 +27,14 @@ function createBridge() {
     }
   }
 
+  function attachPanelToSession(client, pageSessionId) {
+    if (!client || client.kind !== 'sideiframe' || !pageSessionId) return;
+    if (!panelClientsBySessionId.has(pageSessionId)) {
+      panelClientsBySessionId.set(pageSessionId, new Set());
+    }
+    panelClientsBySessionId.get(pageSessionId).add(client);
+  }
+
   function bindPanel(input) {
     const snapshot = sessions.createPendingForTab({
       browserTabId: input.tabId ?? input.browserTabId,
@@ -77,6 +85,21 @@ function createBridge() {
     publish(pageSessionId, message.event);
   }
 
+  function handleRuntimeCommandResult(client, message) {
+    const pageSessionId = message.pageSessionId || client.pageSessionId;
+    const panels = panelClientsBySessionId.get(pageSessionId);
+    if (!panels) return;
+    for (const panel of panels) {
+      send(panel.socket, {
+        type: 'session.command_result',
+        pageSessionId,
+        requestId: message.requestId || '',
+        ok: !!message.ok,
+        payload: message.payload || null,
+      });
+    }
+  }
+
   function handlePanelConnect(client, message) {
     const ticket = tickets.consumeTicket(message.panelTicket);
     const pageSessionId = ticket.pageSessionId;
@@ -99,23 +122,50 @@ function createBridge() {
   }
 
   function handleSessionCommand(client, message) {
-    const pageSessionId = message.pageSessionId || client.pageSessionId;
-    const runtimeId = runtimeIdBySessionId.get(pageSessionId);
-    const runtimeClient = runtimeId ? runtimeClients.get(runtimeId) : null;
+    let pageSessionId = '';
+    let snapshot = null;
+    let runtimeId = '';
+    let runtimeClient = null;
+
+    const pageBindingId = message.pageBindingId || message.workspaceId || '';
+    if (pageBindingId) {
+      const workspaceSnapshot = sessions.getByWorkspaceId(pageBindingId);
+      if (workspaceSnapshot?.pageSessionId) {
+        pageSessionId = workspaceSnapshot.pageSessionId;
+        snapshot = workspaceSnapshot;
+        runtimeId = runtimeIdBySessionId.get(pageSessionId) || workspaceSnapshot.runtimeId || '';
+        runtimeClient = runtimeId ? runtimeClients.get(runtimeId) : null;
+      }
+    }
+
+    if (!runtimeClient) {
+      pageSessionId = message.pageSessionId || client.pageSessionId;
+      snapshot = pageSessionId ? sessions.getById(pageSessionId) : null;
+      runtimeId = pageSessionId ? runtimeIdBySessionId.get(pageSessionId) : '';
+      runtimeClient = runtimeId ? runtimeClients.get(runtimeId) : null;
+    }
+
     if (!runtimeClient) {
       send(client.socket, {
         type: 'session.command_result',
         pageSessionId,
         requestId: message.requestId,
         ok: false,
-        error: 'Page runtime disconnected.',
+        error: snapshot?.status === 'disconnected'
+          ? 'Page runtime disconnected.'
+          : 'Page runtime not found for session.',
       });
       return;
+    }
+    if (String(message.command?.type || '').startsWith('selection.')) {
+      attachPanelToSession(client, pageSessionId);
     }
     send(runtimeClient.socket, {
       type: `page.command.${message.command?.type || 'unknown'}`,
       requestId: message.requestId,
       pageSessionId,
+      pageBindingId,
+      targetRuntimeId: runtimeId,
       command: message.command,
     });
   }
@@ -134,6 +184,8 @@ function createBridge() {
         handleRuntimeRegister(client, message);
       } else if (message.type === 'runtime.event') {
         handleRuntimeEvent(client, message);
+      } else if (message.type === 'runtime.command_result') {
+        handleRuntimeCommandResult(client, message);
       } else if (message.type === 'sideiframe.connect') {
         handlePanelConnect(client, message);
       } else if (message.type === 'session.command') {
@@ -158,8 +210,9 @@ function createBridge() {
       }
     }
     if (client.kind === 'sideiframe' && client.pageSessionId) {
-      const clients = panelClientsBySessionId.get(client.pageSessionId);
-      if (clients) clients.delete(client);
+      for (const clients of panelClientsBySessionId.values()) {
+        clients.delete(client);
+      }
     }
   }
 

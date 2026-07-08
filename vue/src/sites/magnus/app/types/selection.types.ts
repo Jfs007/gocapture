@@ -43,6 +43,7 @@ export interface SelectionSourceBinding {
 
 export interface SelectionAsset {
   uid: SelectionId;
+  pageBindingId?: string;
   element: ElementInfo;
   asset?: ElementInfo | null;
   sourceLocate?: unknown;
@@ -53,6 +54,7 @@ export interface SelectionAsset {
 
 export interface RuntimeSelectionPayload {
   uid?: string;
+  pageBindingId?: string;
   element?: ElementInfo;
   info?: ElementInfo;
   asset?: ElementInfo;

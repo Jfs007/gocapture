@@ -7831,6 +7831,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       const uid2 = (raw == null ? void 0 : raw.uid) || element.uid || `remote-selection-${Date.now()}-${index}`;
       return {
         uid: uid2,
+        pageBindingId: (raw == null ? void 0 : raw.pageBindingId) || (raw == null ? void 0 : raw.workspaceId) || (previous == null ? void 0 : previous.pageBindingId) || "",
         element,
         asset: (raw == null ? void 0 : raw.asset) || element,
         sourceLocate: (raw == null ? void 0 : raw.sourceLocate) || (raw == null ? void 0 : raw.sourceEvidence) || element.sourceLocate || null,
@@ -9980,7 +9981,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260707.195655.387";
+      const buildVersion = "20260707.235056.379";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -11581,6 +11582,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     currentPageHref,
     onNetworkRequest,
     onRuntimeEvent,
+    onCommandResult,
     scheduleRouteResolve
   }) {
     const appUiStore = useAppUiStore();
@@ -11659,6 +11661,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             sendSidePanelCommand("picker.start");
           } else if (message.type === "session.event") {
             applyRemoteSessionEvent(message);
+          } else if (message.type === "session.command_result") {
+            onCommandResult == null ? void 0 : onCommandResult(message);
           }
         });
         nextSocket.addEventListener("close", () => {
@@ -11704,15 +11708,17 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       window.removeEventListener("keydown", handleKeyboardRelay, true);
       window.removeEventListener("pointermove", disableKeyboardRelay, true);
     }
-    function sendSidePanelCommand(type, payload) {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !pageSessionId) {
+    function sendSidePanelCommand(type, payload, options = {}) {
+      const targetPageSessionId = options.pageBindingId ? "" : pageSessionId;
+      if (!socket || socket.readyState !== WebSocket.OPEN || !targetPageSessionId && !options.pageBindingId) {
         appUiStore.setToast("页面 Runtime 未连接");
         return;
       }
       socket.send(JSON.stringify({
         type: "session.command",
         requestId: `cmd-${Date.now()}`,
-        pageSessionId,
+        pageSessionId: targetPageSessionId,
+        pageBindingId: options.pageBindingId || "",
         command: {
           type,
           payload: payload || {}
@@ -12075,6 +12081,13 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const CURRENT_KEY = "magnus:sidepanel-ui:current";
   const PAGE_KEY_PREFIX = "magnus:sidepanel-ui:page:";
   const MAX_SELECTIONS = 12;
+  function hasSourceBinding(selection) {
+    const binding = selection == null ? void 0 : selection.sourceBinding;
+    return Array.isArray(binding == null ? void 0 : binding.targets) && binding.targets.length > 0;
+  }
+  function sourceBoundSelections(selections) {
+    return selections.filter(hasSourceBinding);
+  }
   function storageKey(href) {
     const value = String(href || "").trim();
     return value ? `${PAGE_KEY_PREFIX}${value}` : CURRENT_KEY;
@@ -12109,8 +12122,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     if (!composerStore.finalPrompt && state.finalPrompt) {
       composerStore.setFinalPrompt(state.finalPrompt);
     }
-    if (!selectionStore.items.length && Array.isArray(state.selections) && state.selections.length) {
-      selectionStore.replaceSelections(state.selections);
+    const selections = Array.isArray(state.selections) ? sourceBoundSelections(state.selections) : [];
+    if (!selectionStore.items.length && selections.length) {
+      selectionStore.replaceSelections(selections);
     }
   }
   function currentState() {
@@ -12119,7 +12133,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     return {
       content: composerStore.content,
       finalPrompt: composerStore.finalPrompt,
-      selections: selectionStore.items.slice(0, MAX_SELECTIONS)
+      selections: sourceBoundSelections(selectionStore.items).slice(0, MAX_SELECTIONS)
     };
   }
   function useSidePanelUiPersistence(currentPageHref) {
@@ -12288,13 +12302,20 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     return function expandSelection(uid2) {
       return __async(this, null, function* () {
         if (!uid2) return;
-        deps.bridge.sendCommand("selection.expand", { uid: uid2 });
+        const selection = deps.selectionStore.items.find((item) => item.uid === uid2);
+        deps.bridge.sendCommand("selection.expand", { uid: uid2 }, {
+          pageBindingId: (selection == null ? void 0 : selection.pageBindingId) || ""
+        });
       });
     };
   }
   function createPreviewSelectionUseCase(deps) {
     function previewSelection(asset) {
-      deps.bridge.sendCommand("selection.highlight", { uid: (asset == null ? void 0 : asset.uid) || "" });
+      const uid2 = (asset == null ? void 0 : asset.uid) || "";
+      const selection = deps.selectionStore.items.find((item) => item.uid === uid2);
+      deps.bridge.sendCommand("selection.highlight", { uid: uid2 }, {
+        pageBindingId: (selection == null ? void 0 : selection.pageBindingId) || ""
+      });
     }
     function restoreSelectionPreview() {
       deps.bridge.sendCommand("selection.highlight", { uid: "" });
@@ -12306,9 +12327,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     return function removeSelection(uid2) {
       return __async(this, null, function* () {
         if (!uid2) return;
-        const exists = deps.selectionStore.items.some((item) => item.uid === uid2);
-        if (!exists) return;
-        deps.bridge.sendCommand("selection.remove", { uid: uid2 });
+        const selection = deps.selectionStore.items.find((item) => item.uid === uid2);
+        if (!selection) return;
+        deps.bridge.sendCommand("selection.remove", { uid: uid2 }, {
+          pageBindingId: selection.pageBindingId || ""
+        });
         deps.selectionStore.removeSelection(uid2);
         deps.context.resetCandidateState();
         const mentionsSelection = deps.context.getComposerContent().includes("@选区");
@@ -13851,7 +13874,7 @@ ${result.rawText}` : ""
     let bridge = null;
     let model = null;
     const selection = setupSelectionRuntime({
-      sendCommand: (type, payload) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload)
+      sendCommand: (type, payload, options) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload, options)
     });
     const source = useSourceProject({ projectStorageKey });
     const route = useRouteResolver({
@@ -13865,6 +13888,26 @@ ${result.rawText}` : ""
       sidePanelConfig,
       currentPageHref,
       onRuntimeEvent: (_a = api.bootstrap) == null ? void 0 : _a.handleRuntimeEvent,
+      onCommandResult: (message2) => {
+        var _a2;
+        const payload = (message2 == null ? void 0 : message2.payload) || {};
+        if (!(payload == null ? void 0 : payload.reason) && !(payload == null ? void 0 : payload.uid)) return;
+        const status = (message2 == null ? void 0 : message2.ok) ? "成功" : "失败";
+        const detail = payload.reason ? `；原因=${payload.reason}` : "";
+        const target = payload.tag ? `；目标=${payload.tag}${payload.className ? `.${String(payload.className).replace(/\s+/g, ".")}` : ""}` : "";
+        const debug = [
+          payload.requestedPageBindingId ? `请求绑定=${payload.requestedPageBindingId}` : "",
+          payload.runtimePageBindingId ? `运行时绑定=${payload.runtimePageBindingId}` : "",
+          payload.commandPageSessionId ? `命令session=${payload.commandPageSessionId}` : "",
+          payload.runtimePageSessionId ? `运行时session=${payload.runtimePageSessionId}` : "",
+          payload.targetRuntimeId ? `目标runtime=${payload.targetRuntimeId}` : "",
+          payload.runtimeId ? `运行时runtime=${payload.runtimeId}` : "",
+          payload.pageUrl ? `页面=${payload.pageUrl}` : "",
+          typeof payload.selectionCount === "number" ? `运行时选区数=${payload.selectionCount}` : "",
+          Array.isArray(payload.knownSelectionIds) ? `运行时已知选区=${payload.knownSelectionIds.join(",") || "-"}` : ""
+        ].filter(Boolean).join("；");
+        (_a2 = search.appendProcessLog) == null ? void 0 : _a2.call(search, `页面命令回执：${status}${detail}${target}${debug ? `；${debug}` : ""}`);
+      },
       onNetworkRequest: (payload) => {
         requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
       },
@@ -14761,6 +14804,10 @@ ${result.rawText}` : ""
           case "page.route_changed": {
             const payload = event.payload;
             stores.routeStore.setPage((payload == null ? void 0 : payload.url) || "", stores.routeStore.pagePath);
+            const sourceBoundSelections2 = stores.selectionStore.items.filter((item) => item.sourceBinding);
+            if (sourceBoundSelections2.length !== stores.selectionStore.items.length) {
+              stores.selectionStore.replaceSelections(sourceBoundSelections2);
+            }
             break;
           }
           case "page.context": {

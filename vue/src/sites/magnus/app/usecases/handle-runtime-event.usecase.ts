@@ -22,6 +22,10 @@ export function createRuntimeEventHandler(stores: MagnusStores) {
       case 'page.route_changed': {
         const payload = event.payload as PageRouteChangedPayload;
         stores.routeStore.setPage(payload?.url || '', stores.routeStore.pagePath);
+        const sourceBoundSelections = stores.selectionStore.items.filter(item => item.sourceBinding);
+        if (sourceBoundSelections.length !== stores.selectionStore.items.length) {
+          stores.selectionStore.replaceSelections(sourceBoundSelections as any[]);
+        }
         break;
       }
       case 'page.context': {

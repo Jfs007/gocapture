@@ -29,7 +29,7 @@ export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusR
   let model: any = null;
 
   const selection: any = setupSelectionRuntime({
-    sendCommand: (type, payload) => bridge?.sendSidePanelCommand(type, payload)
+    sendCommand: (type, payload, options) => bridge?.sendSidePanelCommand(type, payload, options)
   });
 
   const source = useSourceProject({ projectStorageKey });
@@ -47,6 +47,29 @@ export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusR
     sidePanelConfig,
     currentPageHref,
     onRuntimeEvent: api.bootstrap?.handleRuntimeEvent,
+    onCommandResult: (message: any) => {
+      const payload = message?.payload || {};
+      if (!payload?.reason && !payload?.uid) return;
+      const status = message?.ok ? '成功' : '失败';
+      const detail = payload.reason
+        ? `；原因=${payload.reason}`
+        : '';
+      const target = payload.tag
+        ? `；目标=${payload.tag}${payload.className ? `.${String(payload.className).replace(/\s+/g, '.')}` : ''}`
+        : '';
+      const debug = [
+        payload.requestedPageBindingId ? `请求绑定=${payload.requestedPageBindingId}` : '',
+        payload.runtimePageBindingId ? `运行时绑定=${payload.runtimePageBindingId}` : '',
+        payload.commandPageSessionId ? `命令session=${payload.commandPageSessionId}` : '',
+        payload.runtimePageSessionId ? `运行时session=${payload.runtimePageSessionId}` : '',
+        payload.targetRuntimeId ? `目标runtime=${payload.targetRuntimeId}` : '',
+        payload.runtimeId ? `运行时runtime=${payload.runtimeId}` : '',
+        payload.pageUrl ? `页面=${payload.pageUrl}` : '',
+        typeof payload.selectionCount === 'number' ? `运行时选区数=${payload.selectionCount}` : '',
+        Array.isArray(payload.knownSelectionIds) ? `运行时已知选区=${payload.knownSelectionIds.join(',') || '-'}` : ''
+      ].filter(Boolean).join('；');
+      search.appendProcessLog?.(`页面命令回执：${status}${detail}${target}${debug ? `；${debug}` : ''}`);
+    },
     onNetworkRequest: (payload: unknown) => {
       requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
     },

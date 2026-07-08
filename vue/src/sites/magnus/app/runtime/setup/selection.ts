@@ -10,7 +10,7 @@ import type { SelectionCommandDeps } from '../../usecases/selection-command.deps
 import { createSelectionFacade } from '../../state/selection.facade';
 
 interface SelectionRuntimeOptions {
-  sendCommand: (type: string, payload?: unknown) => void;
+  sendCommand: (type: string, payload?: unknown, options?: { pageBindingId?: string }) => void;
 }
 
 export function setupSelectionRuntime(options: SelectionRuntimeOptions) {

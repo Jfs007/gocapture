@@ -5,10 +5,12 @@ export function createRemoveSelectionUseCase(deps: SelectionCommandDeps) {
   const appUiStore = useAppUiStore();
   return async function removeSelection(uid: string) {
     if (!uid) return;
-    const exists = deps.selectionStore.items.some(item => item.uid === uid);
-    if (!exists) return;
+    const selection = deps.selectionStore.items.find(item => item.uid === uid);
+    if (!selection) return;
 
-    deps.bridge.sendCommand('selection.remove', { uid });
+    deps.bridge.sendCommand('selection.remove', { uid }, {
+      pageBindingId: selection.pageBindingId || ''
+    });
     deps.selectionStore.removeSelection(uid);
     deps.context.resetCandidateState();
 

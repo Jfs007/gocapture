@@ -6,7 +6,12 @@ interface SidePanelBridgeOptions {
   currentPageHref: Ref<string>;
   onNetworkRequest?: (payload: any) => void;
   onRuntimeEvent?: (event: any) => void;
+  onCommandResult?: (event: any) => void;
   scheduleRouteResolve: () => void;
+}
+
+interface SidePanelCommandOptions {
+  pageBindingId?: string;
 }
 
 export function useSidePanelBridge({
@@ -14,6 +19,7 @@ export function useSidePanelBridge({
   currentPageHref,
   onNetworkRequest,
   onRuntimeEvent,
+  onCommandResult,
   scheduleRouteResolve
 }: SidePanelBridgeOptions) {
   const appUiStore = useAppUiStore();
@@ -96,6 +102,8 @@ export function useSidePanelBridge({
           sendSidePanelCommand('picker.start');
         } else if (message.type === 'session.event') {
           applyRemoteSessionEvent(message);
+        } else if (message.type === 'session.command_result') {
+          onCommandResult?.(message);
         }
       });
       nextSocket.addEventListener('close', () => {
@@ -152,15 +160,17 @@ export function useSidePanelBridge({
     window.removeEventListener('pointermove', disableKeyboardRelay, true);
   }
 
-  function sendSidePanelCommand(type: string, payload?: unknown) {
-    if (!socket || socket.readyState !== WebSocket.OPEN || !pageSessionId) {
+  function sendSidePanelCommand(type: string, payload?: unknown, options: SidePanelCommandOptions = {}) {
+    const targetPageSessionId = options.pageBindingId ? '' : pageSessionId;
+    if (!socket || socket.readyState !== WebSocket.OPEN || (!targetPageSessionId && !options.pageBindingId)) {
       appUiStore.setToast('页面 Runtime 未连接');
       return;
     }
     socket.send(JSON.stringify({
       type: 'session.command',
       requestId: `cmd-${Date.now()}`,
-      pageSessionId,
+      pageSessionId: targetPageSessionId,
+      pageBindingId: options.pageBindingId || '',
       command: {
         type,
         payload: payload || {}

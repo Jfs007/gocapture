@@ -13,6 +13,15 @@ interface PersistedUiState {
   savedAt?: number;
 }
 
+function hasSourceBinding(selection: unknown) {
+  const binding = (selection as any)?.sourceBinding;
+  return Array.isArray(binding?.targets) && binding.targets.length > 0;
+}
+
+function sourceBoundSelections(selections: unknown[]) {
+  return selections.filter(hasSourceBinding);
+}
+
 function storageKey(href: string) {
   const value = String(href || '').trim();
   return value ? `${PAGE_KEY_PREFIX}${value}` : CURRENT_KEY;
@@ -51,8 +60,9 @@ function restoreState(state: PersistedUiState | null) {
   if (!composerStore.finalPrompt && state.finalPrompt) {
     composerStore.setFinalPrompt(state.finalPrompt);
   }
-  if (!selectionStore.items.length && Array.isArray(state.selections) && state.selections.length) {
-    selectionStore.replaceSelections(state.selections as any[]);
+  const selections = Array.isArray(state.selections) ? sourceBoundSelections(state.selections) : [];
+  if (!selectionStore.items.length && selections.length) {
+    selectionStore.replaceSelections(selections as any[]);
   }
 }
 
@@ -62,7 +72,7 @@ function currentState(): PersistedUiState {
   return {
     content: composerStore.content,
     finalPrompt: composerStore.finalPrompt,
-    selections: selectionStore.items.slice(0, MAX_SELECTIONS)
+    selections: sourceBoundSelections(selectionStore.items).slice(0, MAX_SELECTIONS)
   };
 }
 

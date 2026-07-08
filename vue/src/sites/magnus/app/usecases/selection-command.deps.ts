@@ -12,7 +12,7 @@ export type SelectionStore = ReturnType<typeof useSelectionStore>;
  */
 export interface SelectionCommandDeps {
   bridge: {
-    sendCommand: (type: string, payload?: unknown) => void;
+    sendCommand: (type: string, payload?: unknown, options?: { pageBindingId?: string }) => void;
   };
   selectionStore: SelectionStore;
   context: {

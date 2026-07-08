@@ -1091,6 +1091,7 @@
       this.pendingMessages = [];
       this.selectionRefs = new Map();
       this.selections = [];
+      this.currentUrl = location.href;
       this.overlayParts = null;
       this.destroyed = false;
       this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -1168,6 +1169,18 @@
       });
     }
 
+    sendCommandResult(requestId, ok, payload = {}) {
+      if (!requestId) return;
+      this.send({
+        type: 'runtime.command_result',
+        runtimeId: this.runtimeId,
+        pageSessionId: this.pageSessionId,
+        requestId,
+        ok,
+        payload,
+      });
+    }
+
     handleMessage(event) {
       let message;
       try {
@@ -1187,7 +1200,13 @@
       } else if (message.type === 'page.command.selection.highlight') {
         this.highlightSelection(message.command?.payload || {});
       } else if (message.type === 'page.command.selection.expand') {
-        this.expandSelection(message.command?.payload || {});
+        const result = this.expandSelection(message.command?.payload || {});
+        this.sendCommandResult(message.requestId || '', !!result.ok, {
+          ...result,
+          requestedPageBindingId: message.pageBindingId || '',
+          commandPageSessionId: message.pageSessionId || '',
+          targetRuntimeId: message.targetRuntimeId || '',
+        });
       } else if (message.type === 'page.command.selection.remove') {
         this.removeSelectionByUid(message.command?.payload?.uid || '');
       } else if (message.type === 'page.command.selection.clear') {
@@ -1241,11 +1260,16 @@
     }
 
     handleRouteChange() {
+      const nextUrl = location.href;
+      if (nextUrl === this.currentUrl) return;
+      const previousUrl = this.currentUrl;
+      this.currentUrl = nextUrl;
       this.selectionRefs.clear();
       this.selections = [];
       this.hideOverlay();
       this.emit('page.route_changed', {
-        url: location.href,
+        url: nextUrl,
+        previousUrl,
         title: document.title,
       });
     }
@@ -1540,10 +1564,6 @@
       selection.sourceLocate = sourceLocate;
       selection.sourceEvidence = sourceLocate;
       info.sourceLocate = sourceLocate;
-      const assetElement = resolveSelectionAssetElement(element);
-      const assetInfo = getElementInfo(assetElement) || info;
-      selection.asset = assetInfo;
-      selection.assetInfo = assetInfo;
       return selection;
     }
 
@@ -1562,14 +1582,47 @@
 
     expandSelection(payload = {}) {
       const uid = payload.uid || payload.selectionUid || '';
+      const runtimeDebug = {
+        runtimePageBindingId: BOOT.workspaceId || this.pageSessionId || '',
+        runtimePageSessionId: this.pageSessionId || '',
+        runtimeId: this.runtimeId || '',
+        pageUrl: location.href,
+        selectionCount: this.selectionRefs.size,
+        knownSelectionIds: Array.from(this.selectionRefs.keys()).slice(0, 20),
+      };
+      if (!uid) return { ok: false, reason: 'missing-uid', ...runtimeDebug };
       const ref = this.getSelectionRef(uid);
-      if (!ref?.selection || !ref.el) return;
+      if (!ref?.selection || !ref.el) {
+        return {
+          ok: false,
+          reason: 'selection-ref-not-found',
+          uid,
+          ...runtimeDebug,
+        };
+      }
       const next = findNextSizedAncestor(ref.el, null) || ref.el;
+      if (next === ref.el) {
+        return {
+          ok: false,
+          reason: 'no-larger-ancestor',
+          uid,
+          tag: ref.el.tagName?.toLowerCase?.() || '',
+          className: getClassName(ref.el),
+          ...runtimeDebug,
+        };
+      }
       this.refreshSelectionFromElement(ref.selection, next);
       this.bindSelectionElement(ref.selection, next);
       this.showOverlay(next);
       this.emitSelectionChanged(ref.selection);
-      void this.updateSelectionThumbnail(ref.selection, next);
+      return {
+        ok: true,
+        uid,
+        tag: next.tagName?.toLowerCase?.() || '',
+        className: getClassName(next),
+        text: normalizeText(next.innerText || next.textContent || '').slice(0, 80),
+        ...runtimeDebug,
+      };
     }
 
     removeSelectionByUid(uid) {
@@ -1611,6 +1664,7 @@
       info.sourceLocate = sourceLocate;
       const selection = {
         uid: info.uid,
+        pageBindingId: BOOT.workspaceId || this.pageSessionId || '',
         element: info,
         info,
         asset: null,
