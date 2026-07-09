@@ -86,27 +86,27 @@ function directoryDescription(directory) {
   return known[name] || '项目源码目录';
 }
 
-function skillSection(skillMetas = []) {
+function experienceSection(experienceMetas = []) {
   return [
     '## 已发现经验',
-    ...(skillMetas.length
-      ? skillMetas.map(meta => `- ${meta.id}：${meta.name || meta.id}（${meta.status || 'unknown'}）`)
+    ...(experienceMetas.length
+      ? experienceMetas.map(meta => `- ${meta.id}：${meta.name || meta.id}（${meta.status || 'unknown'}）`)
       : ['- 暂无']),
     '',
     '## 说明',
-    '- Skill 是已验证或待验证的项目经验，不是不可覆盖的硬规则。',
-    '- 当前目标文件和本次任务的真实源码证据优先于 Skill。',
+    '- Experience 是已验证或待验证的项目经验，不是不可覆盖的硬规则。',
+    '- 当前目标文件和本次任务的真实源码证据优先于 Experience。',
     '',
   ];
 }
 
-function projectDocument(project, skillMetas = [], interpretedMarkdown = '') {
+function projectDocument(project, experienceMetas = [], interpretedMarkdown = '') {
   const interpreted = String(interpretedMarkdown || '').trim();
   if (interpreted) {
     return [
       interpreted,
       '',
-      ...skillSection(skillMetas),
+      ...experienceSection(experienceMetas),
     ].join('\n');
   }
   return [
@@ -120,7 +120,7 @@ function projectDocument(project, skillMetas = [], interpretedMarkdown = '') {
     `- 文件数：${project.fileCount || (project.files || []).length}`,
     `- 本地扫描类型：${project.kind || 'unknown'}`,
     '',
-    ...skillSection(skillMetas),
+    ...experienceSection(experienceMetas),
   ].join('\n');
 }
 
@@ -206,7 +206,7 @@ function ensureProjectContext(project, options = {}) {
     fingerprint,
     generatedAt: new Date().toISOString(),
   };
-  const markdown = projectDocument(project, options.skillMetas || [], options.interpretedMarkdown || '');
+  const markdown = projectDocument(project, options.experienceMetas || [], options.interpretedMarkdown || '');
   try {
     atomicWrite(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
     atomicWrite(docFile, markdown);
@@ -235,7 +235,7 @@ function writeProjectContext(project, markdown, options = {}) {
     generatedAt: new Date().toISOString(),
     ...(options.meta || {}),
   };
-  const content = projectDocument(project, options.skillMetas || [], markdown);
+  const content = projectDocument(project, options.experienceMetas || [], markdown);
   atomicWrite(path.join(root, PROJECT_META_FILE), `${JSON.stringify(meta, null, 2)}\n`);
   atomicWrite(path.join(root, PROJECT_DOC_FILE), content);
   return {
@@ -247,13 +247,13 @@ function writeProjectContext(project, markdown, options = {}) {
   };
 }
 
-function refreshProjectDocument(project, skillMetas) {
-  const context = ensureProjectContext(project, { skillMetas });
+function refreshProjectDocument(project, experienceMetas) {
+  const context = ensureProjectContext(project, { experienceMetas });
   if (!context.writable) return context;
   try {
     const current = safeRead(path.join(context.root, PROJECT_DOC_FILE));
-    const withoutSkillSection = current.split(/\n## 已发现经验\n/)[0].trim();
-    atomicWrite(path.join(context.root, PROJECT_DOC_FILE), projectDocument(project, skillMetas, withoutSkillSection));
+    const withoutExperienceSection = current.split(/\n## 已发现经验\n/)[0].trim();
+    atomicWrite(path.join(context.root, PROJECT_DOC_FILE), projectDocument(project, experienceMetas, withoutExperienceSection));
   } catch (error) {
     return { ...context, writable: false, error: error.message || String(error) };
   }

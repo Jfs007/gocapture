@@ -341,7 +341,7 @@ export function useModelAdapters() {
         modelEnhancedPrompt: target.enhancedPrompt || '',
         modelChangePlan: target.changePlan || null,
         modelExperienceMode: target.experienceMode || '',
-        modelUsedSkillIds: target.usedSkillIds || [],
+        modelUsedExperienceIds: target.usedExperienceIds || [],
         modelCodeSnippet: target.codeSnippet || '',
         modelLocateLevel: target.fileOnly ? 'file' : (target.locateLevel || 'exact'),
         modelFileOnly: !!target.fileOnly,

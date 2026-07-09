@@ -257,7 +257,7 @@ async function interpretProject(project, rawAdapter, options = {}) {
   });
   appendLog(logs, `Project Interpreter 第二轮输出：${finalResult.rawText.length} 字符`);
   const context = writeProjectContext(project, finalResult.rawText, {
-    skillMetas: options.skillMetas || [],
+    experienceMetas: options.experienceMetas || [],
     meta: {
       interpreterAdapter: discoveryResult.adapter,
       verificationCount: verification.length,

@@ -3228,7 +3228,7 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
         })),
       }),
       mode: 'fallback',
-      usedSkillIds: [],
+      usedExperienceIds: [],
     };
     if (validItems.length) {
       experience = await enhanceLocatedPrompt({
@@ -3251,14 +3251,14 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
           });
         },
       });
-      appendLog(logs, `选区上下文提示词增强完成：mode=${experience.mode}；Skill ${experience.usedSkillIds?.length || 0} 个`);
+      appendLog(logs, `选区上下文提示词增强完成：mode=${experience.mode}；Experience ${(experience.usedExperienceIds || []).length} 个`);
     }
     const enhancedModelItems = validItems.map(item => ({
       ...item,
       enhancedPrompt: experience.enhancedPrompt,
       changePlan: experience.changePlan || null,
       experienceMode: experience.mode,
-      usedSkillIds: experience.usedSkillIds || [],
+      usedExperienceIds: experience.usedExperienceIds || [],
     }));
     return {
       adapter: {
@@ -3282,7 +3282,7 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
         enhancedPrompt: item.enhancedPrompt,
         changePlan: item.changePlan,
         experienceMode: item.experienceMode,
-        usedSkillIds: item.usedSkillIds,
+        usedExperienceIds: item.usedExperienceIds,
         locateLevel: item.locateLevel || 'direction',
         directionGuess: item.directionGuess || '',
         localScore: item.localScore,
@@ -3378,7 +3378,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         })),
       }),
       mode: 'fallback',
-      usedSkillIds: [],
+      usedExperienceIds: [],
     };
     if (modelItems.length) {
       try {
@@ -3402,7 +3402,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
             });
           },
         });
-        appendLog(logs, `需求提示词增强完成：mode=${experience.mode}；Skill ${experience.usedSkillIds?.length || 0} 个`);
+        appendLog(logs, `需求提示词增强完成：mode=${experience.mode}；Experience ${(experience.usedExperienceIds || []).length} 个`);
       } catch (error) {
         appendLog(logs, `需求提示词增强失败，已回退粗定位提示词：${error.message || error}`);
       }
@@ -3412,7 +3412,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
       enhancedPrompt: experience.enhancedPrompt,
       changePlan: experience.changePlan || null,
       experienceMode: experience.mode,
-      usedSkillIds: experience.usedSkillIds || [],
+      usedExperienceIds: experience.usedExperienceIds || [],
     }));
     return {
       adapter: {
@@ -3438,7 +3438,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
         enhancedPrompt: item.enhancedPrompt,
         changePlan: item.changePlan,
         experienceMode: item.experienceMode,
-        usedSkillIds: item.usedSkillIds,
+        usedExperienceIds: item.usedExperienceIds,
         locateLevel: item.locateLevel || 'exact',
         directionGuess: item.directionGuess || '',
         selectionEvidenceScore: item.selectionEvidenceScore,

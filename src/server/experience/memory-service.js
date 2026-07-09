@@ -4,10 +4,10 @@ const {
   safeRead,
 } = require('./project-context');
 const {
-  loadSkillContexts,
-  loadSkillMetas,
-  updateStoredSkill,
-} = require('./skill-store');
+  loadExperienceContexts,
+  loadExperienceMetas,
+  updateStoredExperience,
+} = require('./experience-store');
 const {
   projectTaskSessions,
   removeTaskSessionMemory,
@@ -16,14 +16,14 @@ const {
 
 function memorySnapshot(project) {
   if (!project?.path) throw new Error('No project selected.');
-  const metas = loadSkillMetas(project);
+  const experienceMetas = loadExperienceMetas(project);
   return {
     project: {
       name: project.name,
       path: project.path,
     },
     projectDocument: safeRead(path.join(experienceRoot(project), 'Project.md')),
-    skills: loadSkillContexts(project, metas.map(meta => meta.id)),
+    experiences: loadExperienceContexts(project, experienceMetas.map(meta => meta.id)),
     taskSessions: projectTaskSessions(project),
   };
 }
@@ -31,6 +31,6 @@ function memorySnapshot(project) {
 module.exports = {
   memorySnapshot,
   removeTaskSessionMemory,
-  updateStoredSkill,
+  updateStoredExperience,
   updateTaskSessionMemory,
 };

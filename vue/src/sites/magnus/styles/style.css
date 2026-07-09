@@ -2647,6 +2647,51 @@
   opacity: 0.55;
 }
 
+.mda-memory-section-title {
+  margin-top: 4px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.mda-memory-tool,
+.mda-memory-provider {
+  display: grid;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.mda-memory-tool > div,
+.mda-memory-provider > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mda-memory-tool strong,
+.mda-memory-provider strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.mda-memory-tool small,
+.mda-memory-provider small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.mda-memory-tool p,
+.mda-memory-provider p {
+  margin: 0;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .mda-memory-project-note {
   margin-bottom: 10px;
   color: #667085;

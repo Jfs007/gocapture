@@ -11,6 +11,10 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
   const error = ref('');
   const message = ref('');
   const snapshot = ref<any>(null);
+  const toolProviders = ref<any[]>([]);
+  const tools = ref<any[]>([]);
+  const resourceProviders = ref<any[]>([]);
+  const resources = ref<any[]>([]);
 
   async function openPanel() {
     open.value = true;
@@ -33,13 +37,28 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
     error.value = '';
     message.value = '';
     try {
-      const result = await sourceServerJson('/api/memory/read', {
-        method: 'POST',
-        body: { projectPath: projectStore.current.path },
-        timeoutMs: 10000,
-        timeoutMessage: '读取记忆超时，请确认本地源码服务可用'
-      });
+      const projectPath = projectStore.current.path;
+      const [result, toolResult, resourceResult] = await Promise.all([
+        sourceServerJson('/api/memory/read', {
+          method: 'POST',
+          body: { projectPath },
+          timeoutMs: 10000,
+          timeoutMessage: '读取记忆超时，请确认本地源码服务可用'
+        }),
+        sourceServerJson('/api/agent/tools', {
+          timeoutMs: 5000,
+          timeoutMessage: '读取工具清单超时'
+        }),
+        sourceServerJson(`/api/agent/resources?projectPath=${encodeURIComponent(projectPath)}`, {
+          timeoutMs: 5000,
+          timeoutMessage: '读取资源清单超时'
+        })
+      ]);
       snapshot.value = result.memory || null;
+      toolProviders.value = Array.isArray(toolResult.providers) ? toolResult.providers : [];
+      tools.value = Array.isArray(toolResult.tools) ? toolResult.tools : [];
+      resourceProviders.value = Array.isArray(resourceResult.providers) ? resourceResult.providers : [];
+      resources.value = Array.isArray(resourceResult.resources) ? resourceResult.resources : [];
     } catch (cause: any) {
       error.value = cause?.message || '读取记忆失败';
     } finally {
@@ -47,8 +66,8 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
     }
   }
 
-  async function saveSkill(payload: any) {
-    return save('/api/memory/skill', payload, '项目经验已保存');
+  async function saveExperience(payload: any) {
+    return save('/api/experience', payload, '项目经验已保存');
   }
 
   async function saveSession(payload: any) {
@@ -73,7 +92,7 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
         timeoutMs: 10000,
         timeoutMessage: '保存记忆超时，请确认本地源码服务可用'
       });
-      snapshot.value = result.memory || snapshot.value;
+      snapshot.value = result.memory || null;
       message.value = successMessage;
       return true;
     } catch (cause: any) {
@@ -91,10 +110,14 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
     error,
     message,
     snapshot,
+    toolProviders,
+    tools,
+    resourceProviders,
+    resources,
     openPanel,
     closePanel,
     load,
-    saveSkill,
+    saveExperience,
     saveSession,
     removeSession
   };

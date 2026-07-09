@@ -125,7 +125,7 @@ function assertRequiredFiles() {
   const required = [
     'bin/magnus.js',
     'scripts/source-server.js',
-    'scripts/source-server/server.js',
+    'src/server/server.js',
     'package/manifest.json',
     'package/sidepanel.html',
     'package/app/magnus/index.js',
@@ -230,7 +230,7 @@ function main() {
 
   copyRecursive(path.join(rootDir, 'bin'), path.join(outDir, 'bin'));
   copyRecursive(path.join(rootDir, 'scripts', 'source-server.js'), path.join(outDir, 'scripts', 'source-server.js'));
-  copyRecursive(path.join(rootDir, 'scripts', 'source-server'), path.join(outDir, 'scripts', 'source-server'));
+  copyRecursive(path.join(rootDir, 'src', 'server'), path.join(outDir, 'src', 'server'));
   copyRecursive(path.join(rootDir, 'package'), path.join(outDir, 'package'));
   configureReleaseChromePackage(path.join(outDir, 'package'));
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
 
-const { startSourceServer } = require('./source-server/server');
+const { startSourceServer } = require('../src/server/server');
 
 startSourceServer();

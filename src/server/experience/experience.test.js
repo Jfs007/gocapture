@@ -6,11 +6,11 @@ const { scanProject } = require('../core/project');
 const { executeDiscoveryPlan } = require('./discovery-executor');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
 const { ensureProjectContext, projectTechnicalStackMarkdown } = require('./project-context');
-const { loadSkillContexts, loadSkillMetas } = require('./skill-store');
+const { loadExperienceContexts, loadExperienceMetas } = require('./experience-store');
 const {
   memorySnapshot,
   removeTaskSessionMemory,
-  updateStoredSkill,
+  updateStoredExperience,
   updateTaskSessionMemory,
 } = require('./memory-service');
 
@@ -161,7 +161,7 @@ async function run() {
               maxLinesPerResult: 8,
               reason: '寻找真实案例',
             }],
-            expectedSkill: { name: '普通接口接入', triggerTags: ['接口'] },
+            expectedExperience: { name: '普通接口接入', triggerTags: ['接口'] },
           });
         }
         if (stage === 'experience-discovery-plan-repair') {
@@ -196,18 +196,18 @@ async function run() {
           },
           confirmedFacts: ['项目通过 API 模块调用统一 HTTP 实例'],
           assumptions: ['接口方法与响应结构仍需确认'],
-          usedSkillIds: [],
-          candidateSkill: null,
+          usedExperienceIds: [],
+          candidateExperience: null,
         });
       },
     });
     assert.match(result.enhancedPrompt, /API 层/);
     assert.ok(result.changePlan.targets.length >= 1);
     assert.equal(result.changePlan.targets[0].file, 'src/App.vue');
-    assert.equal(result.savedSkill, null);
-    assert.equal(loadSkillMetas(project).length, 0);
+    assert.equal(result.savedExperience, null);
+    assert.equal(loadExperienceMetas(project).length, 0);
 
-    const tableSkill = await enhanceLocatedPrompt({
+    const tableExperience = await enhanceLocatedPrompt({
       project,
       body: {
         pagePath: '/order',
@@ -227,9 +227,9 @@ async function run() {
       }],
       log: message => logs.push(message),
       invoke: async (stage, prompt) => {
-        if (stage === 'skill-match') {
+        if (stage === 'experience-match') {
           return JSON.stringify({
-            matchedSkillIds: [],
+            matchedExperienceIds: [],
             missingFacts: [],
             requests: [],
             discoveryNeeded: true,
@@ -251,16 +251,16 @@ async function run() {
             }],
           });
         }
-        assert.notEqual(stage, 'skill-evaluation');
-        if (stage === 'skill-candidate') {
+        assert.notEqual(stage, 'legacy-evaluation');
+        if (stage === 'experience-candidate') {
           assert.match(prompt, /src\/components\/md-table\/hooks\/useTable\.ts/);
           assert.match(prompt, /src\/components\/md-table\/index\.vue/);
           assert.match(prompt, /src\/views\/order\/index\.vue/);
           return JSON.stringify({
             shouldSave: true,
             reason: 'MdTable 与 useTable 来源清晰，且多个业务页面按同一模式实现表格。',
-            candidateSkill: {
-              id: 'skill:mdtable-usetable',
+            candidateExperience: {
+              id: 'experience:mdtable-usetable',
               name: 'MdTable + useTable 表格实现规范',
               triggerTags: ['MdTable', 'useTable', 'md-table', '表格', '列表'],
               applicableWhen: ['新增或修改业务列表表格', '目标文件已使用 MdTable 或 useTable'],
@@ -324,22 +324,23 @@ async function run() {
           },
           confirmedFacts: ['MdTable + useTable 是高频公共模式'],
           assumptions: [],
-          usedSkillIds: [],
-          candidateSkill: null,
+          usedExperienceIds: [],
+          candidateExperience: null,
         });
       },
     });
-    assert.equal(tableSkill.savedSkill.saved, true, tableSkill.savedSkill.reason);
-    assert.equal(loadSkillMetas(project).length, 1);
-    assert.deepEqual(loadSkillMetas(project)[0].triggerTags, ['MdTable', 'useTable', 'md-table', '表格', '列表']);
-    const skillDirectory = path.join(root, '.magnus-project', 'skills', 'mdtable-usetable');
-    assert.equal(fs.existsSync(path.join(skillDirectory, 'recipes.json')), true);
-    assert.equal(fs.existsSync(path.join(skillDirectory, 'source-contracts.json')), true);
-    assert.equal(fs.existsSync(path.join(skillDirectory, 'checklist.json')), true);
-    assert.equal(fs.existsSync(path.join(skillDirectory, 'provenance.json')), true);
-    assert.equal(fs.existsSync(path.join(skillDirectory, 'examples.json')), false);
-    assert.equal(fs.existsSync(path.join(skillDirectory, 'evidence.json')), false);
-    const contexts = loadSkillContexts(project, ['skill:mdtable-usetable']);
+    assert.equal(tableExperience.savedExperience.saved, true, tableExperience.savedExperience.reason);
+    assert.equal(loadExperienceMetas(project).length, 1);
+    assert.deepEqual(loadExperienceMetas(project)[0].triggerTags, ['MdTable', 'useTable', 'md-table', '表格', '列表']);
+    const experienceDirectory = path.join(root, '.magnus-project', 'experiences', 'mdtable-usetable');
+    assert.equal(fs.existsSync(path.join(experienceDirectory, 'recipes.json')), true);
+    assert.equal(fs.existsSync(path.join(experienceDirectory, 'source-contracts.json')), true);
+    assert.equal(fs.existsSync(path.join(experienceDirectory, 'checklist.json')), true);
+    assert.equal(fs.existsSync(path.join(experienceDirectory, 'provenance.json')), true);
+    assert.equal(fs.existsSync(path.join(experienceDirectory, 'examples.json')), false);
+    assert.equal(fs.existsSync(path.join(experienceDirectory, 'evidence.json')), false);
+    assert.equal(fs.existsSync(path.join(root, '.magnus-project', 'skills')), false);
+    const contexts = loadExperienceContexts(project, ['experience:mdtable-usetable']);
     assert.equal(contexts.length, 1);
     assert.equal(Array.isArray(contexts[0].recipes), true);
     assert.equal(Array.isArray(contexts[0].sourceContracts), true);
@@ -348,7 +349,7 @@ async function run() {
     assert.equal(contexts[0].evidence, undefined);
 
     const memory = memorySnapshot(project);
-    assert.equal(memory.skills.length, 1);
+    assert.equal(memory.experiences.length, 1);
     assert.ok(memory.taskSessions.some(session => session.pageKey === '/order'));
     const orderSession = memory.taskSessions.find(session => session.pageKey === '/order');
     const updatedSession = updateTaskSessionMemory(project, orderSession.id, {
@@ -358,16 +359,16 @@ async function run() {
     assert.deepEqual(updatedSession.requirements, ['新增订单表格', '增加执行时间列']);
     assert.deepEqual(updatedSession.confirmedFacts, ['订单列表使用 MdTable']);
 
-    const updatedSkill = updateStoredSkill(project, {
-      id: 'skill:mdtable-usetable',
+    const updatedExperience = updateStoredExperience(project, {
+      id: 'experience:mdtable-usetable',
       name: '项目表格实现规范',
       status: 'active',
       confidence: 'high',
       context: `${contexts[0].context}\n\n编辑后的补充约束。`,
     });
-    assert.equal(updatedSkill.meta.name, '项目表格实现规范');
-    assert.equal(updatedSkill.meta.status, 'active');
-    assert.match(updatedSkill.context, /编辑后的补充约束/);
+    assert.equal(updatedExperience.meta.name, '项目表格实现规范');
+    assert.equal(updatedExperience.meta.status, 'active');
+    assert.match(updatedExperience.context, /编辑后的补充约束/);
     assert.match(
       fs.readFileSync(path.join(root, '.magnus-project', 'Project.md'), 'utf8'),
       /项目表格实现规范/
@@ -449,7 +450,7 @@ run().then(() => {
   const task = roughTask(body, [{ file: 'src/index.vue', codeSnippet: 'region', scopeAlignment: 'approximate' }]);
   assert.equal(task.selections[0].text, '¥3');                       // 原始选区优先于指令文本
   assert.equal(task.selections[0].ancestors, 'td[data-col-key=cost] > div');
-  const prompt = buildChangePlanPrompt({ roughTask: task, targetFiles: [], discovery: {}, matchedSkills: [] });
+  const prompt = buildChangePlanPrompt({ roughTask: task, targetFiles: [], discovery: {}, matchedExperiences: [] });
   assert.ok(prompt.includes('¥3'));                                  // 变更计划 LLM 能看到用户到底选了什么
   assert.ok(prompt.includes('data-col-key=cost'));
   // 没有 originSelections 时退回指令文本，不报错

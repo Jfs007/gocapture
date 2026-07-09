@@ -1,3 +1,5 @@
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const {
@@ -8,18 +10,23 @@ const {
   safeRead,
 } = require('./project-context');
 
-function skillsRoot(project) {
-  return path.join(experienceRoot(project), 'skills');
+function experiencesRoot(project) {
+  return path.join(experienceRoot(project), 'experiences');
 }
 
-function skillSlug(value) {
+function experienceSlug(value) {
   return String(value || '')
-    .replace(/^skill:/, '')
+    .replace(/^experience:/, '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
+}
+
+function experienceId(value) {
+  const slug = experienceSlug(value);
+  return slug ? `experience:${slug}` : '';
 }
 
 function normalizeTriggerTags(tags) {
@@ -38,10 +45,10 @@ function normalizeTriggerTags(tags) {
 }
 
 function normalizeMeta(meta, directory) {
-  const slug = skillSlug(meta?.id || directory);
+  const slug = experienceSlug(meta?.id || directory);
   if (!slug) return null;
   const normalized = {
-    id: `skill:${slug}`,
+    id: `experience:${slug}`,
     name: String(meta?.name || slug),
     triggerTags: normalizeTriggerTags(meta?.triggerTags || []),
     applicableWhen: (meta?.applicableWhen || []).map(String).filter(Boolean).slice(0, 16),
@@ -53,6 +60,7 @@ function normalizeMeta(meta, directory) {
     verificationCount: Math.max(0, Number(meta?.verificationCount || 0)),
     lastVerifiedAt: meta?.lastVerifiedAt || '',
     staleAfterDays: Math.max(1, Number(meta?.staleAfterDays || 90)),
+    kind: 'experience',
   };
   if (normalized.status === 'active' && normalized.lastVerifiedAt) {
     const verifiedAt = Date.parse(normalized.lastVerifiedAt);
@@ -64,8 +72,8 @@ function normalizeMeta(meta, directory) {
   return normalized;
 }
 
-function loadSkillMetas(project) {
-  const root = skillsRoot(project);
+function loadExperienceMetas(project) {
+  const root = experiencesRoot(project);
   let entries = [];
   try {
     entries = fs.readdirSync(root, { withFileTypes: true });
@@ -80,11 +88,11 @@ function loadSkillMetas(project) {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function loadSkillContexts(project, ids) {
-  const wanted = new Set((ids || []).map(skillSlug).filter(Boolean));
-  const metas = loadSkillMetas(project).filter(meta => wanted.has(skillSlug(meta.id)));
+function loadExperienceContexts(project, ids) {
+  const wanted = new Set((ids || []).map(experienceSlug).filter(Boolean));
+  const metas = loadExperienceMetas(project).filter(meta => wanted.has(experienceSlug(meta.id)));
   return metas.map(meta => {
-    const directory = path.join(skillsRoot(project), skillSlug(meta.id));
+    const directory = path.join(experiencesRoot(project), experienceSlug(meta.id));
     const provenance = safeJson(path.join(directory, 'provenance.json')) || {};
     return {
       meta,
@@ -96,6 +104,11 @@ function loadSkillContexts(project, ids) {
         sourceFiles: Array.isArray(provenance.sourceFiles)
           ? provenance.sourceFiles.map(String).filter(Boolean).slice(0, 16)
           : [],
+        requiredEvidence: Array.isArray(provenance.requiredEvidence) ? provenance.requiredEvidence : [],
+        examples: Array.isArray(provenance.examples) ? provenance.examples : [],
+        discoverySummary: provenance.discoverySummary || '',
+        createdAt: provenance.createdAt || '',
+        evidenceCount: provenance.evidenceCount || 0,
       },
     };
   });
@@ -107,33 +120,38 @@ function candidateEvidenceCount(candidate) {
   return new Set([...examples, ...required].map(item => item?.path).filter(Boolean)).size;
 }
 
-function validCandidateSkill(candidate) {
-  return !!skillSlug(candidate?.id || candidate?.name)
+function validCandidateExperience(candidate) {
+  return !!experienceSlug(candidate?.id || candidate?.name)
     && String(candidate?.context || '').trim().length >= 80
     && Array.isArray(candidate?.examples)
     && candidate.examples.length >= 2
     && candidateEvidenceCount(candidate) >= 3;
 }
 
-function saveCandidateSkill(project, candidate) {
+function normalizeEvidenceItems(items, project) {
   const projectFiles = new Set((project.files || []).map(file => file.path));
+  return (Array.isArray(items) ? items : [])
+    .filter(item => projectFiles.has(item?.path));
+}
+
+function saveCandidateExperience(project, candidate) {
   const normalizedCandidate = {
     ...candidate,
-    requiredEvidence: (candidate?.requiredEvidence || []).filter(item => projectFiles.has(item?.path)),
-    examples: (candidate?.examples || []).filter(item => projectFiles.has(item?.path)),
+    requiredEvidence: normalizeEvidenceItems(candidate?.requiredEvidence, project),
+    examples: normalizeEvidenceItems(candidate?.examples, project),
     recipes: Array.isArray(candidate?.recipes) ? candidate.recipes : [],
     sourceContracts: Array.isArray(candidate?.sourceContracts) ? candidate.sourceContracts : [],
     verificationChecklist: Array.isArray(candidate?.verificationChecklist) ? candidate.verificationChecklist : [],
   };
-  if (!validCandidateSkill(normalizedCandidate)) {
+  if (!validCandidateExperience(normalizedCandidate)) {
     return { saved: false, reason: '候选经验缺少足够案例、上下文或证据' };
   }
-  const slug = skillSlug(normalizedCandidate.id || normalizedCandidate.name);
-  const directory = path.join(skillsRoot(project), slug);
+  const slug = experienceSlug(normalizedCandidate.id || normalizedCandidate.name);
+  const directory = path.join(experiencesRoot(project), slug);
   const oldMeta = normalizeMeta(safeJson(path.join(directory, 'meta.json')), slug);
   const meta = normalizeMeta({
     ...oldMeta,
-    id: `skill:${slug}`,
+    id: `experience:${slug}`,
     name: normalizedCandidate.name || oldMeta?.name || slug,
     triggerTags: normalizedCandidate.triggerTags || oldMeta?.triggerTags || [],
     applicableWhen: normalizedCandidate.applicableWhen || oldMeta?.applicableWhen || [],
@@ -164,23 +182,23 @@ function saveCandidateSkill(project, candidate) {
     atomicWrite(path.join(directory, 'provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`);
     fs.rmSync(path.join(directory, 'examples.json'), { force: true });
     fs.rmSync(path.join(directory, 'evidence.json'), { force: true });
-    refreshProjectDocument(project, loadSkillMetas(project));
+    refreshProjectDocument(project, loadExperienceMetas(project));
     return { saved: true, meta };
   } catch (error) {
     return { saved: false, reason: error.message || String(error) };
   }
 }
 
-function recordSkillVerification(project, ids) {
+function recordExperienceVerification(project, ids) {
   const results = [];
-  for (const skill of loadSkillContexts(project, ids)) {
-    const directory = path.join(skillsRoot(project), skillSlug(skill.meta.id));
-    const count = skill.meta.verificationCount + 1;
+  for (const experience of loadExperienceContexts(project, ids)) {
+    const directory = path.join(experiencesRoot(project), experienceSlug(experience.meta.id));
+    const count = experience.meta.verificationCount + 1;
     const meta = {
-      ...skill.meta,
+      ...experience.meta,
       verificationCount: count,
-      status: count >= 2 ? 'active' : skill.meta.status,
-      confidence: count >= 2 ? 'high' : skill.meta.confidence,
+      status: count >= 2 ? 'active' : experience.meta.status,
+      confidence: count >= 2 ? 'high' : experience.meta.confidence,
       lastVerifiedAt: new Date().toISOString().slice(0, 10),
     };
     try {
@@ -189,15 +207,15 @@ function recordSkillVerification(project, ids) {
     } catch (error) {
     }
   }
-  if (results.length) refreshProjectDocument(project, loadSkillMetas(project));
+  if (results.length) refreshProjectDocument(project, loadExperienceMetas(project));
   return results;
 }
 
-function updateStoredSkill(project, input = {}) {
-  const slug = skillSlug(input.id);
-  const existing = loadSkillContexts(project, [`skill:${slug}`])[0];
-  if (!slug || !existing) throw new Error('Project skill not found.');
-  const directory = path.join(skillsRoot(project), slug);
+function updateStoredExperience(project, input = {}) {
+  const slug = experienceSlug(input.id);
+  const existing = loadExperienceContexts(project, [`experience:${slug}`])[0];
+  if (!slug || !existing) throw new Error('Project experience not found.');
+  const directory = path.join(experiencesRoot(project), slug);
   const meta = normalizeMeta({
     ...existing.meta,
     name: input.name ?? existing.meta.name,
@@ -209,7 +227,7 @@ function updateStoredSkill(project, input = {}) {
     staleAfterDays: input.staleAfterDays ?? existing.meta.staleAfterDays,
   }, slug);
   const context = typeof input.context === 'string' ? input.context.trim() : existing.context.trim();
-  if (!context) throw new Error('Skill context cannot be empty.');
+  if (!context) throw new Error('Experience context cannot be empty.');
   const recipes = Array.isArray(input.recipes) ? input.recipes : existing.recipes;
   const sourceContracts = Array.isArray(input.sourceContracts) ? input.sourceContracts : existing.sourceContracts;
   const verificationChecklist = Array.isArray(input.verificationChecklist)
@@ -220,16 +238,18 @@ function updateStoredSkill(project, input = {}) {
   atomicWrite(path.join(directory, 'recipes.json'), `${JSON.stringify(recipes, null, 2)}\n`);
   atomicWrite(path.join(directory, 'source-contracts.json'), `${JSON.stringify(sourceContracts, null, 2)}\n`);
   atomicWrite(path.join(directory, 'checklist.json'), `${JSON.stringify(verificationChecklist, null, 2)}\n`);
-  refreshProjectDocument(project, loadSkillMetas(project));
-  return loadSkillContexts(project, [meta.id])[0];
+  refreshProjectDocument(project, loadExperienceMetas(project));
+  return loadExperienceContexts(project, [meta.id])[0];
 }
 
 module.exports = {
-  loadSkillContexts,
-  loadSkillMetas,
-  recordSkillVerification,
-  saveCandidateSkill,
-  skillSlug,
-  updateStoredSkill,
-  validCandidateSkill,
+  experienceId,
+  experienceSlug,
+  experiencesRoot,
+  loadExperienceContexts,
+  loadExperienceMetas,
+  recordExperienceVerification,
+  saveCandidateExperience,
+  updateStoredExperience,
+  validCandidateExperience,
 };

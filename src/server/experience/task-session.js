@@ -85,7 +85,7 @@ function compactTaskSession(session) {
     taskBrief: session.taskBrief,
     requirements: session.requirements,
     targetFiles: session.targetFiles,
-    confirmedSkillIds: session.confirmedSkillIds,
+    confirmedExperienceIds: session.confirmedExperienceIds || [],
     confirmedFacts: session.confirmedFacts,
     assumptions: session.assumptions,
     recentInputs: session.recentInputs,
@@ -106,7 +106,7 @@ function beginTaskSession(project, task) {
     taskBrief: input || '按页面选区完成修改',
     requirements: input ? [input] : [],
     targetFiles: targetFiles(task),
-    confirmedSkillIds: [],
+    confirmedExperienceIds: [],
     confirmedFacts: [],
     assumptions: [],
     recentInputs: input ? [input] : [],
@@ -140,7 +140,8 @@ function updateTaskSession(project, task, patch = {}) {
   const session = sessions.get(key);
   if (!session) return null;
   session.targetFiles = mergeUnique(session.targetFiles, patch.targetFiles || [], 12);
-  session.confirmedSkillIds = mergeUnique(session.confirmedSkillIds, patch.confirmedSkillIds || [], 8);
+  const nextExperienceIds = patch.confirmedExperienceIds || [];
+  session.confirmedExperienceIds = mergeUnique(session.confirmedExperienceIds || [], nextExperienceIds, 8);
   session.confirmedFacts = mergeUnique(session.confirmedFacts, patch.confirmedFacts || [], 16);
   session.assumptions = mergeUnique(session.assumptions, patch.assumptions || [], 16);
   if (patch.enhancedPrompt) session.lastEnhancedPrompt = String(patch.enhancedPrompt).slice(0, 6000);
@@ -176,7 +177,10 @@ function updateTaskSessionMemory(project, id, patch = {}) {
     session.taskBrief = session.requirements.join('；') || '按页面选区完成修改';
   }
   if (Array.isArray(patch.targetFiles)) session.targetFiles = editableStringList(patch.targetFiles, 12);
-  if (Array.isArray(patch.confirmedSkillIds)) session.confirmedSkillIds = editableStringList(patch.confirmedSkillIds, 8);
+  if (Array.isArray(patch.confirmedExperienceIds)) {
+    const next = editableStringList(patch.confirmedExperienceIds, 8);
+    session.confirmedExperienceIds = next;
+  }
   if (Array.isArray(patch.confirmedFacts)) session.confirmedFacts = editableStringList(patch.confirmedFacts, 16);
   if (Array.isArray(patch.assumptions)) session.assumptions = editableStringList(patch.assumptions, 16);
   if (typeof patch.lastEnhancedPrompt === 'string') {

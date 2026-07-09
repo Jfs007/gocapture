@@ -358,6 +358,13 @@ function executeRequest(project, request, textCache) {
   }
 }
 
+function executeDiscoveryRequest(project, rawRequest, textCache = new Map()) {
+  const plan = normalizePlan({ requests: [rawRequest] });
+  const request = plan.requests[0];
+  if (!request) return [];
+  return executeRequest(project, request, textCache);
+}
+
 function normalizePlan(plan) {
   const requests = (Array.isArray(plan?.requests) ? plan.requests : [])
     .filter(request => OPERATIONS.has(request?.operation))
@@ -389,7 +396,7 @@ function normalizePlan(plan) {
     objective: String(plan?.objective || ''),
     questions: (plan?.questions || []).map(String).filter(Boolean).slice(0, 12),
     requests,
-    expectedSkill: plan?.expectedSkill || {},
+    expectedExperience: plan?.expectedExperience || {},
   };
 }
 
@@ -451,5 +458,6 @@ module.exports = {
   OPERATIONS,
   discoveryPlanIssues,
   executeDiscoveryPlan,
+  executeDiscoveryRequest,
   normalizePlan,
 };
