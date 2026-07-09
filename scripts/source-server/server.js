@@ -37,6 +37,7 @@ function sendJson(res, status, payload) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': ACCESS_CONTROL_ALLOW_HEADERS,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Private-Network': 'true',
     'Content-Type': 'application/json; charset=utf-8',
   });
   res.end(text);
@@ -47,6 +48,7 @@ function sendStreamHeaders(res) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': ACCESS_CONTROL_ALLOW_HEADERS,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Private-Network': 'true',
     'Content-Type': 'application/x-ndjson; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
@@ -199,6 +201,11 @@ function createSourceServer() {
       if (req.method === 'GET' && url.pathname === '/api/update/check') {
         const result = await updateService.checkForUpdate();
         sendJson(res, 200, { success: true, ...result });
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/update/status') {
+        sendJson(res, 200, { success: true, ...updateService.updateStatus() });
         return;
       }
 

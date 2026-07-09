@@ -43,6 +43,43 @@ npm run source:server
 
 插件菜单里的“选择源码”会请求 `http://127.0.0.1:17321/api/source/select`，由本地服务拉起系统目录选择器并扫描源码文件树。服务不可用时会退回浏览器目录选择器，但浏览器模式拿不到真实本地路径。
 
+## Magnus Release Package
+
+开发仓库不直接发布到 npm。发布前先生成一个独立 npm 包目录，目录里只包含运行 Magnus 需要的 CLI、本地服务、Side Panel UI 和 Chrome 插件目录。
+
+```bash
+npm run release:package
+cd outputs/magnus-npm-package
+npm publish --access public
+```
+
+也可以在开发仓库启动发布页面：
+
+```bash
+npm run release:gui
+```
+
+生成的发布包会把 Chrome 插件切到 `Online` 模式：`GetRemoteConfigUrl()` 从本地 source-server 读取 `/app/config.json`，配置里的 `jsUrls` 再从本地 `/app/*` 静态目录加载。默认地址是 `http://127.0.0.1:17321/`，可通过 `--source-server-url`、`MAGNUS_EXTENSION_SOURCE_URL` 或 `MAGNUS_SOURCE_SERVER_URL` 覆盖。
+
+本地验证发布包：
+
+```bash
+node scripts/build-npm-package.js --skip-app-build --out /tmp/magnus-npm-package-test
+cd /tmp/magnus-npm-package-test
+npm pack --dry-run
+```
+
+用户安装：
+
+```bash
+npm install -g @sep-agent/magnus
+magnus -v
+magnus install
+magnus chrome
+```
+
+`magnus chrome` 会打开随 npm 包携带的 `package/` 插件目录，并提示用户在 `chrome://extensions` 中通过“加载已解压的扩展程序”安装。
+
 ## Docs
 
 ```bash

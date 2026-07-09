@@ -7334,7 +7334,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     key: 0,
     class: "mda-warning"
   };
-  const _hoisted_19$3 = {
+  const _hoisted_19$4 = {
     key: 1,
     class: "mda-warning"
   };
@@ -7597,7 +7597,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           )) : createCommentVNode("v-if", true),
           candidateError.value ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_19$3,
+            _hoisted_19$4,
             toDisplayString(candidateError.value),
             1
             /* TEXT */
@@ -7609,13 +7609,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const useAppUiStore = /* @__PURE__ */ defineStore("magnus.appUi", () => {
     const runtimeConnected = /* @__PURE__ */ ref(false);
     const serviceOnline = /* @__PURE__ */ ref(null);
+    const serviceHealthMessage = /* @__PURE__ */ ref("");
+    const serviceHealthUrl = /* @__PURE__ */ ref("");
     const toastText = /* @__PURE__ */ ref("");
     const toastTimer = /* @__PURE__ */ ref(null);
     function setRuntimeConnected(value) {
       runtimeConnected.value = !!value;
     }
-    function setServiceOnline(value) {
+    function setServiceOnline(value, message = "", url = "") {
       serviceOnline.value = value;
+      serviceHealthMessage.value = message || "";
+      serviceHealthUrl.value = url || "";
     }
     function setToast(text) {
       toastText.value = text || "";
@@ -7639,6 +7643,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return {
       runtimeConnected,
       serviceOnline,
+      serviceHealthMessage,
+      serviceHealthUrl,
       toastText,
       setRuntimeConnected,
       setServiceOnline,
@@ -8068,8 +8074,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-plan-block"
   };
   const _hoisted_18$3 = ["onClick"];
-  const _hoisted_19$2 = { class: "mda-composite-anchor" };
-  const _hoisted_20$2 = { class: "mda-plan-block-title" };
+  const _hoisted_19$3 = { class: "mda-composite-anchor" };
+  const _hoisted_20$3 = { class: "mda-plan-block-title" };
   const _hoisted_21$1 = {
     key: 3,
     class: "mda-plan-block"
@@ -8373,7 +8379,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         }, toDisplayString(item.file), 9, _hoisted_18$3),
                         createBaseVNode(
                           "span",
-                          _hoisted_19$2,
+                          _hoisted_19$3,
                           toDisplayString(item.reason),
                           1
                           /* TEXT */
@@ -8398,7 +8404,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         [
                           createBaseVNode(
                             "div",
-                            _hoisted_20$2,
+                            _hoisted_20$3,
                             toDisplayString(section.label),
                             1
                             /* TEXT */
@@ -9000,8 +9006,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_16$4 = { class: "mda-asset-popover-grid-item" };
   const _hoisted_17$3 = { class: "mda-asset-popover-grid-item" };
   const _hoisted_18$2 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_19$1 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_20$1 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_19$2 = { class: "mda-asset-popover-grid-item" };
+  const _hoisted_20$2 = { class: "mda-asset-popover-grid-item" };
   const _sfc_main$6 = {
     __name: "ComposerPrebar",
     emits: ["insert-asset"],
@@ -9280,7 +9286,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       /* TEXT */
                     )
                   ]),
-                  createBaseVNode("div", _hoisted_19$1, [
+                  createBaseVNode("div", _hoisted_19$2, [
                     _cache[6] || (_cache[6] = createBaseVNode(
                       "span",
                       null,
@@ -9296,7 +9302,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       /* TEXT */
                     )
                   ]),
-                  createBaseVNode("div", _hoisted_20$1, [
+                  createBaseVNode("div", _hoisted_20$2, [
                     _cache[7] || (_cache[7] = createBaseVNode(
                       "span",
                       null,
@@ -10056,7 +10062,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260709.013136.581";
+      const buildVersion = "20260709.162110.162";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -10234,6 +10240,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const SOURCE_SERVER_URL = typeof window !== "undefined" && ((_a = window.__MAGNUS_SIDE_PANEL__) == null ? void 0 : _a.sourceServerUrl) || "http://127.0.0.1:17321";
   const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
   const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
+  const SOURCE_SERVER_HEALTH_URL = `${SOURCE_SERVER_URL}/health`;
   function createSourceServerHeaders(extraHeaders) {
     return __spreadValues({
       "Content-Type": "application/json",
@@ -10339,13 +10346,33 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       }
     });
   }
-  function pingSourceServer(timeoutMs = 2500) {
+  function probeSourceServer(timeoutMs = 2500) {
     return __async(this, null, function* () {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
       try {
-        yield sourceServerJson("/health", { timeoutMs, timeoutMessage: "health timeout" });
-        return true;
+        const response = yield fetch(SOURCE_SERVER_HEALTH_URL, {
+          method: "GET",
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `HTTP ${response.status}` };
+        }
+        const data = yield response.json().catch(() => ({}));
+        if ((data == null ? void 0 : data.success) === false) {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: data.error || "health success=false" };
+        }
+        return { online: true, url: SOURCE_SERVER_HEALTH_URL, message: "" };
       } catch (error) {
-        return false;
+        if ((error == null ? void 0 : error.name) === "AbortError") {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `health timeout (${timeoutMs}ms)` };
+        }
+        const message = error instanceof Error ? error.message : String(error || "unknown error");
+        return { online: false, url: SOURCE_SERVER_HEALTH_URL, message };
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     });
   }
@@ -10508,8 +10535,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_16$1 = { class: "mda-memory-field" };
   const _hoisted_17$1 = { class: "mda-memory-actions" };
   const _hoisted_18$1 = ["disabled"];
-  const _hoisted_19 = ["disabled"];
-  const _hoisted_20 = {
+  const _hoisted_19$1 = ["disabled"];
+  const _hoisted_20$1 = {
     key: 0,
     class: "mda-memory-empty"
   };
@@ -10959,7 +10986,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           type: "button",
                           disabled: unref(memory).saving,
                           onClick: saveSession
-                        }, toDisplayString(unref(memory).saving ? "保存中..." : "保存会话"), 9, _hoisted_19)
+                        }, toDisplayString(unref(memory).saving ? "保存中..." : "保存会话"), 9, _hoisted_19$1)
                       ])
                     ])) : createCommentVNode("v-if", true)
                   ],
@@ -10973,7 +11000,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               Fragment,
               { key: 2 },
               [
-                !skills.value.length ? (openBlock(), createElementBlock("div", _hoisted_20, "当前项目暂无已保存经验。")) : (openBlock(), createElementBlock(
+                !skills.value.length ? (openBlock(), createElementBlock("div", _hoisted_20$1, "当前项目暂无已保存经验。")) : (openBlock(), createElementBlock(
                   Fragment,
                   { key: 1 },
                   [
@@ -12906,12 +12933,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         const hasReliableUiSource = !!(hit.preciseSnippet || hit.uniqueSnippet) && !!(hit.preciseEvidence || hit.exactMatchText || hit.uniqueMatchText || (hit.contextScore || 0) > 0 || (hit.contextReasons || []).length);
         const uiSource = hasReliableUiSource ? normalizeSnippetText(hit.preciseSnippet || hit.uniqueSnippet || "") : "";
         const fallbackSource = normalizeSnippetText(hit.snippet || "");
-        const location2 = modelLocation || uiSource || fallbackSource;
+        const location = modelLocation || uiSource || fallbackSource;
         const source = modelLocation || uiSource || fallbackSource;
         const requirement = command || "按当前页面上下文完成修改";
         const directionLevel = hit.modelLocateLevel === "direction";
         const directionGuess = sanitizeModelInstructionText(hit.modelDirectionGuess || "");
-        const shouldShowUiSource = directionLevel && uiSource && uiSource !== location2;
+        const shouldShowUiSource = directionLevel && uiSource && uiSource !== location;
         const importChain = Array.isArray(hit.importChain) && hit.importChain.length ? hit.importChain.join(" -> ") : "";
         return [
           hits.length > 1 ? `任务 ${index + 1}:` : "",
@@ -12919,8 +12946,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           hit.selectionDesignRequirement ? `已确认设计需求: ${hit.selectionDesignRequirement}` : "",
           shouldShowUiSource ? `UI源码:
 ${uiSource}` : "",
-          location2 ? `${directionLevel ? "源码方向" : "位置"}:
-${location2}` : "",
+          location ? `${directionLevel ? "源码方向" : "位置"}:
+${location}` : "",
           source && !directionLevel ? `源码:
 ${source}` : "",
           importChain ? `相关引用链: ${importChain}` : "",
@@ -14742,8 +14769,9 @@ ${result.rawText}` : ""
         if (probing.value) return appUi.serviceOnline === true;
         probing.value = true;
         try {
-          const online = yield pingSourceServer();
-          appUi.setServiceOnline(online);
+          const result = yield probeSourceServer();
+          appUi.setServiceOnline(result.online, result.message, result.url);
+          const online = result.online;
           schedule(online ? 15e3 : 4e3);
           return online;
         } finally {
@@ -14768,6 +14796,42 @@ ${result.rawText}` : ""
     return { probe };
   }
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  function reloadThroughSidePanelHost(timeoutMs = 4e3) {
+    if (typeof window === "undefined" || window.parent === window) return Promise.resolve(false);
+    const requestId = `update-reload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return new Promise((resolve) => {
+      let settled = false;
+      const cleanup = () => {
+        window.clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+      };
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(ok);
+      };
+      const onMessage = (event) => {
+        const message = event.data || {};
+        if (message.type !== "magnus.sidepanel.reload.result" || message.requestId !== requestId) return;
+        finish(!!message.ok);
+      };
+      const timer = window.setTimeout(() => finish(false), timeoutMs);
+      window.addEventListener("message", onMessage);
+      window.parent.postMessage({
+        type: "magnus.sidepanel.reload",
+        requestId,
+        reason: "update-complete"
+      }, "*");
+    });
+  }
+  function reloadAfterUpdate() {
+    return __async(this, null, function* () {
+      const delegated = yield reloadThroughSidePanelHost();
+      if (delegated) return;
+      window.location.reload();
+    });
+  }
   function useUpdateCheck() {
     const info = /* @__PURE__ */ ref(null);
     const applying = /* @__PURE__ */ ref(false);
@@ -14782,13 +14846,34 @@ ${result.rawText}` : ""
         }
       });
     }
+    function readStatus() {
+      return __async(this, null, function* () {
+        try {
+          return yield sourceServerJson("/api/update/status", { timeoutMs: 1500 });
+        } catch (e) {
+          return null;
+        }
+      });
+    }
     function waitForNewVersion(oldVersion, maxSeconds = 90) {
       return __async(this, null, function* () {
+        var _a2, _b;
         for (let i = 0; i < maxSeconds; i += 1) {
           try {
             const data = yield sourceServerJson("/api/version", { timeoutMs: 1500 });
             if (data && data.version && data.version !== oldVersion) return true;
           } catch (e) {
+          }
+          const status = yield readStatus();
+          if ((status == null ? void 0 : status.status) === "failed") {
+            const lastLog = ((_a2 = status.logs) == null ? void 0 : _a2.slice(-1)[0]) || "";
+            throw new Error(status.error || lastLog || "更新失败");
+          }
+          if ((status == null ? void 0 : status.status) === "running") {
+            const lastLog = (_b = status.logs) == null ? void 0 : _b.slice(-1)[0];
+            applyMessage.value = lastLog ? `更新中：${lastLog}` : "更新中，服务将自动重启…";
+          } else if ((status == null ? void 0 : status.status) === "succeeded") {
+            applyMessage.value = "更新完成，等待服务重启…";
           }
           yield sleep(1e3);
         }
@@ -14806,13 +14891,19 @@ ${result.rawText}` : ""
         } catch (e) {
         }
         applyMessage.value = "更新中，服务将自动重启…";
-        const ok = yield waitForNewVersion(oldVersion);
-        if (ok) {
-          applyMessage.value = "更新完成，正在刷新…";
-          location.reload();
-        } else {
+        try {
+          const ok = yield waitForNewVersion(oldVersion);
+          if (ok) {
+            applyMessage.value = "更新完成，正在刷新…";
+            yield reloadAfterUpdate();
+          } else {
+            applying.value = false;
+            applyMessage.value = "未检测到服务自动重启，请运行 magnus restart 后重试。";
+            void check();
+          }
+        } catch (error) {
           applying.value = false;
-          applyMessage.value = "";
+          applyMessage.value = `更新失败：${error instanceof Error ? error.message : String(error)}`;
           void check();
         }
       });
@@ -14838,29 +14929,31 @@ ${result.rawText}` : ""
     class: "mda-service-down",
     role: "alert"
   };
-  const _hoisted_9 = ["disabled"];
-  const _hoisted_10 = {
+  const _hoisted_9 = { class: "mda-service-down-main" };
+  const _hoisted_10 = { class: "mda-service-down-hint" };
+  const _hoisted_11 = ["disabled"];
+  const _hoisted_12 = {
     key: 1,
     class: "mda-update-bar",
     role: "status"
   };
-  const _hoisted_11 = { class: "mda-update-main" };
-  const _hoisted_12 = { class: "mda-update-title" };
-  const _hoisted_13 = { class: "mda-update-hint" };
-  const _hoisted_14 = {
+  const _hoisted_13 = { class: "mda-update-main" };
+  const _hoisted_14 = { class: "mda-update-title" };
+  const _hoisted_15 = { class: "mda-update-hint" };
+  const _hoisted_16 = {
     key: 1,
     class: "mda-update-spinner",
     "aria-hidden": "true"
   };
-  const _hoisted_15 = { class: "mda-body mda-chat-body" };
-  const _hoisted_16 = {
+  const _hoisted_17 = { class: "mda-body mda-chat-body" };
+  const _hoisted_18 = {
     key: 2,
     class: "mda-project-checking",
     role: "status",
     "aria-live": "polite"
   };
-  const _hoisted_17 = { class: "mda-project-checking-box" };
-  const _hoisted_18 = { class: "mda-project-checking-text" };
+  const _hoisted_19 = { class: "mda-project-checking-box" };
+  const _hoisted_20 = { class: "mda-project-checking-text" };
   const _sfc_main$1 = /* @__PURE__ */ defineComponent({
     __name: "MagnusPanel",
     props: {
@@ -14871,7 +14964,7 @@ ${result.rawText}` : ""
       const memory = useMemoryStore();
       const projectStore = useProjectStore();
       const appUiStore = useAppUiStore();
-      const { serviceOnline } = storeToRefs(appUiStore);
+      const { serviceOnline, serviceHealthMessage, serviceHealthUrl } = storeToRefs(appUiStore);
       const { probe: probeHealth } = useServiceHealth();
       const retryChecking = /* @__PURE__ */ ref(false);
       function retryHealth() {
@@ -14927,53 +15020,86 @@ ${result.rawText}` : ""
               }, " ⚙ ")
             ]),
             unref(serviceOnline) === false ? (openBlock(), createElementBlock("div", _hoisted_8, [
-              _cache[3] || (_cache[3] = createBaseVNode(
+              _cache[6] || (_cache[6] = createBaseVNode(
                 "span",
                 { class: "mda-service-down-icon" },
                 "⚠",
                 -1
                 /* CACHED */
               )),
-              _cache[4] || (_cache[4] = createBaseVNode(
-                "div",
-                { class: "mda-service-down-main" },
-                [
-                  createBaseVNode("div", { class: "mda-service-down-title" }, "本地服务未运行"),
-                  createBaseVNode("div", { class: "mda-service-down-hint" }, [
-                    createTextVNode("请在终端运行 "),
-                    createBaseVNode("code", null, "magnus start"),
-                    createTextVNode(" 启动本地服务后重试")
-                  ])
-                ],
-                -1
-                /* CACHED */
-              )),
+              createBaseVNode("div", _hoisted_9, [
+                _cache[4] || (_cache[4] = createBaseVNode(
+                  "div",
+                  { class: "mda-service-down-title" },
+                  "本地服务不可达",
+                  -1
+                  /* CACHED */
+                )),
+                createBaseVNode("div", _hoisted_10, [
+                  _cache[3] || (_cache[3] = createTextVNode(
+                    " 正在探测 ",
+                    -1
+                    /* CACHED */
+                  )),
+                  createBaseVNode(
+                    "code",
+                    null,
+                    toDisplayString(unref(serviceHealthUrl) || "/health"),
+                    1
+                    /* TEXT */
+                  ),
+                  unref(serviceHealthMessage) ? (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 0 },
+                    [
+                      createTextVNode(
+                        "，失败原因：" + toDisplayString(unref(serviceHealthMessage)),
+                        1
+                        /* TEXT */
+                      )
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  )) : createCommentVNode("v-if", true)
+                ]),
+                _cache[5] || (_cache[5] = createBaseVNode(
+                  "div",
+                  { class: "mda-service-down-hint" },
+                  [
+                    createTextVNode("如果服务已启动，请运行 "),
+                    createBaseVNode("code", null, "magnus status"),
+                    createTextVNode(" 检查端口是否一致。")
+                  ],
+                  -1
+                  /* CACHED */
+                ))
+              ]),
               createBaseVNode("button", {
                 class: "mda-service-down-retry",
                 type: "button",
                 disabled: retryChecking.value,
                 onClick: retryHealth
-              }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_9)
-            ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_10, [
-              _cache[5] || (_cache[5] = createBaseVNode(
+              }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_11)
+            ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_12, [
+              _cache[7] || (_cache[7] = createBaseVNode(
                 "span",
                 { class: "mda-update-icon" },
                 "⬆",
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_11, [
+              createBaseVNode("div", _hoisted_13, [
                 createBaseVNode(
                   "div",
-                  _hoisted_12,
+                  _hoisted_14,
                   toDisplayString(unref(updateApplying) ? "更新中…" : `发现新版本 v${unref(updateInfo).latest}`),
                   1
                   /* TEXT */
                 ),
                 createBaseVNode(
                   "div",
-                  _hoisted_13,
-                  toDisplayString(unref(updateApplying) ? unref(updateMessage) : `当前 v${unref(updateInfo).current}，可一键更新（服务会自动重启）`),
+                  _hoisted_15,
+                  toDisplayString(unref(updateMessage) || `当前 v${unref(updateInfo).current}，可一键更新（服务会自动重启）`),
                   1
                   /* TEXT */
                 )
@@ -14984,9 +15110,9 @@ ${result.rawText}` : ""
                 type: "button",
                 onClick: _cache[1] || (_cache[1] = //@ts-ignore
                 (...args) => unref(applyUpdate) && unref(applyUpdate)(...args))
-              }, "更新")) : (openBlock(), createElementBlock("span", _hoisted_14))
+              }, "更新")) : (openBlock(), createElementBlock("span", _hoisted_16))
             ])) : createCommentVNode("v-if", true),
-            createBaseVNode("div", _hoisted_15, [
+            createBaseVNode("div", _hoisted_17, [
               createBaseVNode(
                 "input",
                 {
@@ -15006,9 +15132,9 @@ ${result.rawText}` : ""
               createVNode(_sfc_main$a),
               createVNode(_sfc_main$3)
             ]),
-            projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_16, [
-              createBaseVNode("div", _hoisted_17, [
-                _cache[7] || (_cache[7] = createBaseVNode(
+            projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_18, [
+              createBaseVNode("div", _hoisted_19, [
+                _cache[9] || (_cache[9] = createBaseVNode(
                   "div",
                   { class: "mda-project-checking-spinner" },
                   null,
@@ -15016,7 +15142,7 @@ ${result.rawText}` : ""
                   /* CACHED */
                 )),
                 createBaseVNode("div", null, [
-                  _cache[6] || (_cache[6] = createBaseVNode(
+                  _cache[8] || (_cache[8] = createBaseVNode(
                     "div",
                     { class: "mda-project-checking-title" },
                     "正在检查项目",
@@ -15025,7 +15151,7 @@ ${result.rawText}` : ""
                   )),
                   createBaseVNode(
                     "div",
-                    _hoisted_18,
+                    _hoisted_20,
                     toDisplayString(projectCheckingText.value),
                     1
                     /* TEXT */

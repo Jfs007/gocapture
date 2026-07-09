@@ -20,6 +20,8 @@ function parsePanelContext() {
   };
 }
 
+const panelContext = parsePanelContext();
+
 function panelUrl(panelTicket) {
   return `${sourceServerUrl}/ui/?panelTicket=${encodeURIComponent(panelTicket)}`;
 }
@@ -129,9 +131,35 @@ async function writeClipboardText(text) {
 
 window.addEventListener('message', event => {
   const message = event.data || {};
-  if (message.type !== 'magnus.clipboard.write') return;
   const frame = getFrame();
   if (frame && event.source !== frame.contentWindow) return;
+  if (message.type === 'magnus.sidepanel.reload') {
+    const requestId = message.requestId || '';
+    (async () => {
+      try {
+        setStatus('更新完成，正在重新绑定页面...');
+        const panelTicket = await rebindPanel(panelContext);
+        panelContext.panelTicket = panelTicket;
+        event.source?.postMessage({
+          type: 'magnus.sidepanel.reload.result',
+          requestId,
+          ok: true,
+        }, event.origin || '*');
+        loadIframe(panelTicket, { force: true });
+      } catch (error) {
+        console.error('[Magnus] side panel reload failed:', error);
+        setStatus(`重新绑定失败：${error.message || error}`);
+        event.source?.postMessage({
+          type: 'magnus.sidepanel.reload.result',
+          requestId,
+          ok: false,
+          error: error.message || String(error),
+        }, event.origin || '*');
+      }
+    })();
+    return;
+  }
+  if (message.type !== 'magnus.clipboard.write') return;
   writeClipboardText(String(message.text || '')).then(ok => {
     event.source?.postMessage({
       type: 'magnus.clipboard.result',
@@ -142,14 +170,13 @@ window.addEventListener('message', event => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  const context = parsePanelContext();
   loadMagnusConfig().then(() => {
-    if (context.panelTicket) {
-      loadIframe(context.panelTicket);
+    if (panelContext.panelTicket) {
+      loadIframe(panelContext.panelTicket);
       return;
     }
     setStatus('正在初始化 Magnus...');
-    return preparePanel(context).then(panelTicket => {
+    return preparePanel(panelContext).then(panelTicket => {
       loadIframe(panelTicket);
     });
   }).catch(error => {
@@ -162,8 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
     rebindButton.addEventListener('click', async () => {
       try {
         setStatus('重新绑定页面...');
-        const panelTicket = await rebindPanel(context);
-        context.panelTicket = panelTicket;
+        const panelTicket = await rebindPanel(panelContext);
+        panelContext.panelTicket = panelTicket;
         loadIframe(panelTicket, { force: panelTicket !== loadedPanelTicket });
       } catch (error) {
         console.error('[Magnus] side panel rebind failed:', error);

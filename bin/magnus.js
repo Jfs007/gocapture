@@ -1,24 +1,28 @@
 #!/usr/bin/env node
 'use strict';
 
-// Magnus CLI —— 把本地 source-server 装成 macOS 用户级常驻服务（LaunchAgent）。
-// 登录即起、崩溃自愈、更新自重启（KeepAlive）。命令：install / uninstall / start / stop / restart / status。
+// Magnus CLI —— 本地 source-server 管理 + Chrome 插件目录辅助安装。
+// 登录即起、崩溃自愈、更新自重启（KeepAlive）。命令：install / uninstall / start / stop / restart / status / chrome / version。
 
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const LABEL = 'com.magnus.source-server';
 const packageRoot = path.resolve(__dirname, '..');
 const serverScript = path.join(packageRoot, 'scripts', 'source-server.js');
 const nodeBin = process.execPath;
+const nodeBinDir = path.dirname(nodeBin);
 const plistDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
 const plistPath = path.join(plistDir, `${LABEL}.plist`);
 const logDir = path.join(os.homedir(), 'Library', 'Logs', 'magnus');
 const logOut = path.join(logDir, 'source-server.log');
 const logErr = path.join(logDir, 'source-server.err.log');
+const chromeExtensionDir = path.join(packageRoot, 'package');
+const chromeManifestPath = path.join(chromeExtensionDir, 'manifest.json');
+const packageJsonPath = path.join(packageRoot, 'package.json');
 
 const HOST = process.env.MAGNUS_SOURCE_HOST || '127.0.0.1';
 const PORT = Number(argValue('--port') || process.env.MAGNUS_SOURCE_PORT || 17321);
@@ -80,6 +84,8 @@ function plistContent() {
     <string>${xmlEscape(HOST)}</string>
     <key>MAGNUS_SOURCE_PORT</key>
     <string>${xmlEscape(String(PORT))}</string>
+    <key>PATH</key>
+    <string>${xmlEscape(`${nodeBinDir}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`)}</string>
   </dict>
   <key>StandardOutPath</key>
   <string>${xmlEscape(logOut)}</string>
@@ -99,6 +105,17 @@ function pingHealth(timeoutMs = 2000) {
     req.setTimeout(timeoutMs, () => { req.destroy(); resolve(false); });
     req.on('error', () => resolve(false));
   });
+}
+
+function openPath(targetPath) {
+  const opener = process.platform === 'darwin'
+    ? { command: 'open', args: [targetPath] }
+    : process.platform === 'win32'
+      ? { command: 'explorer.exe', args: [targetPath] }
+      : { command: 'xdg-open', args: [targetPath] };
+  const child = spawn(opener.command, opener.args, { detached: true, stdio: 'ignore' });
+  child.on('error', () => {});
+  child.unref();
 }
 
 function requireMac() {
@@ -200,6 +217,38 @@ async function cmdStatus() {
   else if (!healthy) console.log('\n服务未响应，可尝试：magnus restart（查看日志：' + logErr + '）');
 }
 
+function cmdChrome() {
+  if (!fs.existsSync(chromeManifestPath)) {
+    console.error(`未找到 Chrome 插件 manifest：${chromeManifestPath}`);
+    console.error('请确认当前 magnus 包内包含 package/ 插件目录。');
+    process.exit(1);
+  }
+  openPath(chromeExtensionDir);
+  console.log('Magnus Chrome 插件目录');
+  console.log(`  ${chromeExtensionDir}`);
+  console.log('');
+  console.log('安装方式：');
+  console.log('  1. 在 Chrome 打开 chrome://extensions');
+  console.log('  2. 打开右上角「开发者模式」');
+  console.log('  3. 点击「加载已解压的扩展程序」');
+  console.log('  4. 选择上面的目录');
+  console.log('');
+  console.log('本地服务启动：magnus install 或 magnus start');
+}
+
+function packageInfo() {
+  try {
+    return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function cmdVersion() {
+  const pkg = packageInfo();
+  console.log(pkg.version || '0.0.0');
+}
+
 function cmdHelp() {
   console.log(`Magnus CLI —— 本地 source-server 管理（macOS）
 
@@ -211,6 +260,8 @@ function cmdHelp() {
   stop        停止服务（下次登录会自动再起；彻底移除用 uninstall）
   restart     重启服务
   status      查看安装/运行/健康状态与端口、日志路径
+  chrome      打开随包携带的 Chrome 插件目录，并显示加载插件步骤
+  version     输出当前 CLI 版本（也可用 -v / --version）
   help        显示本帮助
 
   默认端口 ${PORT}（可用 --port 或环境变量 MAGNUS_SOURCE_PORT 覆盖）`);
@@ -224,6 +275,10 @@ const commands = {
   stop: cmdStop,
   restart: cmdRestart,
   status: cmdStatus,
+  chrome: cmdChrome,
+  version: cmdVersion,
+  '--version': cmdVersion,
+  '-v': cmdVersion,
   help: cmdHelp,
   '--help': cmdHelp,
   '-h': cmdHelp,

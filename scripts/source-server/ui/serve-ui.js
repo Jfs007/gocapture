@@ -19,6 +19,7 @@ const mimeTypes = {
 function sendText(res, status, text, contentType = 'text/plain; charset=utf-8') {
   res.writeHead(status, {
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Private-Network': 'true',
     'Content-Type': contentType,
     'Cache-Control': 'no-store',
   });
@@ -34,6 +35,7 @@ function sendFile(res, filePath) {
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Private-Network': 'true',
       'Content-Type': mimeTypes[ext] || 'application/octet-stream',
       'Cache-Control': 'no-store',
     });

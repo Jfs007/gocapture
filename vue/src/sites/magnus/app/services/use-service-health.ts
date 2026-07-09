@@ -1,5 +1,5 @@
 import { onMounted, onScopeDispose, ref } from 'vue';
-import { pingSourceServer } from './source-service';
+import { probeSourceServer } from './source-service';
 import { useAppUiStore } from '../../stores/app-ui.store';
 
 // 探活本地服务：挂载即探一次，之后定时轮询；把在线/离线写进 app-ui store（serviceOnline）。
@@ -13,8 +13,9 @@ export function useServiceHealth() {
     if (probing.value) return appUi.serviceOnline === true;
     probing.value = true;
     try {
-      const online = await pingSourceServer();
-      appUi.setServiceOnline(online);
+      const result = await probeSourceServer();
+      appUi.setServiceOnline(result.online, result.message, result.url);
+      const online = result.online;
       schedule(online ? 15000 : 4000);
       return online;
     } finally {

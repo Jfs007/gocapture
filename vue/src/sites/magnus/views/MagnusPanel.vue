@@ -25,8 +25,12 @@
       <div v-if="serviceOnline === false" class="mda-service-down" role="alert">
         <span class="mda-service-down-icon">⚠</span>
         <div class="mda-service-down-main">
-          <div class="mda-service-down-title">本地服务未运行</div>
-          <div class="mda-service-down-hint">请在终端运行 <code>magnus start</code> 启动本地服务后重试</div>
+          <div class="mda-service-down-title">本地服务不可达</div>
+          <div class="mda-service-down-hint">
+            正在探测 <code>{{ serviceHealthUrl || '/health' }}</code>
+            <template v-if="serviceHealthMessage">，失败原因：{{ serviceHealthMessage }}</template>
+          </div>
+          <div class="mda-service-down-hint">如果服务已启动，请运行 <code>magnus status</code> 检查端口是否一致。</div>
         </div>
         <button class="mda-service-down-retry" type="button" :disabled="retryChecking" @click="retryHealth">
           {{ retryChecking ? '检查中…' : '重试' }}
@@ -37,7 +41,7 @@
         <span class="mda-update-icon">⬆</span>
         <div class="mda-update-main">
           <div class="mda-update-title">{{ updateApplying ? '更新中…' : `发现新版本 v${updateInfo.latest}` }}</div>
-          <div class="mda-update-hint">{{ updateApplying ? updateMessage : `当前 v${updateInfo.current}，可一键更新（服务会自动重启）` }}</div>
+          <div class="mda-update-hint">{{ updateMessage || `当前 v${updateInfo.current}，可一键更新（服务会自动重启）` }}</div>
         </div>
         <button v-if="!updateApplying" class="mda-update-btn" type="button" @click="applyUpdate">更新</button>
         <span v-else class="mda-update-spinner" aria-hidden="true" />
@@ -89,7 +93,7 @@ const props = defineProps<{
 const memory = useMemoryStore();
 const projectStore = useProjectStore();
 const appUiStore = useAppUiStore();
-const { serviceOnline } = storeToRefs(appUiStore);
+const { serviceOnline, serviceHealthMessage, serviceHealthUrl } = storeToRefs(appUiStore);
 const { probe: probeHealth } = useServiceHealth();
 const retryChecking = ref(false);
 async function retryHealth() {

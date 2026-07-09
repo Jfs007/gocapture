@@ -1,5 +1,6 @@
 node_modules
 dist
+outputs
 .DS_Store
 docs/.vitepress/dist
 docs/.vitepress/dist-dev

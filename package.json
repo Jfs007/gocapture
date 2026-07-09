@@ -1,29 +1,16 @@
 {
-  "name": "@you/magnus",
-  "version": "1.0.0",
+  "name": "@sep-agent/magnus",
+  "version": "1.0.14",
+  "private": true,
   "description": "Magnus —— 本地源码定位 + 修改计划服务与 Chrome 扩展（占位包名，发布前请改成你的真实 npm 包名，或设 MAGNUS_UPDATE_PACKAGE）。",
-  "bin": {
-    "magnus": "bin/magnus.js"
-  },
-  "files": [
-    "bin",
-    "scripts/source-server.js",
-    "scripts/source-server",
-    "package",
-    "README.md",
-    "!**/*.test.js",
-    "!**/__dev__",
-    "!**/*.log"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
   "scripts": {
     "app:build": "node scripts/app-build.js",
     "app:dev": "node scripts/app-build.js --watch",
     "app:inspector:build": "node scripts/app-build.js --project vue --name magnus --entry src/sites/magnus/main.ts --no-minify",
     "app:inspector:dev": "node scripts/app-build.js --project vue --name magnus --entry src/sites/magnus/main.ts --no-minify --watch",
     "source:server": "node scripts/source-server.js",
+    "release:package": "node scripts/build-npm-package.js",
+    "release:gui": "node scripts/release-gui.js",
     "demo:side": "node demo/side/dev-server.js --port 5197",
     "docs:dev": "vitepress dev docs --host 0.0.0.0",
     "docs:build": "node scripts/docs-build.js",

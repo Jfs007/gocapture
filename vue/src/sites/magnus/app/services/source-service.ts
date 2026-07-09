@@ -5,6 +5,7 @@ export const SOURCE_SERVER_URL =
   || 'http://127.0.0.1:17321';
 export const MAGNUS_INTERNAL_REQUEST_HEADER = 'X-Magnus-Internal';
 export const MAGNUS_INTERNAL_REQUEST_VALUE = 'source-server';
+export const SOURCE_SERVER_HEALTH_URL = `${SOURCE_SERVER_URL}/health`;
 
 interface SourceServerOptions {
   method?: string;
@@ -136,11 +137,36 @@ export async function sourceServerNdjson(pathname: string, options: SourceServer
 
 // 轻量探活：本地服务是否在跑（供前端「服务未启动」提示用）。不抛错，只回布尔。
 export async function pingSourceServer(timeoutMs = 2500): Promise<boolean> {
+  const result = await probeSourceServer(timeoutMs);
+  return result.online;
+}
+
+export async function probeSourceServer(timeoutMs = 2500): Promise<{ online: boolean; url: string; message: string }> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
   try {
-    await sourceServerJson('/health', { timeoutMs, timeoutMessage: 'health timeout' });
-    return true;
-  } catch (error) {
-    return false;
+    const response = await fetch(SOURCE_SERVER_HEALTH_URL, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `HTTP ${response.status}` };
+    }
+    const data = await response.json().catch(() => ({}));
+    if (data?.success === false) {
+      return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: data.error || 'health success=false' };
+    }
+    return { online: true, url: SOURCE_SERVER_HEALTH_URL, message: '' };
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `health timeout (${timeoutMs}ms)` };
+    }
+    const message = error instanceof Error ? error.message : String(error || 'unknown error');
+    return { online: false, url: SOURCE_SERVER_HEALTH_URL, message };
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 

@@ -4,10 +4,39 @@
 // 查询用的是 update-notifier 底层同款逻辑（registry 的 dist-tags.latest + semver 比较），不额外引依赖、可控。
 
 const https = require('https');
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..', '..', '..');
+const updateState = {
+  status: 'idle',
+  target: '',
+  startedAt: 0,
+  finishedAt: 0,
+  exitCode: null,
+  error: '',
+  logs: [],
+};
+
+function pushLog(message) {
+  const text = String(message || '').trim();
+  if (!text) return;
+  updateState.logs.push(text);
+  if (updateState.logs.length > 80) updateState.logs.splice(0, updateState.logs.length - 80);
+}
+
+function updateStatus() {
+  return {
+    status: updateState.status,
+    target: updateState.target,
+    startedAt: updateState.startedAt,
+    finishedAt: updateState.finishedAt,
+    exitCode: updateState.exitCode,
+    error: updateState.error,
+    logs: updateState.logs.slice(-20),
+  };
+}
 
 function packageInfo() {
   let pkg = {};
@@ -20,6 +49,26 @@ function packageInfo() {
     name: process.env.MAGNUS_UPDATE_PACKAGE || pkg.name || '',
     version: pkg.version || '0.0.0',
     registry: process.env.MAGNUS_UPDATE_REGISTRY || 'https://registry.npmjs.org',
+  };
+}
+
+function npmCommand() {
+  const binDir = path.dirname(process.execPath);
+  const candidates = process.platform === 'win32'
+    ? [path.join(binDir, 'npm.cmd'), path.join(binDir, 'npm')]
+    : [path.join(binDir, 'npm'), '/opt/homebrew/bin/npm', '/usr/local/bin/npm', '/usr/bin/npm'];
+  return candidates.find(file => fs.existsSync(file)) || 'npm';
+}
+
+function npmEnv() {
+  const binDir = path.dirname(process.execPath);
+  const currentPath = process.env.PATH || '';
+  const extraPath = process.platform === 'win32'
+    ? binDir
+    : `${binDir}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`;
+  return {
+    ...process.env,
+    PATH: currentPath ? `${extraPath}:${currentPath}` : extraPath,
   };
 }
 
@@ -89,21 +138,45 @@ async function checkForUpdate() {
 function applyUpdate(onLog = () => {}) {
   const info = packageInfo();
   if (!info.name) return { started: false, error: '包名未配置，无法更新' };
+  if (updateState.status === 'running') return { started: true, alreadyRunning: true, target: updateState.target };
   const target = `${info.name}@latest`;
-  onLog(`开始更新：npm install -g ${target}`);
-  const child = spawn('npm', ['install', '-g', target], {
+  updateState.status = 'running';
+  updateState.target = target;
+  updateState.startedAt = Date.now();
+  updateState.finishedAt = 0;
+  updateState.exitCode = null;
+  updateState.error = '';
+  updateState.logs = [];
+  const args = ['install', '-g', target, '--registry', info.registry];
+  const log = message => {
+    pushLog(message);
+    onLog(message);
+  };
+  const command = npmCommand();
+  log(`开始更新：${command} ${args.join(' ')}`);
+  const child = spawn(command, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
+    env: npmEnv(),
   });
-  child.stdout.on('data', chunk => onLog(String(chunk).trim()));
-  child.stderr.on('data', chunk => onLog(String(chunk).trim()));
-  child.on('error', error => onLog(`更新失败：${error.message || error}`));
+  child.stdout.on('data', chunk => log(String(chunk).trim()));
+  child.stderr.on('data', chunk => log(String(chunk).trim()));
+  child.on('error', error => {
+    updateState.status = 'failed';
+    updateState.finishedAt = Date.now();
+    updateState.error = error.message || String(error);
+    log(`更新失败：${updateState.error}`);
+  });
   child.on('close', code => {
+    updateState.finishedAt = Date.now();
+    updateState.exitCode = code;
     if (code === 0) {
-      onLog('更新完成，服务即将重启以应用新版本…');
+      updateState.status = 'succeeded';
+      log('更新完成，服务即将重启以应用新版本…');
       setTimeout(() => process.exit(0), 300);   // KeepAlive 会用新版本重新拉起
     } else {
-      onLog(`更新失败：npm 退出码 ${code}（服务保持当前版本运行）`);
+      updateState.status = 'failed';
+      updateState.error = `npm 退出码 ${code}`;
+      log(`更新失败：npm 退出码 ${code}（服务保持当前版本运行）`);
     }
   });
   return { started: true, target };
@@ -113,5 +186,6 @@ module.exports = {
   packageInfo,
   isNewer,
   checkForUpdate,
+  updateStatus,
   applyUpdate,
 };
