@@ -11,15 +11,6 @@
           </div>
           <div class="mda-subtitle">{{ pageHost }}</div>
         </div>
-        <button
-          class="mda-icon mda-settings-trigger"
-          type="button"
-          title="记忆设置"
-          aria-label="记忆设置"
-          @click="memory.openPanel"
-        >
-          ⚙
-        </button>
       </header>
 
       <div v-if="serviceOnline === false" class="mda-service-down" role="alert">
@@ -69,6 +60,7 @@
         </div>
       </div>
       <MemorySettingsPanel />
+      <McpStatusPanel :visible="mcpPanelOpen" @close="appUiStore.setMcpPanelOpen(false)" />
     </section>
   </main>
 </template>
@@ -77,23 +69,22 @@
 import ChatThread from '../components/chat/ChatThread.vue';
 import ComposerPanel from '../components/composer/ComposerPanel.vue';
 import MemorySettingsPanel from '../components/settings/MemorySettingsPanel.vue';
+import McpStatusPanel from '../components/mcp/McpStatusPanel.vue';
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { createMagnusRuntime } from '../app/runtime/create-runtime';
 import { useServiceHealth } from '../app/services/use-service-health';
 import { useUpdateCheck } from '../app/services/use-update-check';
 import { useAppUiStore } from '../stores/app-ui.store';
-import { useMemoryStore } from '../stores/memory.store';
 import { useProjectStore } from '../stores/project.store';
 import magnusLogo from '../resources/logo.jpg';
 
 const props = defineProps<{
   api: Record<string, any>;
 }>();
-const memory = useMemoryStore();
 const projectStore = useProjectStore();
 const appUiStore = useAppUiStore();
-const { serviceOnline, serviceHealthMessage, serviceHealthUrl } = storeToRefs(appUiStore);
+const { serviceOnline, serviceHealthMessage, serviceHealthUrl, mcpPanelOpen } = storeToRefs(appUiStore);
 const { probe: probeHealth } = useServiceHealth();
 const retryChecking = ref(false);
 async function retryHealth() {

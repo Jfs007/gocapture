@@ -27,6 +27,13 @@ function registerAgentToolProvider(provider) {
   return provider;
 }
 
+function unregisterAgentToolProvider(id) {
+  const index = toolProviders.findIndex(item => item.id === id);
+  if (index < 0) return false;
+  toolProviders.splice(index, 1);
+  return true;
+}
+
 function listAgentToolProviders() {
   return toolProviders.map(provider => ({
     id: provider.id,
@@ -84,4 +91,5 @@ module.exports = {
   listAgentToolProviders,
   listAgentTools,
   registerAgentToolProvider,
+  unregisterAgentToolProvider,
 };

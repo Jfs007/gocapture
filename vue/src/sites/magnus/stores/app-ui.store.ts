@@ -6,6 +6,7 @@ export const useAppUiStore = defineStore('magnus.appUi', () => {
   const serviceOnline = ref<boolean | null>(null);   // null=未探测，true=在线，false=本地服务未启动
   const serviceHealthMessage = ref('');
   const serviceHealthUrl = ref('');
+  const mcpPanelOpen = ref(false);
   const toastText = ref('');
   const toastTimer = ref<number | null>(null);
 
@@ -17,6 +18,10 @@ export const useAppUiStore = defineStore('magnus.appUi', () => {
     serviceOnline.value = value;
     serviceHealthMessage.value = message || '';
     serviceHealthUrl.value = url || '';
+  }
+
+  function setMcpPanelOpen(value: boolean) {
+    mcpPanelOpen.value = !!value;
   }
 
   function setToast(text: string) {
@@ -46,9 +51,11 @@ export const useAppUiStore = defineStore('magnus.appUi', () => {
     serviceOnline,
     serviceHealthMessage,
     serviceHealthUrl,
+    mcpPanelOpen,
     toastText,
     setRuntimeConnected,
     setServiceOnline,
+    setMcpPanelOpen,
     setToast,
     cleanupToast
   };

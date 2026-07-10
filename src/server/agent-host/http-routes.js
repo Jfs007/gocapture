@@ -18,6 +18,7 @@ const {
   listAgentToolProviders,
   listAgentTools,
 } = require('./tools/registry');
+const { getMcpStatus } = require('./mcp/bootstrap');
 
 async function handleAgentHostRoutes(context) {
   const {
@@ -42,6 +43,11 @@ async function handleAgentHostRoutes(context) {
 
   if (req.method === 'GET' && url.pathname === '/api/agent/tool-providers') {
     sendJson(res, 200, { success: true, providers: listAgentToolProviders() });
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/agent/mcp/status') {
+    sendJson(res, 200, { success: true, ...getMcpStatus() });
     return true;
   }
 

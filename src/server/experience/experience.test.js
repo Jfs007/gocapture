@@ -85,7 +85,7 @@ async function run() {
       projectTechnicalStackMarkdown(project, '## 技术栈\n- Vue\n\n## 项目信息\n- old'),
       /Vue/
     );
-    assert.ok(fs.existsSync(path.join(root, '.magnus-project', 'Project.md')));
+    assert.ok(fs.existsSync(path.join(root, '.magnus', 'Project.md')));
 
     const discovery = executeDiscoveryPlan(project, {
       domain: 'api-integration',
@@ -332,14 +332,14 @@ async function run() {
     assert.equal(tableExperience.savedExperience.saved, true, tableExperience.savedExperience.reason);
     assert.equal(loadExperienceMetas(project).length, 1);
     assert.deepEqual(loadExperienceMetas(project)[0].triggerTags, ['MdTable', 'useTable', 'md-table', '表格', '列表']);
-    const experienceDirectory = path.join(root, '.magnus-project', 'experiences', 'mdtable-usetable');
+    const experienceDirectory = path.join(root, '.magnus', 'experiences', 'mdtable-usetable');
     assert.equal(fs.existsSync(path.join(experienceDirectory, 'recipes.json')), true);
     assert.equal(fs.existsSync(path.join(experienceDirectory, 'source-contracts.json')), true);
     assert.equal(fs.existsSync(path.join(experienceDirectory, 'checklist.json')), true);
     assert.equal(fs.existsSync(path.join(experienceDirectory, 'provenance.json')), true);
     assert.equal(fs.existsSync(path.join(experienceDirectory, 'examples.json')), false);
     assert.equal(fs.existsSync(path.join(experienceDirectory, 'evidence.json')), false);
-    assert.equal(fs.existsSync(path.join(root, '.magnus-project', 'skills')), false);
+    assert.equal(fs.existsSync(path.join(root, '.magnus', 'skills')), false);
     const contexts = loadExperienceContexts(project, ['experience:mdtable-usetable']);
     assert.equal(contexts.length, 1);
     assert.equal(Array.isArray(contexts[0].recipes), true);
@@ -370,14 +370,14 @@ async function run() {
     assert.equal(updatedExperience.meta.status, 'active');
     assert.match(updatedExperience.context, /编辑后的补充约束/);
     assert.match(
-      fs.readFileSync(path.join(root, '.magnus-project', 'Project.md'), 'utf8'),
+      fs.readFileSync(path.join(root, '.magnus', 'Project.md'), 'utf8'),
       /项目表格实现规范/
     );
     assert.equal(removeTaskSessionMemory(project, orderSession.id), true);
     assert.equal(memorySnapshot(project).taskSessions.some(session => session.id === orderSession.id), false);
 
     const rescanned = scanProject(root);
-    assert.equal(rescanned.files.some(file => file.path.startsWith('.magnus-project/')), false);
+    assert.equal(rescanned.files.some(file => file.path.startsWith('.magnus/')), false);
     assert.ok(logs.some(log => log.includes('候选经验已保存')));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -20,7 +20,7 @@ const SKIP_DIRS = new Set([
   '.claude',
   '.codex',
   '.DS_Store',
-  '.magnus-project',
+  '.magnus',
   'target',
   'vendor',
 ]);

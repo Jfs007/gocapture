@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const EXPERIENCE_DIR = '.magnus-project';
+const EXPERIENCE_DIR = '.magnus';
 const PROJECT_META_FILE = 'project-meta.json';
 const PROJECT_DOC_FILE = 'Project.md';
 const PROJECT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
