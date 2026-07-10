@@ -62,6 +62,12 @@ async function handleModelRoutes({
       if (!finished) controller.abort();
     });
     try {
+      if (typeof projectContext.ensureCapabilities === 'function') {
+        await projectContext.ensureCapabilities({
+          timeoutMs: 8000,
+          onLog: log => writeStreamEvent(res, { type: 'log', log }),
+        });
+      }
       const result = await runSelectionContextEnhancement(project, body, new Map(), {
         signal: controller.signal,
         onLog: log => writeStreamEvent(res, { type: 'log', log }),

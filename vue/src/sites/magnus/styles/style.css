@@ -2825,6 +2825,27 @@
 .mda-mcp-body { flex: 1 1 auto; overflow-y: auto; padding: 12px; }
 .mda-mcp-error { color: #d03050; font-size: 12px; margin-bottom: 8px; }
 .mda-mcp-section-title { font-size: 12px; font-weight: 600; color: #667085; margin: 12px 0 6px; }
+.mda-mcp-config {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #eef0f3;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.mda-mcp-config div {
+  display: grid;
+  gap: 3px;
+}
+.mda-mcp-config strong {
+  color: #667085;
+  font-size: 11px;
+}
+.mda-mcp-config code {
+  color: #344054;
+  font: 11px/1.45 ui-monospace, Menlo, monospace;
+  word-break: break-all;
+}
 .mda-mcp-empty { font-size: 12px; color: #98a2b3; }
 .mda-mcp-empty code { background: #f2f4f7; padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; }
 .mda-mcp-servers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -2835,6 +2856,20 @@
 .mda-mcp-dot.is-failed { background: #f04438; }
 .mda-mcp-server-name { font-size: 13px; font-weight: 600; }
 .mda-mcp-server-status { font-size: 11px; color: #667085; margin-left: auto; }
+.mda-mcp-mini-btn {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid #d7dbe0;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font-size: 11px;
+}
+.mda-mcp-mini-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .mda-mcp-server-error { font-size: 11px; color: #d03050; margin-top: 4px; word-break: break-all; }
 .mda-mcp-tools { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .mda-mcp-tool { font-size: 11px; font-family: ui-monospace, Menlo, monospace; color: #344054; }

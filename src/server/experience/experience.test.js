@@ -353,13 +353,18 @@ run().then(() => {
     targets: [{ file: 'src/columns.tsx', anchor: '点击设置', line: '15', whatToChange: '改文案', why: '需求' }, { file: '' }],
     affected: [{ file: 'src/types.ts', reason: '类型' }, {}],
     reusePatterns: ['复用 useTable', ''],
-    risks: [], verification: ['构建通过'], openQuestions: [],
+    risks: [{ risk: '可能影响提交参数', mitigation: '检查接口 payload' }],
+    verification: [{ step: '构建通过' }],
+    openQuestions: [{ question: '是否需要必填校验？' }],
   });
   assert.equal(plan.summary, '改成本单元格');
   assert.equal(plan.targets.length, 1);
   assert.equal(plan.targets[0].line, 15);
   assert.equal(plan.affected.length, 1);
   assert.deepEqual(plan.reusePatterns, ['复用 useTable']);
+  assert.deepEqual(plan.risks, ['可能影响提交参数']);
+  assert.deepEqual(plan.verification, ['step: 构建通过']);
+  assert.deepEqual(plan.openQuestions, ['是否需要必填校验？']);
 
   // 派生文本包含关键信息
   const text = changePlanToText(plan, { userRequirement: 'x' });

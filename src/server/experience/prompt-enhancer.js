@@ -661,20 +661,56 @@ function buildChangePlanPrompt(input) {
 // 规范化模型返回的 changePlan（防缺字段/类型错）。
 function normalizeChangePlan(raw) {
   const plan = raw && typeof raw === 'object' ? raw : {};
-  const strList = value => (Array.isArray(value) ? value : []).map(item => String(item || '').trim()).filter(Boolean).slice(0, 20);
+  const planText = value => {
+    if (value == null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value).trim();
+    }
+    if (Array.isArray(value)) return value.map(planText).filter(Boolean).join('；');
+    if (typeof value === 'object') {
+      const preferred = [
+        'text',
+        'title',
+        'description',
+        'reason',
+        'question',
+        'content',
+        'message',
+        'risk',
+        'verification',
+        'expected',
+        'action',
+        'value',
+        'label',
+      ];
+      for (const key of preferred) {
+        const text = planText(value[key]);
+        if (text) return text;
+      }
+      return Object.entries(value)
+        .map(([key, item]) => {
+          const text = planText(item);
+          return text ? `${key}: ${text}` : '';
+        })
+        .filter(Boolean)
+        .join('；');
+    }
+    return '';
+  };
+  const strList = value => (Array.isArray(value) ? value : []).map(item => planText(item)).filter(Boolean).slice(0, 20);
   return {
-    selectionUnderstanding: String(plan.selectionUnderstanding || '').trim(),
-    summary: String(plan.summary || '').trim(),
+    selectionUnderstanding: planText(plan.selectionUnderstanding),
+    summary: planText(plan.summary),
     targets: (Array.isArray(plan.targets) ? plan.targets : []).slice(0, 20).map(item => ({
-      file: String(item?.file || '').trim(),
-      anchor: String(item?.anchor || '').trim(),
+      file: planText(item?.file),
+      anchor: planText(item?.anchor),
       line: Math.max(0, Number(item?.line || 0)),
-      whatToChange: String(item?.whatToChange || '').trim(),
-      why: String(item?.why || '').trim(),
+      whatToChange: planText(item?.whatToChange),
+      why: planText(item?.why),
     })).filter(item => item.file || item.whatToChange),
     affected: (Array.isArray(plan.affected) ? plan.affected : []).slice(0, 20).map(item => ({
-      file: String(item?.file || '').trim(),
-      reason: String(item?.reason || '').trim(),
+      file: planText(item?.file),
+      reason: planText(item?.reason),
     })).filter(item => item.file),
     reusePatterns: strList(plan.reusePatterns),
     risks: strList(plan.risks),
@@ -765,16 +801,63 @@ function truncate(value, max) {
   return text.length > max ? `${text.slice(0, max)}…（已截断）` : text;
 }
 
+function compactToolSchema(schema) {
+  const value = schema && typeof schema === 'object' ? schema : {};
+  const properties = value.properties && typeof value.properties === 'object' ? value.properties : {};
+  const compactProperties = {};
+  for (const [key, prop] of Object.entries(properties).slice(0, 16)) {
+    compactProperties[key] = {
+      type: prop?.type || 'unknown',
+      description: truncate(prop?.description || prop?.title || '', 120),
+      enum: Array.isArray(prop?.enum) ? prop.enum.slice(0, 12) : undefined,
+    };
+  }
+  return {
+    type: value.type || 'object',
+    required: Array.isArray(value.required) ? value.required.slice(0, 16) : [],
+    properties: compactProperties,
+  };
+}
+
+function compactToolResult(result) {
+  if (typeof result === 'string') return result;
+  if (Array.isArray(result?.content)) {
+    return result.content.map(item => {
+      if (typeof item === 'string') return item;
+      if (item?.type === 'text') return item.text || '';
+      return JSON.stringify(item);
+    }).filter(Boolean).join('\n\n');
+  }
+  return JSON.stringify(result);
+}
+
+function selectChangePlanTools(tools, options = {}) {
+  const allowedSources = new Set(options.allowedSources || ['builtin', 'mcp', 'skill']);
+  const blockedProviders = new Set(options.blockedProviders || ['builtin.experience']);
+  const blockedCategories = new Set(options.blockedCategories || ['experience']);
+  return (tools || []).filter(tool => {
+    if (blockedProviders.has(tool.providerId)) return false;
+    if (blockedCategories.has(tool.category)) return false;
+    if (!allowedSources.has(tool.source || 'unknown')) return false;
+    if (options.readOnlyOnly && tool.access !== 'read' && tool.access !== 'external') return false;
+    return true;
+  });
+}
+
 // 工具是拔插的、与链路无关：任何一次 LLM 调用都能看到当前注册的全部工具（project-crud + MCP + skills），
-// 需要时先调用工具取真实信息（如查组件/库文档、读源码），再产出结构化结果。
+// 需要时先调用工具取真实信息（如读源码、查外部系统、取项目经验），再产出结构化结果。
 function buildAgentToolsSection(tools) {
   const lines = tools.slice(0, 40).map(tool => {
     const desc = truncate(tool.description || tool.title || '', 160);
-    return `- ${tool.name}${tool.source ? ` [${tool.source}]` : ''}${desc ? `：${desc}` : ''}`;
+    const schema = truncate(JSON.stringify(compactToolSchema(tool.inputSchema)), 800);
+    return [
+      `- ${tool.name}${tool.source ? ` [${tool.source}]` : ''}${desc ? `：${desc}` : ''}`,
+      `  inputSchema: ${schema}`,
+    ].join('\n');
   });
   return [
     '## 可用工具（拔插，按需调用；先取真实信息，再产出计划）',
-    '在产出 changePlan 之前，你可以调用下列工具收集真实依据——例如：需要某组件/库的用法就查文档（mcp__* 文档类工具，如 context7 的 resolve/query），需要看源码/符号/引用就用 read_file / search_text / find_* 等。不确定组件 API 时，应先查文档而不是猜。',
+    '在产出 changePlan 之前，你可以调用下列工具收集真实依据。根据工具的 source/name/description/inputSchema 判断用途：builtin 工具用于读取/检索本地源码，mcp 工具用于外部服务能力（例如文档、设计稿、远端仓库、工单、知识库等），skill 工具用于项目或用户安装的专用能力。不要编造工具名，不要假设某个 MCP 一定存在。',
     ...lines,
     '',
     '协议（严格遵守其一，不要混用）：',
@@ -784,20 +867,40 @@ function buildAgentToolsSection(tools) {
 }
 
 function formatToolObservation(observation) {
+  const input = truncate(JSON.stringify(observation.input || {}), 1000);
   const body = observation.ok
-    ? truncate(typeof observation.result === 'string' ? observation.result : JSON.stringify(observation.result), 4000)
+    ? truncate(compactToolResult(observation.result), observation.source === 'mcp' ? 8000 : 4000)
     : `错误：${observation.error}`;
-  return `### ${observation.tool}${observation.ok ? '' : '（失败）'}\n${body}`;
+  return [
+    `### ${observation.tool}${observation.ok ? '' : '（失败）'}`,
+    `input: ${input}`,
+    'result:',
+    body,
+  ].join('\n');
 }
 
-// change-plan 走「tool-capable 循环」：模型可在产计划前调用任意注册工具（含 context7 查文档），取完再给最终计划。
+async function executeToolWithRetry(executeTool, project, call, context, retries = 1) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const output = await executeTool(project, call, context);
+      return { output, attempt };
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) break;
+    }
+  }
+  throw lastError;
+}
+
+// change-plan 走「tool-capable 循环」：模型可在产计划前调用当前场景允许的工具（项目源码、MCP 文档、Skills），取完再给最终计划。
 async function runChangePlanWithTools({ project, invoke, input, log, textCache, maxTurns = 4 }) {
   const basePrompt = buildChangePlanPrompt(input);
   let tools = [];
   let executeTool = null;
   try {
     const registry = require('../agent-host/tools/registry'); // 懒加载避免与 agent-host 的循环依赖
-    tools = registry.listAgentTools().filter(tool => tool.providerId !== 'builtin.experience'); // 排除经验工具，防递归
+    tools = selectChangePlanTools(registry.listAgentTools(), { readOnlyOnly: true }); // 排除经验工具/写工具，防递归和副作用
     executeTool = registry.executeAgentTool;
   } catch (error) {
     log(`工具表加载失败，change-plan 退回无工具模式：${error.message || error}`);
@@ -808,6 +911,10 @@ async function runChangePlanWithTools({ project, invoke, input, log, textCache, 
     return { ...single, observations };
   }
   log(`change-plan 可用工具 ${tools.length} 个：${tools.map(tool => tool.name).join('、')}`);
+  const mcpTools = tools.filter(tool => tool.source === 'mcp');
+  if (mcpTools.length) {
+    log(`change-plan 可用 MCP 工具 ${mcpTools.length} 个：${mcpTools.map(tool => tool.name).join('、')}`);
+  }
 
   const toolsSection = buildAgentToolsSection(tools);
   let last = { raw: '', parsed: null };
@@ -824,13 +931,34 @@ async function runChangePlanWithTools({ project, invoke, input, log, textCache, 
     for (const call of calls.slice(0, 5)) {
       const name = String(call.tool || call.name || '');
       try {
-        const output = await executeTool(project, { tool: name, input: call.input || call.arguments || {} }, { textCache });
-        observations.push({ tool: name, ok: true, result: output.result });
-        log(`change-plan 工具调用：${name} ✓`);
+        const toolInput = call.input || call.arguments || {};
+        log(`change-plan 工具调用：${name}；input=${truncate(JSON.stringify(toolInput), 500)}`);
+        const { output, attempt } = await executeToolWithRetry(executeTool, project, { tool: name, input: toolInput }, {
+          textCache,
+          allowedTools: tools.map(tool => tool.name),
+          readOnlyOnly: true,
+        }, 1);
+        const compactedResult = compactToolResult(output.result);
+        observations.push({
+          tool: name,
+          source: output.providerId && output.providerId.startsWith('mcp.') ? 'mcp' : output.providerId,
+          input: toolInput,
+          ok: true,
+          result: output.result,
+        });
+        log(`change-plan 工具调用：${name} ✓${attempt ? `（重试 ${attempt} 次后成功）` : ''}；结果 ${compactedResult.length} 字符`);
       } catch (error) {
-        observations.push({ tool: name, ok: false, error: error.message || String(error) });
+        observations.push({
+          tool: name,
+          input: call.input || call.arguments || {},
+          ok: false,
+          error: error.message || String(error),
+        });
         log(`change-plan 工具调用：${name} ✗ ${error.message || error}`);
       }
+    }
+    if (observations.length) {
+      log(`change-plan 工具结果已写入下一轮上下文：${observations.map(obs => obs.tool).join('、')}`);
     }
   }
   return { ...last, observations };

@@ -133,7 +133,26 @@ async function registerConfiguredMcpProviders(projectPath, options = {}) {
   return registered;
 }
 
+function stopMcpProvider(name) {
+  const value = String(name || '').replace(/^mcp\./, '').trim();
+  if (!value) throw new Error('MCP stop requires server name.');
+  const providerId = `mcp.${value}`;
+  disposeClient(providerId);
+  unregisterAgentToolProvider(providerId);
+  serverStatus.set(value, {
+    name: value,
+    status: 'stopped',
+    toolCount: 0,
+    tools: [],
+    error: '',
+    updatedAt: new Date().toISOString(),
+  });
+  pushLog(`MCP 已停止：${value}`);
+  return { name: value, status: 'stopped' };
+}
+
 module.exports = {
   registerConfiguredMcpProviders,
   getMcpStatus,
+  stopMcpProvider,
 };

@@ -69,6 +69,19 @@ function listAgentTools() {
 async function executeAgentTool(project, toolCall, context = {}) {
   const { name, input } = normalizeToolCall(toolCall);
   const executionContext = normalizeExecutionContext(context);
+  if (Array.isArray(executionContext.allowedTools) && executionContext.allowedTools.length) {
+    const allowed = new Set(executionContext.allowedTools.map(String));
+    if (!allowed.has(name)) {
+      throw new Error(`Tool is not allowed in this agent context: ${name || '-'}`);
+    }
+  }
+  if (Array.isArray(executionContext.blockedTools) && executionContext.blockedTools.map(String).includes(name)) {
+    throw new Error(`Tool is blocked in this agent context: ${name || '-'}`);
+  }
+  const descriptor = listAgentTools().find(tool => tool.name === name);
+  if (descriptor && executionContext.readOnlyOnly && descriptor.access !== 'read' && descriptor.access !== 'external') {
+    throw new Error(`Tool requires non-read access in a read-only agent context: ${name}`);
+  }
   const provider = toolProviders.find(item => item.canExecute(name));
   if (!provider) {
     throw new Error(`Unknown agent tool: ${name || '-'}`);

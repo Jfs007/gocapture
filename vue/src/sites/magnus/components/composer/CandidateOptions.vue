@@ -7,7 +7,11 @@
         {{ composite.render.file }}<span v-if="composite.render.line" class="mda-composite-line">:{{ composite.render.line }}</span>
       </button>
     </div>
-    <div v-if="composite.assembly" class="mda-composite-row">
+    <div v-if="composite.regionOwner" class="mda-composite-row">
+      <span class="mda-composite-tag">区域所有者</span>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(composite.regionOwner.file)">{{ composite.regionOwner.file }}</button>
+    </div>
+    <div v-else-if="composite.assembly" class="mda-composite-row">
       <span class="mda-composite-tag">装配</span>
       <button class="mda-file-link" type="button" @click="commands.openSourceFile(composite.assembly.file)">{{ composite.assembly.file }}</button>
     </div>
@@ -19,6 +23,10 @@
       <span class="mda-composite-tag">子组件</span>
       <button class="mda-file-link" type="button" @click="commands.openSourceFile(child.file)">{{ child.file }}</button>
       <span v-if="child.anchor" class="mda-composite-anchor">{{ child.anchor }}</span>
+    </div>
+    <div v-for="bridge in composite.bridgeFiles || []" :key="`bridge-${bridge.file}`" class="mda-composite-row">
+      <span class="mda-composite-tag">装配桥梁</span>
+      <button class="mda-file-link" type="button" @click="commands.openSourceFile(bridge.file)">{{ bridge.file }}</button>
     </div>
   </div>
 
@@ -47,19 +55,19 @@
     <div v-for="section in plainPlanSections" :key="section.key" class="mda-plan-block">
       <template v-if="(changePlan[section.key] || []).length">
         <div class="mda-plan-block-title">{{ section.label }}</div>
-        <div v-for="(line, index) in changePlan[section.key]" :key="`${section.key}-${index}`" class="mda-plan-line">· {{ line }}</div>
+        <div v-for="(line, index) in changePlan[section.key]" :key="`${section.key}-${index}`" class="mda-plan-line">· {{ planLineText(line) }}</div>
       </template>
     </div>
-    <div v-if="openQuestions.length" class="mda-plan-block">
+    <div v-if="openQuestionItems.length" class="mda-plan-block">
       <div class="mda-plan-block-title">待确认</div>
       <label
-        v-for="(line, index) in openQuestions"
-        :key="`open-${index}-${line}`"
+        v-for="item in openQuestionItems"
+        :key="item.key"
         class="mda-plan-check"
-        :class="{ 'is-checked': isQuestionChecked(line) }"
+        :class="{ 'is-checked': isQuestionChecked(item.text) }"
       >
-        <input type="checkbox" :checked="isQuestionChecked(line)" @change="toggleQuestion(line)">
-        <span>{{ line }}</span>
+        <input type="checkbox" :checked="isQuestionChecked(item.text)" @change="toggleQuestion(item.text)">
+        <span>{{ item.text }}</span>
       </label>
     </div>
     </div>
@@ -138,6 +146,9 @@ const plainPlanSections = [
   { key: 'verification', label: '验证' }
 ];
 const openQuestions = computed(() => Array.isArray(changePlan.value?.openQuestions) ? changePlan.value.openQuestions : []);
+const openQuestionItems = computed(() => openQuestions.value
+  .map((line, index) => ({ text: planLineText(line), key: `open-${index}-${planLineText(line)}` }))
+  .filter(item => item.text));
 const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
 const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
 const modelAssistLoading = computed(() => modelStore.status === 'running');
@@ -148,7 +159,7 @@ watch(modelAssistLoading, value => {
 });
 
 watch(openQuestions, questions => {
-  const allowed = new Set(questions);
+  const allowed = new Set(questions.map(planLineText).filter(Boolean));
   checkedQuestions.value = checkedQuestions.value.filter(item => allowed.has(item));
 }, { immediate: true });
 
@@ -166,5 +177,40 @@ function toggleQuestion(line) {
     return;
   }
   checkedQuestions.value = [...checkedQuestions.value, line];
+}
+
+function planLineText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value).trim();
+  if (Array.isArray(value)) return value.map(planLineText).filter(Boolean).join('；');
+  if (typeof value === 'object') {
+    const preferred = [
+      'text',
+      'title',
+      'description',
+      'reason',
+      'question',
+      'content',
+      'message',
+      'risk',
+      'verification',
+      'expected',
+      'action',
+      'value',
+      'label'
+    ];
+    for (const key of preferred) {
+      const text = planLineText(value[key]);
+      if (text) return text;
+    }
+    return Object.entries(value)
+      .map(([key, item]) => {
+        const text = planLineText(item);
+        return text ? `${key}: ${text}` : '';
+      })
+      .filter(Boolean)
+      .join('；');
+  }
+  return '';
 }
 </script>

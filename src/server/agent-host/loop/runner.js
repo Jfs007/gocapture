@@ -23,12 +23,12 @@ function emit(onEvent, event) {
   if (typeof onEvent === 'function') onEvent(event);
 }
 
-async function executeToolCalls({ project, toolCalls, textCache, onEvent }) {
+async function executeToolCalls({ project, toolCalls, textCache, onEvent, allowedTools, readOnlyOnly }) {
   const observations = [];
   for (const toolCall of toolCalls) {
     emit(onEvent, { type: 'tool.start', toolCall });
     try {
-      const output = await executeAgentTool(project, toolCall, { textCache });
+      const output = await executeAgentTool(project, toolCall, { textCache, allowedTools, readOnlyOnly });
       const observation = {
         id: toolCall.id,
         tool: output.tool,
@@ -109,6 +109,8 @@ async function runAgentLoop(project, options) {
       toolCalls: decision.toolCalls,
       textCache,
       onEvent: options.onEvent,
+      allowedTools: allTools.map(tool => tool.name),
+      readOnlyOnly: options.readOnlyOnly,
     });
     observations.push(...nextObservations);
   }

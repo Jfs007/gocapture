@@ -18,7 +18,8 @@ const {
   listAgentToolProviders,
   listAgentTools,
 } = require('./tools/registry');
-const { getMcpStatus } = require('./mcp/bootstrap');
+const { getMcpStatus, registerConfiguredMcpProviders, stopMcpProvider } = require('./mcp/bootstrap');
+const { userConfigPath } = require('./mcp/config');
 
 async function handleAgentHostRoutes(context) {
   const {
@@ -47,7 +48,33 @@ async function handleAgentHostRoutes(context) {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/agent/mcp/status') {
-    sendJson(res, 200, { success: true, ...getMcpStatus() });
+    const projectPath = url.searchParams.get('projectPath') || '';
+    sendJson(res, 200, {
+      success: true,
+      config: {
+        user: userConfigPath(),
+        project: projectPath ? `${projectPath.replace(/\/$/, '')}/.mcp.json` : '<projectRoot>/.mcp.json',
+      },
+      ...getMcpStatus(),
+    });
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/agent/mcp/reload') {
+    const body = await readBody(req);
+    const project = resolveProject(body.projectPath);
+    const registered = await registerConfiguredMcpProviders(project.path, {
+      onLog: () => {},
+      connectTimeoutMs: Number(body.connectTimeoutMs || 30000),
+    });
+    sendJson(res, 200, { success: true, registered: registered.map(item => ({ name: item.name, toolCount: item.toolCount, tools: item.tools })), ...getMcpStatus() });
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/agent/mcp/stop') {
+    const body = await readBody(req);
+    const result = stopMcpProvider(body.name || body.server || body.providerId);
+    sendJson(res, 200, { success: true, result, ...getMcpStatus() });
     return true;
   }
 

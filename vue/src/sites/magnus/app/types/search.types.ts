@@ -23,9 +23,20 @@ export interface CompositeChildFile {
 
 export interface CompositeResult {
   render: CompositeRenderFile;
+  regionOwner?: CompositeRenderFile | null;
   assembly?: { file: string; via?: string; chain?: string[] } | null;
   children?: CompositeChildFile[];
   coRenders?: CompositeRenderFile[];
+  bridgeFiles?: { file: string; role?: string }[];
+  relations?: {
+    kind: string;
+    from: string;
+    to: string;
+    chain?: string[];
+    bridgeFiles?: string[];
+    confidence?: number;
+  }[];
+  combinedCoverage?: Record<string, unknown>;
 }
 
 export interface ChangePlanTarget {
