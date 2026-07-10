@@ -1,6 +1,6 @@
 'use strict';
 
-const { executeDiscoveryRequest } = require('../../experience/discovery-executor');
+const { runDiscoveryOperation } = require('../../experience/discovery-executor');
 const { createToolProvider } = require('./provider');
 const { buildTool } = require('./tool');
 
@@ -29,7 +29,7 @@ const PROJECT_TOOLS = [
       },
       required: ['scope'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'read_file',
     }, textCache),
@@ -58,7 +58,7 @@ const PROJECT_TOOLS = [
       },
       required: ['scope', 'terms'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'search_text',
     }, textCache),
@@ -84,7 +84,7 @@ const PROJECT_TOOLS = [
         maxResults: { type: 'number' },
       },
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'find_files',
     }, textCache),
@@ -113,7 +113,7 @@ const PROJECT_TOOLS = [
       },
       required: ['scope', 'terms'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'find_symbol',
     }, textCache),
@@ -142,7 +142,7 @@ const PROJECT_TOOLS = [
       },
       required: ['scope', 'terms'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'find_endpoint',
     }, textCache),
@@ -170,7 +170,7 @@ const PROJECT_TOOLS = [
       },
       required: ['target'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'find_imports',
     }, textCache),
@@ -198,7 +198,7 @@ const PROJECT_TOOLS = [
       },
       required: ['target'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'find_importers',
     }, textCache),
@@ -227,7 +227,7 @@ const PROJECT_TOOLS = [
       },
       required: ['scope', 'terms'],
     },
-    call: ({ project, input, textCache }) => executeDiscoveryRequest(project, {
+    call: ({ project, input, textCache }) => runDiscoveryOperation(project, {
       ...input,
       operation: 'find_related_examples',
     }, textCache),

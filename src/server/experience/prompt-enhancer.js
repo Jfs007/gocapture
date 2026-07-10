@@ -1,9 +1,5 @@
 const { readProjectText } = require('../core/fs-utils');
 const path = require('path');
-const {
-  discoveryPlanIssues,
-  executeDiscoveryPlan,
-} = require('./discovery-executor');
 const { ensureProjectContext } = require('./project-context');
 const {
   loadExperienceContexts,
@@ -590,224 +586,6 @@ function buildExperienceMatchPrompt(projectContext, metas, task) {
   ].join('\n');
 }
 
-function buildDiscoveryPlanPrompt(projectContext, task) {
-  return [
-    '你负责发现「落实本次用户需求」所需的项目真实用法与引用关系。只返回 JSON 对象。',
-    '',
-    '不要返回 rg/grep/find 或任何 shell 命令。',
-    'requests.operation 只能使用：read_file、search_text、find_files、find_symbol、find_endpoint、find_imports、find_importers、find_related_examples。',
-    '每个 request 必须严格使用以下字段：',
-    '- read_file: {"operation":"read_file","scope":{"files":["src/..."]},"terms":["可选聚焦词"],"maxResults":2,"maxLinesPerResult":120,"reason":"..."}',
-    '- search/find: {"operation":"search_text","scope":{"roots":["src"]},"terms":["明确检索词"],"maxResults":20,"maxLinesPerResult":20,"reason":"..."}',
-    '- import: {"operation":"find_imports","target":"src/目标文件","scope":{"roots":["src"]},"maxResults":20,"maxLinesPerResult":60,"reason":"..."}',
-    '禁止使用 path 代替 scope，禁止省略 search/find 操作的 terms。',
-    '优先读取目标文件，再通过少量代表案例回答项目通常怎么做；不要扫描并返回整仓源码。',
-    '发现范围由用户需求的字面意图与已定位的目标文件决定：只发现「落实本次需求真正需要的」项目用法/引用关系，不要按需求中的某个词去发散成另一类任务的经验发现。',
-    '每个请求必须说明 reason，并设置 maxResults 和 maxLinesPerResult。',
-    '',
-    '返回格式：',
-    '{"domain":"","objective":"","questions":[],"requests":[],"expectedExperience":{"name":"","triggerTags":[]}}',
-    '',
-    `Project.md:\n${projectContext.markdown}`,
-    '',
-    `当前粗任务:\n${safeJson(task)}`,
-  ].join('\n');
-}
-
-function buildDiscoveryRepairPrompt(projectContext, task, rawPlan, issues) {
-  return [
-    '上一份项目经验发现计划不符合协议。请修复后只返回 JSON 对象。',
-    '',
-    `协议问题:\n${issues.map(item => `- ${item}`).join('\n')}`,
-    '',
-    '硬性要求：',
-    '- read_file 必须提供 scope.files。',
-    '- search_text/find_files/find_symbol/find_endpoint/find_related_examples 必须提供 scope.roots 和非空 terms。',
-    '- find_imports/find_importers 必须提供 target。',
-    '- 不得使用 path 字段，不得输出 shell 命令。',
-    '- 需要分别发现目标 UI/组件的项目用法，以及数据/API 的项目接入方式。',
-    '',
-    `Project.md:\n${projectContext.markdown}`,
-    '',
-    `当前任务:\n${safeJson(task)}`,
-    '',
-    `待修复计划:\n${safeJson(rawPlan)}`,
-  ].join('\n');
-}
-
-function splitIdentifier(value) {
-  return String(value || '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .split(/[^a-zA-Z0-9_-]+/)
-    .map(item => item.toLowerCase())
-    .filter(item => item.length >= 4)
-    .filter(item => !['data', 'item', 'list', 'page', 'table', 'value'].includes(item));
-}
-
-function taskSearchAnchors(task) {
-  const requirement = String(task.userRequirement || '');
-  const snippets = (task.targets || []).map(item => item.codeSnippet || '').join('\n');
-  const symbols = Array.from(new Set(
-    (requirement.match(/\b[A-Za-z_$][A-Za-z0-9_$]{3,}\b/g) || [])
-      .filter(item => /[A-Z_$]/.test(item.slice(1)) || /^(?:get|set|load|fetch|save|update|create|delete)[A-Z_]/.test(item))
-  )).slice(0, 12);
-  const endpoints = Array.from(new Set(requirement.match(/\/[A-Za-z0-9_./?=&:-]{3,}/g) || [])).slice(0, 8);
-  const components = Array.from(new Set(
-    (snippets.match(/<([a-zA-Z][\w-]*)\b/g) || []).map(item => item.slice(1))
-  )).filter(item => item.includes('-') || /^[A-Z]/.test(item)).slice(0, 8);
-  const identifierParts = Array.from(new Set(symbols.flatMap(splitIdentifier))).slice(0, 12);
-  return { symbols, endpoints, components, identifierParts };
-}
-
-function implementationPatternTerms(project, task, textCache) {
-  const requirement = String(task.userRequirement || '');
-  const targetSnippets = (task.targets || []).map(item => item.codeSnippet || item.directionGuess || '').join('\n');
-  const targetTexts = (task.targets || []).slice(0, 4).map(item => {
-    const file = (project.files || []).find(entry => entry.path === item.file);
-    return file ? readProjectText(project, file, textCache) : '';
-  }).join('\n');
-  const combined = [requirement, targetSnippets, targetTexts].join('\n');
-  const hasTableIntent = /表格|列表|\btable\b|\blist\b/i.test(combined);
-  const result = new Set();
-  if (hasTableIntent) {
-    for (const match of combined.matchAll(/<([A-Za-z][\w-]*(?:table|list)[\w-]*)\b/gi)) {
-      result.add(match[1]);
-    }
-    for (const match of targetTexts.matchAll(/\b(?:Md|N|El|A|V)[A-Za-z0-9_$]*Table\b/g)) {
-      result.add(match[0]);
-    }
-    for (const match of targetTexts.matchAll(/\buse[A-Za-z0-9_$]*Table\b/g)) {
-      result.add(match[0]);
-    }
-    for (const match of targetTexts.matchAll(/['"]([^'"]*(?:md-table|data-table|table)[^'"]*)['"]/gi)) {
-      const value = match[1].split('/').filter(Boolean).slice(-1)[0] || match[1];
-      if (/table/i.test(value)) result.add(value);
-    }
-  }
-  return Array.from(result)
-    .filter(item => item.length >= 4)
-    .filter(item => !/^(data|loading|pagination|columns|list|table)$/i.test(item))
-    .slice(0, 16);
-}
-
-function augmentDiscoveryPlan(rawPlan, task, project, textCache) {
-  const anchors = taskSearchAnchors(task);
-  const patternTerms = project ? implementationPatternTerms(project, task, textCache) : [];
-  const targetFiles = (task.targets || []).map(item => item.file).filter(Boolean);
-  const requests = (rawPlan?.requests || []).map(request => {
-    const next = { ...request };
-    const existingTerms = Array.isArray(next.terms) ? next.terms.filter(Boolean) : [];
-    if (!existingTerms.length) {
-      if (next.operation === 'find_files') {
-        next.terms = anchors.identifierParts;
-      } else if (next.operation === 'find_related_examples') {
-        next.terms = [...anchors.components, ...anchors.symbols].slice(0, 12);
-      } else if (['search_text', 'find_symbol', 'find_endpoint'].includes(next.operation)) {
-        next.terms = [...anchors.endpoints, ...anchors.symbols].slice(0, 12);
-      }
-    }
-    return next;
-  });
-
-  const readTargets = new Set(requests
-    .filter(request => request.operation === 'read_file')
-    .flatMap(request => request.scope?.files || []));
-  for (const file of targetFiles) {
-    if (!readTargets.has(file)) {
-      requests.unshift({
-        id: `read-target-${requests.length + 1}`,
-        operation: 'read_file',
-        scope: { files: [file] },
-        terms: anchors.components,
-        maxResults: 1,
-        maxLinesPerResult: 120,
-        reason: '读取目标文件中的当前 UI 与相关实现',
-      });
-    }
-    if (!requests.some(request => request.operation === 'find_imports' && request.target === file)) {
-      requests.push({
-        id: `target-imports-${requests.length + 1}`,
-        operation: 'find_imports',
-        target: file,
-        scope: { roots: ['src'] },
-        maxResults: 20,
-        maxLinesPerResult: 60,
-        reason: '读取目标文件直接依赖，确认 Feature API、组件和状态封装',
-      });
-    }
-  }
-  if (anchors.symbols.length && !requests.some(request =>
-    request.operation === 'find_symbol'
-    && (request.terms || []).some(term => anchors.symbols.includes(term)))) {
-    requests.push({
-      id: `task-symbol-${requests.length + 1}`,
-      operation: 'find_symbol',
-      scope: { roots: ['src'] },
-      terms: anchors.symbols,
-      maxResults: 20,
-      maxLinesPerResult: 24,
-      reason: '全仓确认用户明确给出的函数或符号是否已有定义和调用',
-    });
-  }
-  if (patternTerms.length && !requests.some(request =>
-    request.operation === 'find_related_examples'
-    && (request.terms || []).some(term => patternTerms.includes(term)))) {
-    requests.push({
-      id: `pattern-frequency-${requests.length + 1}`,
-      operation: 'find_related_examples',
-      scope: { roots: ['src'] },
-      terms: patternTerms,
-      maxResults: 12,
-      maxLinesPerResult: 80,
-      reason: '统计并抽样项目内同类实现标识符的使用频次，用于判断是否形成项目基础经验',
-    });
-  }
-  if (anchors.components.length && !requests.some(request => request.operation === 'find_related_examples')) {
-    requests.push({
-      id: `ui-examples-${requests.length + 1}`,
-      operation: 'find_related_examples',
-      scope: { roots: ['src'] },
-      terms: anchors.components,
-      maxResults: 4,
-      maxLinesPerResult: 100,
-      reason: '寻找当前 UI 组件在项目中的代表用法',
-    });
-  }
-  return { ...rawPlan, requests: requests.slice(0, 8) };
-}
-
-function buildEnhancementPrompt(input) {
-  return [
-    '你负责把 Magnus 的粗源码定位结果增强成可交给专业 Code Agent 的精准需求提示词。只返回 JSON 对象。',
-    '',
-    '要求：',
-    '- 不要直接修改代码。',
-    '- 项目经验只用于约束实现方式，目标文件真实代码优先。',
-    '- roughTask.targets[].codeSnippet 是上一阶段已经按页面选区定位出的粗源码依据，优先级高于 targetFiles.content 中其它相似代码。',
-    '- 生成 enhancedPrompt 时必须围绕 roughTask.targets[].codeSnippet 指向的源码块描述修改位置；除非你能从输入证据明确证明它不匹配，否则禁止改判到同文件里的其它价格、文案或样式块。',
-    '- targetFiles.content 只用于补充 import、变量定义、相邻上下文和校验点，不允许覆盖粗定位源码结论。',
-    '- targetFiles.content 是本地已读取的完整目标文件内容，不是片段；必须基于完整文件提炼可直接执行的修改方案。',
-    '- activeTask 是同一 projectRoot + 页面路径下累计的任务上下文；只能合并仍与当前粗定位源码或当前用户需求直接相关的 requirements，不能把历史任务改写成本次需求。',
-    '- 如果 activeTask.confirmedExperienceIds 已存在，说明这些 Experience 已在当前任务中确认过，应优先复用，不要重复质疑其项目级适用性；但目标文件真实代码仍优先。',
-    '- enhancedPrompt 应尽量让 Code Agent 上手即可修改：指出应改的文件、应放置的位置、应复用的 import/变量/函数/组件/API 模式、实施步骤和校验点。',
-    '- 不要笼统要求 Code Agent “重新完整阅读目标文件”；只有当目标文件以外的 API、hook、子组件、父组件或公共实现仍缺失时，才列出“需要继续阅读的相关文件/方向”。',
-    '- 明确区分已确认事实、待验证假设和实施要求。',
-    '- 不得臆造接口字段、响应结构、函数名、导入路径、状态变量或组件 API。',
-    '- 禁止建议创建占位接口、猜测接口路径、猜测字段名，或发明 columns2/data2/loading2 这类实现名称。',
-    '- “已确认项目经验”必须引用 discovery/matchedExperiences 中真实命中的文件和代码模式；没有证据就明确写未确认。',
-    '- 若 discovery.stats 显示某组实现标识符在多个文件中高频出现，并且代表案例代码模式一致，可以把它作为“项目基础经验”；不要求业务语义完全相同。',
-    '- 例如表格任务中，如果 useTable、MdTable、md-table、NDataTable 等从目标文件抽取出的同类实现标识符在多个文件中稳定共现，可确认项目表格实现倾向。',
-    '- 如果粗定位可能不准确，要求 Code Agent 沿直接引用链验证相关文件，不要把验证范围泛化成重读整个项目。',
-    '- enhancedPrompt 必须包含任务、目标文件、目标文件内已确认上下文、已确认项目经验、实施步骤、需要继续阅读的相关文件/方向、待确认项和安全准则。',
-    '- 不要在本阶段生成或保存 Experience；candidateExperience 必须返回 null。Experience 是否沉淀会由后续独立阶段基于高频门票和证据包判断。',
-    '',
-    '返回格式：',
-    '{"enhancedPrompt":"","confirmedFacts":[],"assumptions":[],"usedExperienceIds":[],"candidateExperience":null}',
-    '',
-    `输入上下文:\n${safeJson(input)}`,
-  ].join('\n');
-}
-
 function roughSourceAnchors(value) {
   const stop = new Set([
     'const', 'return', 'render', 'style', 'class', 'value', 'false', 'true',
@@ -839,36 +617,8 @@ function enhancedPromptMatchesRoughSource(task, enhancedPrompt) {
 //  - 某条检索命中文件数过多（通用词/框架组件，如 n-button 命中 80+ 文件）→ 判为噪音，略去其匹配；
 //  - 跨请求按 path 去重，封顶文件数与单片段长度。
 //  仅用于变更规划输入；Experience 沉淀仍用全量 discovery。
-function trimDiscoveryForPlan(discovery, targetPaths) {
-  if (!discovery || !discovery.results) return discovery;
-  const targets = new Set((targetPaths || []).filter(Boolean));
-  const GENERIC_FILE_THRESHOLD = 30;
-  const MAX_FILES = 8;
-  const MAX_SNIPPET_CHARS = 1500;
-  const seen = new Set();
-  const results = {};
-  let kept = 0;
-  for (const [id, result] of Object.entries(discovery.results)) {
-    if (result?.stats && Number(result.stats.matchedFiles || 0) > GENERIC_FILE_THRESHOLD) {
-      results[id] = { ...result, matches: [], trimmed: 'too-generic' };
-      continue;
-    }
-    const matches = [];
-    for (const item of result.matches || []) {
-      const path = item?.path || '';
-      if (!path || targets.has(path) || seen.has(path)) continue;
-      if (kept >= MAX_FILES) break;
-      seen.add(path);
-      kept += 1;
-      matches.push({ ...item, snippet: String(item.snippet || '').slice(0, MAX_SNIPPET_CHARS) });
-    }
-    results[id] = { ...result, matches };
-  }
-  return { ...discovery, results };
-}
-
-// 变更规划阶段：把「定位到的源码 + 用户需求 + 项目经验/发现证据」增强成一份结构化「修改计划」。
-// 由 buildEnhancementPrompt 改造——同样的输入上下文，但输出从「增强提示词文本」改为结构化计划 JSON。
+// 变更规划阶段：把「定位到的源码 + 用户需求 + 项目经验」增强成一份结构化「修改计划」JSON。
+// 在 runChangePlanWithTools 的 tool-capable 循环里产出：模型可先按需调用工具取真实依据，再给最终计划。
 function buildChangePlanPrompt(input) {
   return [
     '你负责把 Magnus 粗定位到的源码块 + 用户在页面上的选区，翻译成一份可直接落地的「结构化修改计划」。只返回 JSON 对象。',
@@ -1010,6 +760,95 @@ async function invokeJson(invoke, stage, prompt, log) {
   return { raw, parsed: parseJson(raw) };
 }
 
+function truncate(value, max) {
+  const text = String(value == null ? '' : value);
+  return text.length > max ? `${text.slice(0, max)}…（已截断）` : text;
+}
+
+// 工具是拔插的、与链路无关：任何一次 LLM 调用都能看到当前注册的全部工具（project-crud + MCP + skills），
+// 需要时先调用工具取真实信息（如查组件/库文档、读源码），再产出结构化结果。
+function buildAgentToolsSection(tools) {
+  const lines = tools.slice(0, 40).map(tool => {
+    const desc = truncate(tool.description || tool.title || '', 160);
+    return `- ${tool.name}${tool.source ? ` [${tool.source}]` : ''}${desc ? `：${desc}` : ''}`;
+  });
+  return [
+    '## 可用工具（拔插，按需调用；先取真实信息，再产出计划）',
+    '在产出 changePlan 之前，你可以调用下列工具收集真实依据——例如：需要某组件/库的用法就查文档（mcp__* 文档类工具，如 context7 的 resolve/query），需要看源码/符号/引用就用 read_file / search_text / find_* 等。不确定组件 API 时，应先查文档而不是猜。',
+    ...lines,
+    '',
+    '协议（严格遵守其一，不要混用）：',
+    '- 需要调用工具：只返回 {"toolCalls":[{"id":"t1","tool":"<工具名>","input":{...}}]}（可一次多个）。',
+    '- 信息足够，产出最终计划：返回原格式 {"changePlan":{...},"confirmedFacts":[],"assumptions":[],"usedExperienceIds":[],"candidateExperience":null}。',
+  ].join('\n');
+}
+
+function formatToolObservation(observation) {
+  const body = observation.ok
+    ? truncate(typeof observation.result === 'string' ? observation.result : JSON.stringify(observation.result), 4000)
+    : `错误：${observation.error}`;
+  return `### ${observation.tool}${observation.ok ? '' : '（失败）'}\n${body}`;
+}
+
+// change-plan 走「tool-capable 循环」：模型可在产计划前调用任意注册工具（含 context7 查文档），取完再给最终计划。
+async function runChangePlanWithTools({ project, invoke, input, log, textCache, maxTurns = 4 }) {
+  const basePrompt = buildChangePlanPrompt(input);
+  let tools = [];
+  let executeTool = null;
+  try {
+    const registry = require('../agent-host/tools/registry'); // 懒加载避免与 agent-host 的循环依赖
+    tools = registry.listAgentTools().filter(tool => tool.providerId !== 'builtin.experience'); // 排除经验工具，防递归
+    executeTool = registry.executeAgentTool;
+  } catch (error) {
+    log(`工具表加载失败，change-plan 退回无工具模式：${error.message || error}`);
+  }
+  const observations = [];
+  if (!tools.length || typeof executeTool !== 'function') {
+    const single = await invokeJson(invoke, 'change-plan', basePrompt, log);
+    return { ...single, observations };
+  }
+  log(`change-plan 可用工具 ${tools.length} 个：${tools.map(tool => tool.name).join('、')}`);
+
+  const toolsSection = buildAgentToolsSection(tools);
+  let last = { raw: '', parsed: null };
+  for (let turn = 1; turn <= maxTurns; turn += 1) {
+    const prompt = [
+      basePrompt,
+      toolsSection,
+      observations.length ? `## 已取得的工具结果（产出计划的真实依据）\n${observations.map(formatToolObservation).join('\n\n')}` : '',
+      turn >= maxTurns ? '（已达工具调用上限，请直接产出最终 changePlan，不要再调用工具。）' : '',
+    ].filter(Boolean).join('\n\n');
+    last = await invokeJson(invoke, turn === 1 ? 'change-plan' : `change-plan-turn-${turn}`, prompt, log);
+    const calls = Array.isArray(last.parsed?.toolCalls) ? last.parsed.toolCalls : [];
+    if (turn >= maxTurns || !calls.length) return { ...last, observations };
+    for (const call of calls.slice(0, 5)) {
+      const name = String(call.tool || call.name || '');
+      try {
+        const output = await executeTool(project, { tool: name, input: call.input || call.arguments || {} }, { textCache });
+        observations.push({ tool: name, ok: true, result: output.result });
+        log(`change-plan 工具调用：${name} ✓`);
+      } catch (error) {
+        observations.push({ tool: name, ok: false, error: error.message || String(error) });
+        log(`change-plan 工具调用：${name} ✗ ${error.message || error}`);
+      }
+    }
+  }
+  return { ...last, observations };
+}
+
+// 从 tool-capable 循环的观测里，重建「经验沉淀」需要的 discovery 结构（find_related_examples/search_text 的 stats+matches）。
+function discoveryFromObservations(observations) {
+  const entries = (observations || [])
+    .filter(obs => obs.ok && obs.result && (obs.result.stats || obs.result.matches))
+    .map((obs, index) => [`obs-${index}`, {
+      operation: obs.result.operation || obs.tool,
+      stats: obs.result.stats || null,
+      matches: Array.isArray(obs.result.matches) ? obs.result.matches : [],
+    }]);
+  if (!entries.length) return null;
+  return { plan: { objective: '' }, results: Object.fromEntries(entries) };
+}
+
 async function enhanceLocatedPrompt(options) {
   const {
     project,
@@ -1036,8 +875,6 @@ async function enhanceLocatedPrompt(options) {
   if (!projectContext.writable) log(`项目经验目录不可写，将仅在本次请求内使用：${projectContext.error || '-'}`);
 
   let matchedExperienceIds = [];
-  let taskFacts = null;
-  let discovery = null;
 
   const reusableExperienceIds = (activeExperienceIds || [])
     .filter(id => matchableMetas.some(meta => meta.id === id))
@@ -1053,45 +890,9 @@ async function enhanceLocatedPrompt(options) {
       log
     );
     matchedExperienceIds = normalizeExperienceIds(match.parsed?.matchedExperienceIds || []).slice(0, 4);
-    if (match.parsed?.requests?.length) {
-      taskFacts = executeDiscoveryPlan(project, {
-        domain: match.parsed.domain || 'task-facts',
-        objective: '补齐当前任务事实',
-        questions: match.parsed.missingFacts || [],
-        requests: match.parsed.requests,
-      }, textCache, log);
-    }
   }
 
   const experiences = loadExperienceContexts(project, matchedExperienceIds);
-  if (!experiences.length) {
-    const planResult = await invokeJson(
-      invoke,
-      'experience-discovery-plan',
-      buildDiscoveryPlanPrompt(projectContext, task),
-      log
-    );
-    let discoveryPlan = planResult.parsed;
-    let issues = discoveryPlanIssues(discoveryPlan);
-    if (issues.length) {
-      log(`经验发现计划协议校验失败：${issues.join('；')}`);
-      const repaired = await invokeJson(
-        invoke,
-        'experience-discovery-plan-repair',
-        buildDiscoveryRepairPrompt(projectContext, task, discoveryPlan, issues),
-        log
-      );
-      discoveryPlan = repaired.parsed || discoveryPlan;
-      issues = discoveryPlanIssues(discoveryPlan);
-    }
-    discoveryPlan = augmentDiscoveryPlan(discoveryPlan || {}, task, project, textCache);
-    issues = discoveryPlanIssues(discoveryPlan);
-    if (!issues.length && discoveryPlan?.requests?.length) {
-      discovery = executeDiscoveryPlan(project, discoveryPlan, textCache, log);
-    } else {
-      log(`经验发现计划仍不可执行，本次使用目标文件与粗定位结果增强：${issues.join('；') || 'requests 为空'}`);
-    }
-  }
 
   const enhancementInput = {
     project: {
@@ -1104,17 +905,18 @@ async function enhanceLocatedPrompt(options) {
     activeTask,
     targetFiles: targetFileContext(project, modelItems, textCache),
     matchedExperiences: experiences,
-    taskFacts,
-    // 变更规划输入用精简后的 discovery（去重目标文件、略去过泛检索、封顶）；Experience 沉淀仍用全量 discovery。
-    discovery: trimDiscoveryForPlan(discovery, (modelItems || []).map(item => item.file).filter(Boolean)),
   };
-  // 变更规划阶段：产出结构化「修改计划」（取代旧的「增强提示词」阶段）。
-  const enhanced = await invokeJson(
+  // 变更规划阶段：tool-capable 循环——模型自己按需调用工具（project-crud 读源码/搜索/找引用 + MCP 查文档 + skills）
+  // 取真实信息后再产出计划。这一步取代了旧的「discovery-plan → 固定操作执行器」（那是 project-crud 工具的重复实现）。
+  const enhanced = await runChangePlanWithTools({
+    project,
     invoke,
-    'change-plan',
-    buildChangePlanPrompt(enhancementInput),
-    log
-  );
+    input: enhancementInput,
+    log,
+    textCache,
+  });
+  // 经验沉淀的证据：来自循环里模型真实调用的 find_related_examples/search_text 等工具的观测。
+  const discovery = discoveryFromObservations(enhanced.observations);
   let changePlan = normalizeChangePlan(enhanced.parsed?.changePlan);
   let usedExperienceIds = normalizeExperienceIds(enhanced.parsed?.usedExperienceIds || matchedExperienceIds).slice(0, 4);
   const hasPlan = !!(changePlan.summary || changePlan.targets.length);
@@ -1200,8 +1002,8 @@ module.exports = {
   normalizeChangePlan,
   changePlanToText,
   changePlanMatchesRoughSource,
-  trimDiscoveryForPlan,
   roughTask,
   buildChangePlanPrompt,
+  runChangePlanWithTools,
   parseJson,
 };

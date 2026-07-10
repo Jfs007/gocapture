@@ -365,6 +365,19 @@ function executeDiscoveryRequest(project, rawRequest, textCache = new Map()) {
   return executeRequest(project, request, textCache);
 }
 
+// 单次检索操作的自描述结果：{ operation, stats, matches }。工具（project-crud）直接返回它，
+// 让 LLM 观测里带上频次统计（stats.termStats）与命中，也作为「经验沉淀」的证据来源。
+function runDiscoveryOperation(project, rawRequest, textCache = new Map()) {
+  const plan = normalizePlan({ requests: [rawRequest] });
+  const request = plan.requests[0];
+  if (!request) return { operation: rawRequest?.operation || 'unknown', stats: null, matches: [] };
+  return {
+    operation: request.operation,
+    stats: discoveryRequestStats(project, request, textCache),
+    matches: executeRequest(project, request, textCache),
+  };
+}
+
 function normalizePlan(plan) {
   const requests = (Array.isArray(plan?.requests) ? plan.requests : [])
     .filter(request => OPERATIONS.has(request?.operation))
@@ -459,5 +472,6 @@ module.exports = {
   discoveryPlanIssues,
   executeDiscoveryPlan,
   executeDiscoveryRequest,
+  runDiscoveryOperation,
   normalizePlan,
 };

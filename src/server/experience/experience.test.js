@@ -147,42 +147,8 @@ async function run() {
       }],
       log: message => logs.push(message),
       invoke: async (stage, prompt) => {
-        if (stage === 'experience-discovery-plan') {
-          return JSON.stringify({
-            domain: 'api-integration',
-            objective: '发现接口接入方式',
-            questions: ['接口如何封装'],
-            requests: [{
-              id: 'api-usage',
-              operation: 'search_text',
-              path: 'src',
-              fileTypes: ['ts'],
-              maxResults: 10,
-              maxLinesPerResult: 8,
-              reason: '寻找真实案例',
-            }],
-            expectedExperience: { name: '普通接口接入', triggerTags: ['接口'] },
-          });
-        }
-        if (stage === 'experience-discovery-plan-repair') {
-          return JSON.stringify({
-            domain: 'api-integration',
-            objective: '发现接口接入方式',
-            questions: ['接口如何封装'],
-            requests: [{
-              id: 'api-usage',
-              operation: 'search_text',
-              scope: { roots: ['src'] },
-              terms: ['http.request'],
-              fileTypes: ['ts'],
-              maxResults: 10,
-              maxLinesPerResult: 16,
-              reason: '寻找真实案例',
-            }],
-          });
-        }
-        assert.match(prompt, /src\/api\/user\.ts/);
-        assert.match(prompt, /http\.request/);
+        // 变更计划走 tool-capable 循环；本用例信息已足够，模型直接产出计划（不调用工具）。
+        // 目标文件完整内容仍应进入提示词，供理解上下文。
         assert.match(prompt, /MAGNUS_FULL_TARGET_FILE_MARKER/);
         return JSON.stringify({
           changePlan: {
@@ -227,31 +193,18 @@ async function run() {
       }],
       log: message => logs.push(message),
       invoke: async (stage, prompt) => {
-        if (stage === 'experience-match') {
+        assert.notEqual(stage, 'legacy-evaluation');
+        if (stage === 'change-plan') {
+          // 变更计划第一轮：模型按需调用 find_related_examples 统计表格实现频次，
+          // 这些真实观测正是后续「经验沉淀」的证据来源（取代旧的固定 discovery-plan）。
           return JSON.stringify({
-            matchedExperienceIds: [],
-            missingFacts: [],
-            requests: [],
-            discoveryNeeded: true,
-            domain: 'table-pattern',
-          });
-        }
-        if (stage === 'experience-discovery-plan') {
-          return JSON.stringify({
-            domain: 'table-pattern',
-            objective: '发现表格实现模式',
-            requests: [{
-              id: 'table-frequency',
-              operation: 'find_related_examples',
-              scope: { roots: ['src'] },
-              terms: ['useTable', 'MdTable', 'md-table'],
-              maxResults: 10,
-              maxLinesPerResult: 24,
-              reason: '统计表格实现频次',
+            toolCalls: [{
+              id: 't1',
+              tool: 'find_related_examples',
+              input: { terms: ['useTable', 'MdTable', 'md-table'], roots: ['src'], maxResults: 10, maxLinesPerResult: 24 },
             }],
           });
         }
-        assert.notEqual(stage, 'legacy-evaluation');
         if (stage === 'experience-candidate') {
           assert.match(prompt, /src\/components\/md-table\/hooks\/useTable\.ts/);
           assert.match(prompt, /src\/components\/md-table\/index\.vue/);
@@ -421,23 +374,6 @@ run().then(() => {
   assert.equal(changePlanMatchesRoughSource(task, good), true);
   assert.equal(changePlanMatchesRoughSource(task, bad), false);
   console.log('changePlan helper checks passed');
-})();
-
-(function trimDiscoveryChecks() {
-  const { trimDiscoveryForPlan } = require('./prompt-enhancer');
-  const discovery = { plan: {}, results: {
-    r1: { operation: 'read_file', matches: [{ path: 'src/target.vue', snippet: 'x'.repeat(3000) }] },
-    r2: { operation: 'search_text', matches: [{ path: 'src/target.vue' }, { path: 'src/a.ts', snippet: 'aa' }] },
-    r3: { operation: 'find_related_examples', stats: { matchedFiles: 81 }, matches: [{ path: 'src/b.vue' }, { path: 'src/c.vue' }] },
-    r4: { operation: 'find_imports', matches: [{ path: 'src/a.ts', snippet: 'dup' }, { path: 'src/d.ts', snippet: 'dd' }] },
-  } };
-  const t = trimDiscoveryForPlan(discovery, ['src/target.vue']);
-  const files = Object.values(t.results).flatMap(r => r.matches.map(m => m.path));
-  assert.deepEqual(files.sort(), ['src/a.ts', 'src/d.ts']);   // 目标去重、过泛略去、跨请求去重
-  assert.equal(t.results.r1.matches.length, 0);
-  assert.equal(t.results.r3.trimmed, 'too-generic');
-  assert.ok(t.results.r2.matches.find(m => m.path === 'src/a.ts'));
-  console.log('trimDiscoveryForPlan checks passed');
 })();
 
 (function roughTaskOriginSelectionCheck() {
