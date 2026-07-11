@@ -7,7 +7,7 @@ import { useAppUiStore } from '../../stores/app-ui.store';
 import type { MagnusRuntimeState } from '../runtime/context';
 import type { SelectionSourceBinding } from '../types/selection.types';
 
-const MAX_AUTO_EXPAND_ATTEMPTS = 3;
+const MAX_AUTO_EXPAND_ATTEMPTS = 5;
 
 export function createComposerWorkflow(state: MagnusRuntimeState) {
   const { source, route, search, selection, composer, model, prompt } = state;

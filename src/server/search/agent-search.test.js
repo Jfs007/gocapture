@@ -21,6 +21,7 @@ const {
   regionByContainerAnchors,
   offsetToLineColumn,
   validateOriginRelation,
+  routeConfirmedOriginFiles,
   normalizeConfidence,
 } = require('./agent-search');
 const {
@@ -31,6 +32,32 @@ const {
   locatorDecisionToSearchPlan,
   locatorTechnicalStackMarkdown,
 } = require('./locator-protocol');
+const {
+  domScopedTextStructures,
+  selectionContextMarkupEntries,
+} = require('./dom-agent/dom-utils');
+
+test('thumbnail asset DOM never participates in source-search context', () => {
+  const selection = {
+    element: {
+      rawOuterHtml: '<div class="ivu-table-wrapper"><span>申请编号</span></div>',
+    },
+    asset: {
+      rawOuterHtml: '<form data-v-stale><label data-v-stale>申请编号:</label></form>',
+    },
+  };
+  const entries = selectionContextMarkupEntries(selection);
+  assert.deepEqual(entries.map(entry => entry.source), ['element']);
+
+  const structures = domScopedTextStructures({ selections: [selection] });
+  assert.deepEqual(structures, [{
+    text: '申请编号',
+    tag: 'span',
+    classes: [],
+    scopes: [],
+    scope: '',
+  }]);
+});
 
 function fixtureProject(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-agent-search-'));
@@ -2759,6 +2786,29 @@ test('validateOriginRelation: valid on direct-contain or import-reference, inval
   assert.equal(validateOriginRelation(project, 'src/B.vue', ['查看'], cache).valid, true);   // 引用了含锚点的文件
   assert.equal(validateOriginRelation(project, 'src/C.vue', ['查看'], cache).valid, false);  // 毫无关系
   assert.equal(validateOriginRelation(project, 'src/C.vue', [], cache).valid, true);         // 无 origin 锚点则跳过
+});
+
+test('runtime-only origin anchors keep only candidates reached from the exact page entry', () => {
+  const renderCandidates = [
+    { file: 'src/page/list/list.js' },
+    { file: 'src/other/list.vue' },
+  ];
+  const routeTrace = {
+    bestPageFile: 'src/page/index.vue',
+  };
+  const routeRelations = [{
+    candidateFile: 'src/page/list/list.js',
+    routeFile: 'src/page/index.vue',
+    chain: ['src/page/index.vue', 'src/page/list/index.vue', 'src/page/list/list.js'],
+  }, {
+    candidateFile: 'src/other/list.vue',
+    routeFile: 'src/router/index.js',
+    chain: ['src/router/index.js', 'src/other/list.vue'],
+  }];
+  assert.deepEqual(
+    routeConfirmedOriginFiles(renderCandidates, routeTrace, routeRelations),
+    ['src/page/list/list.js']
+  );
 });
 
 test('origin mismatch: an expanded-row match that has no relation to the original cell is rejected, not returned', async () => {

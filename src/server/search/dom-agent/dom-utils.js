@@ -1,6 +1,6 @@
 const { uniq } = require('../../utils');
 
-const DEFAULT_DOM_AGENT_THRESHOLD = 8000;
+const DEFAULT_DOM_AGENT_THRESHOLD = 2;
 const MAX_DOM_INPUT_CHARS = 180000;
 const MAX_EXCERPT_CHARS = 7000;
 const MAX_COMPRESSED_DOM_CHARS = 30000;
@@ -453,14 +453,24 @@ function plannerDomInput(body) {
 }
 
 function selectionContextMarkupValues(selection) {
+  return selectionContextMarkupEntries(selection)
+    .map(entry => entry.markup)
+    .filter(Boolean);
+}
+
+function selectionContextMarkupEntries(selection) {
   const info = selection?.element || selection?.info || selection || {};
   return [
-    selectionMarkup(selection),
-    ...(Array.isArray(info.ancestors) ? info.ancestors.map(selectionMarkup) : []),
-    selectionMarkup(selection?.asset),
-    selectionMarkup(selection?.expanded),
-    selectionMarkup(selection?.expandedContext),
-  ].filter(Boolean);
+    { source: 'element', value: selection },
+    ...(Array.isArray(info.ancestors)
+      ? info.ancestors.map((ancestor, index) => ({ source: `element.ancestors[${index}]`, value: ancestor }))
+      : []),
+    { source: 'expanded', value: selection?.expanded },
+    { source: 'expandedContext', value: selection?.expandedContext },
+  ].filter(entry => entry.value).map(entry => ({
+    source: entry.source,
+    markup: selectionMarkup(entry.value),
+  }));
 }
 
 function domClassTokenSet(body) {
@@ -560,6 +570,58 @@ function domDirectTextStructures(body) {
   return uniq(structures.map(item => JSON.stringify(item))).map(item => JSON.parse(item));
 }
 
+function domContextDebugSummary(body, keywords = []) {
+  const wanted = uniq((keywords || []).map(value => String(value || '').trim()).filter(Boolean));
+  const contexts = [];
+  const scopedStructures = [];
+  for (const [selectionIndex, selection] of selectionList(body).entries()) {
+    for (const entry of selectionContextMarkupEntries(selection)) {
+      const markup = String(entry.markup || '');
+      const tree = parseHtmlLite(markup);
+      const root = (tree.children || []).find(child => child.type === 'element') || null;
+      const structures = [];
+      if (markup) collectScopedDirectTextStructures(tree, [], structures);
+      const annotated = structures.map(item => ({
+        ...item,
+        selection: selectionIndex + 1,
+        source: entry.source,
+      }));
+      scopedStructures.push(...annotated);
+      contexts.push({
+        selection: selectionIndex + 1,
+        source: entry.source,
+        markupLength: markup.length,
+        rootTag: root?.tag || '',
+        rootClasses: classTokens(root?.attrs || {}).slice(0, 8),
+        dataV: uniq(Array.from(markup.matchAll(/\b(data-v-[\w-]+)/gi), match => match[1])).slice(0, 12),
+        directTextSamples: uniq(structures
+          .map(item => compactWhitespace(item.text))
+          .filter(Boolean))
+          .slice(0, 12),
+      });
+    }
+  }
+  const keywordSources = wanted.map(keyword => {
+    const matches = scopedStructures
+      .filter(item => String(item.text || '').includes(keyword))
+      .map(item => ({
+        selection: item.selection,
+        source: item.source,
+        text: compactWhitespace(item.text),
+        tag: item.tag,
+        classes: item.classes || [],
+        dataV: item.scope || '',
+      }));
+    const selectedScopedMatch = matches.find(item => item.dataV) || null;
+    return {
+      keyword,
+      matches: matches.slice(0, 12),
+      selectedScopedMatch,
+    };
+  });
+  return { contexts, keywordSources };
+}
+
 module.exports = {
   DEFAULT_DOM_AGENT_THRESHOLD,
   MAX_EXCERPT_CHARS,
@@ -585,6 +647,8 @@ module.exports = {
   domAgentTrigger,
   plannerDomInput,
   selectionContextMarkupValues,
+  selectionContextMarkupEntries,
+  domContextDebugSummary,
   domClassTokenSet,
   domAttributePairs,
   domScopedTextStructures,

@@ -10433,7 +10433,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260710.235155.949";
+      const buildVersion = "20260711.132657.195";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -12928,6 +12928,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   function sourceBoundSelections(selections) {
     return selections.filter(hasSourceBinding);
   }
+  function withoutSelectionAsset(selection) {
+    if (!selection || typeof selection !== "object") return selection;
+    const _a2 = selection, { asset: _asset, assetInfo: _assetInfo } = _a2, rest = __objRest(_a2, ["asset", "assetInfo"]);
+    return rest;
+  }
+  function persistedSelections(selections) {
+    return sourceBoundSelections(selections).map(withoutSelectionAsset);
+  }
   function storageKey(href) {
     const value = String(href || "").trim();
     return value ? `${PAGE_KEY_PREFIX}${value}` : CURRENT_KEY;
@@ -12962,7 +12970,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     if (!composerStore.finalPrompt && state.finalPrompt) {
       composerStore.setFinalPrompt(state.finalPrompt);
     }
-    const selections = Array.isArray(state.selections) ? sourceBoundSelections(state.selections) : [];
+    const selections = Array.isArray(state.selections) ? persistedSelections(state.selections) : [];
     if (!selectionStore.items.length && selections.length) {
       selectionStore.replaceSelections(selections);
     }
@@ -12973,7 +12981,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     return {
       content: composerStore.content,
       finalPrompt: composerStore.finalPrompt,
-      selections: sourceBoundSelections(selectionStore.items).slice(0, MAX_SELECTIONS)
+      selections: persistedSelections(selectionStore.items).slice(0, MAX_SELECTIONS)
     };
   }
   function useSidePanelUiPersistence(currentPageHref) {
@@ -13563,7 +13571,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         index: index + 1,
         token: `@选区${index + 1}`,
         element: item.element,
-        asset: item.asset || null,
+        asset: null,
         sourceLocate: item.sourceLocate || ((_a2 = item.element) == null ? void 0 : _a2.sourceLocate) || null,
         thumbnailCaptured: !!item.thumbnailUrl
       };
@@ -14834,7 +14842,7 @@ ${result.rawText}` : ""
     }
     return Array.from(byFile.values());
   }
-  const MAX_AUTO_EXPAND_ATTEMPTS = 3;
+  const MAX_AUTO_EXPAND_ATTEMPTS = 5;
   function createComposerWorkflow(state) {
     const { source, route, search, selection, composer, model, prompt } = state;
     const appUiStore = useAppUiStore();

@@ -406,12 +406,14 @@ function computeSourceScope(project, file, body, textCache, location, focusAncho
 function attachFineLocation(result, project, plan, agentState, textCache, body = null) {
   const file = result?.composite?.render?.file || result?.hits?.[0]?.file;
   if (!file || !plan) return result;
+  const explicitFocusAnchors = focusAnchorsFromState(agentState || body?.agentState || null);
   const location = computeFineLocation(project, file, plan, agentState, textCache);
-  const scope = computeSourceScope(project, file, body, textCache, location, focusAnchorsFromState(agentState || body?.agentState || null));
+  const scope = computeSourceScope(project, file, body, textCache, location, explicitFocusAnchors);
   if (!location && !scope) return result;
   const topHit = (result.hits || []).find(hit => hit.file === file);
   if (topHit) {
-    if (location) {
+    const originUnlocated = explicitFocusAnchors.length > 0 && scope?.alignment === 'unlocated';
+    if (location && !originUnlocated) {
       topHit.line = location.line;
       topHit.column = location.column;
       topHit.preciseOffset = location.offset;
@@ -424,7 +426,14 @@ function attachFineLocation(result, project, plan, agentState, textCache, body =
       topHit.scopeEndLine = scope.endLine;
       topHit.scopeAlignment = scope.alignment;   // 'exact' | 'approximate'：告知后链路该范围可信度
       topHit.scopeNeedsAlign = !!scope.needsAlign; // approximate 时为 true：该片段是待对齐区域，非精确节点
-      if (!location) topHit.line = scope.startLine;
+      if (originUnlocated) {
+        delete topHit.line;
+        delete topHit.column;
+        delete topHit.preciseOffset;
+        delete topHit.locatedAnchor;
+      } else if (!location) {
+        topHit.line = scope.startLine;
+      }
     } else if (location?.snippet) {
       topHit.preciseSnippet = location.snippet;
       topHit.scopeAlignment = 'approximate';     // 仅锚点附近片段，非 DOM 对齐，弱证据
@@ -432,7 +441,8 @@ function attachFineLocation(result, project, plan, agentState, textCache, body =
     }
   }
   if (result.composite && result.composite.render && result.composite.render.file === file) {
-    if (location) {
+    const originUnlocated = explicitFocusAnchors.length > 0 && scope?.alignment === 'unlocated';
+    if (location && !originUnlocated) {
       result.composite.render.line = location.line;
       result.composite.render.column = location.column;
       result.composite.render.anchor = location.anchor;
@@ -442,6 +452,11 @@ function attachFineLocation(result, project, plan, agentState, textCache, body =
       result.composite.render.scopeEndLine = scope.endLine;
       result.composite.render.scopeAlignment = scope.alignment;
       result.composite.render.scopeNeedsAlign = !!scope.needsAlign;
+      if (originUnlocated) {
+        delete result.composite.render.line;
+        delete result.composite.render.column;
+        delete result.composite.render.anchor;
+      }
     }
   }
   return result;

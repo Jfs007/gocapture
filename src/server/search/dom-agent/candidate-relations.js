@@ -3,6 +3,7 @@ const { plannerDomInput } = require('./dom-utils');
 const {
   filesRelatedByImport,
   validateOriginRelation,
+  routeConfirmedOriginFiles,
   traceCandidateOwners,
   traceRouteCandidateRelations,
 } = require('./candidate-ownership');
@@ -390,6 +391,7 @@ module.exports = {
   dominantRenderCandidate,
   filesRelatedByImport,
   validateOriginRelation,
+  routeConfirmedOriginFiles,
   analyzeEvidenceSufficiency,
   compactInspectionForModel,
   traceCandidateOwners,

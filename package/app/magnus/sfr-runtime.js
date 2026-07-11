@@ -872,43 +872,6 @@
     };
   }
 
-  function resolveSelectionAssetElement(element) {
-    let resolved = element;
-    let node = element?.parentElement || null;
-    let currentEvidence = getContextEvidence(element, {
-      subtreeOptions: {
-        nodeLimit: 32,
-        classLimit: 20,
-        textLimit: 20,
-        attrLimit: 20,
-        styleLimit: 12,
-      },
-    });
-    let usefulDepth = 0;
-    let inspected = 0;
-    while (node && node.nodeType === 1 && usefulDepth < 4 && inspected < 16) {
-      inspected++;
-      const nextEvidence = getContextEvidence(node, {
-        subtreeOptions: {
-          nodeLimit: 32,
-          classLimit: 20,
-          textLimit: 20,
-          attrLimit: 20,
-          styleLimit: 12,
-        },
-      });
-      if (shouldPromoteContext(currentEvidence, nextEvidence)) {
-        resolved = node;
-        currentEvidence = nextEvidence;
-        usefulDepth++;
-        break;
-      }
-      if (node === document.body || node === document.documentElement) break;
-      node = node.parentElement;
-    }
-    return resolved;
-  }
-
   function createOverlay() {
     const overlay = document.createElement('div');
     overlay.id = OVERLAY_ID;
@@ -1642,15 +1605,11 @@
 
     async updateSelectionThumbnail(selection, element) {
       try {
-        const assetElement = resolveSelectionAssetElement(element);
-        const assetInfo = getElementInfo(assetElement) || selection.element || selection;
         const rect = clipRectToViewport(element.getBoundingClientRect());
         const fullCapture = await captureVisibleTabDataUrl();
         const thumbnailUrl = await cropSelectionThumbnail(fullCapture, rect);
         const target = this.selections.find(item => item.uid === selection.uid);
         if (!target) return;
-        target.asset = assetInfo;
-        target.assetInfo = assetInfo;
         target.thumbnailUrl = thumbnailUrl || '';
         target.thumbnailCaptured = !!thumbnailUrl;
         this.emitSelectionChanged(target);

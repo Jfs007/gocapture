@@ -22,6 +22,16 @@ function sourceBoundSelections(selections: unknown[]) {
   return selections.filter(hasSourceBinding);
 }
 
+function withoutSelectionAsset(selection: unknown) {
+  if (!selection || typeof selection !== 'object') return selection;
+  const { asset: _asset, assetInfo: _assetInfo, ...rest } = selection as Record<string, unknown>;
+  return rest;
+}
+
+function persistedSelections(selections: unknown[]) {
+  return sourceBoundSelections(selections).map(withoutSelectionAsset);
+}
+
 function storageKey(href: string) {
   const value = String(href || '').trim();
   return value ? `${PAGE_KEY_PREFIX}${value}` : CURRENT_KEY;
@@ -60,7 +70,7 @@ function restoreState(state: PersistedUiState | null) {
   if (!composerStore.finalPrompt && state.finalPrompt) {
     composerStore.setFinalPrompt(state.finalPrompt);
   }
-  const selections = Array.isArray(state.selections) ? sourceBoundSelections(state.selections) : [];
+  const selections = Array.isArray(state.selections) ? persistedSelections(state.selections) : [];
   if (!selectionStore.items.length && selections.length) {
     selectionStore.replaceSelections(selections as any[]);
   }
@@ -72,7 +82,7 @@ function currentState(): PersistedUiState {
   return {
     content: composerStore.content,
     finalPrompt: composerStore.finalPrompt,
-    selections: sourceBoundSelections(selectionStore.items).slice(0, MAX_SELECTIONS)
+    selections: persistedSelections(selectionStore.items).slice(0, MAX_SELECTIONS)
   };
 }
 

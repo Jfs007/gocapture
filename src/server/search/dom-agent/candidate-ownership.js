@@ -61,6 +61,15 @@ function validateOriginRelation(project, renderFile, originAnchors, textCache) {
   return { valid: false, reason: '与原始选区锚点既无直接包含、也无 import 引用关系' };
 }
 
+function routeConfirmedOriginFiles(renderCandidates, routeTrace, routeRelations) {
+  const exactPageFile = String(routeTrace?.bestPageFile || '').trim();
+  if (!exactPageFile) return [];
+  const renderFiles = new Set((renderCandidates || []).map(candidate => candidate?.file).filter(Boolean));
+  return uniq((routeRelations || [])
+    .filter(relation => relation?.routeFile === exactPageFile && renderFiles.has(relation?.candidateFile))
+    .map(relation => relation.candidateFile));
+}
+
 function globPatternMatches(fromFile, pattern, targetFile) {
   if (!pattern || !pattern.includes('*')) return false;
   const absolutePattern = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), pattern));
@@ -185,6 +194,7 @@ function traceRouteCandidateRelations(project, routeTrace, candidates, textCache
 module.exports = {
   filesRelatedByImport,
   validateOriginRelation,
+  routeConfirmedOriginFiles,
   traceCandidateOwners,
   traceRouteCandidateRelations,
 };

@@ -19,9 +19,8 @@ const {
   buildStage0Composite,
   domAgentTrigger,
   plannerDomInput,
+  domContextDebugSummary,
 } = require('./dom-agent/dom-utils');
-const { deriveLocalDomSearchPlan } = require('./dom-agent/dom-evidence');
-
 const {
   buildPlannerPrompt,
   normalizePlan,
@@ -63,6 +62,7 @@ const {
   isRenderCandidate,
   dominantRenderCandidate,
   validateOriginRelation,
+  routeConfirmedOriginFiles,
   analyzeEvidenceSufficiency,
   compactInspectionForModel,
   traceCandidateOwners,
@@ -185,24 +185,15 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent Planner 计划过滤：丢弃未在 DOM/路由证据中出现的词 ${filteredPlan.removed.join('、')}`);
   }
   plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
+  const plannedKeywords = uniq((plan.searches || []).flatMap(search => search.keywords || []));
+  onLog(`DOM Agent 本地 DOM 上下文来源：${JSON.stringify(domContextDebugSummary(body, plannedKeywords), null, 2)}`);
   const scopedSplitPlan = splitRenderSearchesByDomScopes(plan, body);
   if (scopedSplitPlan.splitCount) {
     onLog(`DOM Agent scoped 渲染块拆分：${scopedSplitPlan.splitCount} 个 render 组被拆分为父组件/子组件检索组`);
     plan = scopedSplitPlan;
   }
   onLog(`DOM Agent 检索词定性：${JSON.stringify(planEvidenceKinds(plan), null, 2)}`);
-  let executionPlan = plan;
-  let fallbackPlan = null;
-  if (!plan.searches.length) {
-    const derivedPlan = annotatePlanKeywordTypes(deriveLocalDomSearchPlan(body), body);
-    if (derivedPlan.searches.length) {
-      onLog('本地调用：deriveLocalDomSearchPlan(body)');
-      onLog(`本地输出：${JSON.stringify(derivedPlan, null, 2)}`);
-      onLog('DOM Agent Planner 未返回可执行检索词，本地派生计划作为兜底执行。');
-      executionPlan = derivedPlan;
-      fallbackPlan = derivedPlan;
-    }
-  }
+  const executionPlan = plan;
   const inheritedKeywords = inheritedSearchKeywords(body?.agentState || null);
   if (inheritedKeywords.length) {
     onLog(`DOM Agent 扩区保留上一轮检索锚点用于引用链验证：${inheritedKeywords.join('、')}`);
@@ -229,7 +220,6 @@ async function runAgentSearch(project, body, options = {}) {
           trigger,
           plan: executionPlan,
           modelPlan: plan,
-          fallbackPlan,
           evidence,
           needMoreDom: true,
         },
@@ -430,6 +420,10 @@ async function runAgentSearch(project, body, options = {}) {
   // 原始选区关系校验：扩区是为了找文件，但最终文件必须与「用户最初选中的那块」有渲染/引用关系。
   // 剔除那些只命中了扩区大区域、却与原始选区锚点毫无关系的渲染候选。
   const originAnchors = focusAnchorsFromState(body?.agentState || null);
+  let originVerification = {
+    status: originAnchors.length ? 'pending' : 'not-required',
+    anchors: originAnchors,
+  };
   if (originAnchors.length) {
     const renderCandidates = inspection.candidates.filter(isRenderCandidate);
     const validRenderFiles = new Set(
@@ -438,32 +432,57 @@ async function runAgentSearch(project, body, options = {}) {
         .map(candidate => candidate.file)
     );
     if (renderCandidates.length && !validRenderFiles.size) {
-      onLog(`DOM Agent 原始选区关系校验：全部渲染候选都与最初选区锚点(${originAnchors.join('、')})无渲染/引用关系，判定为「扩区命中了别处、并非你选的那块」`);
-      return {
-        hits: [],
-        composite: null,
-        routeResolver: routeResult.trace,
-        apiTrace: null,
-        i18nTrace: null,
-        definitionTrace: null,
-        needMoreDom: true,
-        needsMoreEvidence: true,
-        agent: {
-          enabled: true,
-          trigger,
-          plan: executionPlan,
-          modelPlan: plan,
-          inspection: compactInspectionForModel(inspection),
-          definitionResolution,
-          originMismatch: true,
-          originAnchors,
-          evidence: {
-            insufficient: true,
-            reason: '扩区命中的文件与原始选区无渲染/引用关系，真正渲染该区域的组件可能在被压缩省略的部分，请直接选中该区域本身重试',
-          },
+      const exactPageFile = routeResult.trace?.bestPageFile || '';
+      const routeConfirmedFiles = new Set(routeConfirmedOriginFiles(
+        renderCandidates,
+        routeResult.trace,
+        routeRelations
+      ));
+      if (exactPageFile && routeConfirmedFiles.size) {
+        inspection = {
+          ...inspection,
+          candidates: inspection.candidates.filter(candidate =>
+            !isRenderCandidate(candidate) || routeConfirmedFiles.has(candidate.file)),
+        };
+        originVerification = {
+          status: 'unlocated',
+          anchors: originAnchors,
+          reason: '原始选区锚点未出现在源码中，但扩区候选已由当前精确路由入口的真实 import 链确认；保留文件定位，源码节点待后链路对齐',
+          routeConfirmedFiles: [...routeConfirmedFiles],
+        };
+        onLog(`DOM Agent 原始选区关系校验：最初选区锚点(${originAnchors.join('、')})无法在源码回验；保留由当前精确路由链确认的候选 ${[...routeConfirmedFiles].join('、')}，精确位置标记为 unlocated`);
+      } else {
+        onLog(`DOM Agent 原始选区关系校验：全部渲染候选都与最初选区锚点(${originAnchors.join('、')})无渲染/引用关系，且没有当前精确路由链佐证，判定为「扩区命中了别处、并非你选的那块」`);
+        return {
+          hits: [],
+          composite: null,
+          routeResolver: routeResult.trace,
+          apiTrace: null,
+          i18nTrace: null,
+          definitionTrace: null,
           needMoreDom: true,
-        },
-      };
+          needsMoreEvidence: true,
+          agent: {
+            enabled: true,
+            trigger,
+            plan: executionPlan,
+            modelPlan: plan,
+            inspection: compactInspectionForModel(inspection),
+            definitionResolution,
+            originMismatch: true,
+            originVerification: {
+              status: 'mismatch',
+              anchors: originAnchors,
+            },
+            originAnchors,
+            evidence: {
+              insufficient: true,
+              reason: '扩区命中的文件与原始选区无渲染/引用关系，真正渲染该区域的组件可能在被压缩省略的部分，请直接选中该区域本身重试',
+            },
+            needMoreDom: true,
+          },
+        };
+      }
     }
     if (validRenderFiles.size && validRenderFiles.size < renderCandidates.length) {
       // 只保留与原始选区相关的渲染候选；参考/子组件/定义候选保留以维持引用链。
@@ -472,7 +491,18 @@ async function runAgentSearch(project, body, options = {}) {
         candidates: inspection.candidates.filter(candidate =>
           !isRenderCandidate(candidate) || validRenderFiles.has(candidate.file)),
       };
+      originVerification = {
+        status: 'verified',
+        anchors: originAnchors,
+        files: [...validRenderFiles],
+      };
       onLog(`DOM Agent 原始选区关系校验：保留与最初选区相关的渲染候选 ${[...validRenderFiles].join('、')}`);
+    } else if (validRenderFiles.size) {
+      originVerification = {
+        status: 'verified',
+        anchors: originAnchors,
+        files: [...validRenderFiles],
+      };
     }
   }
 
@@ -498,6 +528,7 @@ async function runAgentSearch(project, body, options = {}) {
         inspection: compactInspectionForModel(inspection),
         definitionResolution,
         evidence,
+        originVerification,
         needMoreDom: true,
       },
     };
@@ -533,10 +564,10 @@ async function runAgentSearch(project, body, options = {}) {
         trigger,
         plan: executionPlan,
         modelPlan: plan,
-        fallbackPlan,
         inspection: compactInspectionForModel(inspection),
         definitionResolution,
         evidence,
+        originVerification,
         judge: decision,
         localConverged: true,
       },
@@ -603,10 +634,10 @@ async function runAgentSearch(project, body, options = {}) {
       trigger,
       plan: executionPlan,
       modelPlan: plan,
-      fallbackPlan,
       inspection: compactInspectionForModel(inspection),
       definitionResolution,
       evidence,
+      originVerification,
       routeRelations,
       judge,
     },
@@ -625,6 +656,7 @@ module.exports = {
   regionByContainerAnchors,
   offsetToLineColumn,
   validateOriginRelation,
+  routeConfirmedOriginFiles,
   normalizeConfidence,
   domAgentTrigger,
   executeSearchPlan,

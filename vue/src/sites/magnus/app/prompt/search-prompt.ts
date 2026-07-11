@@ -58,7 +58,7 @@ export function useSearchPrompt() {
     index: index + 1,
     token: `@选区${index + 1}`,
     element: item.element,
-    asset: item.asset || null,
+    asset: null,
     sourceLocate: item.sourceLocate || item.element?.sourceLocate || null,
     thumbnailCaptured: !!item.thumbnailUrl
   }));
