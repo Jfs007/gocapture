@@ -14,11 +14,63 @@ function hasPlannedGroupMatch(candidate) {
   });
 }
 
-// 是否算「主渲染候选」。渲染角色由 candidateSourceRole 在源头判定（见其中对 .vue / 路由配置的处理），
-// 这里不再按扩展名去「提升」参考文件——否则像路由配置 workbench.ts 这类命中了菜单文案/路径、
-// 但根本不渲染 DOM 的 .ts 文件会被错当成渲染源码返回。referenceOnly 一律不算主渲染，子组件候选也不算。
+function candidateLayerGroups(candidate, layers) {
+  const allowed = new Set(layers);
+  return (candidate?.matchedGroups || []).filter(group => allowed.has(group?.layer));
+}
+
+function isRenderableSource(candidate) {
+  if (!candidate || candidate.referenceOnly) return false;
+  return !candidate.sourceRole || candidate.sourceRole === 'render-like';
+}
+
+function renderExplanation(candidate) {
+  if (!candidate) return { eligible: false, strength: 0, reasons: ['候选不存在'] };
+  if (candidate.referenceOnly) {
+    return { eligible: false, strength: 0, reasons: ['文件已被识别为定义/样式参考'] };
+  }
+  if (candidate.sourceRole && candidate.sourceRole !== 'render-like') {
+    return { eligible: false, strength: 0, reasons: [`源码角色 ${candidate.sourceRole} 尚不能证明可生成 DOM`] };
+  }
+  const ownerGroups = candidateLayerGroups(candidate, ['render', 'scope']);
+  const childGroups = candidateLayerGroups(candidate, ['child']);
+  const matchedClassCount = Number(candidate.domCoverage?.matchedClassCount || 0);
+  const matchedTextCount = Number(candidate.domTextCoverage?.matchedTextCount || 0);
+  const hasOwnerEvidence = ownerGroups.length > 0 || matchedClassCount >= 3;
+  if (candidate.childComponentCandidate && !hasOwnerEvidence) {
+    return {
+      eligible: false,
+      strength: 0,
+      reasons: ['只命中子组件锚点，没有证据证明它拥有选区根结构'],
+    };
+  }
+  const structuralFacts = (candidate.keywordFacts || []).filter(item => {
+    return item.codeCount > 0 && !item.structureMismatch
+      && ['class-token', 'attribute-name', 'attribute-value'].includes(item.type);
+  }).length;
+  const strength = 2
+    + Math.min(4, matchedClassCount)
+    + Math.min(2, structuralFacts)
+    + Math.min(2, ownerGroups.length)
+    + (matchedTextCount >= 2 ? 1 : 0)
+    - (childGroups.length && !ownerGroups.length ? 1 : 0);
+  return {
+    eligible: true,
+    strength: Math.max(1, strength),
+    reasons: [
+      candidate.sourceRole === 'render-like' ? '源码包含真实渲染结构' : '候选具备渲染资格',
+      ownerGroups.length ? `命中 ${ownerGroups.map(group => group.layer).join('/')} 层证据` : '',
+      matchedClassCount ? `解释 ${matchedClassCount} 个选区 class` : '',
+      structuralFacts ? `命中 ${structuralFacts} 个结构锚点` : '',
+    ].filter(Boolean),
+  };
+}
+
+// 主渲染资格由源码渲染能力 + DOM 所有权证据共同决定。
+// Planner 的 child/scope/render 只是检索意图：被标成 child 的文件若同时解释选区根结构，仍可恢复为 owner；
+// 定义、样式和 unknown 文件不能因为文案分高就成为主渲染。
 function isRenderCandidate(candidate) {
-  return !!candidate && !candidate.referenceOnly && !candidate.childComponentCandidate;
+  return renderExplanation(candidate).eligible;
 }
 
 // 判断本地是否已存在明显占优的渲染候选（可据此本地收敛、跳过 Judge）。
@@ -27,23 +79,70 @@ function isRenderCandidate(candidate) {
 function dominantRenderCandidate(inspection) {
   const primary = (inspection?.candidates || [])
     .filter(isRenderCandidate)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      const strength = renderExplanation(b).strength - renderExplanation(a).strength;
+      return strength || b.score - a.score;
+    });
   const first = primary[0];
   const second = primary[1];
   if (!first) return null;
-  const strongEvidence = hasPlannedGroupMatch(first) || Number(first.rareAnchorCount || 0) >= 2;
+  const firstExplanation = renderExplanation(first);
+  const secondExplanation = renderExplanation(second);
+  const strongEvidence = firstExplanation.strength >= 3
+    && (hasPlannedGroupMatch(first) || Number(first.rareAnchorCount || 0) >= 2 || firstExplanation.strength >= 5);
   if (!strongEvidence) return null;
   const dominates = !second
-    || first.score - second.score >= 120
+    || firstExplanation.strength - secondExplanation.strength >= 2
+    || (firstExplanation.strength > secondExplanation.strength && first.score >= second.score)
+    || (firstExplanation.strength === secondExplanation.strength && first.score - second.score >= 120)
     || (hasPlannedGroupMatch(first) && !hasPlannedGroupMatch(second));
   return dominates ? first : null;
 }
 
+function reviewRenderHypotheses(inspection) {
+  const candidates = (inspection?.candidates || []).map(candidate => {
+    const explanation = renderExplanation(candidate);
+    let proposedRole = 'reference';
+    if (explanation.eligible) proposedRole = 'render-owner';
+    else if (isRenderableSource(candidate) && candidate.childComponentCandidate) proposedRole = 'child-renderer';
+    else if (candidate.sourceRole === 'style-reference') proposedRole = 'style-reference';
+    else if (candidate.sourceRole === 'definition-like') proposedRole = 'data-definition';
+    return {
+      file: candidate.file,
+      proposedRole,
+      sourceRole: candidate.sourceRole || 'unknown',
+      eligibleAsMainRender: explanation.eligible,
+      strength: explanation.strength,
+      reasons: explanation.reasons,
+    };
+  });
+  const selected = dominantRenderCandidate(inspection);
+  const recallLeader = [...(inspection?.candidates || [])].sort((a, b) => b.score - a.score)[0] || null;
+  const reviewReasons = [];
+  if (recallLeader && selected && recallLeader.file !== selected.file) {
+    reviewReasons.push(`召回第一名 ${recallLeader.file} 与 DOM 解释第一名 ${selected.file} 不一致`);
+  }
+  if (selected?.childComponentCandidate) {
+    reviewReasons.push(`DOM 解释第一名曾被 Planner 标为 child，需要重新判断真实所有权`);
+  }
+  if ((inspection?.candidates || []).some(candidate => candidate.sourceRole === 'unknown' && !candidate.referenceOnly)) {
+    reviewReasons.push('存在本地无法解释源码角色的 unknown 候选');
+  }
+  return {
+    status: selected ? 'resolved' : candidates.some(item => item.eligibleAsMainRender) ? 'needs-review' : 'no-render-owner',
+    selectedRenderFile: selected?.file || '',
+    recallLeaderFile: recallLeader?.file || '',
+    requiresModelReview: reviewReasons.length > 0,
+    reviewReasons,
+    candidates,
+  };
+}
+
 function analyzeEvidenceSufficiency(plan, inspection, ownership = [], options = {}) {
   const candidates = inspection?.candidates || [];
-  const plannedGroupCandidates = candidates.filter(hasPlannedGroupMatch);
+  const plannedGroupCandidates = candidates.filter(candidate => isRenderCandidate(candidate) && hasPlannedGroupMatch(candidate));
   const importRelationCandidates = candidates.filter(candidate => candidate.importRelation);
-  // 子组件候选不参与「主渲染候选」竞争；planned-group 命中的候选即便被标 referenceOnly 也算主渲染。
+  // 只有通过渲染解释审查的候选参与主渲染竞争；定义/样式参考仅参与关系图。
   const primaryCandidates = candidates.filter(isRenderCandidate);
   const ownershipCount = Array.isArray(ownership) ? ownership.length : 0;
   if (plan.needMoreDom && !candidates.length) {
@@ -169,6 +268,8 @@ function compactInspectionForModel(inspection) {
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],
       domCoverage: candidate.domCoverage || null,
+      domTextCoverage: candidate.domTextCoverage || null,
+      renderExplanation: renderExplanation(candidate),
       excerpt: candidate.excerpt,
     })),
   };
@@ -178,6 +279,10 @@ function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelation
   return [
     '你是源码候选裁决器。候选已经由本地检索并读取局部结构。',
     '比较 DOM 事实与候选源码事实，选择最可能直接生成或控制该选区的文件。',
+    '先建立一个可验证的渲染解释：谁生成选区根结构、谁提供运行时数据、谁渲染子结构、谁只提供样式。',
+    '检索分数只代表召回相关性，不代表渲染所有权；高分文案配置文件不能压过能解释根标签、class、循环和子组件关系的渲染文件。',
+    '本地 sourceRole/renderExplanation 都只是启发式事实，不是最终结论。若项目使用自定义 Factory、DSL 或运行时注册，应根据候选源码与引用关系自行判断。',
+    '若无法说明所选 render 文件如何产生当前 DOM，必须返回 ambiguous，不能猜测。',
     '不要重新生成宽泛关键词，不要选择只有注释命中的文件。',
     '必须区分 definition、assembly、render。DOM 内容定义文件不能冒充最终渲染文件。',
     '一个文件可能只命中结构 class，另一个文件只命中文案/路径；这代表 render 与 definition 分离，需要结合用户需求决定返回一个或多个方向，不能只按命中词数量裁决。',
@@ -349,10 +454,21 @@ function buildComposite(inspection, ownership, selectedFile) {
     });
   };
   const children = candidates
-    .filter(item => item.childComponentCandidate && item.file !== renderFile && childHasRenderRelation(item))
+    .filter(item => isRenderableSource(item)
+      && item.childComponentCandidate
+      && !isRenderCandidate(item)
+      && item.file !== renderFile
+      && childHasRenderRelation(item))
     .map(item => ({
       file: item.file,
       anchor: (item.matchedGroups || []).flatMap(group => group.keywords || [])[0] || '',
+    }));
+  const references = candidates
+    .filter(item => item.file !== renderFile && item.referenceOnly)
+    .map(item => ({
+      file: item.file,
+      role: item.sourceRole === 'style-reference' ? 'style' : 'definition',
+      anchors: uniq((item.matchedGroups || []).flatMap(group => group.keywords || [])).slice(0, 8),
     }));
   // 同级并列渲染：一段 DOM 由多个平级组件各渲染一部分时，除主 render 外，
   // 把「同样具备真实共现证据、且与主 render 不是父子关系、分数可比」的其它渲染候选也并列出来。
@@ -381,12 +497,16 @@ function buildComposite(inspection, ownership, selectedFile) {
     },
     assembly,
     children,
+    ...(references.length ? { references } : {}),
     ...(coRenders.length ? { coRenders } : {}),
   };
 }
 
 module.exports = {
   hasPlannedGroupMatch,
+  isRenderableSource,
+  renderExplanation,
+  reviewRenderHypotheses,
   isRenderCandidate,
   dominantRenderCandidate,
   filesRelatedByImport,

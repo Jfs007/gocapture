@@ -68,17 +68,24 @@ function candidateSourceRole(filePath, text) {
       reasons: ['源码包含渲染/组件结构信号'],
     };
   }
+  const exportedValues = Array.from(source.matchAll(/\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;?/g), match => match[1]);
+  const exportsTopLevelData = exportedValues.some(identifier => {
+    const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b(?:const|let|var)\\s+${escaped}\\s*=\\s*(?:\\[|\\{)`).test(source);
+  });
   const definitionSignals = [
     /\bexport\s+default\s+\{/,
     /\bexport\s+const\s+\w+\s*=/,
     /\bexport\s+default\s+\[/,
     /\bconst\s+\w+\s*=\s*(?:\{|\[)/,
   ];
-  if (definitionSignals.some(pattern => pattern.test(source))) {
+  if (exportsTopLevelData || definitionSignals.some(pattern => pattern.test(source))) {
     return {
       role: 'definition-like',
       referenceOnly: true,
-      reasons: ['源码更像常量/文案/配置定义，需要结合引用链确认真实使用处'],
+      reasons: [exportsTopLevelData
+        ? '文件导出顶层对象/数组数据，本身不生成 DOM，需要追踪其消费端'
+        : '源码更像常量/文案/配置定义，需要结合引用链确认真实使用处'],
     };
   }
   return {

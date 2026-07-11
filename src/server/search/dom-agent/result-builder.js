@@ -25,13 +25,20 @@ function agentHits(inspection, judge, ownership = []) {
   const hasPrimaryCandidate = renderCandidates.length > 0;
   let selected;
   if (judge?.files?.length) {
-    // 只丢弃「真正的参考文件」；planned-group 命中的候选即便标了 referenceOnly 也保留为渲染结果。
+    // Judge 可以把本地无法理解的 unknown 源码确认为自定义渲染器；
+    // 但不能把已由客观文件事实确认的样式/数据定义(referenceOnly)冒充为 DOM 主渲染。
     selected = judge.files.filter(item => {
       const candidate = candidateByFile.get(item.file);
-      return isRenderCandidate(candidate) || !hasPrimaryCandidate;
+      if (!candidate || candidate.referenceOnly) return false;
+      return item.role === 'render' || isRenderCandidate(candidate) || !hasPrimaryCandidate;
     });
   } else {
     selected = [];
+  }
+  // Judge 的唯一结论若与客观文件角色冲突，必须失败关闭。
+  // 继续回退到全部候选会让上层把样式/数据文件误当成已确认源码。
+  if (judge?.status === 'unique' && judge.files?.length && !selected.length) {
+    return [];
   }
   // 无有效 Judge 结论时的兜底：从「渲染候选」里挑，而不是直接用可能是参考文件(如路由配置)的最高分 selectedFile。
   if (!selected.length) {

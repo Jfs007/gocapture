@@ -61,6 +61,7 @@ const {
 const {
   isRenderCandidate,
   dominantRenderCandidate,
+  reviewRenderHypotheses,
   validateOriginRelation,
   routeConfirmedOriginFiles,
   analyzeEvidenceSufficiency,
@@ -277,6 +278,7 @@ async function runAgentSearch(project, body, options = {}) {
   };
   let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache, body);
   onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
+  onLog(`DOM Agent 渲染假设审查：${JSON.stringify(reviewRenderHypotheses(inspection), null, 2)}`);
 
   let routeRelations = traceRouteCandidateRelations(
     project,
@@ -506,9 +508,11 @@ async function runAgentSearch(project, body, options = {}) {
     }
   }
 
+  const finalRenderReview = reviewRenderHypotheses(inspection);
   const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership, {
     expansionRetry: body?.agentState?.expansionRetry === true,
   });
+  onLog(`DOM Agent 收敛前复审：${JSON.stringify(finalRenderReview, null, 2)}`);
   onLog(`本地调用：analyzeEvidenceSufficiency(plan, inspection, ownership)`);
   onLog(`本地输出：${JSON.stringify(evidence, null, 2)}`);
   if (evidence.insufficient) {
@@ -537,7 +541,7 @@ async function runAgentSearch(project, body, options = {}) {
   // 本地已存在明显占优的渲染候选（稀有锚点共现）——直接收敛，不再调用 Judge。
   // Judge 仅在下面「本地无法收敛的真歧义」时才触发。
   const localDominant = dominantRenderCandidate(inspection);
-  if (localDominant && !options.forceJudge) {
+  if (localDominant && !options.forceJudge && !finalRenderReview.requiresModelReview) {
     const decision = {
       status: 'unique',
       files: [{
@@ -572,6 +576,9 @@ async function runAgentSearch(project, body, options = {}) {
         localConverged: true,
       },
     }, project, executionPlan, body?.agentState || null, textCache, body);
+  }
+  if (localDominant && finalRenderReview.requiresModelReview) {
+    onLog(`DOM Agent 语义审查门：禁止本地直接收敛；${finalRenderReview.reviewReasons.join('；')}，进入 LLM Judge`);
   }
 
   routeRelations = traceRouteCandidateRelations(

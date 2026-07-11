@@ -10433,7 +10433,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260711.132657.195";
+      const buildVersion = "20260711.202601.470";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -15045,6 +15045,7 @@ ${result.rawText}` : ""
         return yield sourceServerNdjson("/api/search/stream", {
           method: "POST",
           body: __spreadProps(__spreadValues({}, body), {
+            projectRoot: projectRoot(),
             adapter: model.selectedModel.value || null
           }),
           timeoutMs: Math.max(timeoutMs, Number(((_a2 = model.selectedModel.value) == null ? void 0 : _a2.timeoutMs) || 12e4) * 2 + 5e3),

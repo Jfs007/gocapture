@@ -2669,17 +2669,108 @@ test('data-driven menu: locates the menu component by its business class, not th
     JSON.stringify({ status: 'ready', renderAnchors: [
       { value: 'main-layout-left-menu', kind: 'class' }, { value: 'x-menu', kind: 'class' },
       { value: '铺品', kind: 'text' }, { value: '/ai-product', kind: 'attr' }] }),
+    JSON.stringify({ status: 'unresolved', relations: [], searches: [] }),
     JSON.stringify({ status: 'unique', files: [{ file: 'src/layout/side-menu.vue', role: 'render', confidence: 0.95, reason: '菜单组件' }] }),
   ];
   let calls = 0;
+  const logs = [];
   const result = await runAgentSearch(project, {
     adapter: { type: 'api' }, userPrompt: '定位左侧菜单',
     selections: [{ element: { className: 'x-menu main-layout-left-menu n-menu', selector: 'div.x-menu.main-layout-left-menu.n-menu', rawOuterHtml: dom } }],
-  }, { runModelTask: async () => ({ adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs[calls++] || '{}', logs: [] }) });
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({ adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs[calls++] || '{}', logs: [] }),
+  });
   const files = (result.hits || []).map(hit => hit.file);
   // 关键断言：不渲染 DOM 的路由配置绝不能作为渲染结果；真正的菜单组件应被 business class 命中。
   assert.ok(!files.includes('src/router/modules/workbench.ts'));
   assert.equal(result.composite?.render.file, 'src/layout/side-menu.vue');
+  assert.equal(calls, 3);
+  assert.ok(logs.some(log => log.includes('DOM Agent 语义审查门')));
+});
+
+test('render explanation chooses the DOM owner over exported menu data and style references', () => {
+  const inspection = {
+    candidates: [{
+      file: 'src/router/menu.js',
+      score: 1900,
+      sourceRole: 'definition-like',
+      referenceOnly: true,
+      childComponentCandidate: false,
+      matchedGroups: [{ source: 'planned-group', layer: 'render', keywords: ['达人管理', '达人资源', '项目管理'] }],
+      keywordFacts: [],
+      domCoverage: { matchedClassCount: 0 },
+    }, {
+      file: 'src/layout/components/Navbar.vue',
+      score: 330,
+      sourceRole: 'render-like',
+      referenceOnly: false,
+      childComponentCandidate: true,
+      matchedGroups: [
+        { source: 'planned-group', layer: 'child', keywords: ['menu-item'] },
+        { source: 'scope-anchor', layer: 'scope', keywords: ['navbar'] },
+      ],
+      keywordFacts: [
+        { keyword: 'menubar', type: 'class-token', codeCount: 1, structureMismatch: null },
+        { keyword: 'menu-item', type: 'class-token', codeCount: 1, structureMismatch: null },
+      ],
+      domCoverage: { matchedClassCount: 4 },
+    }, {
+      file: 'src/styles/_common.scss',
+      score: 110,
+      sourceRole: 'style-reference',
+      referenceOnly: true,
+      childComponentCandidate: true,
+      matchedGroups: [{ source: 'planned-group', layer: 'child', keywords: ['tm-dropdown'] }],
+      keywordFacts: [],
+      domCoverage: { matchedClassCount: 1 },
+    }],
+  };
+  assert.equal(dominantRenderCandidate(inspection)?.file, 'src/layout/components/Navbar.vue');
+  const composite = buildComposite(inspection, [], 'src/layout/components/Navbar.vue');
+  assert.equal(composite.render.file, 'src/layout/components/Navbar.vue');
+  assert.deepEqual(composite.children, []);
+});
+
+test('Judge may confirm an unknown custom renderer but cannot promote objective references', () => {
+  const { agentHits } = require('./dom-agent/result-builder');
+  const inspection = {
+    status: 'ambiguous',
+    candidates: [{
+      file: 'src/custom/runtime.js',
+      score: 200,
+      sourceRole: 'unknown',
+      referenceOnly: false,
+      childComponentCandidate: false,
+      matchedGroups: [],
+      keywordFacts: [],
+      commentOnly: [],
+      structureMismatches: [],
+      excerpt: 'AA.mount(view)',
+    }, {
+      file: 'src/styles/view.scss',
+      score: 500,
+      sourceRole: 'style-reference',
+      referenceOnly: true,
+      childComponentCandidate: false,
+      matchedGroups: [],
+      keywordFacts: [],
+      commentOnly: [],
+      structureMismatches: [],
+      excerpt: '.view {}',
+    }],
+  };
+  const unknownHits = agentHits(inspection, {
+    status: 'unique',
+    files: [{ file: 'src/custom/runtime.js', role: 'render', confidence: 90, reason: '自定义运行时生成 DOM' }],
+  });
+  assert.deepEqual(unknownHits.map(hit => hit.file), ['src/custom/runtime.js']);
+
+  const styleHits = agentHits(inspection, {
+    status: 'unique',
+    files: [{ file: 'src/styles/view.scss', role: 'render', confidence: 90, reason: '错误判断' }],
+  });
+  assert.deepEqual(styleHits, []);
 });
 
 test('a rare business class in the scope layer still surfaces the render component (x-menu), and the router is never returned', async () => {

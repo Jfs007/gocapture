@@ -227,6 +227,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       method: 'POST',
       body: {
         ...(body as Record<string, unknown>),
+        projectRoot: projectRoot(),
         adapter: model.selectedModel.value || null
       },
       timeoutMs: Math.max(timeoutMs, Number(model.selectedModel.value?.timeoutMs || 120000) * 2 + 5000),
