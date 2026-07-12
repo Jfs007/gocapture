@@ -78,8 +78,23 @@ function importedFiles(project, filePath, fileMap, textCache) {
   return result;
 }
 
+// 反向 import 图：file → 直接 import 它的文件列表。owner 遍历 / 可达性遍历 / 相关文件集 共用同一份，
+// 不再各建各的（此前 reverseOwners、traceCandidateOwners、filesRelatedByImport 各内联了一遍）。
+function buildReverseImportMap(project, fileMap, textCache) {
+  const reverse = new Map();
+  for (const source of fileMap.keys()) {
+    for (const child of importedFiles(project, source, fileMap, textCache)) {
+      const parents = reverse.get(child.file) || [];
+      parents.push(source);
+      reverse.set(child.file, uniq(parents));
+    }
+  }
+  return reverse;
+}
+
 module.exports = {
   buildFileMap,
   importedFiles,
   importSpecifiers,
+  buildReverseImportMap,
 };

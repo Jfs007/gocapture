@@ -2,12 +2,13 @@
 
 const path = require('path');
 const { registerRelationAdapter } = require('./registry');
+const { NATIVE_HTML_TAGS } = require('../dom-utils');
 
-const NATIVE_TAGS = new Set([
-  'a', 'article', 'aside', 'button', 'div', 'fieldset', 'footer', 'form', 'header', 'img',
-  'input', 'label', 'legend', 'li', 'main', 'nav', 'ol', 'option', 'p', 'section', 'select',
-  'span', 'table', 'tbody', 'td', 'textarea', 'th', 'thead', 'tr', 'ul', 'template',
-]);
+// 用权威的 HTML 原生标签标准集判定「哪些 <tag> 不是组件」，而不是手写一份必然不全的名单：
+// 旧名单只有 ~30 个，漏掉 h1/video/canvas/dialog/code/strong/caption… —— 这些原生元素会被误判成组件、
+// 生成假的 uses-component 边，污染关系图/路由遍历。标准集不含 <template>（Vue SFC 根、语言区域分隔标签），
+// 单独补上，免得每个 .vue 都冒出一个 template「组件」。
+const NATIVE_TAGS = new Set([...NATIVE_HTML_TAGS, 'template']);
 
 function normalizeComponentName(value) {
   return String(value || '')

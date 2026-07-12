@@ -83,6 +83,7 @@ const {
   relationGraphComposite,
   relationGraphHits,
   routeComponentRelations,
+  augmentRouteRelationsWithBreakpoints,
 } = require('./dom-agent/source-relation-graph');
 
 async function runAgentSearch(project, body, options = {}) {
@@ -145,6 +146,15 @@ async function runAgentSearch(project, body, options = {}) {
   if (!body.adapter) throw new Error('DOM Agent 需要已配置的定位模型。');
 
   const textCache = new Map();
+  // 断点解析器用的 LLM 通道（限定只按协议返回动作，不打分/不猜文件）。两处路由关系接线复用它。
+  const breakpointInvoke = async (stage, prompt) => {
+    const result = await invokeModel(body.adapter, prompt, project.path, {
+      signal,
+      onLog,
+      systemPrompt: '你是 Magnus 关系断点解析器。只按用户提示里的 JSON 协议返回一个动作，不打分、不猜文件。',
+    });
+    return result?.rawText || '';
+  };
   onLog('本地调用：resolvePageRouteTrace(project, body)');
   const routeResult = resolvePageRouteTrace(project, body, textCache);
   onLog(`本地输出：${JSON.stringify({
@@ -311,13 +321,16 @@ async function runAgentSearch(project, body, options = {}) {
     }, project, executionPlan, body?.agentState || null, textCache, body);
   }
 
-  let routeRelations = routeComponentRelations(
+  // 静态组件边遍历 + 断点接线：静态到不了的强证据候选，若卡在动态墙（工厂/注册表/动态 key），
+  // 触发断点解析器（LLM 只回「下一步验证什么」，本地执行、补边）。天然稀发——常规命中都走静态边、不发模型调用。
+  let routeRelations = await augmentRouteRelationsWithBreakpoints(
     project,
     routeResult.trace,
     inspection.candidates,
-    textCache
+    textCache,
+    { log: onLog, invoke: breakpointInvoke }
   );
-  onLog(`本地调用：routeComponentRelations(project, route, ${JSON.stringify(inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file))})`);
+  onLog(`本地调用：augmentRouteRelationsWithBreakpoints(project, route, ${JSON.stringify(inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file))})`);
   onLog(`本地输出：${JSON.stringify(routeRelations, null, 2)}`);
   const localRouteDecision = resolveByRouteRelation(
     body,
@@ -612,11 +625,13 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent 语义审查门：禁止本地直接收敛；${finalRenderReview.reviewReasons.join('；')}，进入 LLM Judge`);
   }
 
-  routeRelations = routeComponentRelations(
+  // Judge 路径同样接断点：本地没收敛而走到 Judge 时，让 Judge 也能看到断点桥接出来的路由关系，而非仅静态边。
+  routeRelations = await augmentRouteRelationsWithBreakpoints(
     project,
     routeResult.trace,
     inspection.candidates,
-    textCache
+    textCache,
+    { log: onLog, invoke: breakpointInvoke }
   );
   let judgePrompt = buildJudgePrompt(
     body,

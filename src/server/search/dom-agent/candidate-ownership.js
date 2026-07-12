@@ -1,7 +1,7 @@
 const path = require('path');
 const { readProjectText } = require('../../core/fs-utils');
 const { makeSnippet, uniq } = require('../../utils');
-const { buildFileMap, importedFiles } = require('../import-trace');
+const { buildFileMap, importedFiles, buildReverseImportMap } = require('../import-trace');
 const {
   MAX_OWNER_DEPTH,
   MAX_OWNERS_PER_CANDIDATE,
@@ -22,14 +22,7 @@ function filesRelatedByImport(project, file, textCache, maxHops = 2) {
     }
     frontier = next;
   }
-  const reverse = new Map();
-  for (const source of fileMap.keys()) {
-    for (const child of importedFiles(project, source, fileMap, textCache)) {
-      const parents = reverse.get(child.file) || [];
-      parents.push(source);
-      reverse.set(child.file, parents);
-    }
-  }
+  const reverse = buildReverseImportMap(project, fileMap, textCache);
   frontier = [file];
   for (let hop = 0; hop < maxHops; hop += 1) {
     const next = [];
@@ -93,13 +86,9 @@ function dynamicGlobTargets(text) {
 
 function traceCandidateOwners(project, selectedFiles, textCache) {
   const fileMap = buildFileMap(project);
-  const reverse = new Map();
+  const reverse = buildReverseImportMap(project, fileMap, textCache);
+  // 在共享反向图之上，补一层 import.meta.glob 的动态父子边（静态 import 图之外的约定式注册）。
   for (const file of fileMap.keys()) {
-    for (const child of importedFiles(project, file, fileMap, textCache)) {
-      const parents = reverse.get(child.file) || [];
-      parents.push(file);
-      reverse.set(child.file, uniq(parents));
-    }
     const source = readProjectText(project, fileMap.get(file), textCache);
     for (const pattern of dynamicGlobTargets(source)) {
       for (const target of fileMap.keys()) {

@@ -3045,3 +3045,22 @@ test('regionByContainerAnchors: locates the selection\'s column block by its con
   // 无可命中容器锚点 → null
   assert.equal(regionByContainerAnchors(project, 'src/idx.vue', ['nonexistent'], new Map()), null);
 });
+
+test('evidence over syntax: a file rendering the selection class via clsx() is not demoted to a reference by definition-like syntax', () => {
+  // source-role 会因为 `export const meta = {` 把它判成 definition-like（参考、降权）；
+  // 但它用 clsx('biz-card') 渲染了选区的业务 class —— 证据高于语法，角色应被纠正为渲染源码。
+  // clsx 不在 source-role 的渲染信号名单里，正是「语法认不出、证据认得出」的残余情形。
+  const project = fixtureProject({
+    'src/widget.ts': "export const meta = { a: 1 }\nexport function view(row){ return build(clsx('biz-card'), row.name) }",
+  });
+  const body = { selections: [{ element: { className: 'biz-card', rawOuterHtml: '<div class="biz-card">x</div>' } }] };
+  const plan = { searches: [{ keywords: ['biz-card'], mode: 'any', range: 'same-file', priority: 1, keywordTypes: { 'biz-card': 'class-token' } }] };
+  const cache = new Map();
+  const hits = executeSearchPlan(project, plan, cache);
+  const inspection = inspectCandidates(project, hits, plan, cache, body);
+  const widget = inspection.candidates.find(candidate => candidate.file === 'src/widget.ts');
+  assert.ok(widget, 'widget.ts 应被召回');
+  assert.equal(widget.referenceOnly, false);
+  assert.equal(widget.sourceRole, 'render-like');
+  assert.match(widget.roleReasons.join(' '), /证据高于语法/);
+});

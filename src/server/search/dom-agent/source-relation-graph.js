@@ -2,7 +2,7 @@
 
 const { readProjectText } = require('../../core/fs-utils');
 const { makeSnippet, uniq } = require('../../utils');
-const { buildFileMap, importedFiles } = require('../import-trace');
+const { buildFileMap, importedFiles, buildReverseImportMap } = require('../import-trace');
 const { MAX_ROUTE_RELATION_DEPTH } = require('./dom-utils');
 const { extractSourceRelations } = require('./relation-adapters/registry');
 const {
@@ -57,14 +57,7 @@ function consumedProps(text) {
 
 function reverseOwners(project, targets, textCache, maxDepth = 4) {
   const fileMap = buildFileMap(project);
-  const reverse = new Map();
-  for (const source of fileMap.keys()) {
-    for (const imported of importedFiles(project, source, fileMap, textCache)) {
-      const parents = reverse.get(imported.file) || [];
-      parents.push(source);
-      reverse.set(imported.file, uniq(parents));
-    }
-  }
+  const reverse = buildReverseImportMap(project, fileMap, textCache);
   const owners = new Map();
   for (const target of targets) {
     const queue = [{ file: target, depth: 0, chain: [target] }];
@@ -269,19 +262,20 @@ function fileUsedComponentNames(project, file, fileMap, textCache, cache) {
   return names;
 }
 
-// 路由 → 候选 的可达关系，只沿「渲染组合」走：组件渲染边（父文件把子文件当标签渲染）
+// 路由 → 候选 的可达关系遍历，只沿「渲染组合」走：组件渲染边（父文件把子文件当标签渲染）
 // 或透明再导出边（barrel/index 转发）。值/配置导入（store/router/util）与工厂/注册表间接自然被截断——
 // 无需任何目录名单或框架判断（组件 = 标签用法，是所有框架的公共形态）。入口首跳放行任意 import
-// （路由入口本身就是「指向页面」的注册/转发）。输出形状与旧 traceRouteCandidateRelations 一致：
-// [{ candidateFile, routeFile, depth, chain }]。工厂/注册表/动态 key 等无法静态验证的间接会在此停下，
-// 交由后续（Judge / 断点）处理，而不是靠目录约定硬穿过去。
-function routeComponentRelations(project, routeTrace, candidates, textCache = new Map()) {
+// （路由入口本身就是「指向页面」的注册/转发）。
+// 返回 { relations, walls }：relations 形状与旧 traceRouteCandidateRelations 一致
+// [{ candidateFile, routeFile, depth, chain }]；walls 是「停下的动态/不透明边」——工厂/注册表/动态 key 等
+// 无法静态验证的连线，记录 { file, depth, chain, unfollowed:[{file,specifier}] }，供断点解析器按需接手。
+function routeRelationTrace(project, routeTrace, candidates, textCache = new Map()) {
   const fileMap = buildFileMap(project);
   const candidateFiles = new Set((candidates || [])
     .filter(candidate => !candidate.referenceOnly)
     .map(candidate => candidate.file)
     .filter(file => fileMap.has(file)));
-  if (!candidateFiles.size) return [];
+  if (!candidateFiles.size) return { relations: [], walls: [] };
   const routeFiles = uniq([
     routeTrace?.bestPageFile || '',
     routeTrace?.bestRoute?.sourceFile || '',
@@ -290,6 +284,7 @@ function routeComponentRelations(project, routeTrace, candidates, textCache = ne
   ]).filter(file => fileMap.has(file));
   const usedCache = new Map();
   const relationByCandidate = new Map();
+  const walls = [];
   for (const routeFile of routeFiles) {
     const queue = [{ file: routeFile, depth: 0, chain: [routeFile] }];
     const visited = new Set([routeFile]);
@@ -312,6 +307,7 @@ function routeComponentRelations(project, routeTrace, candidates, textCache = ne
       const usedComponents = current.depth === 0
         ? null
         : fileUsedComponentNames(project, current.file, fileMap, textCache, usedCache);
+      const unfollowed = [];
       for (const child of importedFiles(project, current.file, fileMap, textCache)) {
         if (visited.has(child.file)) continue;
         let isCompositionEdge = current.depth === 0;
@@ -320,13 +316,103 @@ function routeComponentRelations(project, routeTrace, candidates, textCache = ne
           if (childNames.some(name => usedComponents.has(name))) isCompositionEdge = true;
           else if (reExportsSpecifier(parentText, child.specifier)) isCompositionEdge = true;
         }
-        if (!isCompositionEdge) continue;
+        if (!isCompositionEdge) {
+          unfollowed.push({ file: child.file, specifier: child.specifier });
+          continue;
+        }
         visited.add(child.file);
         queue.push({ file: child.file, depth: current.depth + 1, chain: [...current.chain, child.file] });
       }
+      // depth≥1 的节点若有「没跟随的 import」，就是一处可能的断点墙（入口首跳放行一切，不算墙）。
+      if (current.depth >= 1 && unfollowed.length) {
+        walls.push({ file: current.file, depth: current.depth, chain: current.chain, unfollowed });
+      }
     }
   }
-  return Array.from(relationByCandidate.values())
+  return {
+    relations: Array.from(relationByCandidate.values())
+      .sort((a, b) => a.depth - b.depth || a.candidateFile.localeCompare(b.candidateFile)),
+    walls,
+  };
+}
+
+function routeComponentRelations(project, routeTrace, candidates, textCache = new Map()) {
+  return routeRelationTrace(project, routeTrace, candidates, textCache).relations;
+}
+
+function candidateHasStrongEvidence(candidate) {
+  if (!candidate || candidate.referenceOnly) return false;
+  if ((candidate.matchedGroups || []).some(group => group.source === 'planned-group' && (group.keywords || []).length >= 2)) return true;
+  if ((candidate.domTextCoverage?.matchedTextCount || 0) >= 2) return true;
+  if ((candidate.domCoverage?.matchedClassCount || 0) >= 2) return true;
+  return false;
+}
+
+function importReaches(project, fromFile, targetFile, fileMap, textCache, maxDepth = 3) {
+  if (fromFile === targetFile) return true;
+  const queue = [{ file: fromFile, depth: 0 }];
+  const visited = new Set([fromFile]);
+  while (queue.length) {
+    const current = queue.shift();
+    if (current.depth >= maxDepth) continue;
+    for (const child of importedFiles(project, current.file, fileMap, textCache)) {
+      if (child.file === targetFile) return true;
+      if (visited.has(child.file)) continue;
+      visited.add(child.file);
+      queue.push({ file: child.file, depth: current.depth + 1 });
+    }
+  }
+  return false;
+}
+
+// 断点接线：静态遍历跑完后，若有「强证据候选没被路由静态到达」，且某个动态墙的未跟随 import
+// 经 import 能通向该候选，就在这个墙上触发断点解析器（LLM 只回下一步验证什么，本地执行、补图）。
+// 加法式、可关：无 invoke / 无强未达候选 / 无墙 → 原样返回静态 relations，不发任何模型调用；
+// 解析成功才补一条 via:'breakpoint' 的边，give_up/超轮不改。触发天然稀发（常规命中都走静态组件边）。
+async function augmentRouteRelationsWithBreakpoints(project, routeTrace, candidates, textCache = new Map(), options = {}) {
+  const { invoke, log = () => {}, maxRounds = 2, maxBreakpoints = 2 } = options;
+  const trace = routeRelationTrace(project, routeTrace, candidates, textCache);
+  if (typeof invoke !== 'function' || !trace.walls.length) return trace.relations;
+  const reached = new Set(trace.relations.map(relation => relation.candidateFile));
+  const strongUnreached = (candidates || [])
+    .filter(candidate => candidateHasStrongEvidence(candidate) && !reached.has(candidate.file))
+    .map(candidate => candidate.file);
+  if (!strongUnreached.length) return trace.relations;
+  const fileMap = buildFileMap(project);
+  const { resolveBreakpoint } = require('./breakpoint-resolver'); // 懒加载，避免潜在环
+  const added = [];
+  let budget = maxBreakpoints;
+  for (const wall of trace.walls) {
+    if (budget <= 0) break;
+    const targets = strongUnreached.filter(target => !reached.has(target)
+      && wall.unfollowed.some(item => importReaches(project, item.file, target, fileMap, textCache, 3)));
+    if (!targets.length) continue;
+    budget -= 1;
+    const wallObj = fileMap.get(wall.file);
+    const wallText = wallObj ? readProjectText(project, wallObj, textCache) : '';
+    const result = await resolveBreakpoint({
+      project,
+      textCache,
+      wallFile: wall.file,
+      wallSnippet: makeSnippet(wallText, 0, 0).slice(0, 1600),
+      unresolvedImports: wall.unfollowed.map(item => ({ specifier: item.specifier, resolvedFile: item.file })),
+      targetCandidates: targets,
+      chain: wall.chain,
+    }, { invoke, log, maxRounds });
+    log(`断点解析 @ ${wall.file}：${result.resolved ? `→ ${result.file}` : `未定(${result.reason})`}`);
+    if (result.resolved && strongUnreached.includes(result.file) && !reached.has(result.file)) {
+      reached.add(result.file);
+      added.push({
+        candidateFile: result.file,
+        routeFile: wall.chain[0],
+        depth: wall.depth + 1,
+        chain: [...wall.chain, result.file],
+        via: 'breakpoint',
+      });
+    }
+  }
+  if (!added.length) return trace.relations;
+  return [...trace.relations, ...added]
     .sort((a, b) => a.depth - b.depth || a.candidateFile.localeCompare(b.candidateFile));
 }
 
@@ -337,5 +423,7 @@ module.exports = {
   relationGraphComposite,
   relationGraphHits,
   reverseOwners,
+  routeRelationTrace,
   routeComponentRelations,
+  augmentRouteRelationsWithBreakpoints,
 };

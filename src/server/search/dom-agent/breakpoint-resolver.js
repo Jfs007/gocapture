@@ -14,13 +14,10 @@
 // 本模块是可复用引擎：invoke（LLM）注入，本地原语真实执行。断点的「检测」与「接回图」由调用方负责，
 // 尚未接入 runAgentSearch。
 
-const { escapeRegExp, makeSnippet, uniq } = require('../../utils');
-const { readProjectText } = require('../../core/fs-utils');
-const { buildFileMap, importedFiles } = require('../import-trace');
-const { keywordIndexes } = require('./search-matchers');
+const { buildFileMap } = require('../import-trace');
+const { runDiscoveryOperation } = require('../../experience/discovery-executor');
 
-const MAX_SEARCH_RESULTS = 12;
-const SNIPPET_CHARS = 1600;
+const SEARCH_ROOTS = ['src'];
 
 function parseJson(value) {
   const text = String(value || '').trim();
@@ -42,68 +39,18 @@ function parseJson(value) {
   return null;
 }
 
-// —— 本地确定性搜索原语（框架无关）。每个返回可 JSON 化的事实，供回灌给 LLM。——
-function localPrimitives(project, fileMap, textCache) {
-  const readText = file => {
-    const obj = fileMap.get(file);
-    return obj ? readProjectText(project, obj, textCache) : '';
+// —— 本地确定性搜索原语。全部委托给共享检索核 runDiscoveryOperation（host 的 project-tools 也用它），
+// 不再自造 find_symbol/search_text/find_importers/read_file 的重复实现。返回统一为 { operation, matches, stats }。——
+function localPrimitives(project, textCache) {
+  const run = (operation, request) => {
+    const output = runDiscoveryOperation(project, { operation, ...request }, textCache);
+    return { operation, matches: output.matches || [], stats: output.stats || null };
   };
   return {
-    read_file({ file, around }) {
-      const text = readText(file);
-      if (!text) return { file, found: false };
-      let index = 0;
-      if (around) {
-        const hits = keywordIndexes(text, String(around));
-        if (hits.length) index = hits[0];
-      }
-      return { file, found: true, snippet: makeSnippet(text, index, String(around || '').length).slice(0, SNIPPET_CHARS) };
-    },
-    search_text({ term, max = MAX_SEARCH_RESULTS }) {
-      const value = String(term || '').trim();
-      const results = [];
-      if (value) {
-        for (const file of fileMap.keys()) {
-          const hits = keywordIndexes(readText(file), value);
-          if (hits.length) {
-            results.push({ file, count: hits.length, snippet: makeSnippet(readText(file), hits[0], value.length).slice(0, 320) });
-          }
-          if (results.length >= max) break;
-        }
-      }
-      return { term: value, results };
-    },
-    find_symbol({ name, max = MAX_SEARCH_RESULTS }) {
-      const value = String(name || '').trim();
-      const results = [];
-      if (/^[A-Za-z_$][\w$]*$/.test(value)) {
-        const escaped = escapeRegExp(value);
-        // 定义/注册处：声明、导出、或作为对象 key / 赋值目标出现。
-        const definition = new RegExp(
-          `\\b(?:const|let|var|function|class|enum|interface|type)\\s+${escaped}\\b`
-          + `|\\bexport\\s+(?:default\\s+)?[\\w\\s{}*,]*\\b${escaped}\\b`
-          + `|(?:^|[\\s,{])${escaped}\\s*[:=]`
-        );
-        for (const file of fileMap.keys()) {
-          const text = readText(file);
-          const match = definition.exec(text);
-          if (match) results.push({ file, snippet: makeSnippet(text, match.index, value.length).slice(0, 320) });
-          if (results.length >= max) break;
-        }
-      }
-      return { name: value, results };
-    },
-    find_importers({ file, max = 20 }) {
-      const importers = [];
-      for (const source of fileMap.keys()) {
-        if (source === file) continue;
-        if (importedFiles(project, source, fileMap, textCache).some(child => child.file === file)) {
-          importers.push(source);
-        }
-        if (importers.length >= max) break;
-      }
-      return { file, importers };
-    },
+    read_file: ({ file, around }) => run('read_file', { scope: { files: [file] }, terms: around ? [String(around)] : [], maxLinesPerResult: 60 }),
+    search_text: ({ term, roots }) => run('search_text', { scope: { roots: roots || SEARCH_ROOTS }, terms: [String(term || '')] }),
+    find_symbol: ({ name, roots }) => run('find_symbol', { scope: { roots: roots || SEARCH_ROOTS }, terms: [String(name || '')] }),
+    find_importers: ({ file }) => run('find_importers', { target: file }),
   };
 }
 
@@ -148,8 +95,8 @@ async function resolveBreakpoint(context, options = {}) {
   if (typeof invoke !== 'function') return { resolved: false, reason: 'no-invoke', via: [] };
   const project = context.project;
   const textCache = context.textCache || new Map();
-  const fileMap = buildFileMap(project);
-  const primitives = localPrimitives(project, fileMap, textCache);
+  const fileMap = buildFileMap(project);   // 仅用于校验 resolve 目标文件真实存在
+  const primitives = localPrimitives(project, textCache);
   const observations = [];
 
   for (let round = 1; round <= maxRounds; round += 1) {

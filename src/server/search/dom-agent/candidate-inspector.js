@@ -246,8 +246,20 @@ function inspectCandidates(project, candidates, plan, textCache, body = null) {
       ...group,
       keywords: (group.keywords || []).filter(keyword => !mismatchedKeywords.has(keyword)),
     })).filter(group => group.keywords.length);
-    const rolePenalty = roleInfo.referenceOnly ? 80 : 0;
     const domTextCoverage = sourceDomTextCoverage(masked, textAnchors);
+    const domCoverage = sourceDomClassCoverage(masked, candidate.file, domClasses);
+    // 证据高于语法：文件在源码里以「渲染用法」承载了选区业务 class（class= / className / :class / h(…,{class})，
+    // 而非 CSS 选择器、非注释）——那它就在渲染这段 DOM，不管语法把它猜成 definition/unknown/参考。据此纠正
+    // 被语法误降的角色，让不认识的框架/写法不被埋。样式文件不适用（CSS 里的 .class 只是选择器，不渲染 DOM）。
+    // 只用 class 用法作凭据，不用文本——可见文案定义文件（columns 配置 / i18n）也持有文本，不能据此判为渲染。
+    const renderEvidence = roleInfo.role !== 'style-reference' && (domCoverage.matchedClassCount || 0) >= 1;
+    const evidenceOverridesRole = renderEvidence && roleInfo.referenceOnly;
+    const sourceRole = evidenceOverridesRole ? 'render-like' : roleInfo.role;
+    const referenceOnly = evidenceOverridesRole ? false : roleInfo.referenceOnly;
+    const roleReasons = evidenceOverridesRole
+      ? uniq(['源码以渲染用法承载了选区业务 class（证据高于语法，角色纠正为渲染源码）', ...(roleInfo.reasons || [])])
+      : roleInfo.reasons;
+    const rolePenalty = referenceOnly ? 80 : 0;
     const localScore = candidate.score
       + codeMatches * 24
       + domTextCoverage.matchedTextCount * 50
@@ -262,13 +274,13 @@ function inspectCandidates(project, candidates, plan, textCache, body = null) {
       keywordFacts,
       commentOnly,
       structureMismatches,
-      sourceRole: roleInfo.role,
-      referenceOnly: roleInfo.referenceOnly,
+      sourceRole,
+      referenceOnly,
       valueProvider: !!roleInfo.valueProvider,
-      roleReasons: roleInfo.reasons,
+      roleReasons,
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],
-      domCoverage: sourceDomClassCoverage(masked, candidate.file, domClasses),
+      domCoverage,
       domTextCoverage,
       childComponentCandidate: !!candidate.childComponentCandidate,
       rareAnchorCount: Number(candidate.rareAnchorCount || 0),
