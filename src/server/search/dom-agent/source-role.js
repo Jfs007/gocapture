@@ -29,6 +29,7 @@ function candidateSourceRole(filePath, text) {
     return {
       role: 'style-reference',
       referenceOnly: true,
+      valueProvider: false,
       reasons: ['样式文件只作为 UI 样式参考，不作为 DOM 渲染源码'],
     };
   }
@@ -36,6 +37,7 @@ function candidateSourceRole(filePath, text) {
     return {
       role: 'definition-like',
       referenceOnly: true,
+      valueProvider: true,
       reasons: ['JSON 只承载数据/配置，不能直接生成 DOM，需要追踪其渲染使用处'],
     };
   }
@@ -45,6 +47,7 @@ function candidateSourceRole(filePath, text) {
     return {
       role: 'render-like',
       referenceOnly: false,
+      valueProvider: false,
       reasons: ['.vue 单文件组件是 DOM 渲染源码'],
     };
   }
@@ -65,6 +68,7 @@ function candidateSourceRole(filePath, text) {
     return {
       role: 'render-like',
       referenceOnly: false,
+      valueProvider: false,
       reasons: ['源码包含渲染/组件结构信号'],
     };
   }
@@ -75,22 +79,33 @@ function candidateSourceRole(filePath, text) {
   });
   const definitionSignals = [
     /\bexport\s+default\s+\{/,
-    /\bexport\s+const\s+\w+\s*=/,
+    /\bexport\s+(?:declare\s+)?const\s+\w+(?:\s*:\s*[^=]+)?\s*=\s*(?:\[|\{)/,
+    /\bexport\s+(?:declare\s+)?const\s+\w+(?:\s*:\s*[^=]+)?\s*=\s*(?:["'`]|-?\d|true\b|false\b|null\b|Object\.freeze\s*\()/,
     /\bexport\s+default\s+\[/,
-    /\bconst\s+\w+\s*=\s*(?:\{|\[)/,
   ];
   if (exportsTopLevelData || definitionSignals.some(pattern => pattern.test(source))) {
     return {
       role: 'definition-like',
       referenceOnly: true,
+      valueProvider: true,
       reasons: [exportsTopLevelData
         ? '文件导出顶层对象/数组数据，本身不生成 DOM，需要追踪其消费端'
         : '源码更像常量/文案/配置定义，需要结合引用链确认真实使用处'],
     };
   }
+  const exportedFactoryValue = /\bexport\s+(?:declare\s+)?const\s+\w+(?:\s*:\s*[^=]+)?\s*=\s*(?:await\s+)?[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*\(/.test(source);
+  if (exportedFactoryValue) {
+    return {
+      role: 'unknown',
+      referenceOnly: false,
+      valueProvider: true,
+      reasons: ['文件导出工厂调用结果；本地无法仅凭语法确定它是数据还是渲染器，保留两种关系能力'],
+    };
+  }
   return {
     role: 'unknown',
     referenceOnly: false,
+    valueProvider: false,
     reasons: [],
   };
 }

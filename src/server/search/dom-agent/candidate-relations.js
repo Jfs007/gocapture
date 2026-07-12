@@ -5,7 +5,6 @@ const {
   validateOriginRelation,
   routeConfirmedOriginFiles,
   traceCandidateOwners,
-  traceRouteCandidateRelations,
 } = require('./candidate-ownership');
 
 function hasPlannedGroupMatch(candidate) {
@@ -48,6 +47,14 @@ function renderExplanation(candidate) {
     return item.codeCount > 0 && !item.structureMismatch
       && ['class-token', 'attribute-name', 'attribute-value'].includes(item.type);
   }).length;
+  if (candidate.valueProvider && candidate.sourceRole === 'unknown'
+    && structuralFacts === 0 && matchedClassCount === 0) {
+    return {
+      eligible: false,
+      strength: 0,
+      reasons: ['工厂调用结果可能提供数据，但当前没有 DOM 结构证据证明它是渲染器'],
+    };
+  }
   const strength = 2
     + Math.min(4, matchedClassCount)
     + Math.min(2, structuralFacts)
@@ -263,6 +270,7 @@ function compactInspectionForModel(inspection) {
       structureMismatches: candidate.structureMismatches || [],
       sourceRole: candidate.sourceRole || '',
       referenceOnly: !!candidate.referenceOnly,
+      valueProvider: !!candidate.valueProvider,
       childComponentCandidate: !!candidate.childComponentCandidate,
       roleReasons: candidate.roleReasons || [],
       importRelation: candidate.importRelation || null,
@@ -275,7 +283,7 @@ function compactInspectionForModel(inspection) {
   };
 }
 
-function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelations) {
+function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelations, sourceRelationGraph = null) {
   return [
     '你是源码候选裁决器。候选已经由本地检索并读取局部结构。',
     '比较 DOM 事实与候选源码事实，选择最可能直接生成或控制该选区的文件。',
@@ -314,6 +322,7 @@ function buildJudgePrompt(body, inspection, ownership, routeTrace, routeRelation
       })),
     }, null, 2)}`,
     `候选路由关系:\n${JSON.stringify(routeRelations || [], null, 2)}`,
+    `本地统一源码关系图:\n${JSON.stringify(sourceRelationGraph || { status: 'not-built' }, null, 2)}`,
   ].join('\n');
 }
 
@@ -515,7 +524,6 @@ module.exports = {
   analyzeEvidenceSufficiency,
   compactInspectionForModel,
   traceCandidateOwners,
-  traceRouteCandidateRelations,
   buildJudgePrompt,
   candidateKeywordSet,
   validateJudgeRouteDecision,

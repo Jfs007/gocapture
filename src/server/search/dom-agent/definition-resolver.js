@@ -26,7 +26,11 @@ function normalizeConfidence(value) {
 
 function unresolvedDefinitionCandidates(inspection) {
   return (inspection?.candidates || []).filter(candidate => {
-    return candidate.sourceRole === 'definition-like'
+    const hasStructuralEvidence = (candidate.keywordFacts || []).some(item => {
+      return item.codeCount > 0
+        && ['class-token', 'attribute-name', 'attribute-value'].includes(item.type);
+    });
+    return (candidate.sourceRole === 'definition-like' || (candidate.valueProvider && !hasStructuralEvidence))
       && !(candidate.definitionLinks || []).length;
   });
 }

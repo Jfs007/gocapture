@@ -51,6 +51,7 @@ function pruneStrictDomCoverageSubsets(inspected) {
   const renderCandidates = inspected.filter(candidate => !candidate.referenceOnly);
   return inspected.filter(candidate => {
     if (candidate.referenceOnly) return true;
+    if (candidate.valueProvider) return true;
     if (hasPlannedGroupMatch(candidate)) return true;
     const own = new Set(candidate.domCoverage?.matchedClasses || []);
     if (!own.size) return true;
@@ -85,6 +86,7 @@ function pruneTextOnlyRenderCandidates(inspected, plan) {
   if (!hasStructuralRender) return inspected;
   return inspected.filter(candidate => {
     if (candidate.referenceOnly) return true;
+    if (candidate.valueProvider) return true;
     if (hasPlannedGroupMatch(candidate)) return true;
     const evidence = candidateEffectiveKeywordSet(candidate);
     const structuralMatch = Array.from(structuralKeywords).some(keyword => evidence.has(keyword));
@@ -177,6 +179,7 @@ function pruneDominatedDomCandidates(inspected, plan) {
   return inspected.filter(candidate => {
     if (dominantGroups.some(group => candidate === group.winner)) return true;
     if (candidate.importRelation || (candidate.definitionLinks || []).length) return true;
+    if (candidate.valueProvider && candidateHasExactQuotedKeyword(candidate)) return true;
     if (candidate.referenceOnly) {
       if (candidate.sourceRole === 'style-reference') return true;
       return candidateHasExactQuotedKeyword(candidate);
@@ -261,6 +264,7 @@ function inspectCandidates(project, candidates, plan, textCache, body = null) {
       structureMismatches,
       sourceRole: roleInfo.role,
       referenceOnly: roleInfo.referenceOnly,
+      valueProvider: !!roleInfo.valueProvider,
       roleReasons: roleInfo.reasons,
       importRelation: candidate.importRelation || null,
       definitionLinks: candidate.definitionLinks || [],

@@ -67,7 +67,6 @@ const {
   analyzeEvidenceSufficiency,
   compactInspectionForModel,
   traceCandidateOwners,
-  traceRouteCandidateRelations,
   buildJudgePrompt,
   validateJudgeRouteDecision,
   resolveByRouteRelation,
@@ -79,6 +78,12 @@ const {
   normalizeJudge,
   agentHits,
 } = require('./dom-agent/result-builder');
+const {
+  buildSourceRelationGraph,
+  relationGraphComposite,
+  relationGraphHits,
+  routeComponentRelations,
+} = require('./dom-agent/source-relation-graph');
 
 async function runAgentSearch(project, body, options = {}) {
   if (!project) throw new Error('No project selected.');
@@ -280,13 +285,39 @@ async function runAgentSearch(project, body, options = {}) {
   onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
   onLog(`DOM Agent 渲染假设审查：${JSON.stringify(reviewRenderHypotheses(inspection), null, 2)}`);
 
-  let routeRelations = traceRouteCandidateRelations(
+  const sourceRelationGraph = buildSourceRelationGraph(project, inspection, textCache);
+  onLog(`本地调用：buildSourceRelationGraph(project, inspection)`);
+  onLog(`本地输出：${JSON.stringify(sourceRelationGraph, null, 2)}`);
+  if (sourceRelationGraph.status === 'unique-complete') {
+    const hits = relationGraphHits(sourceRelationGraph, inspection);
+    const composite = relationGraphComposite(sourceRelationGraph);
+    onLog(`DOM Agent 本地关系图收敛：${sourceRelationGraph.bundles[0].owner} 将定义值传入直接渲染组件，跳过单文件最高分裁决`);
+    return attachFineLocation({
+      hits,
+      composite,
+      routeResolver: routeResult.trace,
+      apiTrace: null,
+      i18nTrace: null,
+      definitionTrace: null,
+      agent: {
+        enabled: true,
+        trigger,
+        plan: executionPlan,
+        modelPlan: plan,
+        inspection: compactInspectionForModel(inspection),
+        sourceRelationGraph,
+        localConverged: true,
+      },
+    }, project, executionPlan, body?.agentState || null, textCache, body);
+  }
+
+  let routeRelations = routeComponentRelations(
     project,
     routeResult.trace,
     inspection.candidates,
     textCache
   );
-  onLog(`本地调用：traceRouteCandidateRelations(project, route, ${JSON.stringify(inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file))})`);
+  onLog(`本地调用：routeComponentRelations(project, route, ${JSON.stringify(inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file))})`);
   onLog(`本地输出：${JSON.stringify(routeRelations, null, 2)}`);
   const localRouteDecision = resolveByRouteRelation(
     body,
@@ -581,7 +612,7 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent 语义审查门：禁止本地直接收敛；${finalRenderReview.reviewReasons.join('；')}，进入 LLM Judge`);
   }
 
-  routeRelations = traceRouteCandidateRelations(
+  routeRelations = routeComponentRelations(
     project,
     routeResult.trace,
     inspection.candidates,
@@ -593,7 +624,7 @@ async function runAgentSearch(project, body, options = {}) {
     ownership,
     routeResult.trace,
     routeRelations,
-    false
+    sourceRelationGraph
   );
   onLog(`DOM Agent Judge 输入（${judgePrompt.length} 字符）:\n${judgePrompt}`);
   let judgeResult = await invokeModel(body.adapter, judgePrompt, project.path, {
@@ -646,6 +677,7 @@ async function runAgentSearch(project, body, options = {}) {
       evidence,
       originVerification,
       routeRelations,
+      sourceRelationGraph,
       judge,
     },
   }, project, executionPlan, body?.agentState || null, textCache, body);
@@ -671,6 +703,6 @@ module.exports = {
   resolveByRouteRelation,
   runAgentSearch,
   traceCandidateOwners,
-  traceRouteCandidateRelations,
+  routeComponentRelations,
   validateJudgeRouteDecision,
 };

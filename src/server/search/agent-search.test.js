@@ -12,7 +12,7 @@ const {
   resolveByRouteRelation,
   runAgentSearch,
   traceCandidateOwners,
-  traceRouteCandidateRelations,
+  routeComponentRelations,
   validateJudgeRouteDecision,
   dominantRenderCandidate,
   buildComposite,
@@ -150,7 +150,9 @@ test('locator prompt keeps the extractor focused on stable, layered source-searc
   const prompt = buildLocatorSystemPrompt();
   assert.match(prompt, /DOM 锚点抽取 Agent/);
   assert.match(prompt, /renderAnchors（主渲染锚点/);
-  assert.match(prompt, /UI 框架 class/);
+  // 运行时 class 的排除用「作者是否书写」这一框架无关判据表达，而不是列举某某 UI 库的前缀。
+  assert.match(prompt, /运行时生成|作者不会在源码里书写/);
+  assert.doesNotMatch(prompt, /el-\*|\bn-\*|ivu-\*|ant-\*|van-\*|arco-|semi-/);
   assert.match(prompt, /订单号、用户名、商品名/);
   assert.match(prompt, /need-more-context/);
 });
@@ -1192,7 +1194,7 @@ test('definition import owners become render candidates without an extra model r
   }));
 });
 
-test('definition relation resolver can link an indirect definition to an existing render candidate', async () => {
+test('definition relation resolver can link an indirect value provider when local imports are absent', async () => {
   const project = fixtureProject({
     'src/components/ActionBar.vue': [
       '<template><section class="action-bar"><button>{{ labels.exportReport }}</button></section></template>',
@@ -1940,7 +1942,7 @@ test('exact route import relation resolves a duplicated DOM candidate locally', 
       reasons: ['路径精确匹配', '叶子路由', '存在页面组件文件'],
     }],
   };
-  const relations = traceRouteCandidateRelations(project, routeTrace, candidates, new Map());
+  const relations = routeComponentRelations(project, routeTrace, candidates, new Map());
   assert.deepEqual(relations, [{
     candidateFile: 'src/pages/home/help-center/index.vue',
     routeFile: 'src/pages/home/index.js',
@@ -2124,7 +2126,7 @@ test('route relations stop before infrastructure cycles reach unrelated pages', 
     file: 'src/pages/Other.vue',
     referenceOnly: false,
   }];
-  const relations = traceRouteCandidateRelations(project, {
+  const relations = routeComponentRelations(project, {
     matched: true,
     bestPageFile: 'src/pages/Home.vue',
     bestRoute: { sourceFile: 'src/router/home.js' },
@@ -2133,7 +2135,7 @@ test('route relations stop before infrastructure cycles reach unrelated pages', 
   assert.deepEqual(relations, []);
 });
 
-test('route relation does not select a single repeated label when local DOM text context disagrees', () => {
+test('route relation treats a dynamic <component :is> factory hop as a breakpoint and defers instead of walking through it', () => {
   const project = fixtureProject({
     'src/route.vue': '<script>import Parent from "./parent.vue"</script>',
     'src/parent.vue': '<template><task-module /></template><script>import TaskModule from "./task-module.vue"</script>',
@@ -2212,10 +2214,12 @@ test('route relation does not select a single repeated label when local DOM text
       reasons: ['路径精确匹配'],
     }],
   };
-  const relations = traceRouteCandidateRelations(project, routeTrace, inspection.candidates, cache);
-  const decision = resolveByRouteRelation(body, inspection, routeTrace, relations);
-  assert.equal(decision.status, 'unique');
-  assert.equal(decision.files[0].file, 'src/subtask.vue');
+  const relations = routeComponentRelations(project, routeTrace, inspection.candidates, cache);
+  // task-module 通过 <component :is="SubtaskFactory">（动态组件 + 工厂再导出）间接渲染 subtask：
+  // 静态「组件渲染边 / 透明再导出边」都跨不过这个动态绑定——这是断点。路由关系不臆造这条链，
+  // subtask 不被判为路由可达，resolveByRouteRelation 交回 Judge（返回 null），而非本地假收敛。
+  assert.ok(!relations.some(relation => relation.candidateFile === 'src/subtask.vue'));
+  assert.equal(resolveByRouteRelation(body, inspection, routeTrace, relations), null);
 });
 
 // ——— DOM Agent 改造：稀有度 / 两阶段准入 / 组合结果 ———

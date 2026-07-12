@@ -8,10 +8,6 @@ const {
   parseHtmlLite,
   classTokens,
 } = require('./dom-utils');
-const {
-  isLikelyRuntimeClassToken,
-  stableDomSearchText,
-} = require('./dom-evidence');
 const { inheritedSearchKeywords } = require('./planner-utils');
 const {
   keywordIndexesForSearch,
@@ -124,38 +120,6 @@ function matchElementSpan(text, openIdx, tag) {
     if (depth < 0) return null;
   }
   return null;
-}
-
-// 从选区 DOM 取「根元素 + 后代稳定锚点（可见文案 + 业务 class）」。
-function selectionRootAndAnchors(body) {
-  const markup = selectionList(body).map(selectionMarkup).find(Boolean) || '';
-  if (!markup) return null;
-  const root = (parseHtmlLite(markup).children || []).find(child => child.type === 'element');
-  if (!root) return null;
-  const rootBusinessClasses = classTokens(root.attrs).filter(token => token && !isLikelyRuntimeClassToken(token));
-  const texts = [];
-  const subtreeClasses = [];       // 整个选区子树里的所有 class（含框架 class，用于组件标签消歧）
-  const subtreeBusinessClasses = []; // 子树里的业务 class（保留给上游其它用途）
-  (function walk(node) {
-    if (node.type === 'text') {
-      const value = stableDomSearchText(node.text);
-      if (value) texts.push(value);
-      return;
-    }
-    for (const token of classTokens(node.attrs || {})) {
-      if (!token) continue;
-      subtreeClasses.push(token);
-      if (!isLikelyRuntimeClassToken(token)) subtreeBusinessClasses.push(token);
-    }
-    for (const child of node.children || []) walk(child);
-  })(root);
-  return {
-    tag: root.tag,
-    rootBusinessClasses,
-    subtreeClasses: uniq(subtreeClasses),
-    subtreeBusinessClasses: uniq(subtreeBusinessClasses),
-    texts: uniq(texts),
-  };
 }
 
 // script/style/template 是「语言区域分隔标签」（其内容分别是 JS/CSS/HTML），本身不是要对齐的 DOM 节点，跳过。

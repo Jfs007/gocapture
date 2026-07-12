@@ -30,7 +30,7 @@ function buildLocatorSystemPrompt(technicalStackMarkdown = '') {
     '   - 它们通常定义在另一个子组件文件里，不应和 renderAnchors 混为一谈。',
     '',
     '# 一律排除（不得作为任何锚点）',
-    '- UI 框架 class：el-*、n-*、ivu-*、ant-*、van-* 等运行时产物。',
+    '- 组件库在运行时生成、作者不会在源码里书写的 class：判据是它并非承载业务语义、由开发者手写的类，而是 UI 控件库内部渲染结构的命名产物；不确定某个 class 是否作者书写时，宁可不选。',
     '- 表格/列表框架运行时生成的属性名：data-col-key、data-row-key、data-index、data-v-*、aria-*、colspan、rowspan、tabindex 等。',
     '  这些属性名在源码里根本不存在。若其「值」是业务标识（如 data-col-key="cost" 的 cost 往往对应列配置的 key:\'cost\'），',
     '  可以把该「值」单独作为 text 锚点，但绝不要把属性名写进锚点。',

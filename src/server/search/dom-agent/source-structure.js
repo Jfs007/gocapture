@@ -104,8 +104,12 @@ function sourceTextAnchorIndexes(text, anchor) {
   const escaped = escapeRegExp(keyword);
   const patterns = [
     new RegExp(`>[^<]{0,120}${escaped}[^<]{0,120}<`, 'g'),
-    new RegExp(`\\b(?:label|title|placeholder|aria-label)\\s*=\\s*["']${escaped}["']`, 'g'),
-    new RegExp(`\\b(?:label|title|text|name)\\s*:\\s*["'\`]${escaped}["'\`]`, 'g'),
+    // 承载可见文案的「属性」：不枚举具体属性名（label/title/placeholder…），任何 X="文案" 皆可命中。
+    // DOM 已经告诉我们可见文案是什么；它在源码里由哪个属性名承载不该写死——新组件可能用 heading/caption/content…。
+    // 值须恰好等于该文案（引号内精确匹配），避免误配。
+    new RegExp(`\\b[\\w:-]+\\s*=\\s*["']${escaped}["']`, 'g'),
+    // 对象字面量里承载文案的属性：同理不枚举 key 名，值须恰好等于该文案。
+    new RegExp(`\\b[\\w-]+\\s*:\\s*["'\`]${escaped}["'\`]`, 'g'),
   ];
   const indexes = [];
   for (const pattern of patterns) {

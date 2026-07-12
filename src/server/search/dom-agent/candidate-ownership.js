@@ -141,60 +141,9 @@ function traceCandidateOwners(project, selectedFiles, textCache) {
   }
   return result;
 }
-
-function traceRouteCandidateRelations(project, routeTrace, candidates, textCache) {
-  const fileMap = buildFileMap(project);
-  const candidateFiles = new Set((candidates || [])
-    .filter(candidate => !candidate.referenceOnly)
-    .map(candidate => candidate.file)
-    .filter(file => fileMap.has(file)));
-  if (!candidateFiles.size) return [];
-  const routeFiles = uniq([
-    routeTrace?.bestPageFile || '',
-    routeTrace?.bestRoute?.sourceFile || '',
-    ...((routeTrace?.hits || []).map(hit => hit?.file || '')),
-    ...((routeTrace?.hits || []).map(hit => hit?.from || '')),
-  ]).filter(file => fileMap.has(file));
-  const relationByCandidate = new Map();
-  for (const routeFile of routeFiles) {
-    const queue = [{ file: routeFile, depth: 0, chain: [routeFile] }];
-    const visited = new Set([routeFile]);
-    while (queue.length) {
-      const current = queue.shift();
-      if (candidateFiles.has(current.file)) {
-        const old = relationByCandidate.get(current.file);
-        if (!old || current.depth < old.depth) {
-          relationByCandidate.set(current.file, {
-            candidateFile: current.file,
-            routeFile,
-            depth: current.depth,
-            chain: current.chain,
-          });
-        }
-      }
-      if (current.depth >= MAX_ROUTE_RELATION_DEPTH) continue;
-      if (current.depth > 0 && /(?:^|\/)(?:store|stores|api|apis|router|routers|init|util|utils|service|services|infrastructure)(?:\/|$)/i.test(current.file)) {
-        continue;
-      }
-      for (const child of importedFiles(project, current.file, fileMap, textCache)) {
-        if (visited.has(child.file)) continue;
-        visited.add(child.file);
-        queue.push({
-          file: child.file,
-          depth: current.depth + 1,
-          chain: [...current.chain, child.file],
-        });
-      }
-    }
-  }
-  return Array.from(relationByCandidate.values())
-    .sort((a, b) => a.depth - b.depth || a.candidateFile.localeCompare(b.candidateFile));
-}
-
 module.exports = {
   filesRelatedByImport,
   validateOriginRelation,
   routeConfirmedOriginFiles,
   traceCandidateOwners,
-  traceRouteCandidateRelations,
 };

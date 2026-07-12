@@ -138,9 +138,15 @@ function isLikelyGlobalStyleOverrideFile(filePath, text) {
   if (/(^|\/)(styles?|theme|themes|design|tokens?|vars?|reset|common|global)\//i.test(normalizedPath)) score += 24;
   if (/(^|\/)(design|theme|global|common|reset|var|vars|token)\.(css|less|scss|sass|styl)$/i.test(normalizedPath)) score += 18;
 
-  const librarySelectorCount = countMatches(text, /\.(n-|ant-|el-|ivu-|arco-|semi-)[\w-]+/g);
-  if (librarySelectorCount >= 6) score += 26;
-  else if (librarySelectorCount >= 3) score += 14;
+  // 覆写第三方控件/子组件「内部结构」的信号，框架无关（不点名任何 UI 库前缀，含自研设计体系皆成立）：
+  //  · 样式穿透进别的组件内部 DOM（:deep/::v-deep/>>>//deep/）——组件给自己写样式无需穿透；
+  //  · 大量「扁平的深层结构类选择器」（.block__el / .block--mod）——针对的是控件库/子组件内部完整类名，
+  //    而非本组件自身的语义类（后者在 SFC 里多以 & 嵌套书写，不会是扁平全名选择器）。
+  const penetrationCount = countMatches(text, /:deep\s*\(|::v-deep|:v-deep|>>>|\/deep\//g);
+  const flatInternalSelectorCount = countMatches(text, /(?:^|[\s,{])\.[a-z][\w-]*(?:__|--)[\w-]+/gi);
+  const overrideInternalSignal = penetrationCount * 3 + flatInternalSelectorCount;
+  if (overrideInternalSignal >= 8) score += 26;
+  else if (overrideInternalSignal >= 4) score += 14;
 
   const cssVarCount = countMatches(text, /--[\w-]+\s*:/g);
   if (cssVarCount >= 8) score += 22;

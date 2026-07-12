@@ -97,7 +97,13 @@ function enrichDefinitionCandidates(project, inspected, plan, textCache) {
   const fileMap = buildFileMap(project);
   const byFile = new Map(inspected.map(item => [item.file, item]));
   const renderCandidates = inspected.filter(item => !item.referenceOnly);
-  const definitionCandidates = inspected.filter(item => item.sourceRole === 'definition-like');
+  const definitionCandidates = inspected.filter(item => {
+    const hasStructuralEvidence = (item.keywordFacts || []).some(fact => {
+      return fact.codeCount > 0
+        && ['class-token', 'attribute-name', 'attribute-value'].includes(fact.type);
+    });
+    return item.sourceRole === 'definition-like' || (item.valueProvider && !hasStructuralEvidence);
+  });
 
   for (const definition of definitionCandidates) {
     const links = [];
