@@ -367,56 +367,17 @@ function resolvedComponentChainFiles(project, body) {
   });
 }
 
-// Stage0：把运行时组件链上的 __file 解析成「项目内相对路径」，保持自近及远的顺序。
-// 命中即为确定性最强信号（Vue/React 运行时直接给出的渲染源码），可据此跳过全部 LLM。
-function resolveChainToProjectFiles(project, body) {
-  const projectFiles = new Set((project?.files || []).map(file => file.path));
-  const result = [];
-  for (const rawFile of componentChainFiles(body)) {
-    const normalized = String(rawFile || '').replace(/\\/g, '/').replace(/^\/+/, '');
-    if (projectFiles.has(normalized)) {
-      result.push(normalized);
-      continue;
-    }
-    const srcIndex = normalized.lastIndexOf('/src/');
-    if (srcIndex !== -1 && projectFiles.has(normalized.slice(srcIndex + 1))) {
-      result.push(normalized.slice(srcIndex + 1));
-    }
-  }
-  return uniq(result);
-}
-
-// Stage0：仅凭运行时组件链构造确定性组合结果（render=最近业务组件，assembly=其上一层）。
-function buildStage0Composite(chainProjectFiles) {
-  const [render, assembly] = chainProjectFiles;
-  return {
-    render: { file: render, role: 'render', score: 4000, anchors: [], source: 'component-chain' },
-    assembly: assembly
-      ? { file: assembly, via: 'component-chain', chain: chainProjectFiles.slice(0, 2) }
-      : null,
-    children: [],
-  };
-}
-
 function domAgentTrigger(body, options = {}) {
-  const threshold = Math.max(1000, Number(options.threshold || DEFAULT_DOM_AGENT_THRESHOLD));
   const markupLength = selectionList(body)
     .map(selectionMarkup)
     .reduce((max, value) => Math.max(max, value.length), 0);
   const chainFiles = resolvedComponentChainFiles(options.project, body);
-  const oversized = markupLength > threshold;
-  const missingComponentFile = chainFiles.length === 0;
   return {
-    enabled: oversized || missingComponentFile,
-    oversized,
-    missingComponentFile,
+    enabled: true,
+    unified: true,
     markupLength,
-    threshold,
     componentFiles: chainFiles,
-    reason: [
-      oversized ? `选区字符长度 ${markupLength} > ${threshold}` : '',
-      missingComponentFile ? 'ComponentChain 未找到源码文件' : '',
-    ].filter(Boolean).join('；'),
+    reason: '统一启用 DOM Agent；不再按选区长度或 ComponentChain 跳过',
   };
 }
 
@@ -642,8 +603,6 @@ module.exports = {
   compactWhitespace,
   classTokens,
   compressDomMarkup,
-  resolveChainToProjectFiles,
-  buildStage0Composite,
   domAgentTrigger,
   plannerDomInput,
   selectionContextMarkupValues,

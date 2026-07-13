@@ -1,6 +1,5 @@
 const { runModelTask } = require('../model/model-adapters');
 const { uniq } = require('../utils');
-const { searchProjectWithMeta } = require('./keyword/index');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const {
   buildLocatorSystemPrompt,
@@ -15,8 +14,6 @@ const {
   DF_SCOPE_LIMIT,
   parseJsonResult,
   compressDomMarkup,
-  resolveChainToProjectFiles,
-  buildStage0Composite,
   domAgentTrigger,
   plannerDomInput,
   domContextDebugSummary,
@@ -38,8 +35,8 @@ const {
   expansionRelatedCandidateHits,
 } = require('./dom-agent/candidate/search-executor');
 
-const { localPreflightConvergence } = require('./dom-agent/candidate/local-preflight');
 const { inspectCandidates } = require('./dom-agent/candidate/candidate-inspector');
+const { resolveLocalCertainty } = require('./dom-agent/candidate/local-certainty');
 
 const {
   unresolvedDefinitionCandidates,
@@ -92,58 +89,7 @@ async function runAgentSearch(project, body, options = {}) {
   const signal = options.signal;
   const invokeModel = options.runModelTask || runModelTask;
   const trigger = domAgentTrigger(body, { ...options, project });
-  onLog(`DOM Agent 触发判断：${trigger.enabled ? '启用' : '跳过'}；${trigger.reason || 'ComponentChain 可用且选区未超长'}`);
-  const localPreflight = localPreflightConvergence(project, body, onLog);
-  if (localPreflight) {
-    onLog(`DOM Agent 前置本地收敛：命中文件 ${localPreflight.agent.directFiles.join('、')}；跳过 Planner/Judge`);
-    return {
-      ...localPreflight,
-      agent: {
-        ...localPreflight.agent,
-        trigger,
-      },
-    };
-  }
-
-  if (!trigger.enabled) {
-    onLog('本地调用：searchProjectWithMeta(body)');
-    const result = searchProjectWithMeta(project, body);
-    onLog(`本地输出：候选 ${result.hits.length} 个`);
-    return { ...result, agent: { enabled: false, trigger } };
-  }
-
-  // Stage0：运行时组件链已解析到真实源码文件（__file）——这是最确定的信号，
-  // 直接产出组合结果并返回，跳过 Planner / 检索 / Judge 全部 LLM 调用。
-  const chainProjectFiles = resolveChainToProjectFiles(project, body);
-  if (chainProjectFiles.length) {
-    onLog(`DOM Agent Stage0：运行时组件链命中源码文件，确定性收敛，跳过 LLM：${chainProjectFiles.join(' -> ')}`);
-    const composite = buildStage0Composite(chainProjectFiles);
-    const hits = chainProjectFiles.map((file, index) => ({
-      file,
-      score: 4000 - index * 100,
-      stage: 'dom-agent-stage0',
-      preciseEvidence: index === 0,
-      sourceRole: index === 0 ? 'render' : 'assembly',
-      modelConfidence: index === 0 ? 100 : 0,
-      reasons: ['DOM Agent Stage0：运行时组件链 __file 直接命中源码，无需模型参与'],
-    }));
-    return {
-      hits,
-      composite,
-      routeResolver: null,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      agent: {
-        enabled: true,
-        trigger,
-        stage0: true,
-        componentFiles: chainProjectFiles,
-      },
-    };
-  }
-
-  if (!body.adapter) throw new Error('DOM Agent 需要已配置的定位模型。');
+  onLog(`DOM Agent 触发判断：启用；${trigger.reason}`);
 
   const textCache = new Map();
   // 断点解析器用的 LLM 通道（限定只按协议返回动作，不打分/不猜文件）。两处路由关系接线复用它。
@@ -173,6 +119,7 @@ async function runAgentSearch(project, body, options = {}) {
       repeatedGroupCount: item.compression.repeatedGroupCount,
     })),
   }, null, 2)}`);
+  if (!body.adapter) throw new Error('DOM Agent 需要已配置的定位模型。');
   const plannerPrompt = buildPlannerPrompt(project, body, routeResult.trace, domSelections);
   const plannerSystemPrompt = buildLocatorSystemPrompt(locatorTechnicalStackMarkdown(project));
   onLog(`DOM Agent System Prompt（${plannerSystemPrompt.length} 字符）:\n${plannerSystemPrompt}`);
@@ -201,6 +148,7 @@ async function runAgentSearch(project, body, options = {}) {
     onLog(`DOM Agent Planner 计划过滤：丢弃未在 DOM/路由证据中出现的词 ${filteredPlan.removed.join('、')}`);
   }
   plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
+
   const plannedKeywords = uniq((plan.searches || []).flatMap(search => search.keywords || []));
   onLog(`DOM Agent 本地 DOM 上下文来源：${JSON.stringify(domContextDebugSummary(body, plannedKeywords), null, 2)}`);
   const scopedSplitPlan = splitRenderSearchesByDomScopes(plan, body);
@@ -217,6 +165,34 @@ async function runAgentSearch(project, body, options = {}) {
   const combinedPlan = expansionCombinedSearchPlan(executionPlan, body?.agentState || null);
   if (!executionPlan.searches.length) {
     if (executionPlan.needMoreDom || plan.needMoreDom) {
+      const localCertainty = resolveLocalCertainty(project, body, textCache, {
+        log: onLog,
+        locatorDecision,
+      });
+      if (localCertainty) {
+        onLog(`DOM Agent 扩区前本地唯一性验证收敛：${localCertainty.selected.file}`);
+        return attachFineLocation({
+          hits: localCertainty.hits,
+          composite: localCertainty.composite,
+          routeResolver: routeResult.trace,
+          apiTrace: null,
+          i18nTrace: null,
+          definitionTrace: null,
+          agent: {
+            enabled: true,
+            trigger,
+            plan: localCertainty.plan,
+            modelPlan: plan,
+            inspection: compactInspectionForModel(localCertainty.inspection),
+            localCertaintyBeforeExpand: true,
+            evidence: {
+              insufficient: false,
+              reason: 'Planner 请求扩区前，weakAnchors 已唯一命中可渲染源码',
+              candidateCount: localCertainty.inspection.candidates.length,
+            },
+          },
+        }, project, localCertainty.plan, body?.agentState || null, textCache, body);
+      }
       const evidence = {
         insufficient: true,
         reason: 'Planner 判断当前选区无法形成稳定检索计划',
@@ -366,7 +342,8 @@ async function runAgentSearch(project, body, options = {}) {
       agent: {
         enabled: true,
         trigger,
-        plan,
+        plan: executionPlan,
+        modelPlan: plan,
         inspection: compactInspectionForModel(inspection),
         definitionResolution: null,
         evidence,

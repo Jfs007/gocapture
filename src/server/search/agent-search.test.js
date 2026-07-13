@@ -108,6 +108,22 @@ test('locator protocol parses layered anchors and converts to a tagged search pl
   assert.match(invalid.errors.join('\n'), /renderAnchors/);
 });
 
+test('locator protocol allows weakAnchors when more DOM is needed', () => {
+  const decision = normalizeLocatorDecision({
+    status: 'need-more-context',
+    renderAnchors: [],
+    scopeAnchors: [],
+    childComponentAnchors: [],
+    weakAnchors: [{ value: '登 录', kind: 'text' }],
+  });
+  const validation = validateLocatorDecision(decision);
+  assert.equal(validation.valid, true);
+  assert.deepEqual(decision.weakAnchors, [{ value: '登 录', kind: 'text' }]);
+  const plan = locatorDecisionToSearchPlan(decision);
+  assert.deepEqual(plan.searches, []);
+  assert.equal(plan.needMoreDom, true);
+});
+
 test('locator protocol still accepts legacy flat searches for backward compatibility', () => {
   const decision = normalizeLocatorDecision({
     status: 'ready',
@@ -142,6 +158,7 @@ test('locator prompt requests layered anchor fields used by local execution', ()
   assert.match(prompt, /renderAnchors/);
   assert.match(prompt, /scopeAnchors/);
   assert.match(prompt, /childComponentAnchors/);
+  assert.match(prompt, /weakAnchors/);
   assert.doesNotMatch(prompt, /\"hypotheses\"/);
   assert.doesNotMatch(prompt, /\"searches\"/);
 });
@@ -257,7 +274,7 @@ test('compress DOM keeps distinct selected item when repeated structure differs'
   assert.ok(result.markup.includes('magnus-repeat'));
 });
 
-test('DOM Agent triggers when the component chain has no project file', () => {
+test('DOM Agent always triggers even when component chain has no project file', () => {
   const project = fixtureProject({
     'src/Page.vue': '<template><div /></template>',
   });
@@ -272,17 +289,18 @@ test('DOM Agent triggers when the component chain has no project file', () => {
     }],
   }, { project, threshold: 8000 });
   assert.equal(trigger.enabled, true);
-  assert.equal(trigger.missingComponentFile, true);
+  assert.equal(trigger.unified, true);
+  assert.match(trigger.reason, /统一启用 DOM Agent/);
 });
 
-test('DOM Agent triggers for oversized DOM even with a resolved component file', () => {
+test('DOM Agent always triggers even for small DOM with a resolved component file', () => {
   const project = fixtureProject({
     'src/Page.vue': '<template><div /></template>',
   });
   const trigger = domAgentTrigger({
     selections: [{
       element: {
-        rawOuterHtml: `<div>${'x'.repeat(9000)}</div>`,
+        rawOuterHtml: '<div>x</div>',
       },
       sourceLocate: {
         componentChain: [{ file: 'src/Page.vue' }],
@@ -290,8 +308,8 @@ test('DOM Agent triggers for oversized DOM even with a resolved component file',
     }],
   }, { project, threshold: 8000 });
   assert.equal(trigger.enabled, true);
-  assert.equal(trigger.oversized, true);
-  assert.equal(trigger.missingComponentFile, false);
+  assert.equal(trigger.unified, true);
+  assert.deepEqual(trigger.componentFiles, ['src/Page.vue']);
 });
 
 test('candidate inspection prefers complete code matches over comment-only matches', () => {
@@ -1541,6 +1559,112 @@ test('agent search returns needMoreDom when planner asks for more DOM without se
   assert.equal(result.agent.evidence.insufficient, true);
 });
 
+test('agent search tries local certainty before expanding when planner asks for more DOM', async () => {
+  const project = fixtureProject({
+    'src/views/login/index.vue': '<template><button class="login-submit"><span>登 录</span></button></template>',
+    'src/views/home/index.vue': '<template><main>首页</main></template>',
+  });
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/login',
+    selections: [{
+      element: {
+        rawOuterHtml: '<button class="n-button n-button--primary-type"><span class="n-button__content">登 录</span></button>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: JSON.stringify({
+        status: 'need-more-context',
+        renderAnchors: [],
+        scopeAnchors: [],
+        childComponentAnchors: [],
+        weakAnchors: [{ value: '登 录', kind: 'text' }],
+        reason: '单按钮证据不足',
+      }),
+      logs: [],
+    }),
+  });
+  assert.equal(result.needMoreDom, undefined);
+  assert.equal(result.hits[0].file, 'src/views/login/index.vue');
+  assert.equal(result.agent.localCertaintyBeforeExpand, true);
+  assert.ok(logs.some(log => log.includes('DOM Agent 扩区前本地唯一性验证收敛')));
+});
+
+test('agent search still expands when local certainty finds multiple render candidates', async () => {
+  const project = fixtureProject({
+    'src/views/login-a.vue': '<template><button><span>登 录</span></button></template>',
+    'src/views/login-b.vue': '<template><button><span>登 录</span></button></template>',
+  });
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/login',
+    selections: [{
+      element: {
+        rawOuterHtml: '<button class="n-button"><span class="n-button__content">登 录</span></button>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: JSON.stringify({
+        status: 'need-more-context',
+        renderAnchors: [],
+        scopeAnchors: [],
+        childComponentAnchors: [],
+        weakAnchors: [{ value: '登 录', kind: 'text' }],
+        reason: '单按钮证据不足',
+      }),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits.length, 0);
+  assert.equal(result.needMoreDom, true);
+  assert.equal(result.agent.evidence.insufficient, true);
+});
+
+test('agent search does not invent local certainty anchors when planner omits weakAnchors', async () => {
+  const project = fixtureProject({
+    'src/views/login/index.vue': '<template><button><span>登 录</span></button></template>',
+  });
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/login',
+    selections: [{
+      element: {
+        rawOuterHtml: '<button class="n-button"><span class="n-button__content">登 录</span></button>',
+      },
+      sourceLocate: {
+        componentChain: [],
+      },
+    }],
+  }, {
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: JSON.stringify({
+        status: 'need-more-context',
+        renderAnchors: [],
+        scopeAnchors: [],
+        childComponentAnchors: [],
+        reason: '文本“登 录”是唯一业务文案，但未作为弱锚点返回',
+      }),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits.length, 0);
+  assert.equal(result.needMoreDom, true);
+  assert.equal(result.agent.localCertaintyBeforeExpand, undefined);
+});
+
 test('agent search filters user-only planner terms before local search', async () => {
   const project = fixtureProject({
     'src/Page.vue': [
@@ -2501,13 +2625,30 @@ test('child component candidates do not count as competing render candidates', (
   assert.equal(evidence.primaryCandidateCount, 1);
 });
 
-test('Stage0: runtime component chain __file converges deterministically without any model call', async () => {
+test('runtime component chain __file still goes through Planner before locating', async () => {
   const project = fixtureProject({
     'src/layout/SideMenu.vue': '<template><div class="menu">工作台</div></template>',
     'src/router/index.js': "import SideMenu from '../layout/SideMenu.vue'",
   });
   const bigDom = '<div class="menu">' + '工作台'.repeat(4000) + '</div>'; // 超过触发阈值，进入 agent
   let modelCalls = 0;
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['menu'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'DOM class anchor',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{ file: 'src/layout/SideMenu.vue', role: 'render', confidence: 95, reason: 'menu 结构匹配' }],
+      followUpSearches: [],
+    }),
+  ];
   const result = await runAgentSearch(project, {
     adapter: { type: 'api' },
     pagePath: '/workbench',
@@ -2523,14 +2664,12 @@ test('Stage0: runtime component chain __file converges deterministically without
   }, {
     runModelTask: async () => {
       modelCalls += 1;
-      return { adapter: { id: 't', name: 't', type: 'api' }, rawText: '{}', logs: [] };
+      return { adapter: { id: 't', name: 't', type: 'api' }, rawText: outputs.shift() || '{}', logs: [] };
     },
   });
-  assert.equal(modelCalls, 0);
-  assert.equal(result.agent.stage0, true);
+  assert.ok(modelCalls >= 1);
   assert.equal(result.hits[0].file, 'src/layout/SideMenu.vue');
   assert.equal(result.composite.render.file, 'src/layout/SideMenu.vue');
-  assert.equal(result.composite.assembly.file, 'src/router/index.js');
 });
 
 test('class-token matching covers static, bound object/array/ternary and clsx, but excludes bracket access', () => {

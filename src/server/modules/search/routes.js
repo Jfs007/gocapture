@@ -24,15 +24,14 @@ async function handleSearchRoutes({
   if (req.method === 'POST' && url.pathname === '/api/search') {
     const body = await readBody(req);
     const project = resolveRequestProject(projectContext, body);
-    const result = searchProjectWithMeta(project, body);
-    sendJson(res, 200, {
-      success: true,
-      hits: result.hits,
-      routeResolver: result.routeResolver,
-      apiTrace: result.apiTrace,
-      i18nTrace: result.i18nTrace,
-      definitionTrace: result.definitionTrace,
-    });
+    if (!body.adapter) {
+      // 未配置定位模型：DOM Agent 需要模型，降级为纯关键词检索（不抛错）。
+      const result = searchProjectWithMeta(project, body);
+      sendJson(res, 200, { success: true, ...result, agent: { enabled: false } });
+      return true;
+    }
+    const result = await runAgentSearch(project, body);
+    sendJson(res, 200, { success: true, ...result });
     return true;
   }
 

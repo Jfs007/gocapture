@@ -3,6 +3,7 @@ const VALID_ANCHOR_KINDS = new Set(['text', 'class', 'attr', 'route', 'api']);
 const MAX_RENDER_ANCHORS = 8;
 const MAX_SCOPE_ANCHORS = 6;
 const MAX_CHILD_ANCHORS = 6;
+const MAX_WEAK_ANCHORS = 4;
 
 function buildLocatorSystemPrompt(technicalStackMarkdown = '') {
   return [
@@ -18,21 +19,27 @@ function buildLocatorSystemPrompt(technicalStackMarkdown = '') {
     '',
     '1. renderAnchors（主渲染锚点，最关键）：',
     '   - 直接描述“用户所指区域主体内容”的、彼此相邻/同层的判别性锚点。',
-    '   - 例如同一个表单里紧挨着的字段标签文案（“执行人”“反馈附件”“完成时间”“备注”）、该区域独有的业务 class/id、data-testid。',
+    '   - 例如同一区块里紧挨着的字段标签文案、该区域独有的业务 class/id、data-testid。',
     '   - 这些锚点应当大概率共同出现在同一个源文件中。挑选 2~6 个共现性最强、最独特的。',
     '',
     '2. scopeAnchors（范围锚点）：',
-    '   - 只用于缩小范围、不参与“必须共现”判断的锚点：外层 fieldset 标题、通用外壳/布局 class（如 dc-fieldset、card、panel）、区块大标题。',
+    '   - 只用于缩小范围、不参与“必须共现”判断的锚点：外层容器标题、通用外壳/布局 class、区块大标题。',
     '   - 这些词往往出现在很多文件里，只作为辅助，绝不能当作主锚点。',
     '',
     '3. childComponentAnchors（子组件锚点）：',
-    '   - 明显属于一个独立可复用子组件的锚点：子组件根 class（如 file-upload-component）、独立控件文案（“上传附件”“点击下载”）。',
+    '   - 明显属于一个独立可复用子组件的锚点：该子组件的根 class、该子组件独有的控件文案。',
     '   - 它们通常定义在另一个子组件文件里，不应和 renderAnchors 混为一谈。',
+    '',
+    '4. weakAnchors（弱锚点，仅用于扩区前试探）：',
+    '   - 当证据不足以形成 2~6 个 renderAnchors，但仍存在“可能在源码中原样出现”的业务锚点时放这里。',
+    '   - 典型例子：单个按钮/链接的可见文案、单个字段标签、单个业务 class（作者手写、可能在源码中原样出现的业务语义）。',
+    '   - weakAnchors 不能直接作为最终定位依据；本地只会在你返回 need-more-context 前，用它做严格唯一性试探。唯一命中才接受，否则继续扩区。',
+    '   - UI 组件库 class、运行时属性、style、动态数据仍不得进入 weakAnchors。',
     '',
     '# 一律排除（不得作为任何锚点）',
     '- 组件库在运行时生成、作者不会在源码里书写的 class：判据是它并非承载业务语义、由开发者手写的类，而是 UI 控件库内部渲染结构的命名产物；不确定某个 class 是否作者书写时，宁可不选。',
     '- 表格/列表框架运行时生成的属性名：data-col-key、data-row-key、data-index、data-v-*、aria-*、colspan、rowspan、tabindex 等。',
-    '  这些属性名在源码里根本不存在。若其「值」是业务标识（如 data-col-key="cost" 的 cost 往往对应列配置的 key:\'cost\'），',
+    '  这些属性名在源码里根本不存在。但属性的「值」若是业务标识（属性名是运行时噪声，其值却可能对应源码里的配置 key），',
     '  可以把该「值」单独作为 text 锚点，但绝不要把属性名写进锚点。',
     '- data-v-*、scoped 哈希、CSS Modules/构建哈希 class、React 内部属性。',
     '- flex、mt-4、w-full、grid 等纯布局 class；style 内联样式与像素值。',
@@ -42,13 +49,15 @@ function buildLocatorSystemPrompt(technicalStackMarkdown = '') {
     '# 其它规则',
     '- 每个锚点写成 {"value":"原文", "kind":"text|class|attr|route|api"}。kind 如实标注：class 类名标 class，可见文案标 text。',
     '- <magnus-repeat> 是本地压缩重复兄弟节点的摘要，其 texts/attrs 来自真实 DOM，可放心作为锚点。',
-    '- 若选区证据实在不足以形成 renderAnchors，返回 status="need-more-context" 且三个数组都为空，不要编造。',
+    '- 若选区证据不足以形成 renderAnchors，但有弱业务锚点，返回 status="need-more-context"，render/scope/child 三个数组为空，把弱锚点放入 weakAnchors。',
+    '- 若连 weakAnchors 都没有，返回 status="need-more-context" 且所有锚点数组都为空，不要编造。',
     '- 严格输出 JSON，不输出 Markdown，不输出解释文字。',
     JSON.stringify({
       status: 'ready | need-more-context',
       renderAnchors: [{ value: '', kind: 'text | class | attr' }],
       scopeAnchors: [{ value: '', kind: 'text | class' }],
       childComponentAnchors: [{ value: '', kind: 'class | text' }],
+      weakAnchors: [{ value: '', kind: 'text | class | attr' }],
       reason: '',
     }),
   ].join('\n');
@@ -127,6 +136,7 @@ function normalizeLocatorDecision(parsed) {
     renderAnchors,
     scopeAnchors: normalizeAnchors(parsed?.scopeAnchors, MAX_SCOPE_ANCHORS),
     childComponentAnchors: normalizeAnchors(parsed?.childComponentAnchors, MAX_CHILD_ANCHORS),
+    weakAnchors: normalizeAnchors(parsed?.weakAnchors, MAX_WEAK_ANCHORS),
     reason: String(parsed?.reason || ''),
   };
 }
@@ -160,7 +170,7 @@ function validateLocatorDecision(decision) {
     errors.push('ready 必须至少包含 renderAnchors 或 childComponentAnchors');
   }
   if (decision.status === 'need-more-context' && anchorTotal) {
-    errors.push('need-more-context 不能包含任何锚点');
+    errors.push('need-more-context 不能包含 render/scope/child 强锚点；可使用 weakAnchors');
   }
   return {
     valid: errors.length === 0,
