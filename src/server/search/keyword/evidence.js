@@ -2,7 +2,7 @@ const {
   makeSnippet,
   tokenize,
   uniq,
-} = require('../utils');
+} = require('../../utils');
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

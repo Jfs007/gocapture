@@ -1,10 +1,10 @@
 const path = require('path');
-const { isTextFile, readProjectText } = require('../core/fs-utils');
+const { isTextFile, readProjectText } = require('../../core/fs-utils');
 const {
   kebabCase,
   makeSnippet,
   uniq,
-} = require('../utils');
+} = require('../../utils');
 
 function isLikelyComponent(filePath) {
   const ext = path.extname(filePath).toLowerCase();

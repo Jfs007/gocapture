@@ -1,6 +1,6 @@
 'use strict';
 
-const { searchProjectWithMeta } = require('../../search');
+const { searchProjectWithMeta } = require('../../search/keyword');
 const { runAgentSearch } = require('../../search/agent-search');
 
 function resolveRequestProject(projectContext, body) {

@@ -1,11 +1,11 @@
-const { readProjectText } = require('../../core/fs-utils');
-const { uniq } = require('../../utils');
-const { buildFileMap, importedFiles } = require('../import-trace');
+const { readProjectText } = require('../../../core/fs-utils');
+const { uniq } = require('../../../utils');
+const { buildFileMap, importedFiles } = require('../../import-trace');
 const {
   MAX_INHERITED_KEYWORDS,
   DF_SCOPE_LIMIT,
-} = require('./dom-utils');
-const { inheritedSearchKeywords } = require('./planner-utils');
+} = require('../anchor/dom-utils');
+const { inheritedSearchKeywords } = require('../planner/planner-utils');
 const {
   sourceFiles,
   keywordIndexes,

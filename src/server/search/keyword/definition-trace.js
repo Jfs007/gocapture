@@ -1,6 +1,6 @@
-const { isTextFile, readProjectText } = require('../core/fs-utils');
+const { isTextFile, readProjectText } = require('../../core/fs-utils');
 const { findNeedleIndex, maskCommentsPreserveLength } = require('./evidence');
-const { makeSnippet, uniq } = require('../utils');
+const { makeSnippet, uniq } = require('../../utils');
 
 function optionalRequire(name) {
   try {

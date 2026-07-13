@@ -14,8 +14,8 @@
 // 本模块是可复用引擎：invoke（LLM）注入，本地原语真实执行。断点的「检测」与「接回图」由调用方负责，
 // 尚未接入 runAgentSearch。
 
-const { buildFileMap } = require('../import-trace');
-const { runDiscoveryOperation } = require('../../experience/discovery-executor');
+const { buildFileMap } = require('../../import-trace');
+const { runDiscoveryOperation } = require('../../../experience/discovery-executor');
 
 const SEARCH_ROOTS = ['src'];
 

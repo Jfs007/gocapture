@@ -5,9 +5,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { scanProject } = require('../../core/project');
-const { runAgentSearch } = require('../agent-search');
-const { candidateSourceRole } = require('./source-role');
+const { scanProject } = require('../../../core/project');
+const { runAgentSearch } = require('../../agent-search');
+const { candidateSourceRole } = require('../source/source-role');
 const { extractMarkupBindings } = require('./relation-adapters/markup-bindings');
 const {
   buildSourceRelationGraph,

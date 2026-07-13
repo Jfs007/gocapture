@@ -1,6 +1,6 @@
 const { runModelTask } = require('../model/model-adapters');
 const { uniq } = require('../utils');
-const { searchProjectWithMeta } = require('./index');
+const { searchProjectWithMeta } = require('./keyword/index');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const {
   buildLocatorSystemPrompt,
@@ -20,7 +20,7 @@ const {
   domAgentTrigger,
   plannerDomInput,
   domContextDebugSummary,
-} = require('./dom-agent/dom-utils');
+} = require('./dom-agent/anchor/dom-utils');
 const {
   buildPlannerPrompt,
   normalizePlan,
@@ -30,16 +30,16 @@ const {
   planEvidenceKinds,
   inheritedSearchKeywords,
   expansionCombinedSearchPlan,
-} = require('./dom-agent/planner-utils');
+} = require('./dom-agent/planner/planner-utils');
 
 const {
   candidateSort,
   executeSearchPlan,
   expansionRelatedCandidateHits,
-} = require('./dom-agent/search-executor');
+} = require('./dom-agent/candidate/search-executor');
 
-const { localPreflightConvergence } = require('./dom-agent/local-preflight');
-const { inspectCandidates } = require('./dom-agent/candidate-inspector');
+const { localPreflightConvergence } = require('./dom-agent/candidate/local-preflight');
+const { inspectCandidates } = require('./dom-agent/candidate/candidate-inspector');
 
 const {
   unresolvedDefinitionCandidates,
@@ -47,7 +47,7 @@ const {
   buildDefinitionResolverPrompt,
   normalizeDefinitionResolver,
   applyDefinitionResolverRelations,
-} = require('./dom-agent/definition-resolver');
+} = require('./dom-agent/source/definition-resolver');
 
 const {
   offsetToLineColumn,
@@ -56,7 +56,7 @@ const {
   computeSourceScope,
   regionByContainerAnchors,
   attachFineLocation,
-} = require('./dom-agent/source-location');
+} = require('./dom-agent/source/source-location');
 
 const {
   isRenderCandidate,
@@ -72,19 +72,19 @@ const {
   resolveByRouteRelation,
   normalizeConfidence,
   buildComposite,
-} = require('./dom-agent/candidate-relations');
+} = require('./dom-agent/candidate/candidate-relations');
 
 const {
   normalizeJudge,
   agentHits,
-} = require('./dom-agent/result-builder');
+} = require('./dom-agent/candidate/result-builder');
 const {
   buildSourceRelationGraph,
   relationGraphComposite,
   relationGraphHits,
   routeComponentRelations,
   augmentRouteRelationsWithBreakpoints,
-} = require('./dom-agent/source-relation-graph');
+} = require('./dom-agent/graph/source-relation-graph');
 
 async function runAgentSearch(project, body, options = {}) {
   if (!project) throw new Error('No project selected.');

@@ -1,6 +1,6 @@
-const { readProjectText } = require('../../core/fs-utils');
-const { escapeRegExp, uniq } = require('../../utils');
-const { compactWhitespace } = require('./dom-utils');
+const { readProjectText } = require('../../../core/fs-utils');
+const { escapeRegExp, uniq } = require('../../../utils');
+const { compactWhitespace } = require('../anchor/dom-utils');
 const {
   keywordType,
   keywordIndexesForSearch,
@@ -9,15 +9,15 @@ const {
   commentMask,
   candidateExcerpt,
   candidateSourceRole,
-} = require('./source-role');
-const { enrichDefinitionCandidates } = require('./definition-links');
+} = require('../source/source-role');
+const { enrichDefinitionCandidates } = require('../source/definition-links');
 const {
   directTextStructureMismatch,
   domTextAnchors,
   sourceDomTextCoverage,
   originalDomClassTokens,
   sourceDomClassCoverage,
-} = require('./source-structure');
+} = require('../anchor/source-structure');
 
 function hasPlannedGroupMatch(candidate) {
   return (candidate?.matchedGroups || []).some(group => {

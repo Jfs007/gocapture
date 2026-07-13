@@ -1,11 +1,11 @@
-const { readProjectText } = require('../../core/fs-utils');
-const { escapeRegExp, uniq } = require('../../utils');
-const { buildFileMap } = require('../import-trace');
+const { readProjectText } = require('../../../core/fs-utils');
+const { escapeRegExp, uniq } = require('../../../utils');
+const { buildFileMap } = require('../../import-trace');
 const {
   sourceFiles,
   keywordIndexes,
   importChainFromParent,
-} = require('./search-executor');
+} = require('../candidate/search-executor');
 const {
   commentMask,
   candidateExcerpt,

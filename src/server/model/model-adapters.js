@@ -9,7 +9,7 @@ const {
   enhanceLocatedPrompt,
   fallbackEnhancedPrompt,
 } = require('../experience/prompt-enhancer');
-const { findClassTokenIndex } = require('../search/evidence');
+const { findClassTokenIndex } = require('../search/keyword/evidence');
 const { escapeRegExp, tokenize, uniq } = require('../utils');
 
 function optionalRequire(name) {
@@ -3177,6 +3177,13 @@ function modelItemsFromSelectionContext(project, body) {
   return targets.slice(0, MAX_MODEL_FILES);
 }
 
+// change-plan 的工具运行时：调用时懒加载 agent-host registry。model（LLM 执行器）与 agent-host（工具运行时）
+// 经 llm-adapter 天然互引，用 top-level require 会形成加载期环；懒加载在 model-adapters 完整加载后取用，规避之。
+function changePlanToolRuntime() {
+  const registry = require('../agent-host/tools/registry');
+  return { listTools: registry.listAgentTools, executeTool: registry.executeAgentTool };
+}
+
 async function runSelectionContextEnhancement(project, body, textCache = new Map(), options = {}) {
   if (!project) throw new Error('No project selected.');
   const logs = [];
@@ -3237,6 +3244,7 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
         modelItems: validItems,
         textCache,
         log: message => appendLog(logs, message),
+        toolRuntime: changePlanToolRuntime(),
         invoke: (stage, prompt) => {
           throwIfAborted(options.signal);
           if (adapter.type === 'api') {
@@ -3388,6 +3396,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
           modelItems,
           textCache,
           log: message => appendLog(logs, message),
+          toolRuntime: changePlanToolRuntime(),
           invoke: (stage, prompt) => {
             throwIfAborted(options.signal);
             if (adapter.type === 'api') {

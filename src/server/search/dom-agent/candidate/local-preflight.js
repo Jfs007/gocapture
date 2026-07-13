@@ -1,12 +1,12 @@
 const path = require('path');
-const { uniq } = require('../../utils');
-const { searchProjectWithMeta } = require('../index');
+const { uniq } = require('../../../utils');
+const { searchProjectWithMeta } = require('../../keyword/index');
 const {
   DEFAULT_DOM_AGENT_THRESHOLD,
   STYLE_EXTENSIONS,
   selectionList,
   selectionMarkup,
-} = require('./dom-utils');
+} = require('../anchor/dom-utils');
 
 function isRouteOnlyLocalHit(hit) {
   const reasons = (hit?.reasons || []).map(String);

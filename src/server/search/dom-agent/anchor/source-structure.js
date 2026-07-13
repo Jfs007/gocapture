@@ -1,4 +1,4 @@
-const { escapeRegExp, uniq } = require('../../utils');
+const { escapeRegExp, uniq } = require('../../../utils');
 const {
   NATIVE_HTML_TAGS,
   parseAttributes,
@@ -11,7 +11,7 @@ const {
 const {
   classTokenIndexes,
   textEvidenceIndexes,
-} = require('./search-executor');
+} = require('../candidate/search-executor');
 
 function sourceDirectTextStructures(text, keyword) {
   const source = String(text || '');

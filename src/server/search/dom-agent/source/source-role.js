@@ -1,9 +1,9 @@
 const path = require('path');
-const { makeSnippet, uniq } = require('../../utils');
+const { makeSnippet, uniq } = require('../../../utils');
 const {
   MAX_EXCERPT_CHARS,
   STYLE_EXTENSIONS,
-} = require('./dom-utils');
+} = require('../anchor/dom-utils');
 
 function commentMask(text) {
   return String(text || '')

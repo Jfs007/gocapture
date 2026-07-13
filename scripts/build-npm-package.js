@@ -8,7 +8,7 @@ const { applyExtensionEnv, bumpPatchVersion } = require('./extension-env');
 
 const rootDir = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(rootDir, 'package.json'));
-const defaultOutDir = path.join(rootDir, 'outputs', 'magnus-npm-package');
+const defaultOutDir = path.join(rootDir, 'application');
 
 function argValue(flag) {
   const index = process.argv.indexOf(flag);

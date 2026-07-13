@@ -1,9 +1,9 @@
 'use strict';
 
-const { readProjectText } = require('../../core/fs-utils');
-const { makeSnippet, uniq } = require('../../utils');
-const { buildFileMap, importedFiles, buildReverseImportMap } = require('../import-trace');
-const { MAX_ROUTE_RELATION_DEPTH } = require('./dom-utils');
+const { readProjectText } = require('../../../core/fs-utils');
+const { makeSnippet, uniq } = require('../../../utils');
+const { buildFileMap, importedFiles, buildReverseImportMap } = require('../../import-trace');
+const { MAX_ROUTE_RELATION_DEPTH } = require('../anchor/dom-utils');
 const { extractSourceRelations } = require('./relation-adapters/registry');
 const {
   componentNamesForFile,

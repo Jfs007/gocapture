@@ -1,5 +1,5 @@
-const { uniq } = require('../../utils');
-const { buildLocatorUserInput } = require('../locator-protocol');
+const { uniq } = require('../../../utils');
+const { buildLocatorUserInput } = require('../../locator-protocol');
 const {
   MAX_INHERITED_KEYWORDS,
   selectionList,
@@ -9,7 +9,7 @@ const {
   domDirectTextStructures,
   domClassTokenSet,
   domAttributePairs,
-} = require('./dom-utils');
+} = require('../anchor/dom-utils');
 
 const MAX_PLAN_SEARCHES = 8;
 const MAX_PLAN_KEYWORDS = 8;

@@ -1,5 +1,5 @@
-const { uniq } = require('../../utils');
-const { plannerDomInput } = require('./dom-utils');
+const { uniq } = require('../../../utils');
+const { plannerDomInput } = require('../anchor/dom-utils');
 const {
   filesRelatedByImport,
   validateOriginRelation,

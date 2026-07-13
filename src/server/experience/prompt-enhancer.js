@@ -894,16 +894,17 @@ async function executeToolWithRetry(executeTool, project, call, context, retries
 }
 
 // change-plan 走「tool-capable 循环」：模型可在产计划前调用当前场景允许的工具（项目源码、MCP 文档、Skills），取完再给最终计划。
-async function runChangePlanWithTools({ project, invoke, input, log, textCache, maxTurns = 4 }) {
+async function runChangePlanWithTools({ project, invoke, input, log, textCache, maxTurns = 4, toolRuntime = null }) {
   const basePrompt = buildChangePlanPrompt(input);
   let tools = [];
   let executeTool = null;
-  try {
-    const registry = require('../agent-host/tools/registry'); // 懒加载避免与 agent-host 的循环依赖
-    tools = selectChangePlanTools(registry.listAgentTools(), { readOnlyOnly: true }); // 排除经验工具/写工具，防递归和副作用
-    executeTool = registry.executeAgentTool;
-  } catch (error) {
-    log(`工具表加载失败，change-plan 退回无工具模式：${error.message || error}`);
+  // 工具运行时由调用方注入（agent-host 的 { listTools, executeTool }），experience 不再反向 require agent-host——
+  // 这样打断了 registry → experience-tools → prompt-enhancer 的跨层循环依赖。无注入则退回无工具模式。
+  if (toolRuntime && typeof toolRuntime.listTools === 'function' && typeof toolRuntime.executeTool === 'function') {
+    tools = selectChangePlanTools(toolRuntime.listTools(), { readOnlyOnly: true }); // 排除经验工具/写工具，防递归和副作用
+    executeTool = toolRuntime.executeTool;
+  } else {
+    log('未注入工具运行时，change-plan 退回无工具模式');
   }
   const observations = [];
   if (!tools.length || typeof executeTool !== 'function') {
@@ -985,6 +986,7 @@ async function enhanceLocatedPrompt(options) {
     textCache = new Map(),
     invoke,
     log = () => {},
+    toolRuntime = null,
   } = options;
   const task = roughTask(body, modelItems);
   const fallback = fallbackEnhancedPrompt(task);
@@ -1042,6 +1044,7 @@ async function enhanceLocatedPrompt(options) {
     input: enhancementInput,
     log,
     textCache,
+    toolRuntime,
   });
   // 经验沉淀的证据：来自循环里模型真实调用的 find_related_examples/search_text 等工具的观测。
   const discovery = discoveryFromObservations(enhanced.observations);

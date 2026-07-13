@@ -1,4 +1,4 @@
-const { uniq } = require('../../utils');
+const { uniq } = require('../../../utils');
 
 const DEFAULT_DOM_AGENT_THRESHOLD = 2;
 const MAX_DOM_INPUT_CHARS = 180000;

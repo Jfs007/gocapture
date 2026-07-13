@@ -5,7 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..', '..');
-const defaultPackageDir = path.join(rootDir, 'outputs', 'magnus-npm-package');
+const defaultPackageDir = path.join(rootDir, 'application');
 
 function sendReleasePage(res) {
   const html = `<!doctype html>

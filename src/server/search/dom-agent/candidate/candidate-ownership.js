@@ -1,12 +1,12 @@
 const path = require('path');
-const { readProjectText } = require('../../core/fs-utils');
-const { makeSnippet, uniq } = require('../../utils');
-const { buildFileMap, importedFiles, buildReverseImportMap } = require('../import-trace');
+const { readProjectText } = require('../../../core/fs-utils');
+const { makeSnippet, uniq } = require('../../../utils');
+const { buildFileMap, importedFiles, buildReverseImportMap } = require('../../import-trace');
 const {
   MAX_OWNER_DEPTH,
   MAX_OWNERS_PER_CANDIDATE,
   MAX_ROUTE_RELATION_DEPTH,
-} = require('./dom-utils');
+} = require('../anchor/dom-utils');
 const { keywordIndexes } = require('./search-matchers');
 
 function filesRelatedByImport(project, file, textCache, maxHops = 2) {

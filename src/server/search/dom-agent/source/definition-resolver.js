@@ -1,16 +1,16 @@
 const path = require('path');
-const { readProjectText } = require('../../core/fs-utils');
-const { uniq } = require('../../utils');
-const { buildFileMap } = require('../import-trace');
+const { readProjectText } = require('../../../core/fs-utils');
+const { uniq } = require('../../../utils');
+const { buildFileMap } = require('../../import-trace');
 const {
   MAX_DEFINITION_RESOLVER_SEARCHES,
   plannerDomInput,
-} = require('./dom-utils');
-const { normalizePlan } = require('./planner-utils');
+} = require('../anchor/dom-utils');
+const { normalizePlan } = require('../planner/planner-utils');
 const {
   keywordIndexes,
   importChainFromParent,
-} = require('./search-executor');
+} = require('../candidate/search-executor');
 const {
   commentMask,
   candidateExcerpt,

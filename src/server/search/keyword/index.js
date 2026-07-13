@@ -1,5 +1,5 @@
 const path = require('path');
-const { isTextFile, readProjectText } = require('../core/fs-utils');
+const { isTextFile, readProjectText } = require('../../core/fs-utils');
 const {
   buildSearchEvidence,
   findClassTokenIndex,
@@ -11,9 +11,9 @@ const {
 const { traceApiReferences } = require('./api-trace');
 const { traceI18nReferences } = require('./i18n-trace');
 const { traceDefinitionReferences } = require('./definition-trace');
-const { buildFileMap, importedFiles } = require('./import-trace');
-const { resolvePageRouteTrace } = require('../route-resolvers/registry');
-const { escapeRegExp, kebabCase, makeSnippet, posixPath, uniq } = require('../utils');
+const { buildFileMap, importedFiles } = require('../import-trace');
+const { resolvePageRouteTrace } = require('../../route-resolvers/registry');
+const { escapeRegExp, kebabCase, makeSnippet, posixPath, uniq } = require('../../utils');
 
 const MAX_CLASS_BASIS_FILES = 8;
 const WEAK_CONTEXT_TOKENS = new Set([

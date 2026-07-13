@@ -26,12 +26,14 @@ const EXPERIENCE_TOOLS = [
     async call({ project, input, textCache = new Map() }) {
     if (!input?.adapter) throw new Error('enhance_with_experience requires adapter.');
     if (!Array.isArray(input?.modelItems)) throw new Error('enhance_with_experience requires modelItems.');
+    const registry = require('./registry'); // 调用时懒加载：agent-host 内部 registry 与被注册工具的自然回引（非跨层环）
     return enhanceLocatedPrompt({
       project,
       body: input.body || {},
       modelItems: input.modelItems,
       textCache,
       log: () => {},
+      toolRuntime: { listTools: registry.listAgentTools, executeTool: registry.executeAgentTool },
       invoke: async (stage, prompt) => {
         const result = await runAgentLlmTask(input.adapter, prompt, project, {
           signal: input.signal,

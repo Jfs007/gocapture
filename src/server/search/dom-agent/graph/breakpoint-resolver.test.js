@@ -5,8 +5,8 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { scanProject } = require('../../core/project');
-const { buildFileMap } = require('../import-trace');
+const { scanProject } = require('../../../core/project');
+const { buildFileMap } = require('../../import-trace');
 const { resolveBreakpoint, localPrimitives } = require('./breakpoint-resolver');
 
 // 真实断点：task-module 用 <component :is="component">，component = componentMap[type]（注册表 + 动态 key）。

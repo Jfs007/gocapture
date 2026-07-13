@@ -1,8 +1,8 @@
 const path = require('path');
-const { isTextFile, readProjectText } = require('../core/fs-utils');
-const { importedFiles, buildFileMap } = require('./import-trace');
+const { isTextFile, readProjectText } = require('../../core/fs-utils');
+const { importedFiles, buildFileMap } = require('../import-trace');
 const { findNeedleIndex, maskCommentsPreserveLength } = require('./evidence');
-const { makeSnippet, uniq } = require('../utils');
+const { makeSnippet, uniq } = require('../../utils');
 
 const I18N_PACKAGE_HINTS = [
   'vue-i18n',

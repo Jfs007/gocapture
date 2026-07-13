@@ -2,7 +2,7 @@
 
 const path = require('path');
 const { registerRelationAdapter } = require('./registry');
-const { NATIVE_HTML_TAGS } = require('../dom-utils');
+const { NATIVE_HTML_TAGS } = require('../../anchor/dom-utils');
 
 // 用权威的 HTML 原生标签标准集判定「哪些 <tag> 不是组件」，而不是手写一份必然不全的名单：
 // 旧名单只有 ~30 个，漏掉 h1/video/canvas/dialog/code/strong/caption… —— 这些原生元素会被误判成组件、

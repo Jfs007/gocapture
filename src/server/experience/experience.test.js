@@ -5,6 +5,7 @@ const path = require('path');
 const { scanProject } = require('../core/project');
 const { executeDiscoveryPlan } = require('./discovery-executor');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
+const { listAgentTools, executeAgentTool } = require('../agent-host/tools/registry');
 const { ensureProjectContext, projectTechnicalStackMarkdown } = require('./project-context');
 const { loadExperienceContexts, loadExperienceMetas } = require('./experience-store');
 const {
@@ -146,6 +147,7 @@ async function run() {
         confidence: 80,
       }],
       log: message => logs.push(message),
+      toolRuntime: { listTools: listAgentTools, executeTool: executeAgentTool },
       invoke: async (stage, prompt) => {
         // 变更计划走 tool-capable 循环；本用例信息已足够，模型直接产出计划（不调用工具）。
         // 目标文件完整内容仍应进入提示词，供理解上下文。
@@ -192,6 +194,7 @@ async function run() {
         confidence: 80,
       }],
       log: message => logs.push(message),
+      toolRuntime: { listTools: listAgentTools, executeTool: executeAgentTool },
       invoke: async (stage, prompt) => {
         assert.notEqual(stage, 'legacy-evaluation');
         if (stage === 'change-plan') {

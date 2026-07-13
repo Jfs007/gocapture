@@ -35,7 +35,7 @@ const {
 const {
   domScopedTextStructures,
   selectionContextMarkupEntries,
-} = require('./dom-agent/dom-utils');
+} = require('./dom-agent/anchor/dom-utils');
 
 test('thumbnail asset DOM never participates in source-search context', () => {
   const selection = {
@@ -2737,7 +2737,7 @@ test('render explanation chooses the DOM owner over exported menu data and style
 });
 
 test('Judge may confirm an unknown custom renderer but cannot promote objective references', () => {
-  const { agentHits } = require('./dom-agent/result-builder');
+  const { agentHits } = require('./dom-agent/candidate/result-builder');
   const inspection = {
     status: 'ambiguous',
     candidates: [{

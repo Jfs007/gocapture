@@ -1,5 +1,5 @@
-const { readProjectText } = require('../../core/fs-utils');
-const { escapeRegExp, makeSnippet, uniq } = require('../../utils');
+const { readProjectText } = require('../../../core/fs-utils');
+const { escapeRegExp, makeSnippet, uniq } = require('../../../utils');
 const {
   MAX_EXCERPT_CHARS,
   MAX_INHERITED_KEYWORDS,
@@ -7,12 +7,12 @@ const {
   selectionMarkup,
   parseHtmlLite,
   classTokens,
-} = require('./dom-utils');
-const { inheritedSearchKeywords } = require('./planner-utils');
+} = require('../anchor/dom-utils');
+const { inheritedSearchKeywords } = require('../planner/planner-utils');
 const {
   keywordIndexesForSearch,
   searchLayer,
-} = require('./search-executor');
+} = require('../candidate/search-executor');
 
 // 字符偏移 → 1 基 line:column。
 function offsetToLineColumn(text, offset) {

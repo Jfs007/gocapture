@@ -1,10 +1,10 @@
 const path = require('path');
-const { isTextFile } = require('../../core/fs-utils');
-const { escapeRegExp, uniq } = require('../../utils');
+const { isTextFile } = require('../../../core/fs-utils');
+const { escapeRegExp, uniq } = require('../../../utils');
 const {
   MAX_KEYWORD_INDEXES,
   STYLE_EXTENSIONS,
-} = require('./dom-utils');
+} = require('../anchor/dom-utils');
 
 function sourceFiles(project) {
   return (project.files || []).filter(file => isTextFile(file.path));
