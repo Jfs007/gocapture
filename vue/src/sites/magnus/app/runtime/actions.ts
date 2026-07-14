@@ -1,10 +1,11 @@
 import { sourceServerJson } from '../services/source-service';
 import { createComposerWorkflow } from '../workflows/composer-workflow';
+import { readLatestPanelBinding } from '../infrastructure/side-panel.adapter';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import type { MagnusActions, MagnusRuntimeState } from './context';
 
 export function createMagnusActions(state: MagnusRuntimeState): MagnusActions {
-  const { source, search, selection, composer, model } = state;
+  const { api, currentPageHref, source, search, selection, composer, model } = state;
   const workflow = createComposerWorkflow(state);
 
   return {
@@ -17,6 +18,8 @@ export function createMagnusActions(state: MagnusRuntimeState): MagnusActions {
     clearSelections: selection.clearSelections,
     sendComposer: workflow.sendComposer,
     openSourceFile,
+    openSettings: () => openSettings(api, currentPageHref?.value || ''),
+    rebindSidePanel,
     copyTextWithToast,
     toggleCandidateFile: (hit: any) => toggleCandidateFile(hit, search, selection),
     toggleCandidateDetail: (hit: any) => toggleCandidateDetail(hit, search),
@@ -36,6 +39,39 @@ export function createMagnusActions(state: MagnusRuntimeState): MagnusActions {
     resetModelAssist: model.resetModelAssist,
     stopModelAssist: model.stopModelAssist
   };
+}
+
+function rebindSidePanel() {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'magnus.sidepanel.rebind' }, '*');
+    return;
+  }
+  window.location.reload();
+}
+
+function openSettings(api: Record<string, any>, currentPageHref: string) {
+  const baseUrl = api?.sidePanelConfig?.sourceServerUrl || window.location.origin;
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+  const binding = readLatestPanelBinding();
+  if (binding?.workspaceId || binding?.browserTabId) {
+    const params = new URLSearchParams();
+    if (binding.workspaceId) params.set('workspaceId', binding.workspaceId);
+    if (binding.browserTabId != null) params.set('tabId', String(binding.browserTabId));
+    if (binding.windowId != null) params.set('windowId', String(binding.windowId));
+    const pageUrl = binding.page?.url || currentPageHref || '';
+    if (pageUrl) params.set('pageUrl', pageUrl);
+    window.open(`${normalizedBaseUrl}/settings?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({
+      type: 'magnus.settings.open',
+      sourceServerUrl: baseUrl
+    }, '*');
+    return;
+  }
+  window.open(`${normalizedBaseUrl}/settings`, '_blank', 'noopener,noreferrer');
 }
 
 async function openSourceFile(file: string, line?: number, column?: number) {

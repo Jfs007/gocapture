@@ -166,12 +166,13 @@
 }
 
 .mda-head {
+  position: relative;
   height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 10px 0 14px;
+  padding: 0 88px 0 14px;
   background: #ffffff;
   border-bottom: 1px solid #d8dee6;
   cursor: default;
@@ -213,6 +214,31 @@
 .mda-icon:hover {
   background: #eef2f6;
   border-color: #d8dee6;
+  color: #111827;
+}
+
+.mda-head-actions {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 3;
+}
+
+.mda-head-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.mda-head-icon:hover {
+  background: #eef2f6;
   color: #111827;
 }
 
@@ -1310,10 +1336,13 @@
 }
 
 .mda-toast {
-  min-height: 18px;
+  flex: 1 1 auto;
+  min-width: 0;
   color: #047857;
   font-size: 12px;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Codex-like chat surface overrides. */
@@ -1794,8 +1823,8 @@
 }
 
 .mda-asset-chip:hover {
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);
-  transform: translateY(-10px) scale(2.2) rotate(0deg);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.22);
+  transform: translateY(-4px) rotate(0deg);
 }
 
 .mda-asset-remove {
@@ -2712,6 +2741,291 @@
   overflow-wrap: anywhere;
 }
 
+.mda-chat-body {
+  height: calc(100vh - 52px);
+}
+
+.mda-settings-page,
+.mda-settings-page .mda-memory-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  background: #ffffff;
+  color: #1f2328;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-memory-shell.is-page {
+  position: fixed;
+  z-index: 1;
+  background: #ffffff;
+}
+
+.mda-settings-layout {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.mda-memory-shell:not(.is-page) .mda-settings-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+.mda-settings-sidebar {
+  flex: 0 0 270px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  padding: 16px 12px;
+  border-right: 1px solid #eceff3;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.mda-settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  text-align: left;
+  font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-back:hover {
+  background: #e6ebf2;
+  color: #101828;
+}
+
+.mda-settings-search {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 10px 0 18px;
+}
+
+.mda-settings-search .xicon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  color: #98a2b3;
+  transform: translateY(-50%);
+}
+
+.mda-settings-search input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 12px 0 32px;
+  border: 1px solid #d8dee6;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #667085;
+  outline: none;
+  font: 13px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-group-label {
+  margin: 14px 10px 8px;
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-settings-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #344054;
+  cursor: pointer;
+  text-align: left;
+  font: 13px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-nav:hover,
+.mda-settings-nav.is-active {
+  background: #eef2f6;
+  color: #101828;
+}
+
+.mda-settings-nav.is-active {
+  font-weight: 700;
+}
+
+.mda-settings-nav .xicon,
+.mda-settings-back .xicon {
+  flex: 0 0 auto;
+}
+
+.mda-settings-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.mda-settings-main-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 92px;
+  padding: 22px 28px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.mda-settings-main-head div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mda-settings-main-head span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-settings-main-head strong {
+  color: #101828;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.mda-settings-main-head em {
+  overflow: hidden;
+  color: #98a2b3;
+  font-style: normal;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-settings-primary {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #101828;
+  border-radius: 10px;
+  background: #101828;
+  color: #ffffff;
+  cursor: pointer;
+  font: 13px/32px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-weight: 700;
+}
+
+.mda-settings-primary:hover {
+  background: #1d2939;
+}
+
+.mda-memory-shell.is-page .mda-memory-body {
+  width: min(860px, calc(100vw - 340px));
+  padding: 28px;
+}
+
+.mda-memory-shell.is-page .mda-memory-form {
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.mda-memory-shell.is-page .mda-memory-field input,
+.mda-memory-shell.is-page .mda-memory-field select {
+  height: 38px;
+}
+
+.mda-memory-shell.is-page .mda-memory-tool,
+.mda-memory-shell.is-page .mda-memory-provider {
+  border-radius: 10px;
+}
+
+.mda-settings-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.mda-settings-asset {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.mda-settings-asset-thumb {
+  width: 84px;
+  height: 84px;
+  border-radius: 8px;
+  background: #f2f4f7 center center / contain no-repeat;
+  color: #667085;
+  display: grid;
+  place-items: center;
+  font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-asset-thumb.is-empty {
+  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);
+}
+
+.mda-settings-asset-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.mda-settings-asset-main strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-settings-asset-main span,
+.mda-settings-asset-main code {
+  min-width: 0;
+  overflow: hidden;
+  color: #667085;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-settings-asset-main code {
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (max-width: 720px) {
+  .mda-settings-sidebar {
+    flex-basis: 210px;
+  }
+
+  .mda-memory-shell.is-page .mda-memory-body {
+    width: auto;
+    padding: 18px;
+  }
+}
+
 /* 本地服务未启动提示条 */
 .mda-service-down {
   display: flex;
@@ -2800,8 +3114,7 @@
 }
 @keyframes mda-update-spin { to { transform: rotate(360deg); } }
 
-/* 顶栏图标组 + MCP 状态面板 */
-.mda-head-actions { display: flex; align-items: center; gap: 4px; }
+/* MCP 状态面板 */
 .mda-mcp-overlay {
   position: absolute; inset: 0; z-index: 40;
   background: rgba(15, 23, 42, 0.32);

@@ -1,6 +1,6 @@
 <template>
-  <div v-if="memory.open" class="mda-memory-shell" role="dialog" aria-modal="true" aria-label="Magnus 记忆设置">
-    <header class="mda-memory-head">
+  <div v-if="visible" class="mda-memory-shell" :class="{ 'is-page': isPage }" role="dialog" aria-modal="true" aria-label="Magnus 设置">
+    <header v-if="!isPage" class="mda-memory-head">
       <div>
         <strong>记忆设置</strong>
         <span>{{ projectLabel }}</span>
@@ -8,20 +8,59 @@
       <button class="mda-icon mda-memory-close" type="button" title="关闭" aria-label="关闭" @click="memory.closePanel">×</button>
     </header>
 
-    <nav class="mda-memory-tabs" aria-label="记忆类型">
-      <button type="button" :class="{ 'is-active': tab === 'sessions' }" @click="tab = 'sessions'">任务会话</button>
-      <button type="button" :class="{ 'is-active': tab === 'experiences' }" @click="tab = 'experiences'">Experience</button>
-      <button type="button" :class="{ 'is-active': tab === 'tools' }" @click="tab = 'tools'">Tools</button>
-      <button type="button" :class="{ 'is-active': tab === 'project' }" @click="tab = 'project'">项目摘要</button>
-    </nav>
+    <div class="mda-settings-layout">
+      <aside v-if="isPage" class="mda-settings-sidebar">
+        <button class="mda-settings-back" type="button" @click="$emit('back')">
+          <MagnusIcon name="back" :size="16" />
+          <span>返回 Magnus</span>
+        </button>
+        <label class="mda-settings-search">
+          <MagnusIcon name="search" :size="17" />
+          <input type="text" placeholder="搜索设置..." disabled>
+        </label>
+        <div class="mda-settings-group-label">项目</div>
+        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'sessions' }" @click="tab = 'sessions'">
+          <MagnusIcon name="albums" :size="17" />任务记忆
+        </button>
+        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'assets' }" @click="tab = 'assets'">
+          <MagnusIcon name="images" :size="17" />选区资产
+        </button>
+        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'experiences' }" @click="tab = 'experiences'">
+          <MagnusIcon name="book" :size="17" />Experience
+        </button>
+        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'project' }" @click="tab = 'project'">
+          <MagnusIcon name="folder" :size="17" />项目摘要
+        </button>
+        <div class="mda-settings-group-label">扩展</div>
+        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'tools' }" @click="tab = 'tools'">
+          <MagnusIcon name="construct" :size="17" />Tools / Resources
+        </button>
+      </aside>
 
-    <div v-if="memory.loading" class="mda-memory-state">正在读取记忆...</div>
-    <div v-else-if="memory.error && !memory.snapshot" class="mda-memory-state is-error">
-      <span>{{ memory.error }}</span>
-      <button type="button" @click="memory.load">重试</button>
-    </div>
+      <main class="mda-settings-main">
+        <header v-if="isPage" class="mda-settings-main-head">
+          <div>
+            <span>Magnus 设置</span>
+            <strong>{{ activeTitle }}</strong>
+            <em>{{ projectLabel }}</em>
+          </div>
+          <button class="mda-settings-primary" type="button" @click="$emit('select-project')">选择源码</button>
+        </header>
 
-    <section v-else class="mda-memory-body">
+        <nav v-if="!isPage" class="mda-memory-tabs" aria-label="记忆类型">
+          <button type="button" :class="{ 'is-active': tab === 'sessions' }" @click="tab = 'sessions'">任务会话</button>
+          <button type="button" :class="{ 'is-active': tab === 'experiences' }" @click="tab = 'experiences'">Experience</button>
+          <button type="button" :class="{ 'is-active': tab === 'tools' }" @click="tab = 'tools'">Tools</button>
+          <button type="button" :class="{ 'is-active': tab === 'project' }" @click="tab = 'project'">项目摘要</button>
+        </nav>
+
+        <div v-if="memory.loading" class="mda-memory-state">正在读取记忆...</div>
+        <div v-else-if="memory.error && !memory.snapshot" class="mda-memory-state is-error">
+          <span>{{ memory.error }}</span>
+          <button type="button" @click="memory.load">重试</button>
+        </div>
+
+        <section v-else class="mda-memory-body">
       <div v-if="memory.message || memory.error" class="mda-memory-feedback" :class="{ 'is-error': !!memory.error }">
         {{ memory.error || memory.message }}
       </div>
@@ -69,6 +108,21 @@
             </div>
           </div>
         </template>
+      </template>
+
+      <template v-else-if="tab === 'assets'">
+        <div v-if="!selectionAssets.length" class="mda-memory-empty">当前页面暂无选区资产。</div>
+        <div v-else class="mda-settings-assets">
+          <article v-for="asset in selectionAssets" :key="asset.uid" class="mda-settings-asset">
+            <div v-if="asset.thumbnailUrl" class="mda-settings-asset-thumb" :style="assetThumbStyle(asset)" />
+            <div v-else class="mda-settings-asset-thumb is-empty">{{ asset.index }}</div>
+            <div class="mda-settings-asset-main">
+              <strong>{{ asset.token }}</strong>
+              <span>{{ asset.summary }}</span>
+              <code>{{ asset.selector || asset.className || asset.text || '-' }}</code>
+            </div>
+          </article>
+        </div>
       </template>
 
       <template v-else-if="tab === 'experiences'">
@@ -190,18 +244,33 @@
         <div class="mda-memory-project-note">Project.md 由源码扫描和 Experience 索引自动生成，不在这里手工修改。</div>
         <pre class="mda-memory-project-doc">{{ memory.snapshot?.projectDocument || '暂无项目摘要。' }}</pre>
       </template>
-    </section>
+        </section>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import MagnusIcon from '../common/MagnusIcon.vue';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useMemoryStore } from '../../stores/memory.store';
+import { useSelectionStore } from '../../stores/selection.store';
+
+const props = withDefaults(defineProps<{
+  mode?: 'panel' | 'page';
+}>(), {
+  mode: 'panel'
+});
+defineEmits<{
+  (event: 'back'): void;
+  (event: 'select-project'): void;
+}>();
 
 const memory = useMemoryStore();
 const appUi = useAppUiStore();
-const tab = ref<'sessions' | 'experiences' | 'tools' | 'project'>('sessions');
+const selectionStore = useSelectionStore();
+const tab = ref<'sessions' | 'assets' | 'experiences' | 'tools' | 'project'>('sessions');
 const sessionId = ref('');
 const experienceId = ref('');
 const sessionDraft = reactive({
@@ -231,9 +300,19 @@ const toolProviders = computed(() => memory.toolProviders || []);
 const tools = computed(() => memory.tools || []);
 const resourceProviders = computed(() => memory.resourceProviders || []);
 const resources = computed(() => memory.resources || []);
+const selectionAssets = computed(() => selectionStore.promptAssets || []);
 const activeSession = computed(() => sessions.value.find((item: any) => item.id === sessionId.value) || null);
 const activeExperience = computed(() => experiences.value.find((item: any) => item.meta?.id === experienceId.value) || null);
 const projectLabel = computed(() => memory.snapshot?.project?.name || '当前源码项目');
+const isPage = computed(() => props.mode === 'page');
+const visible = computed(() => isPage.value || memory.open);
+const activeTitle = computed(() => {
+  if (tab.value === 'sessions') return '任务记忆';
+  if (tab.value === 'assets') return '选区资产';
+  if (tab.value === 'experiences') return 'Experience';
+  if (tab.value === 'tools') return 'Tools / Resources';
+  return '项目摘要';
+});
 
 watch(sessions, value => {
   if (!value.some((item: any) => item.id === sessionId.value)) sessionId.value = value[0]?.id || '';
@@ -329,5 +408,9 @@ async function saveExperience() {
 
 function formatTime(value: number) {
   return value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+function assetThumbStyle(asset: any) {
+  return asset?.thumbnailUrl ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
 }
 </script>

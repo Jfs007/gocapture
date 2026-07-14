@@ -58,8 +58,11 @@ export function createMagnusRuntime(api: Record<string, any>) {
   });
 
   return {
+    currentPageHref,
     fileInputRef: source.fileInputRef,
     onFileInputChange: source.onFileInputChange,
+    openSettings: actions.openSettings,
+    rebindSidePanel: actions.rebindSidePanel,
     pageHost
   };
 }

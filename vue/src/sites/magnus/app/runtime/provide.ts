@@ -9,6 +9,8 @@ export function provideMagnusRuntime(api: Record<string, any>, state: MagnusRunt
     resolveRoute: route.resolveCurrentPageRoute,
     selectProject: source.chooseProject,
     openSourceFile: actions.openSourceFile,
+    openSettings: actions.openSettings,
+    rebindSidePanel: actions.rebindSidePanel,
     copyPrompt: () => actions.copyTextWithToast(composer.promptText.value),
     copyText: actions.copyTextWithToast,
     previewSelection: actions.previewSelection,

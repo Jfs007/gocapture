@@ -15,6 +15,7 @@ const { handleBridgeRoutes } = require('./modules/bridge/routes');
 const { handleModelRoutes } = require('./modules/model/routes');
 const { handleProjectRoutes } = require('./modules/project/routes');
 const { createProjectContext } = require('./modules/project/project-context');
+const { handleRegistryRoutes } = require('./modules/registry/routes');
 const { handleSearchRoutes } = require('./modules/search/routes');
 const { handleUpdateRoutes } = require('./modules/update/routes');
 const { handleUiRequest } = require('./ui/serve-ui');
@@ -62,6 +63,16 @@ function createSourceServer() {
         res,
         url,
         bridge,
+        readBody,
+        sendJson,
+      })) {
+        return;
+      }
+
+      if (await handleRegistryRoutes({
+        req,
+        res,
+        url,
         readBody,
         sendJson,
       })) {

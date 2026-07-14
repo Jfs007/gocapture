@@ -1,6 +1,8 @@
 import type { ComputedRef, Ref } from 'vue';
 import { useAppUiStore } from '../../stores/app-ui.store';
 
+const LATEST_PANEL_BINDING_KEY = 'magnus:sidepanel-binding:latest';
+
 interface SidePanelBridgeOptions {
   sidePanelConfig: ComputedRef<Record<string, any>>;
   currentPageHref: Ref<string>;
@@ -8,10 +10,36 @@ interface SidePanelBridgeOptions {
   onRuntimeEvent?: (event: any) => void;
   onCommandResult?: (event: any) => void;
   scheduleRouteResolve: () => void;
+  startPickerOnConnect?: boolean;
 }
 
 interface SidePanelCommandOptions {
   pageBindingId?: string;
+}
+
+export function readLatestPanelBinding() {
+  try {
+    const raw = window.localStorage.getItem(LATEST_PANEL_BINDING_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && typeof data === 'object' ? data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function rememberLatestPanelBinding(snapshot: any) {
+  if (!snapshot?.workspaceId && snapshot?.browserTabId == null) return;
+  try {
+    window.localStorage.setItem(LATEST_PANEL_BINDING_KEY, JSON.stringify({
+      workspaceId: snapshot.workspaceId || '',
+      browserTabId: snapshot.browserTabId,
+      windowId: snapshot.windowId,
+      page: snapshot.page || null,
+      savedAt: Date.now()
+    }));
+  } catch (error) {
+  }
 }
 
 export function useSidePanelBridge({
@@ -20,7 +48,8 @@ export function useSidePanelBridge({
   onNetworkRequest,
   onRuntimeEvent,
   onCommandResult,
-  scheduleRouteResolve
+  scheduleRouteResolve,
+  startPickerOnConnect = true
 }: SidePanelBridgeOptions) {
   const appUiStore = useAppUiStore();
   let socket: WebSocket | null = null;
@@ -97,13 +126,16 @@ export function useSidePanelBridge({
         }
         if (message.type === 'sideiframe.bound_session') {
           pageSessionId = message.pageSessionId || '';
+          rememberLatestPanelBinding(message.snapshot);
           applyRemoteSnapshot(message.snapshot);
           sendSidePanelCommand('context.get');
-          sendSidePanelCommand('picker.start');
+          if (startPickerOnConnect) sendSidePanelCommand('picker.start');
         } else if (message.type === 'session.event') {
           applyRemoteSessionEvent(message);
         } else if (message.type === 'session.command_result') {
           onCommandResult?.(message);
+        } else if (message.type === 'error') {
+          appUiStore.setToast(message.error || 'Side Panel Bridge 连接失败');
         }
       });
       nextSocket.addEventListener('close', () => {

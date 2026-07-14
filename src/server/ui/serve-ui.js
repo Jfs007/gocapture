@@ -69,7 +69,7 @@ function createUiHtml({ host, port, panelTicket }) {
 }
 
 function handleUiRequest(req, res, url, { host, port }) {
-  if (url.pathname === '/ui' || url.pathname === '/ui/') {
+  if (url.pathname === '/ui' || url.pathname === '/ui/' || url.pathname === '/settings' || url.pathname === '/settings/') {
     sendText(res, 200, createUiHtml({
       host,
       port,

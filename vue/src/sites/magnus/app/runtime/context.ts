@@ -9,6 +9,8 @@ export interface MagnusRuntimeContext {
 }
 
 export interface MagnusRuntimeState {
+  api: Record<string, any>;
+  currentPageHref: Ref<string>;
   requests: any;
   source: any;
   route: any;

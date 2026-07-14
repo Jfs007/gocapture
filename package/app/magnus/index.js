@@ -114,7 +114,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const camelizeRE = /-\w/g;
   const camelize = cacheStringFunction(
     (str) => {
-      return str.replace(camelizeRE, (c) => c.slice(1).toUpperCase());
+      return str.replace(camelizeRE, (c2) => c2.slice(1).toUpperCase());
     }
   );
   const hyphenateRE = /\B([A-Z])/g;
@@ -2689,7 +2689,43 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function onErrorCaptured(hook, target = currentInstance) {
     injectHook("ec", hook, target);
   }
+  const COMPONENTS = "components";
   const NULL_DYNAMIC_COMPONENT = /* @__PURE__ */ Symbol.for("v-ndc");
+  function resolveDynamicComponent(component) {
+    if (isString(component)) {
+      return resolveAsset(COMPONENTS, component, false) || component;
+    } else {
+      return component || NULL_DYNAMIC_COMPONENT;
+    }
+  }
+  function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
+    const instance = currentRenderingInstance || currentInstance;
+    if (instance) {
+      const Component = instance.type;
+      {
+        const selfName = getComponentName(
+          Component,
+          false
+        );
+        if (selfName && (selfName === name || selfName === camelize(name) || selfName === capitalize(camelize(name)))) {
+          return Component;
+        }
+      }
+      const res = (
+        // local registration
+        // check instance[type] first which is resolved for options API
+        resolve(instance[type] || Component[type], name) || // global registration
+        resolve(instance.appContext[type], name)
+      );
+      if (!res && maybeSelfReference) {
+        return Component;
+      }
+      return res;
+    }
+  }
+  function resolve(registry, name) {
+    return registry && (registry[name] || registry[camelize(name)] || registry[capitalize(camelize(name))]);
+  }
   function renderList(source, renderItem, cache, index) {
     let ret;
     const cached = cache;
@@ -2941,7 +2977,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       beforeUnmount,
       destroyed,
       unmounted,
-      render,
+      render: render2,
       renderTracked,
       renderTriggered,
       errorCaptured,
@@ -2981,15 +3017,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const opt = computedOptions[key];
         const get = isFunction(opt) ? opt.bind(publicThis, publicThis) : isFunction(opt.get) ? opt.get.bind(publicThis, publicThis) : NOOP;
         const set = !isFunction(opt) && isFunction(opt.set) ? opt.set.bind(publicThis) : NOOP;
-        const c = computed({
+        const c2 = computed({
           get,
           set
         });
         Object.defineProperty(ctx, key, {
           enumerable: true,
           configurable: true,
-          get: () => c.value,
-          set: (v) => c.value = v
+          get: () => c2.value,
+          set: (v) => c2.value = v
         });
       }
     }
@@ -3040,8 +3076,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         instance.exposed = {};
       }
     }
-    if (render && instance.render === NOOP) {
-      instance.render = render;
+    if (render2 && instance.render === NOOP) {
+      instance.render = render2;
     }
     if (inheritAttrs != null) {
       instance.inheritAttrs = inheritAttrs;
@@ -3273,7 +3309,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     };
   }
   let uid$1 = 0;
-  function createAppAPI(render, hydrate) {
+  function createAppAPI(render2, hydrate) {
     return function createApp2(rootComponent, rootProps = null) {
       if (!isFunction(rootComponent)) {
         rootComponent = extend({}, rootComponent);
@@ -3341,7 +3377,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               namespace = void 0;
             }
             {
-              render(vnode, rootContainer, namespace);
+              render2(vnode, rootContainer, namespace);
             }
             isMounted = true;
             app._container = rootContainer;
@@ -3359,7 +3395,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               app._instance,
               16
             );
-            render(null, app._container);
+            render2(null, app._container);
             delete app._container.__vue_app__;
           }
         },
@@ -3491,7 +3527,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       slots,
       attrs,
       emit: emit2,
-      render,
+      render: render2,
       renderCache,
       props,
       data,
@@ -3516,7 +3552,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           }
         }) : proxyToUse;
         result = normalizeVNode(
-          render.call(
+          render2.call(
             thisProxy,
             proxyToUse,
             renderCache,
@@ -3528,10 +3564,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         );
         fallthroughAttrs = attrs;
       } else {
-        const render2 = Component;
+        const render22 = Component;
         if (false) ;
         result = normalizeVNode(
-          render2.length > 1 ? render2(
+          render22.length > 1 ? render22(
             false ? /* @__PURE__ */ shallowReadonly(props) : props,
             false ? {
               get attrs() {
@@ -3541,7 +3577,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
               slots,
               emit: emit2
             } : { attrs, slots, emit: emit2 }
-          ) : render2(
+          ) : render22(
             false ? /* @__PURE__ */ shallowReadonly(props) : props,
             null
           )
@@ -4078,7 +4114,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
       if (n1 && !isSameVNodeType(n1, n2)) {
         anchor = getNextHostNode(n1);
-        unmount(n1, parentComponent, parentSuspense, true);
+        unmount2(n1, parentComponent, parentSuspense, true);
         n1 = null;
       }
       if (n2.patchFlag === -2) {
@@ -4960,7 +4996,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         }
       } else if (i > e2) {
         while (i <= e1) {
-          unmount(c1[i], parentComponent, parentSuspense, true);
+          unmount2(c1[i], parentComponent, parentSuspense, true);
           i++;
         }
       } else {
@@ -4983,7 +5019,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         for (i = s1; i <= e1; i++) {
           const prevChild = c1[i];
           if (patched >= toBePatched) {
-            unmount(prevChild, parentComponent, parentSuspense, true);
+            unmount2(prevChild, parentComponent, parentSuspense, true);
             continue;
           }
           let newIndex;
@@ -4998,7 +5034,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             }
           }
           if (newIndex === void 0) {
-            unmount(prevChild, parentComponent, parentSuspense, true);
+            unmount2(prevChild, parentComponent, parentSuspense, true);
           } else {
             newIndexToOldIndexMap[newIndex - s2] = i + 1;
             if (newIndex >= maxNewIndexSoFar) {
@@ -5124,7 +5160,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         hostInsert(el, container, anchor);
       }
     };
-    const unmount = (vnode, parentComponent, parentSuspense, doRemove = false, optimized = false) => {
+    const unmount2 = (vnode, parentComponent, parentSuspense, doRemove = false, optimized = false) => {
       const {
         type,
         props,
@@ -5257,7 +5293,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       scope.stop();
       if (job) {
         job.flags |= 8;
-        unmount(subTree, instance, parentSuspense, doRemove);
+        unmount2(subTree, instance, parentSuspense, doRemove);
       }
       if (um) {
         queuePostRenderEffect(um, parentSuspense);
@@ -5268,7 +5304,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     };
     const unmountChildren = (children, parentComponent, parentSuspense, doRemove = false, optimized = false, start = 0) => {
       for (let i = start; i < children.length; i++) {
-        unmount(children[i], parentComponent, parentSuspense, doRemove, optimized);
+        unmount2(children[i], parentComponent, parentSuspense, doRemove, optimized);
       }
     };
     const getNextHostNode = (vnode) => {
@@ -5283,11 +5319,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return teleportEnd ? hostNextSibling(teleportEnd) : el;
     };
     let isFlushing = false;
-    const render = (vnode, container, namespace) => {
+    const render2 = (vnode, container, namespace) => {
       let instance;
       if (vnode == null) {
         if (container._vnode) {
-          unmount(container._vnode, null, null, true);
+          unmount2(container._vnode, null, null, true);
           instance = container._vnode.component;
         }
       } else {
@@ -5311,7 +5347,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     };
     const internals = {
       p: patch,
-      um: unmount,
+      um: unmount2,
       m: move,
       r: remove2,
       mt: mountComponent,
@@ -5323,9 +5359,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     };
     let hydrate;
     return {
-      render,
+      render: render2,
       hydrate,
-      createApp: createAppAPI(render)
+      createApp: createAppAPI(render2)
     };
   }
   function resolveChildrenNamespace({ type, props }, currentNamespace) {
@@ -5373,7 +5409,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   function getSequence(arr) {
     const p2 = arr.slice();
     const result = [0];
-    let i, j, u, v, c;
+    let i, j, u, v, c2;
     const len = arr.length;
     for (i = 0; i < len; i++) {
       const arrI = arr[i];
@@ -5387,11 +5423,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         u = 0;
         v = result.length - 1;
         while (u < v) {
-          c = u + v >> 1;
-          if (arr[result[c]] < arrI) {
-            u = c + 1;
+          c2 = u + v >> 1;
+          if (arr[result[c2]] < arrI) {
+            u = c2 + 1;
           } else {
-            v = c;
+            v = c2;
           }
         }
         if (arrI < arr[result[u]]) {
@@ -5599,15 +5635,15 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
     if (props) {
       props = guardReactiveProps(props);
-      let { class: klass, style } = props;
+      let { class: klass, style: style2 } = props;
       if (klass && !isString(klass)) {
         props.class = normalizeClass(klass);
       }
-      if (isObject(style)) {
-        if (/* @__PURE__ */ isProxy(style) && !isArray(style)) {
-          style = extend({}, style);
+      if (isObject(style2)) {
+        if (/* @__PURE__ */ isProxy(style2) && !isArray(style2)) {
+          style2 = extend({}, style2);
         }
-        props.style = normalizeStyle(style);
+        props.style = normalizeStyle(style2);
       }
     }
     const shapeFlag = isString(type) ? 1 : isSuspense(type) ? 128 : isTeleport(type) ? 64 : isObject(type) ? 4 : isFunction(type) ? 2 : 0;
@@ -5683,6 +5719,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function createTextVNode(text = " ", flag = 0) {
     return createVNode(Text, null, text, flag);
+  }
+  function createStaticVNode(content, numberOfNodes) {
+    const vnode = createVNode(Static, null, content);
+    vnode.staticCount = numberOfNodes;
+    return vnode;
   }
   function createCommentVNode(text = "", asBlock = false) {
     return asBlock ? (openBlock(), createBlock(Comment, null, text)) : createVNode(Comment, null, text);
@@ -6035,7 +6076,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     }
   }
   const classifyRE = /(?:^|[-_])\w/g;
-  const classify = (str) => str.replace(classifyRE, (c) => c.toUpperCase()).replace(/[-_]/g, "");
+  const classify = (str) => str.replace(classifyRE, (c2) => c2.toUpperCase()).replace(/[-_]/g, "");
   function getComponentName(Component, includeInferred = true) {
     return isFunction(Component) ? Component.displayName || Component.name : Component.name || includeInferred && Component.__name;
   }
@@ -6065,9 +6106,34 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return isFunction(value) && "__vccOpts" in value;
   }
   const computed = (getterOrOptions, debugOptions) => {
-    const c = /* @__PURE__ */ computed$1(getterOrOptions, debugOptions, isInSSRComponentSetup);
-    return c;
+    const c2 = /* @__PURE__ */ computed$1(getterOrOptions, debugOptions, isInSSRComponentSetup);
+    return c2;
   };
+  function h(type, propsOrChildren, children) {
+    try {
+      setBlockTracking(-1);
+      const l = arguments.length;
+      if (l === 2) {
+        if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
+          if (isVNode(propsOrChildren)) {
+            return createVNode(type, null, [propsOrChildren]);
+          }
+          return createVNode(type, propsOrChildren);
+        } else {
+          return createVNode(type, null, propsOrChildren);
+        }
+      } else {
+        if (l > 3) {
+          children = Array.prototype.slice.call(arguments, 2);
+        } else if (l === 3 && isVNode(children)) {
+          children = [children];
+        }
+        return createVNode(type, propsOrChildren, children);
+      }
+    } finally {
+      setBlockTracking(1);
+    }
+  }
   const version = "3.5.35";
   /**
   * @vue/runtime-dom v3.5.35
@@ -6212,7 +6278,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   const CSS_VAR_TEXT = /* @__PURE__ */ Symbol("");
   const displayRE = /(?:^|;)\s*display\s*:/;
   function patchStyle(el, prev, next) {
-    const style = el.style;
+    const style2 = el.style;
     const isCssString = isString(next);
     let hasControlledDisplay = false;
     if (next && !isCssString) {
@@ -6220,14 +6286,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         if (!isString(prev)) {
           for (const key in prev) {
             if (next[key] == null) {
-              setStyle(style, key, "");
+              setStyle(style2, key, "");
             }
           }
         } else {
           for (const prevStyle of prev.split(";")) {
             const key = prevStyle.slice(0, prevStyle.indexOf(":")).trim();
             if (next[key] == null) {
-              setStyle(style, key, "");
+              setStyle(style2, key, "");
             }
           }
         }
@@ -6244,20 +6310,20 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
             !isString(prev) && prev ? prev[key] : void 0,
             value
           )) {
-            setStyle(style, key, value);
+            setStyle(style2, key, value);
           }
         } else {
-          setStyle(style, key, "");
+          setStyle(style2, key, "");
         }
       }
     } else {
       if (isCssString) {
         if (prev !== next) {
-          const cssVarText = style[CSS_VAR_TEXT];
+          const cssVarText = style2[CSS_VAR_TEXT];
           if (cssVarText) {
             next += ";" + cssVarText;
           }
-          style.cssText = next;
+          style2.cssText = next;
           hasControlledDisplay = displayRE.test(next);
         }
       } else if (prev) {
@@ -6265,49 +6331,49 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     if (vShowOriginalDisplay in el) {
-      el[vShowOriginalDisplay] = hasControlledDisplay ? style.display : "";
+      el[vShowOriginalDisplay] = hasControlledDisplay ? style2.display : "";
       if (el[vShowHidden]) {
-        style.display = "none";
+        style2.display = "none";
       }
     }
   }
   const importantRE = /\s*!important$/;
-  function setStyle(style, name, val) {
+  function setStyle(style2, name, val) {
     if (isArray(val)) {
-      val.forEach((v) => setStyle(style, name, v));
+      val.forEach((v) => setStyle(style2, name, v));
     } else {
       if (val == null) val = "";
       if (name.startsWith("--")) {
-        style.setProperty(name, val);
+        style2.setProperty(name, val);
       } else {
-        const prefixed = autoPrefix(style, name);
+        const prefixed = autoPrefix(style2, name);
         if (importantRE.test(val)) {
-          style.setProperty(
+          style2.setProperty(
             hyphenate(prefixed),
             val.replace(importantRE, ""),
             "important"
           );
         } else {
-          style[prefixed] = val;
+          style2[prefixed] = val;
         }
       }
     }
   }
   const prefixes = ["Webkit", "Moz", "ms"];
   const prefixCache = {};
-  function autoPrefix(style, rawName) {
+  function autoPrefix(style2, rawName) {
     const cached = prefixCache[rawName];
     if (cached) {
       return cached;
     }
     let name = camelize(rawName);
-    if (name !== "filter" && name in style) {
+    if (name !== "filter" && name in style2) {
       return prefixCache[rawName] = name;
     }
     name = capitalize(name);
     for (let i = 0; i < prefixes.length; i++) {
       const prefixed = prefixes[i] + name;
-      if (prefixed in style) {
+      if (prefixed in style2) {
         return prefixCache[rawName] = prefixed;
       }
     }
@@ -6730,7 +6796,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   const createApp = (...args) => {
     const app = ensureRenderer().createApp(...args);
-    const { mount } = app;
+    const { mount: mount2 } = app;
     app.mount = (containerOrSelector) => {
       const container = normalizeContainer(containerOrSelector);
       if (!container) return;
@@ -6741,7 +6807,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       if (container.nodeType === 1) {
         container.textContent = "";
       }
-      const proxy = mount(container, false, resolveRootNamespace(container));
+      const proxy = mount2(container, false, resolveRootNamespace(container));
       if (container instanceof Element) {
         container.removeAttribute("v-cloak");
         container.setAttribute("data-v-app", "");
@@ -7283,7 +7349,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       reset
     };
   });
-  const _hoisted_1$9 = {
+  const _hoisted_1$j = {
     class: "mda-chat-thread",
     "aria-label": "页面改造对话"
   };
@@ -7299,46 +7365,46 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     key: 1,
     class: "mda-message-work-label"
   };
-  const _hoisted_8$7 = {
+  const _hoisted_8$6 = {
     key: 1,
     class: "mda-message-logs"
   };
-  const _hoisted_9$7 = { class: "mda-log-file-label" };
-  const _hoisted_10$7 = ["onClick"];
-  const _hoisted_11$7 = {
+  const _hoisted_9$6 = { class: "mda-log-file-label" };
+  const _hoisted_10$6 = ["onClick"];
+  const _hoisted_11$6 = {
     key: 1,
     class: "mda-message-log-pre"
   };
-  const _hoisted_12$7 = {
+  const _hoisted_12$6 = {
     key: 0,
     class: "mda-message-title"
   };
-  const _hoisted_13$7 = {
+  const _hoisted_13$6 = {
     key: 1,
     class: "mda-message-text"
   };
-  const _hoisted_14$7 = {
+  const _hoisted_14$6 = {
     key: 2,
     class: "mda-message-pre"
   };
-  const _hoisted_15$7 = {
+  const _hoisted_15$6 = {
     key: 3,
     class: "mda-message-actions"
   };
-  const _hoisted_16$7 = ["disabled"];
-  const _hoisted_17$6 = {
+  const _hoisted_16$6 = ["disabled"];
+  const _hoisted_17$4 = {
     key: 4,
     class: "mda-message-actions"
   };
-  const _hoisted_18$6 = {
+  const _hoisted_18$4 = {
     key: 0,
     class: "mda-warning"
   };
-  const _hoisted_19$6 = {
+  const _hoisted_19$4 = {
     key: 1,
     class: "mda-warning"
   };
-  const _sfc_main$b = {
+  const _sfc_main$c = {
     __name: "ChatThread",
     setup(__props) {
       const commands = useMagnusCommands();
@@ -7422,7 +7488,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$9, [
+        return openBlock(), createElementBlock("section", _hoisted_1$j, [
           (openBlock(true), createElementBlock(
             Fragment,
             null,
@@ -7474,7 +7540,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                         /* TEXT */
                       ))
                     ])) : createCommentVNode("v-if", true),
-                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_8$7, [
+                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_8$6, [
                       (openBlock(true), createElementBlock(
                         Fragment,
                         null,
@@ -7492,7 +7558,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                                 [
                                   createBaseVNode(
                                     "span",
-                                    _hoisted_9$7,
+                                    _hoisted_9$6,
                                     toDisplayString(candidatePrefix(log)),
                                     1
                                     /* TEXT */
@@ -7501,13 +7567,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                                     class: "mda-log-file-link",
                                     type: "button",
                                     onClick: ($event) => unref(commands).openSourceFile(candidateFile(log))
-                                  }, toDisplayString(candidateFile(log)), 9, _hoisted_10$7)
+                                  }, toDisplayString(candidateFile(log)), 9, _hoisted_10$6)
                                 ],
                                 64
                                 /* STABLE_FRAGMENT */
                               )) : isMultilineLog(log) ? (openBlock(), createElementBlock(
                                 "pre",
-                                _hoisted_11$7,
+                                _hoisted_11$6,
                                 toDisplayString(log),
                                 1
                                 /* TEXT */
@@ -7541,34 +7607,34 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                       [
                         message.title ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_12$7,
+                          _hoisted_12$6,
                           toDisplayString(message.title),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         message.text ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_13$7,
+                          _hoisted_13$6,
                           toDisplayString(message.text),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         message.pre ? (openBlock(), createElementBlock(
                           "pre",
-                          _hoisted_14$7,
+                          _hoisted_14$6,
                           toDisplayString(message.pre),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
-                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$7, [
+                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$6, [
                           createBaseVNode("button", {
                             class: "mda-btn mda-btn-primary",
                             type: "button",
                             disabled: sourceServiceStatus.value === "loading",
                             onClick: _cache[0] || (_cache[0] = (...args) => unref(commands).selectProject && unref(commands).selectProject(...args))
-                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$7)
+                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$6)
                         ])) : createCommentVNode("v-if", true),
-                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$6, [
+                        message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$4, [
                           createBaseVNode("button", {
                             class: "mda-btn",
                             type: "button",
@@ -7590,14 +7656,14 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           )),
           sourceServiceError.value ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_18$6,
+            _hoisted_18$4,
             toDisplayString(sourceServiceError.value),
             1
             /* TEXT */
           )) : createCommentVNode("v-if", true),
           candidateError.value ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_19$6,
+            _hoisted_19$4,
             toDisplayString(candidateError.value),
             1
             /* TEXT */
@@ -7753,285 +7819,6 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       applyResult,
       fail,
       reset
-    };
-  });
-  const SOURCE_SERVER_URL = typeof window !== "undefined" && ((_a = window.__MAGNUS_SIDE_PANEL__) == null ? void 0 : _a.sourceServerUrl) || "http://127.0.0.1:17321";
-  const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
-  const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
-  const SOURCE_SERVER_HEALTH_URL = `${SOURCE_SERVER_URL}/health`;
-  function createSourceServerHeaders(extraHeaders) {
-    return __spreadValues({
-      "Content-Type": "application/json",
-      [MAGNUS_INTERNAL_REQUEST_HEADER]: MAGNUS_INTERNAL_REQUEST_VALUE
-    }, extraHeaders || {});
-  }
-  function sourceServerJson(_0) {
-    return __async(this, arguments, function* (pathname, options = {}) {
-      const timeoutMs = Number(options.timeoutMs || 1e4);
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-      try {
-        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
-          method: options.method || "GET",
-          headers: createSourceServerHeaders(options.headers),
-          body: options.body ? JSON.stringify(options.body) : void 0,
-          signal: controller.signal
-        });
-        const data = yield response.json().catch(() => ({}));
-        if (!response.ok || data.success === false) {
-          const error = new Error(data.error || `本地源码服务请求失败：${response.status}`);
-          error.payload = data;
-          throw error;
-        }
-        return data;
-      } catch (error) {
-        if (error && error.name === "AbortError") {
-          throw new Error(options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应`);
-        }
-        throw error;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    });
-  }
-  function sourceServerNdjson(_0) {
-    return __async(this, arguments, function* (pathname, options = {}) {
-      const timeoutMs = Number(options.timeoutMs || 1e4);
-      const controller = options.controller || new AbortController();
-      let timedOut = false;
-      const timeoutId = window.setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, timeoutMs);
-      try {
-        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
-          method: options.method || "GET",
-          headers: createSourceServerHeaders(options.headers),
-          body: options.body ? JSON.stringify(options.body) : void 0,
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          const text = yield response.text().catch(() => "");
-          throw new Error(text || `本地源码服务请求失败：${response.status}`);
-        }
-        if (!response.body) return null;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let result = null;
-        while (true) {
-          const { done, value } = yield reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            const event = JSON.parse(trimmed);
-            if (typeof options.onEvent === "function") options.onEvent(event);
-            if (event.type === "result") result = event.result || null;
-            if (event.type === "error") {
-              const error = new Error(event.error || "本地源码服务请求失败");
-              error.payload = event;
-              throw error;
-            }
-          }
-        }
-        const finalLine = buffer.trim();
-        if (finalLine) {
-          const event = JSON.parse(finalLine);
-          if (typeof options.onEvent === "function") options.onEvent(event);
-          if (event.type === "result") result = event.result || null;
-          if (event.type === "error") {
-            const error = new Error(event.error || "本地源码服务请求失败");
-            error.payload = event;
-            throw error;
-          }
-        }
-        return result;
-      } catch (error) {
-        if (error && error.name === "AbortError") {
-          const abortError = new Error(timedOut ? options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应` : options.abortMessage || "请求已停止");
-          abortError.name = timedOut ? "TimeoutError" : "AbortError";
-          throw abortError;
-        }
-        throw error;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    });
-  }
-  function probeSourceServer(timeoutMs = 2500) {
-    return __async(this, null, function* () {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-      try {
-        const response = yield fetch(SOURCE_SERVER_HEALTH_URL, {
-          method: "GET",
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `HTTP ${response.status}` };
-        }
-        const data = yield response.json().catch(() => ({}));
-        if ((data == null ? void 0 : data.success) === false) {
-          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: data.error || "health success=false" };
-        }
-        return { online: true, url: SOURCE_SERVER_HEALTH_URL, message: "" };
-      } catch (error) {
-        if ((error == null ? void 0 : error.name) === "AbortError") {
-          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `health timeout (${timeoutMs}ms)` };
-        }
-        const message = error instanceof Error ? error.message : String(error || "unknown error");
-        return { online: false, url: SOURCE_SERVER_HEALTH_URL, message };
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    });
-  }
-  function normalizeSourceServerProject(raw) {
-    const files = Array.isArray(raw.files) ? raw.files : [];
-    return {
-      name: raw.name || "本地项目",
-      path: raw.path || "",
-      kind: raw.kind || "unknown",
-      source: "source-server",
-      fileCount: raw.fileCount || files.length,
-      files,
-      snippets: raw.snippets || {},
-      context: raw.context || null,
-      stack: raw.stack || [],
-      stackText: raw.stackText || "",
-      limited: !!raw.limited
-    };
-  }
-  const useMemoryStore = /* @__PURE__ */ defineStore("magnus.memory", () => {
-    const projectStore = useProjectStore();
-    const open = /* @__PURE__ */ ref(false);
-    const loading = /* @__PURE__ */ ref(false);
-    const saving = /* @__PURE__ */ ref(false);
-    const error = /* @__PURE__ */ ref("");
-    const message = /* @__PURE__ */ ref("");
-    const snapshot = /* @__PURE__ */ ref(null);
-    const toolProviders = /* @__PURE__ */ ref([]);
-    const tools = /* @__PURE__ */ ref([]);
-    const resourceProviders = /* @__PURE__ */ ref([]);
-    const resources = /* @__PURE__ */ ref([]);
-    function openPanel() {
-      return __async(this, null, function* () {
-        open.value = true;
-        yield load();
-      });
-    }
-    function closePanel() {
-      open.value = false;
-      error.value = "";
-      message.value = "";
-    }
-    function load() {
-      return __async(this, null, function* () {
-        var _a2;
-        if (!((_a2 = projectStore.current) == null ? void 0 : _a2.path) || projectStore.current.source !== "source-server") {
-          snapshot.value = null;
-          error.value = "请先关联本地源码项目";
-          return;
-        }
-        loading.value = true;
-        error.value = "";
-        message.value = "";
-        try {
-          const projectPath = projectStore.current.path;
-          const [result, toolResult, resourceResult] = yield Promise.all([
-            sourceServerJson("/api/memory/read", {
-              method: "POST",
-              body: { projectPath },
-              timeoutMs: 1e4,
-              timeoutMessage: "读取记忆超时，请确认本地源码服务可用"
-            }),
-            sourceServerJson("/api/agent/tools", {
-              timeoutMs: 5e3,
-              timeoutMessage: "读取工具清单超时"
-            }),
-            sourceServerJson(`/api/agent/resources?projectPath=${encodeURIComponent(projectPath)}`, {
-              timeoutMs: 5e3,
-              timeoutMessage: "读取资源清单超时"
-            })
-          ]);
-          snapshot.value = result.memory || null;
-          toolProviders.value = Array.isArray(toolResult.providers) ? toolResult.providers : [];
-          tools.value = Array.isArray(toolResult.tools) ? toolResult.tools : [];
-          resourceProviders.value = Array.isArray(resourceResult.providers) ? resourceResult.providers : [];
-          resources.value = Array.isArray(resourceResult.resources) ? resourceResult.resources : [];
-        } catch (cause) {
-          error.value = (cause == null ? void 0 : cause.message) || "读取记忆失败";
-        } finally {
-          loading.value = false;
-        }
-      });
-    }
-    function saveExperience(payload) {
-      return __async(this, null, function* () {
-        return save("/api/experience", payload, "项目经验已保存");
-      });
-    }
-    function saveSession(payload) {
-      return __async(this, null, function* () {
-        return save("/api/memory/session", payload, "任务会话已保存");
-      });
-    }
-    function removeSession(id) {
-      return __async(this, null, function* () {
-        return save("/api/memory/session/remove", { id }, "任务会话已清除");
-      });
-    }
-    function save(pathname, payload, successMessage) {
-      return __async(this, null, function* () {
-        var _a2;
-        saving.value = true;
-        error.value = "";
-        message.value = "";
-        try {
-          const result = yield sourceServerJson(pathname, {
-            method: "POST",
-            body: __spreadProps(__spreadValues({}, payload), {
-              projectPath: ((_a2 = projectStore.current) == null ? void 0 : _a2.path) || ""
-            }),
-            timeoutMs: 1e4,
-            timeoutMessage: "保存记忆超时，请确认本地源码服务可用"
-          });
-          snapshot.value = result.memory || null;
-          message.value = successMessage;
-          return true;
-        } catch (cause) {
-          error.value = (cause == null ? void 0 : cause.message) || "保存记忆失败";
-          return false;
-        } finally {
-          saving.value = false;
-        }
-      });
-    }
-    return {
-      open,
-      loading,
-      saving,
-      error,
-      message,
-      snapshot,
-      toolProviders,
-      tools,
-      resourceProviders,
-      resources,
-      openPanel,
-      closePanel,
-      load,
-      saveExperience,
-      saveSession,
-      removeSession
     };
   });
   const useRouteStore = /* @__PURE__ */ defineStore("magnus.route", () => {
@@ -8305,7 +8092,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   function candidateLogText(hit) {
     return candidateLogLines(hit).join("\n");
   }
-  const _hoisted_1$8 = {
+  const _hoisted_1$i = {
     key: 0,
     class: "mda-composer-options mda-composite"
   };
@@ -8324,47 +8111,47 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   };
   const _hoisted_6$6 = ["onClick"];
   const _hoisted_7$6 = ["onClick"];
-  const _hoisted_8$6 = {
+  const _hoisted_8$5 = {
     key: 0,
     class: "mda-composite-anchor"
   };
-  const _hoisted_9$6 = ["onClick"];
-  const _hoisted_10$6 = {
+  const _hoisted_9$5 = ["onClick"];
+  const _hoisted_10$5 = {
     key: 1,
     class: "mda-composer-options mda-plan"
   };
-  const _hoisted_11$6 = { class: "mda-plan-body" };
-  const _hoisted_12$6 = {
+  const _hoisted_11$5 = { class: "mda-plan-body" };
+  const _hoisted_12$5 = {
     key: 0,
     class: "mda-plan-summary"
   };
-  const _hoisted_13$6 = {
+  const _hoisted_13$5 = {
     key: 1,
     class: "mda-plan-block"
   };
-  const _hoisted_14$6 = ["onClick"];
-  const _hoisted_15$6 = {
+  const _hoisted_14$5 = ["onClick"];
+  const _hoisted_15$5 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_16$6 = {
+  const _hoisted_16$5 = {
     key: 0,
     class: "mda-composite-anchor"
   };
-  const _hoisted_17$5 = {
+  const _hoisted_17$3 = {
     key: 1,
     class: "mda-plan-what"
   };
-  const _hoisted_18$5 = {
+  const _hoisted_18$3 = {
     key: 2,
     class: "mda-plan-why"
   };
-  const _hoisted_19$5 = {
+  const _hoisted_19$3 = {
     key: 2,
     class: "mda-plan-block"
   };
-  const _hoisted_20$4 = ["onClick"];
-  const _hoisted_21$2 = { class: "mda-composite-anchor" };
+  const _hoisted_20$3 = ["onClick"];
+  const _hoisted_21$3 = { class: "mda-composite-anchor" };
   const _hoisted_22$1 = { class: "mda-plan-block-title" };
   const _hoisted_23$1 = {
     key: 3,
@@ -8401,7 +8188,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 3,
     class: "mda-composer-options"
   };
-  const _sfc_main$a = {
+  const _sfc_main$b = {
     __name: "CandidateOptions",
     setup(__props) {
       const commands = useMagnusCommands();
@@ -8488,7 +8275,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           Fragment,
           null,
           [
-            composite.value ? (openBlock(), createElementBlock("div", _hoisted_1$8, [
+            composite.value ? (openBlock(), createElementBlock("div", _hoisted_1$i, [
               _cache[10] || (_cache[10] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -8609,7 +8396,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     }, toDisplayString(child.file), 9, _hoisted_7$6),
                     child.anchor ? (openBlock(), createElementBlock(
                       "span",
-                      _hoisted_8$6,
+                      _hoisted_8$5,
                       toDisplayString(child.anchor),
                       1
                       /* TEXT */
@@ -8638,14 +8425,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(bridge.file)
-                    }, toDisplayString(bridge.file), 9, _hoisted_9$6)
+                    }, toDisplayString(bridge.file), 9, _hoisted_9$5)
                   ]);
                 }),
                 128
                 /* KEYED_FRAGMENT */
               ))
             ])) : createCommentVNode("v-if", true),
-            hasChangePlanContent.value ? (openBlock(), createElementBlock("div", _hoisted_10$6, [
+            hasChangePlanContent.value ? (openBlock(), createElementBlock("div", _hoisted_10$5, [
               _cache[14] || (_cache[14] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -8653,15 +8440,15 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_11$6, [
+              createBaseVNode("div", _hoisted_11$5, [
                 changePlan.value.summary ? (openBlock(), createElementBlock(
                   "div",
-                  _hoisted_12$6,
+                  _hoisted_12$5,
                   toDisplayString(changePlan.value.summary),
                   1
                   /* TEXT */
                 )) : createCommentVNode("v-if", true),
-                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$6, [
+                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$5, [
                   _cache[11] || (_cache[11] = createBaseVNode(
                     "div",
                     { class: "mda-plan-block-title" },
@@ -8689,29 +8476,29 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           ),
                           target.line ? (openBlock(), createElementBlock(
                             "span",
-                            _hoisted_15$6,
+                            _hoisted_15$5,
                             ":" + toDisplayString(target.line),
                             1
                             /* TEXT */
                           )) : createCommentVNode("v-if", true)
-                        ], 8, _hoisted_14$6),
+                        ], 8, _hoisted_14$5),
                         target.anchor ? (openBlock(), createElementBlock(
                           "span",
-                          _hoisted_16$6,
+                          _hoisted_16$5,
                           toDisplayString(target.anchor),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         target.whatToChange ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_17$5,
+                          _hoisted_17$3,
                           "改：" + toDisplayString(target.whatToChange),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         target.why ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_18$5,
+                          _hoisted_18$3,
                           "因：" + toDisplayString(target.why),
                           1
                           /* TEXT */
@@ -8722,7 +8509,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     /* KEYED_FRAGMENT */
                   ))
                 ])) : createCommentVNode("v-if", true),
-                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_19$5, [
+                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_19$3, [
                   _cache[12] || (_cache[12] = createBaseVNode(
                     "div",
                     { class: "mda-plan-block-title" },
@@ -8742,10 +8529,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           class: "mda-file-link",
                           type: "button",
                           onClick: ($event) => unref(commands).openSourceFile(item.file)
-                        }, toDisplayString(item.file), 9, _hoisted_20$4),
+                        }, toDisplayString(item.file), 9, _hoisted_20$3),
                         createBaseVNode(
                           "span",
-                          _hoisted_21$2,
+                          _hoisted_21$3,
                           toDisplayString(item.reason),
                           1
                           /* TEXT */
@@ -8960,7 +8747,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _hoisted_1$7 = ["value", "readonly", "placeholder"];
+  const _hoisted_1$h = ["value", "readonly", "placeholder"];
   const _hoisted_2$7 = ["onClick"];
   const _hoisted_3$7 = {
     key: 1,
@@ -8971,7 +8758,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 0,
     class: "mda-composer-shortcut-empty"
   };
-  const _sfc_main$9 = {
+  const _sfc_main$a = {
     __name: "ComposerInput",
     setup(__props, { expose: __expose }) {
       useMagnusCommands();
@@ -9200,7 +8987,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               onSelect: handleComposerCursor,
               onFocus: handleComposerCursor,
               onKeydown: handleComposerKeydown
-            }, null, 40, _hoisted_1$7),
+            }, null, 40, _hoisted_1$h),
             shortcutMenuOpen.value ? (openBlock(), createElementBlock(
               "div",
               {
@@ -9272,109 +9059,20 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _sfc_main$8 = {
-    __name: "PopoverPanel",
-    props: {
-      visible: {
-        type: Boolean,
-        default: false
-      },
-      anchorRect: {
-        type: Object,
-        default: null
-      },
-      width: {
-        type: Number,
-        default: 380
-      },
-      maxHeight: {
-        type: Number,
-        default: 360
-      },
-      placement: {
-        type: String,
-        default: "auto"
-      },
-      gap: {
-        type: Number,
-        default: 10
-      },
-      viewportPadding: {
-        type: Number,
-        default: 12
-      }
-    },
-    emits: ["mouseenter", "mouseleave"],
-    setup(__props) {
-      const props = __props;
-      const panelStyle = computed(() => {
-        const rect = props.anchorRect;
-        if (!props.visible || !rect) return {};
-        const width = Math.min(props.width, Math.max(260, window.innerWidth - props.viewportPadding * 2));
-        const left = Math.max(
-          props.viewportPadding,
-          Math.min(rect.left, window.innerWidth - width - props.viewportPadding)
-        );
-        const roomBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
-        const roomAbove = rect.top - props.gap - props.maxHeight >= props.viewportPadding;
-        const showBelow = props.placement === "bottom" ? true : props.placement === "top" ? !roomAbove && roomBelow : roomBelow;
-        const top = showBelow ? rect.bottom + props.gap : Math.max(props.viewportPadding, rect.top - props.gap - props.maxHeight);
-        return {
-          left: `${Math.round(left)}px`,
-          top: `${Math.round(top)}px`,
-          width: `${Math.round(width)}px`,
-          maxHeight: `${Math.round(props.maxHeight)}px`
-        };
-      });
-      return (_ctx, _cache) => {
-        return __props.visible && __props.anchorRect ? (openBlock(), createElementBlock(
-          "div",
-          {
-            key: 0,
-            class: "mda-popover-panel",
-            style: normalizeStyle(panelStyle.value),
-            onMouseenter: _cache[0] || (_cache[0] = ($event) => _ctx.$emit("mouseenter")),
-            onMouseleave: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("mouseleave"))
-          },
-          [
-            renderSlot(_ctx.$slots, "default")
-          ],
-          36
-          /* STYLE, NEED_HYDRATION */
-        )) : createCommentVNode("v-if", true);
-      };
-    }
-  };
-  const _hoisted_1$6 = { class: "mda-composer-prebar" };
+  const _hoisted_1$g = { class: "mda-composer-prebar" };
   const _hoisted_2$6 = { class: "mda-composer-prebar-main" };
   const _hoisted_3$6 = ["disabled"];
   const _hoisted_4$6 = {
     key: 0,
     class: "mda-asset-strip"
   };
-  const _hoisted_5$6 = ["title", "onMouseenter", "onMouseleave", "onClick", "onKeydown"];
+  const _hoisted_5$6 = ["title", "onClick", "onKeydown"];
   const _hoisted_6$5 = {
     key: 1,
     class: "mda-asset-thumb is-empty"
   };
   const _hoisted_7$5 = ["onClick"];
-  const _hoisted_8$5 = {
-    key: 0,
-    class: "mda-asset-popover"
-  };
-  const _hoisted_9$5 = { class: "mda-asset-popover-head" };
-  const _hoisted_10$5 = { class: "mda-asset-popover-badge" };
-  const _hoisted_11$5 = { class: "mda-asset-popover-title-wrap" };
-  const _hoisted_12$5 = { class: "mda-asset-popover-title" };
-  const _hoisted_13$5 = { class: "mda-asset-popover-subtitle" };
-  const _hoisted_14$5 = { class: "mda-asset-popover-grid" };
-  const _hoisted_15$5 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_16$5 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_17$4 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_18$4 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_19$4 = { class: "mda-asset-popover-grid-item" };
-  const _hoisted_20$3 = { class: "mda-asset-popover-grid-item" };
-  const _sfc_main$7 = {
+  const _sfc_main$9 = {
     __name: "ComposerPrebar",
     emits: ["insert-asset"],
     setup(__props) {
@@ -9386,22 +9084,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const includeApiEvidence = computed(() => searchStore.includeApiEvidence);
       const candidateLoading = computed(() => searchStore.status === "loading");
       const promptText = computed(() => composerStore.finalPrompt);
-      const activeAssetPopoverUid = /* @__PURE__ */ ref("");
-      const activeAssetPopoverRect = /* @__PURE__ */ ref(null);
-      let activeAssetPopoverAnchor = null;
-      let assetPopoverTimer = 0;
-      const activeAssetPopover = computed(() => {
-        return promptAssets.value.find((item) => item.uid === activeAssetPopoverUid.value) || null;
-      });
-      onMounted(() => {
-        window.addEventListener("scroll", updateAssetPopoverRect, true);
-        window.addEventListener("resize", updateAssetPopoverRect, true);
-      });
-      onBeforeUnmount(() => {
-        window.removeEventListener("scroll", updateAssetPopoverRect, true);
-        window.removeEventListener("resize", updateAssetPopoverRect, true);
-        clearAssetPopoverTimer();
-      });
       function toggleApiEvidence() {
         commands.setIncludeApiEvidence(!includeApiEvidence.value);
         commands.onSearchOptionChange();
@@ -9410,7 +9092,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         if (!asset) return "";
         return [
           `${asset.token} · 点击插入`,
-          "悬浮查看节点详情",
+          "可在设置页查看资产详情",
           asset.text ? `文案: ${asset.text}` : "",
           asset.className ? `class: ${asset.className}` : ""
         ].filter(Boolean).join("\n");
@@ -9418,70 +9100,15 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       function assetThumbStyle(asset) {
         return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
       }
-      function formatAssetValue(value) {
-        if (!value) return "-";
-        if (typeof value === "string") return value;
-        try {
-          return JSON.stringify(value, null, 2);
-        } catch (error) {
-          return String(value);
-        }
-      }
-      function assetDetailSections(asset) {
-        if (!asset) return [];
-        return [
-          { label: "选区 inline style", value: asset.inlineStyle || "-" },
-          { label: "选区 computed style", value: formatAssetValue(asset.computedStyle) },
-          { label: "选区 innerHTML", value: asset.innerHtml || "-" },
-          { label: "扩大选区文案", value: asset.assetText || "-" },
-          { label: "扩大选区 inline style", value: asset.assetInlineStyle || "-" },
-          { label: "扩大选区 computed style", value: formatAssetValue(asset.assetComputedStyle) },
-          { label: "扩大选区 innerHTML", value: asset.assetInnerHtml || "-" }
-        ];
-      }
-      function updateAssetPopoverRect() {
-        if (!activeAssetPopoverAnchor || !activeAssetPopoverAnchor.isConnected) return;
-        activeAssetPopoverRect.value = activeAssetPopoverAnchor.getBoundingClientRect();
-      }
-      function clearAssetPopoverTimer() {
-        if (!assetPopoverTimer) return;
-        window.clearTimeout(assetPopoverTimer);
-        assetPopoverTimer = 0;
-      }
-      function cancelAssetPopoverHide() {
-        clearAssetPopoverTimer();
-      }
-      function closeAssetPopover() {
-        clearAssetPopoverTimer();
-        activeAssetPopoverUid.value = "";
-        activeAssetPopoverRect.value = null;
-        activeAssetPopoverAnchor = null;
-        commands.restoreSelectionPreview();
-      }
-      function scheduleAssetPopoverHide(uid2 = "") {
-        clearAssetPopoverTimer();
-        assetPopoverTimer = window.setTimeout(() => {
-          if (!uid2 || activeAssetPopoverUid.value === uid2) closeAssetPopover();
-        }, 220);
-      }
-      function openAssetPopover(asset, event) {
-        if (!asset) return;
-        clearAssetPopoverTimer();
-        commands.previewSelection(asset);
-        activeAssetPopoverUid.value = asset.uid;
-        activeAssetPopoverAnchor = (event == null ? void 0 : event.currentTarget) || null;
-        updateAssetPopoverRect();
-        window.requestAnimationFrame(updateAssetPopoverRect);
-      }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("div", _hoisted_1$6, [
+        return openBlock(), createElementBlock("div", _hoisted_1$g, [
           createBaseVNode("div", _hoisted_2$6, [
             createBaseVNode("button", {
               class: normalizeClass(["mda-assist-chip", { "is-active": includeApiEvidence.value }]),
               type: "button",
               disabled: candidateLoading.value || !!promptText.value,
               onClick: toggleApiEvidence
-            }, [..._cache[1] || (_cache[1] = [
+            }, [..._cache[0] || (_cache[0] = [
               createBaseVNode(
                 "span",
                 { class: "mda-chip-shield" },
@@ -9511,8 +9138,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       role: "button",
                       tabindex: "0",
                       title: assetTooltip(asset),
-                      onMouseenter: ($event) => openAssetPopover(asset, $event),
-                      onMouseleave: ($event) => scheduleAssetPopoverHide(asset.uid),
                       onClick: ($event) => _ctx.$emit("insert-asset", asset),
                       onKeydown: [
                         withKeys(withModifiers(($event) => _ctx.$emit("insert-asset", asset), ["prevent"]), ["enter"]),
@@ -9549,179 +9174,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 /* KEYED_FRAGMENT */
               ))
             ])) : createCommentVNode("v-if", true)
-          ]),
-          createVNode(_sfc_main$8, {
-            visible: !!activeAssetPopover.value,
-            "anchor-rect": activeAssetPopoverRect.value,
-            width: 344,
-            placement: "top",
-            gap: 6,
-            "max-height": 320,
-            onMouseenter: cancelAssetPopoverHide,
-            onMouseleave: _cache[0] || (_cache[0] = ($event) => scheduleAssetPopoverHide())
-          }, {
-            default: withCtx(() => [
-              activeAssetPopover.value ? (openBlock(), createElementBlock("article", _hoisted_8$5, [
-                createBaseVNode("header", _hoisted_9$5, [
-                  createBaseVNode(
-                    "div",
-                    _hoisted_10$5,
-                    toDisplayString(activeAssetPopover.value.token),
-                    1
-                    /* TEXT */
-                  ),
-                  createBaseVNode("div", _hoisted_11$5, [
-                    createBaseVNode(
-                      "strong",
-                      _hoisted_12$5,
-                      toDisplayString(activeAssetPopover.value.label),
-                      1
-                      /* TEXT */
-                    ),
-                    createBaseVNode(
-                      "div",
-                      _hoisted_13$5,
-                      toDisplayString(activeAssetPopover.value.selector || activeAssetPopover.value.className || activeAssetPopover.value.text || "-"),
-                      1
-                      /* TEXT */
-                    )
-                  ])
-                ]),
-                createBaseVNode("div", _hoisted_14$5, [
-                  createBaseVNode("div", _hoisted_15$5, [
-                    _cache[2] || (_cache[2] = createBaseVNode(
-                      "span",
-                      null,
-                      "选区文案",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "pre",
-                      null,
-                      toDisplayString(activeAssetPopover.value.text || "-"),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_16$5, [
-                    _cache[3] || (_cache[3] = createBaseVNode(
-                      "span",
-                      null,
-                      "选区 selector",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "pre",
-                      null,
-                      toDisplayString(activeAssetPopover.value.selector || "-"),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_17$4, [
-                    _cache[4] || (_cache[4] = createBaseVNode(
-                      "span",
-                      null,
-                      "选区 class",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "pre",
-                      null,
-                      toDisplayString(activeAssetPopover.value.className || "-"),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_18$4, [
-                    _cache[5] || (_cache[5] = createBaseVNode(
-                      "span",
-                      null,
-                      "选区盒模型",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "pre",
-                      null,
-                      toDisplayString(formatAssetValue(activeAssetPopover.value.box)),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_19$4, [
-                    _cache[6] || (_cache[6] = createBaseVNode(
-                      "span",
-                      null,
-                      "扩大选区 selector",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "pre",
-                      null,
-                      toDisplayString(activeAssetPopover.value.assetSelector || "-"),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_20$3, [
-                    _cache[7] || (_cache[7] = createBaseVNode(
-                      "span",
-                      null,
-                      "扩大选区盒模型",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "pre",
-                      null,
-                      toDisplayString(formatAssetValue(activeAssetPopover.value.assetBox)),
-                      1
-                      /* TEXT */
-                    )
-                  ])
-                ]),
-                (openBlock(true), createElementBlock(
-                  Fragment,
-                  null,
-                  renderList(assetDetailSections(activeAssetPopover.value), (section) => {
-                    return openBlock(), createElementBlock("section", {
-                      key: section.label,
-                      class: "mda-asset-popover-section"
-                    }, [
-                      createBaseVNode(
-                        "span",
-                        null,
-                        toDisplayString(section.label),
-                        1
-                        /* TEXT */
-                      ),
-                      createBaseVNode(
-                        "pre",
-                        null,
-                        toDisplayString(section.value),
-                        1
-                        /* TEXT */
-                      )
-                    ]);
-                  }),
-                  128
-                  /* KEYED_FRAGMENT */
-                ))
-              ])) : createCommentVNode("v-if", true)
-            ]),
-            _: 1
-            /* STABLE */
-          }, 8, ["visible", "anchor-rect"])
+          ])
         ]);
       };
     }
   };
-  const _hoisted_1$5 = ["disabled"];
+  const _hoisted_1$f = ["disabled"];
   const _hoisted_2$5 = { key: 0 };
   const _hoisted_3$5 = {
     key: 0,
@@ -9732,7 +9190,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 0,
     class: "mda-model-divider"
   };
-  const _sfc_main$6 = {
+  const _sfc_main$8 = {
     __name: "ModelMenu",
     setup(__props) {
       const commands = useMagnusCommands();
@@ -9855,7 +9313,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               ))
-            ], 10, _hoisted_1$5),
+            ], 10, _hoisted_1$f),
             open.value ? (openBlock(), createElementBlock("div", _hoisted_3$5, [
               createBaseVNode(
                 "button",
@@ -9974,7 +9432,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _hoisted_1$4 = {
+  const _hoisted_1$e = {
     key: 0,
     class: "mda-model-editor"
   };
@@ -10002,7 +9460,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_14$4 = { class: "mda-model-hint" };
   const _hoisted_15$4 = { class: "mda-model-actions" };
   const _hoisted_16$4 = ["disabled"];
-  const _sfc_main$5 = {
+  const _sfc_main$7 = {
     __name: "ModelEditorPanel",
     setup(__props) {
       const commands = useMagnusCommands();
@@ -10054,7 +9512,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         return type === "api" ? "API" : "Cli";
       }
       return (_ctx, _cache) => {
-        return modelEditorOpen.value ? (openBlock(), createElementBlock("div", _hoisted_1$4, [
+        return modelEditorOpen.value ? (openBlock(), createElementBlock("div", _hoisted_1$e, [
           createBaseVNode("div", _hoisted_2$4, [
             _cache[12] || (_cache[12] = createBaseVNode(
               "strong",
@@ -10392,7 +9850,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _hoisted_1$3 = { class: "mda-composer-wrap" };
+  const _hoisted_1$d = { class: "mda-composer-wrap" };
   const _hoisted_2$3 = { class: "mda-result-module" };
   const _hoisted_3$3 = {
     key: 0,
@@ -10402,51 +9860,37 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_5$3 = { class: "mda-composer" };
   const _hoisted_6$3 = { class: "mda-composer-toolbar" };
   const _hoisted_7$3 = { class: "mda-toolbar-left" };
-  const _hoisted_8$3 = { class: "mda-menu-wrap" };
-  const _hoisted_9$3 = ["disabled"];
-  const _hoisted_10$3 = {
-    class: "mda-menu",
-    role: "menu"
-  };
-  const _hoisted_11$3 = ["title"];
-  const _hoisted_12$3 = { class: "mda-toolbar-right" };
-  const _hoisted_13$3 = ["title", "disabled"];
-  const _hoisted_14$3 = {
+  const _hoisted_8$3 = ["title"];
+  const _hoisted_9$3 = { class: "mda-toolbar-right" };
+  const _hoisted_10$3 = ["title", "disabled"];
+  const _hoisted_11$3 = {
     key: 0,
     class: "mda-stop-icon"
   };
-  const _hoisted_15$3 = { key: 1 };
-  const _hoisted_16$3 = {
+  const _hoisted_12$3 = { key: 1 };
+  const _hoisted_13$3 = {
     key: 2,
     class: "mda-send-arrow"
   };
-  const _hoisted_17$3 = {
-    key: 0,
-    class: "mda-route-inline"
-  };
-  const _hoisted_18$3 = {
+  const _hoisted_14$3 = { class: "mda-route-inline" };
+  const _hoisted_15$3 = {
     key: 1,
     class: "mda-route-empty"
   };
-  const _hoisted_19$3 = { class: "mda-toast" };
-  const _sfc_main$4 = {
+  const _hoisted_16$3 = {
+    key: 1,
+    class: "mda-toast"
+  };
+  const _sfc_main$6 = {
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260713.233036.725";
+      const buildVersion = "20260714.175034.130";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
       const modelStore = useModelStore();
-      const memoryStore = useMemoryStore();
       const projectStore = useProjectStore();
-      const menuOpen = /* @__PURE__ */ ref(false);
-      function onMenu(action) {
-        menuOpen.value = false;
-        if (action === "bind") commands.selectProject();
-        else if (action === "mcp") appUiStore.setMcpPanelOpen(true);
-        else if (action === "settings") memoryStore.openPanel();
-      }
       const routeStore = useRouteStore();
       const searchStore = useSearchStore();
       const selectionStore = useSelectionStore();
@@ -10460,7 +9904,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const project = computed(() => projectStore.current);
       const modelAssistLoading = computed(() => modelStore.status === "running");
       const routeResolverTrace = computed(() => routeStore.resolverTrace);
-      const sourceServiceStatus = computed(() => projectStore.serviceStatus);
       const toastText = computed(() => appUiStore.toastText);
       const composerCanSend = computed(() => {
         if (modelAssistLoading.value) return true;
@@ -10494,10 +9937,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         commands.copyText(routeFilePath.value);
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$3, [
+        return openBlock(), createElementBlock("section", _hoisted_1$d, [
           createBaseVNode("div", _hoisted_2$3, [
             hasResultModule.value ? (openBlock(), createElementBlock("div", _hoisted_3$3, [
-              _cache[9] || (_cache[9] = createBaseVNode(
+              _cache[4] || (_cache[4] = createBaseVNode(
                 "span",
                 { class: "mda-result-module-title" },
                 "定位与修改计划",
@@ -10520,9 +9963,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               "div",
               _hoisted_4$3,
               [
-                createVNode(_sfc_main$a),
-                createVNode(_sfc_main$5),
-                createVNode(_sfc_main$7, { onInsertAsset: handleAssetInsert })
+                createVNode(_sfc_main$b),
+                createVNode(_sfc_main$7),
+                createVNode(_sfc_main$9, { onInsertAsset: handleAssetInsert })
               ],
               512
               /* NEED_PATCH */
@@ -10532,7 +9975,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           ]),
           createBaseVNode("div", _hoisted_5$3, [
             createVNode(
-              _sfc_main$9,
+              _sfc_main$a,
               {
                 ref_key: "composerInputRef",
                 ref: composerInputRef
@@ -10543,1180 +9986,1138 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             ),
             createBaseVNode("div", _hoisted_6$3, [
               createBaseVNode("div", _hoisted_7$3, [
-                createBaseVNode("div", _hoisted_8$3, [
-                  createBaseVNode("button", {
-                    class: "mda-tool-icon-btn",
-                    type: "button",
-                    title: "菜单",
-                    disabled: sourceServiceStatus.value === "loading",
-                    onClick: _cache[1] || (_cache[1] = ($event) => menuOpen.value = !menuOpen.value)
-                  }, null, 8, _hoisted_9$3),
-                  menuOpen.value ? (openBlock(), createElementBlock(
-                    Fragment,
-                    { key: 0 },
-                    [
-                      createBaseVNode("div", {
-                        class: "mda-menu-backdrop",
-                        onClick: _cache[2] || (_cache[2] = ($event) => menuOpen.value = false)
-                      }),
-                      createBaseVNode("div", _hoisted_10$3, [
-                        createBaseVNode("button", {
-                          class: "mda-menu-item",
-                          type: "button",
-                          onClick: _cache[3] || (_cache[3] = ($event) => onMenu("bind"))
-                        }, "绑定项目"),
-                        createBaseVNode("button", {
-                          class: "mda-menu-item",
-                          type: "button",
-                          onClick: _cache[4] || (_cache[4] = ($event) => onMenu("mcp"))
-                        }, "MCP 设置"),
-                        createBaseVNode("button", {
-                          class: "mda-menu-item",
-                          type: "button",
-                          onClick: _cache[5] || (_cache[5] = ($event) => onMenu("settings"))
-                        }, "设置")
-                      ])
-                    ],
-                    64
-                    /* STABLE_FRAGMENT */
-                  )) : createCommentVNode("v-if", true)
-                ]),
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-inline-text-btn",
                   type: "button",
-                  onClick: _cache[6] || (_cache[6] = (...args) => unref(commands).clearSelections && unref(commands).clearSelections(...args))
+                  onClick: _cache[1] || (_cache[1] = (...args) => unref(commands).clearSelections && unref(commands).clearSelections(...args))
                 }, "清空选区")) : createCommentVNode("v-if", true),
                 createBaseVNode("span", {
                   class: "mda-build-version",
                   title: `构建版本 ${unref(buildVersion)}`
-                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_11$3)
+                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_8$3)
               ]),
-              createBaseVNode("div", _hoisted_12$3, [
-                createVNode(_sfc_main$6),
+              createBaseVNode("div", _hoisted_9$3, [
+                createVNode(_sfc_main$8),
                 createBaseVNode("button", {
                   class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value }]),
                   type: "button",
                   title: modelAssistLoading.value ? "停止模型定位" : "提交",
                   disabled: !composerCanSend.value,
-                  onClick: _cache[7] || (_cache[7] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
+                  onClick: _cache[2] || (_cache[2] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
                 }, [
-                  modelAssistLoading.value ? (openBlock(), createElementBlock("span", _hoisted_14$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_15$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_16$3))
-                ], 10, _hoisted_13$3)
+                  modelAssistLoading.value ? (openBlock(), createElementBlock("span", _hoisted_11$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_12$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_13$3))
+                ], 10, _hoisted_10$3)
               ])
             ])
           ]),
-          routeResolverTrace.value ? (openBlock(), createElementBlock("div", _hoisted_17$3, [
-            _cache[10] || (_cache[10] = createBaseVNode(
+          createBaseVNode("div", _hoisted_14$3, [
+            routeResolverTrace.value ? (openBlock(), createElementBlock(
+              Fragment,
+              { key: 0 },
+              [
+                _cache[5] || (_cache[5] = createBaseVNode(
+                  "span",
+                  { class: "mda-route-label" },
+                  "页面源码地址",
+                  -1
+                  /* CACHED */
+                )),
+                routeFilePath.value ? (openBlock(), createElementBlock(
+                  "button",
+                  {
+                    key: 0,
+                    class: "mda-route-file",
+                    type: "button",
+                    onClick: _cache[3] || (_cache[3] = ($event) => unref(commands).openSourceFile(routeFilePath.value))
+                  },
+                  toDisplayString(routeFilePath.value),
+                  1
+                  /* TEXT */
+                )) : (openBlock(), createElementBlock("span", _hoisted_15$3, "暂无命中")),
+                routeFilePath.value ? (openBlock(), createElementBlock("button", {
+                  key: 2,
+                  class: "mda-copy-icon",
+                  type: "button",
+                  title: "复制页面源码地址",
+                  "aria-label": "复制页面源码地址",
+                  onClick: copyRouteFilePath
+                })) : createCommentVNode("v-if", true)
+              ],
+              64
+              /* STABLE_FRAGMENT */
+            )) : createCommentVNode("v-if", true),
+            toastText.value ? (openBlock(), createElementBlock(
               "span",
-              { class: "mda-route-label" },
-              "页面源码地址",
-              -1
-              /* CACHED */
-            )),
-            routeFilePath.value ? (openBlock(), createElementBlock(
-              "button",
-              {
-                key: 0,
-                class: "mda-route-file",
-                type: "button",
-                onClick: _cache[8] || (_cache[8] = ($event) => unref(commands).openSourceFile(routeFilePath.value))
-              },
-              toDisplayString(routeFilePath.value),
+              _hoisted_16$3,
+              toDisplayString(toastText.value),
               1
               /* TEXT */
-            )) : (openBlock(), createElementBlock("span", _hoisted_18$3, "暂无命中")),
-            routeFilePath.value ? (openBlock(), createElementBlock("button", {
-              key: 2,
-              class: "mda-copy-icon",
-              type: "button",
-              title: "复制页面源码地址",
-              "aria-label": "复制页面源码地址",
-              onClick: copyRouteFilePath
-            })) : createCommentVNode("v-if", true)
-          ])) : createCommentVNode("v-if", true),
-          createBaseVNode(
-            "div",
-            _hoisted_19$3,
-            toDisplayString(toastText.value),
-            1
-            /* TEXT */
-          )
+            )) : createCommentVNode("v-if", true)
+          ])
         ]);
       };
     }
   };
-  const _hoisted_1$2 = {
-    key: 0,
-    class: "mda-memory-shell",
-    role: "dialog",
-    "aria-modal": "true",
-    "aria-label": "Magnus 记忆设置"
-  };
-  const _hoisted_2$2 = { class: "mda-memory-head" };
-  const _hoisted_3$2 = {
-    class: "mda-memory-tabs",
-    "aria-label": "记忆类型"
-  };
-  const _hoisted_4$2 = {
-    key: 0,
-    class: "mda-memory-state"
-  };
-  const _hoisted_5$2 = {
-    key: 1,
-    class: "mda-memory-state is-error"
-  };
-  const _hoisted_6$2 = {
-    key: 2,
-    class: "mda-memory-body"
-  };
-  const _hoisted_7$2 = {
-    key: 0,
-    class: "mda-memory-empty"
-  };
-  const _hoisted_8$2 = { class: "mda-memory-field" };
-  const _hoisted_9$2 = ["value"];
-  const _hoisted_10$2 = {
-    key: 0,
-    class: "mda-memory-form"
-  };
-  const _hoisted_11$2 = { class: "mda-memory-field" };
-  const _hoisted_12$2 = { class: "mda-memory-field" };
-  const _hoisted_13$2 = { class: "mda-memory-field" };
-  const _hoisted_14$2 = { class: "mda-memory-field" };
-  const _hoisted_15$2 = { class: "mda-memory-field" };
-  const _hoisted_16$2 = { class: "mda-memory-field" };
-  const _hoisted_17$2 = { class: "mda-memory-actions" };
-  const _hoisted_18$2 = ["disabled"];
-  const _hoisted_19$2 = ["disabled"];
-  const _hoisted_20$2 = {
-    key: 0,
-    class: "mda-memory-empty"
-  };
-  const _hoisted_21$1 = { class: "mda-memory-field" };
-  const _hoisted_22 = ["value"];
-  const _hoisted_23 = {
-    key: 0,
-    class: "mda-memory-form"
-  };
-  const _hoisted_24 = { class: "mda-memory-field" };
-  const _hoisted_25 = { class: "mda-memory-row" };
-  const _hoisted_26 = { class: "mda-memory-field" };
-  const _hoisted_27 = { class: "mda-memory-field" };
-  const _hoisted_28 = { class: "mda-memory-field" };
-  const _hoisted_29 = { class: "mda-memory-field" };
-  const _hoisted_30 = { class: "mda-memory-field" };
-  const _hoisted_31 = { class: "mda-memory-field" };
-  const _hoisted_32 = { class: "mda-memory-advanced" };
-  const _hoisted_33 = { class: "mda-memory-field" };
-  const _hoisted_34 = { class: "mda-memory-field" };
-  const _hoisted_35 = { class: "mda-memory-field" };
-  const _hoisted_36 = { class: "mda-memory-actions" };
-  const _hoisted_37 = ["disabled"];
-  const _hoisted_38 = {
-    key: 0,
-    class: "mda-memory-empty"
-  };
-  const _hoisted_39 = {
-    key: 1,
-    class: "mda-memory-form"
-  };
-  const _hoisted_40 = { class: "mda-memory-project-doc" };
-  const _sfc_main$3 = /* @__PURE__ */ defineComponent({
-    __name: "MemorySettingsPanel",
-    setup(__props) {
-      const memory = useMemoryStore();
-      const appUi = useAppUiStore();
-      const tab = /* @__PURE__ */ ref("sessions");
-      const sessionId = /* @__PURE__ */ ref("");
-      const experienceId = /* @__PURE__ */ ref("");
-      const sessionDraft = /* @__PURE__ */ reactive({
-        requirements: "",
-        targetFiles: "",
-        confirmedExperienceIds: "",
-        confirmedFacts: "",
-        assumptions: "",
-        lastEnhancedPrompt: ""
-      });
-      const experienceDraft = /* @__PURE__ */ reactive({
-        name: "",
-        status: "needs-verification",
-        confidence: "medium",
-        triggerTags: "",
-        applicableWhen: "",
-        notApplicableWhen: "",
-        context: "",
-        recipes: "[]",
-        sourceContracts: "[]",
-        verificationChecklist: "[]"
-      });
-      const sessions = computed(() => {
-        var _a2;
-        return ((_a2 = memory.snapshot) == null ? void 0 : _a2.taskSessions) || [];
-      });
-      const experiences = computed(() => {
-        var _a2;
-        return ((_a2 = memory.snapshot) == null ? void 0 : _a2.experiences) || [];
-      });
-      const toolProviders = computed(() => memory.toolProviders || []);
-      const tools = computed(() => memory.tools || []);
-      const resourceProviders = computed(() => memory.resourceProviders || []);
-      const resources = computed(() => memory.resources || []);
-      const activeSession = computed(() => sessions.value.find((item) => item.id === sessionId.value) || null);
-      const activeExperience = computed(() => experiences.value.find((item) => {
-        var _a2;
-        return ((_a2 = item.meta) == null ? void 0 : _a2.id) === experienceId.value;
-      }) || null);
-      const projectLabel = computed(() => {
-        var _a2, _b;
-        return ((_b = (_a2 = memory.snapshot) == null ? void 0 : _a2.project) == null ? void 0 : _b.name) || "当前源码项目";
-      });
-      watch(sessions, (value) => {
-        var _a2;
-        if (!value.some((item) => item.id === sessionId.value)) sessionId.value = ((_a2 = value[0]) == null ? void 0 : _a2.id) || "";
-      }, { immediate: true });
-      watch(experiences, (value) => {
-        var _a2, _b;
-        if (!value.some((item) => {
-          var _a3;
-          return ((_a3 = item.meta) == null ? void 0 : _a3.id) === experienceId.value;
-        })) experienceId.value = ((_b = (_a2 = value[0]) == null ? void 0 : _a2.meta) == null ? void 0 : _b.id) || "";
-      }, { immediate: true });
-      watch(activeSession, (session) => {
-        if (!session) return;
-        sessionDraft.requirements = toLines(session.requirements);
-        sessionDraft.targetFiles = toLines(session.targetFiles);
-        sessionDraft.confirmedExperienceIds = toLines(session.confirmedExperienceIds);
-        sessionDraft.confirmedFacts = toLines(session.confirmedFacts);
-        sessionDraft.assumptions = toLines(session.assumptions);
-        sessionDraft.lastEnhancedPrompt = session.lastEnhancedPrompt || "";
-      }, { immediate: true });
-      watch(activeExperience, (experience) => {
-        var _a2, _b, _c, _d, _e, _f;
-        if (!experience) return;
-        experienceDraft.name = ((_a2 = experience.meta) == null ? void 0 : _a2.name) || "";
-        experienceDraft.status = ((_b = experience.meta) == null ? void 0 : _b.status) || "needs-verification";
-        experienceDraft.confidence = ((_c = experience.meta) == null ? void 0 : _c.confidence) || "medium";
-        experienceDraft.triggerTags = toLines((_d = experience.meta) == null ? void 0 : _d.triggerTags);
-        experienceDraft.applicableWhen = toLines((_e = experience.meta) == null ? void 0 : _e.applicableWhen);
-        experienceDraft.notApplicableWhen = toLines((_f = experience.meta) == null ? void 0 : _f.notApplicableWhen);
-        experienceDraft.context = experience.context || "";
-        experienceDraft.recipes = formatJson(experience.recipes);
-        experienceDraft.sourceContracts = formatJson(experience.sourceContracts);
-        experienceDraft.verificationChecklist = formatJson(experience.verificationChecklist);
-      }, { immediate: true });
-      function toLines(value) {
-        return Array.isArray(value) ? value.join("\n") : "";
+  function ampCount(selector) {
+    let cnt = 0;
+    for (let i = 0; i < selector.length; ++i) {
+      if (selector[i] === "&")
+        ++cnt;
+    }
+    return cnt;
+  }
+  const seperatorRegex = /\s*,(?![^(]*\))\s*/g;
+  const extraSpaceRegex = /\s+/g;
+  function resolveSelectorWithAmp(amp, selector) {
+    const nextAmp = [];
+    selector.split(seperatorRegex).forEach((partialSelector) => {
+      let round = ampCount(partialSelector);
+      if (!round) {
+        amp.forEach((partialAmp) => {
+          nextAmp.push(
+            // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+            (partialAmp && partialAmp + " ") + partialSelector
+          );
+        });
+        return;
+      } else if (round === 1) {
+        amp.forEach((partialAmp) => {
+          nextAmp.push(partialSelector.replace("&", partialAmp));
+        });
+        return;
       }
-      function fromLines(value) {
-        return value.split("\n").map((item) => item.trim()).filter(Boolean);
-      }
-      function formatJson(value) {
-        return JSON.stringify(Array.isArray(value) ? value : [], null, 2);
-      }
-      function parseJsonArray(value, label) {
-        const parsed = JSON.parse(value || "[]");
-        if (!Array.isArray(parsed)) throw new Error(`${label} 必须是 JSON 数组`);
-        return parsed;
-      }
-      function saveSession() {
-        return __async(this, null, function* () {
-          if (!activeSession.value) return;
-          const ok = yield memory.saveSession({
-            id: activeSession.value.id,
-            requirements: fromLines(sessionDraft.requirements),
-            targetFiles: fromLines(sessionDraft.targetFiles),
-            confirmedExperienceIds: fromLines(sessionDraft.confirmedExperienceIds),
-            confirmedFacts: fromLines(sessionDraft.confirmedFacts),
-            assumptions: fromLines(sessionDraft.assumptions),
-            lastEnhancedPrompt: sessionDraft.lastEnhancedPrompt
+      let partialNextAmp = [
+        partialSelector
+      ];
+      while (round--) {
+        const nextPartialNextAmp = [];
+        partialNextAmp.forEach((selectorItr) => {
+          amp.forEach((partialAmp) => {
+            nextPartialNextAmp.push(selectorItr.replace("&", partialAmp));
           });
-          if (ok) appUi.setToast("任务会话已保存");
         });
+        partialNextAmp = nextPartialNextAmp;
       }
-      function removeSession() {
-        return __async(this, null, function* () {
-          if (!activeSession.value) return;
-          const ok = yield memory.removeSession(activeSession.value.id);
-          if (ok) appUi.setToast("任务会话已清除");
-        });
+      partialNextAmp.forEach((part) => nextAmp.push(part));
+    });
+    return nextAmp;
+  }
+  function resolveSelector(amp, selector) {
+    const nextAmp = [];
+    selector.split(seperatorRegex).forEach((partialSelector) => {
+      amp.forEach((partialAmp) => {
+        nextAmp.push((partialAmp && partialAmp + " ") + partialSelector);
+      });
+    });
+    return nextAmp;
+  }
+  function parseSelectorPath(selectorPaths) {
+    let amp = [""];
+    selectorPaths.forEach((selector) => {
+      selector = selector && selector.trim();
+      if (
+        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+        !selector
+      ) {
+        return;
       }
-      function saveExperience() {
-        return __async(this, null, function* () {
-          if (!activeExperience.value) return;
-          try {
-            const ok = yield memory.saveExperience({
-              id: activeExperience.value.meta.id,
-              name: experienceDraft.name,
-              status: experienceDraft.status,
-              confidence: experienceDraft.confidence,
-              triggerTags: fromLines(experienceDraft.triggerTags),
-              applicableWhen: fromLines(experienceDraft.applicableWhen),
-              notApplicableWhen: fromLines(experienceDraft.notApplicableWhen),
-              context: experienceDraft.context,
-              recipes: parseJsonArray(experienceDraft.recipes, "Recipes"),
-              sourceContracts: parseJsonArray(experienceDraft.sourceContracts, "Source contracts"),
-              verificationChecklist: parseJsonArray(experienceDraft.verificationChecklist, "Checklist")
-            });
-            if (ok) appUi.setToast("Experience 已保存");
-          } catch (cause) {
-            memory.error = (cause == null ? void 0 : cause.message) || "结构化约束格式错误";
+      if (selector.includes("&")) {
+        amp = resolveSelectorWithAmp(amp, selector);
+      } else {
+        amp = resolveSelector(amp, selector);
+      }
+    });
+    return amp.join(", ").replace(extraSpaceRegex, " ");
+  }
+  const kebabRegex = /[A-Z]/g;
+  function kebabCase(pattern) {
+    return pattern.replace(kebabRegex, (match) => "-" + match.toLowerCase());
+  }
+  function upwrapProperty(prop, indent = "  ") {
+    if (typeof prop === "object" && prop !== null) {
+      return " {\n" + Object.entries(prop).map((v) => {
+        return indent + `  ${kebabCase(v[0])}: ${v[1]};`;
+      }).join("\n") + "\n" + indent + "}";
+    }
+    return `: ${prop};`;
+  }
+  function upwrapProperties(props, instance, params) {
+    if (typeof props === "function") {
+      return props({
+        context: instance.context,
+        props: params
+      });
+    }
+    return props;
+  }
+  function createStyle(selector, props, instance, params) {
+    if (!props)
+      return "";
+    const unwrappedProps = upwrapProperties(props, instance, params);
+    if (!unwrappedProps)
+      return "";
+    if (typeof unwrappedProps === "string") {
+      return `${selector} {
+${unwrappedProps}
+}`;
+    }
+    const propertyNames = Object.keys(unwrappedProps);
+    if (propertyNames.length === 0) {
+      if (instance.config.keepEmptyBlock)
+        return selector + " {\n}";
+      return "";
+    }
+    const statements = selector ? [
+      selector + " {"
+    ] : [];
+    propertyNames.forEach((propertyName) => {
+      const property = unwrappedProps[propertyName];
+      if (propertyName === "raw") {
+        statements.push("\n" + property + "\n");
+        return;
+      }
+      propertyName = kebabCase(propertyName);
+      if (property !== null && property !== void 0) {
+        statements.push(`  ${propertyName}${upwrapProperty(property)}`);
+      }
+    });
+    if (selector) {
+      statements.push("}");
+    }
+    return statements.join("\n");
+  }
+  function loopCNodeListWithCallback(children, options, callback) {
+    if (!children)
+      return;
+    children.forEach((child) => {
+      if (Array.isArray(child)) {
+        loopCNodeListWithCallback(child, options, callback);
+      } else if (typeof child === "function") {
+        const grandChildren = child(options);
+        if (Array.isArray(grandChildren)) {
+          loopCNodeListWithCallback(grandChildren, options, callback);
+        } else if (grandChildren) {
+          callback(grandChildren);
+        }
+      } else if (child) {
+        callback(child);
+      }
+    });
+  }
+  function traverseCNode(node, selectorPaths, styles2, instance, params, styleSheet) {
+    const $ = node.$;
+    if (!$ || typeof $ === "string") {
+      selectorPaths.push($);
+    } else if (typeof $ === "function") {
+      selectorPaths.push($({
+        context: instance.context,
+        props: params
+      }));
+    } else {
+      if ($.before)
+        $.before(instance.context);
+      if (!$.$ || typeof $.$ === "string") {
+        selectorPaths.push($.$);
+      } else if ($.$) {
+        selectorPaths.push($.$({
+          context: instance.context,
+          props: params
+        }));
+      }
+    }
+    const selector = parseSelectorPath(selectorPaths);
+    const style2 = createStyle(selector, node.props, instance, params);
+    if (styleSheet && style2) {
+      styleSheet.insertRule(style2);
+    }
+    if (!styleSheet && style2.length)
+      styles2.push(style2);
+    if (node.children) {
+      loopCNodeListWithCallback(node.children, {
+        context: instance.context,
+        props: params
+      }, (childNode) => {
+        if (typeof childNode === "string") {
+          const style3 = createStyle(selector, { raw: childNode }, instance, params);
+          if (styleSheet) {
+            styleSheet.insertRule(style3);
+          } else {
+            styles2.push(style3);
           }
-        });
+        } else {
+          traverseCNode(childNode, selectorPaths, styles2, instance, params, styleSheet);
+        }
+      });
+    }
+    selectorPaths.pop();
+    if ($ && $.after)
+      $.after(instance.context);
+  }
+  function render(node, instance, props, insertRule = false) {
+    const styles2 = [];
+    traverseCNode(node, [], styles2, instance, props, insertRule ? node.instance.__styleSheet : void 0);
+    if (insertRule)
+      return "";
+    return styles2.join("\n\n");
+  }
+  function murmur2(str) {
+    var h2 = 0;
+    var k, i = 0, len = str.length;
+    for (; len >= 4; ++i, len -= 4) {
+      k = str.charCodeAt(i) & 255 | (str.charCodeAt(++i) & 255) << 8 | (str.charCodeAt(++i) & 255) << 16 | (str.charCodeAt(++i) & 255) << 24;
+      k = /* Math.imul(k, m): */
+      (k & 65535) * 1540483477 + ((k >>> 16) * 59797 << 16);
+      k ^= /* k >>> r: */
+      k >>> 24;
+      h2 = /* Math.imul(k, m): */
+      (k & 65535) * 1540483477 + ((k >>> 16) * 59797 << 16) ^ /* Math.imul(h, m): */
+      (h2 & 65535) * 1540483477 + ((h2 >>> 16) * 59797 << 16);
+    }
+    switch (len) {
+      case 3:
+        h2 ^= (str.charCodeAt(i + 2) & 255) << 16;
+      case 2:
+        h2 ^= (str.charCodeAt(i + 1) & 255) << 8;
+      case 1:
+        h2 ^= str.charCodeAt(i) & 255;
+        h2 = /* Math.imul(h, m): */
+        (h2 & 65535) * 1540483477 + ((h2 >>> 16) * 59797 << 16);
+    }
+    h2 ^= h2 >>> 13;
+    h2 = /* Math.imul(h, m): */
+    (h2 & 65535) * 1540483477 + ((h2 >>> 16) * 59797 << 16);
+    return ((h2 ^ h2 >>> 15) >>> 0).toString(36);
+  }
+  function removeElement(el) {
+    if (!el)
+      return;
+    const parentElement = el.parentElement;
+    if (parentElement)
+      parentElement.removeChild(el);
+  }
+  function queryElement(id) {
+    return document.querySelector(`style[cssr-id="${id}"]`);
+  }
+  function createElement(id) {
+    const el = document.createElement("style");
+    el.setAttribute("cssr-id", id);
+    return el;
+  }
+  if (window) {
+    window.__cssrContext = {};
+  }
+  function getCount(el) {
+    const count = el.getAttribute("mount-count");
+    if (count === null)
+      return null;
+    return Number(count);
+  }
+  function setCount(el, count) {
+    el.setAttribute("mount-count", String(count));
+  }
+  function unmount(intance, node, id, count) {
+    const { els } = node;
+    if (id === void 0) {
+      els.forEach(removeElement);
+      node.els = [];
+    } else {
+      const target = queryElement(id);
+      if (target && els.includes(target)) {
+        const mountCount = getCount(target);
+        if (!count) {
+          if (mountCount !== null) {
+            console.error(`[css-render/unmount]: The style with target='${id}' is mounted in no-count mode.`);
+          } else {
+            removeElement(target);
+            node.els = els.filter((el) => el !== target);
+          }
+        } else {
+          if (mountCount === null) {
+            console.error(`[css-render/unmount]: The style with target='${id}' is mounted in count mode.`);
+          } else {
+            if (mountCount <= 1) {
+              removeElement(target);
+              node.els = els.filter((el) => el !== target);
+            } else
+              setCount(target, mountCount - 1);
+          }
+        }
       }
-      function formatTime(value) {
-        return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    }
+  }
+  function addElementToList(els, target) {
+    els.push(target);
+  }
+  function mount(instance, node, id, props, head, count, boost, force, ssrAdapter) {
+    if (boost && !ssrAdapter) {
+      if (id === void 0) {
+        console.error("[css-render/mount]: `id` is required in `boost` mode.");
+        return;
       }
-      return (_ctx, _cache) => {
+      const cssrContext = window.__cssrContext;
+      if (!cssrContext[id]) {
+        cssrContext[id] = true;
+        render(node, instance, props, boost);
+      }
+      return;
+    }
+    let target;
+    const { els } = node;
+    let style2;
+    if (id === void 0) {
+      style2 = node.render(props);
+      id = murmur2(style2);
+    }
+    if (ssrAdapter) {
+      ssrAdapter(id, style2 !== null && style2 !== void 0 ? style2 : node.render(props));
+      return;
+    }
+    const queriedTarget = queryElement(id);
+    if (force || queriedTarget === null) {
+      target = queriedTarget === null ? createElement(id) : queriedTarget;
+      if (style2 === void 0)
+        style2 = node.render(props);
+      target.textContent = style2;
+      if (queriedTarget !== null)
+        return;
+      if (head) {
+        const firstStyleEl = document.head.getElementsByTagName("style")[0] || null;
+        document.head.insertBefore(target, firstStyleEl);
+      } else {
+        document.head.appendChild(target);
+      }
+      if (count) {
+        setCount(target, 1);
+      }
+      addElementToList(els, target);
+    } else {
+      const mountCount = getCount(queriedTarget);
+      if (count) {
+        if (mountCount === null) {
+          console.error(`[css-render/mount]: The style with id='${id}' has been mounted in no-count mode.`);
+        } else {
+          setCount(queriedTarget, mountCount + 1);
+        }
+      } else {
+        if (mountCount !== null) {
+          console.error(`[css-render/mount]: The style with id='${id}' has been mounted in count mode.`);
+        }
+      }
+    }
+    return queriedTarget !== null && queriedTarget !== void 0 ? queriedTarget : target;
+  }
+  function wrappedRender(props) {
+    return render(this, this.instance, props);
+  }
+  function wrappedMount(options = {}) {
+    const { target, id, ssr, props, count = false, head = false, boost = false, force = false } = options;
+    const targetElement = mount(this.instance, this, id !== null && id !== void 0 ? id : target, props, head, count, boost, force, ssr);
+    return targetElement;
+  }
+  function wrappedUnmount(options = {}) {
+    const { id, target, delay = 0, count = false } = options;
+    if (delay === 0)
+      unmount(this.instance, this, id !== null && id !== void 0 ? id : target, count);
+    else {
+      setTimeout(() => unmount(this.instance, this, id !== null && id !== void 0 ? id : target, count), delay);
+    }
+  }
+  const createCNode = function(instance, $, props, children) {
+    return {
+      instance,
+      $,
+      props,
+      children,
+      els: [],
+      render: wrappedRender,
+      mount: wrappedMount,
+      unmount: wrappedUnmount
+    };
+  };
+  const c$1 = function(instance, $, props, children) {
+    if (Array.isArray($)) {
+      return createCNode(instance, { $: null }, null, $);
+    }
+    if (Array.isArray(props)) {
+      return createCNode(instance, $, null, props);
+    } else if (Array.isArray(children)) {
+      return createCNode(instance, $, props, children);
+    } else {
+      return createCNode(instance, $, props, null);
+    }
+  };
+  function CssRender(config = {}) {
+    let styleSheet = null;
+    const cssr = {
+      c: (...args) => c$1(cssr, ...args),
+      use: (plugin, ...args) => plugin.install(cssr, ...args),
+      find: queryElement,
+      context: {},
+      config,
+      get __styleSheet() {
+        if (!styleSheet) {
+          const style2 = document.createElement("style");
+          document.head.appendChild(style2);
+          styleSheet = document.styleSheets[document.styleSheets.length - 1];
+          return styleSheet;
+        }
+        return styleSheet;
+      }
+    };
+    return cssr;
+  }
+  const { c } = CssRender();
+  const style = c(".xicon", {
+    width: "1em",
+    height: "1em",
+    display: "inline-flex"
+  }, [
+    c("svg", {
+      width: "1em",
+      height: "1em"
+    }),
+    c("svg:not([fill])", {
+      fill: "currentColor"
+    })
+  ]);
+  const mountStyle = () => {
+    style.mount({ id: "xicons-icon" });
+  };
+  const iconConfigProviderProps = {
+    size: [String, Number],
+    color: String,
+    tag: String
+  };
+  const iconConfigInjectionKey = Symbol("IconConfigInjection");
+  const defaultTag = "span";
+  const Icon = /* @__PURE__ */ defineComponent({
+    name: "Icon",
+    props: iconConfigProviderProps,
+    setup(props, { slots }) {
+      const IconConfigProvider = inject(iconConfigInjectionKey, null);
+      const mergedSizeRef = computed(() => {
         var _a2;
-        return unref(memory).open ? (openBlock(), createElementBlock("div", _hoisted_1$2, [
-          createBaseVNode("header", _hoisted_2$2, [
-            createBaseVNode("div", null, [
-              _cache[24] || (_cache[24] = createBaseVNode(
-                "strong",
-                null,
-                "记忆设置",
-                -1
-                /* CACHED */
-              )),
-              createBaseVNode(
-                "span",
-                null,
-                toDisplayString(projectLabel.value),
-                1
-                /* TEXT */
-              )
-            ]),
-            createBaseVNode("button", {
-              class: "mda-icon mda-memory-close",
-              type: "button",
-              title: "关闭",
-              "aria-label": "关闭",
-              onClick: _cache[0] || (_cache[0] = //@ts-ignore
-              (...args) => unref(memory).closePanel && unref(memory).closePanel(...args))
-            }, "×")
+        const _size = (_a2 = props.size) !== null && _a2 !== void 0 ? _a2 : IconConfigProvider === null || IconConfigProvider === void 0 ? void 0 : IconConfigProvider.size;
+        if (_size === void 0) {
+          return void 0;
+        }
+        if (typeof _size === "number" || /^\d+$/.test(_size))
+          return `${_size}px`;
+        return _size;
+      });
+      const mergedColorRef = computed(() => {
+        const { color } = props;
+        if (color === void 0) {
+          if (IconConfigProvider) {
+            return IconConfigProvider.color;
+          }
+          return void 0;
+        }
+        return color;
+      });
+      const mergedTagRef = computed(() => {
+        var _a2;
+        const { tag } = props;
+        if (tag === void 0) {
+          return (_a2 = IconConfigProvider === null || IconConfigProvider === void 0 ? void 0 : IconConfigProvider.tag) !== null && _a2 !== void 0 ? _a2 : defaultTag;
+        }
+        return tag;
+      });
+      onBeforeMount(() => {
+        mountStyle();
+      });
+      return () => h(mergedTagRef.value, {
+        class: "xicon",
+        style: {
+          color: mergedColorRef.value,
+          fontSize: mergedSizeRef.value
+        }
+      }, [
+        renderSlot(slots, "default")
+      ]);
+    }
+  });
+  const _hoisted_1$c = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const AlbumsOutline = /* @__PURE__ */ defineComponent({
+    name: "AlbumsOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$c,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "rect",
+            {
+              x: "64",
+              y: "176",
+              width: "384",
+              height: "256",
+              rx: "28.87",
+              ry: "28.87",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-miterlimit": "10",
+              "stroke-width": "32",
+              d: "M144 80h224",
+              fill: "currentColor"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-miterlimit": "10",
+              "stroke-width": "32",
+              d: "M112 128h288",
+              fill: "currentColor"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$b = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const ArrowBackOutline = /* @__PURE__ */ defineComponent({
+    name: "ArrowBackOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$b,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "48",
+              d: "M244 400L100 256l144-144"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "48",
+              d: "M120 256h292"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$a = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const BookOutline = /* @__PURE__ */ defineComponent({
+    name: "BookOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$a,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              d: "M256 160c16-63.16 76.43-95.41 208-96a15.94 15.94 0 0 1 16 16v288a16 16 0 0 1-16 16c-128 0-177.45 25.81-208 64c-30.37-38-80-64-208-64c-9.88 0-16-8.05-16-17.93V80a15.94 15.94 0 0 1 16-16c131.57.59 192 32.84 208 96z",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32",
+              d: "M256 160v288"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$9 = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const CogOutline = /* @__PURE__ */ defineComponent({
+    name: "CogOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$9,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              d: "M456.7 242.27l-26.08-4.2a8 8 0 0 1-6.6-6.82c-.5-3.2-1-6.41-1.7-9.51a8.08 8.08 0 0 1 3.9-8.62l23.09-12.82a8.05 8.05 0 0 0 3.9-9.92l-4-11a7.94 7.94 0 0 0-9.4-5l-25.89 5a8 8 0 0 1-8.59-4.11q-2.25-4.2-4.8-8.41a8.16 8.16 0 0 1 .7-9.52l17.29-19.94a8 8 0 0 0 .3-10.62l-7.49-9a7.88 7.88 0 0 0-10.5-1.51l-22.69 13.63a8 8 0 0 1-9.39-.9c-2.4-2.11-4.9-4.21-7.4-6.22a8 8 0 0 1-2.5-9.11l9.4-24.75A8 8 0 0 0 365 78.77l-10.2-5.91a8 8 0 0 0-10.39 2.21l-16.64 20.84a7.15 7.15 0 0 1-8.5 2.5s-5.6-2.3-9.8-3.71A8 8 0 0 1 304 87l.4-26.45a8.07 8.07 0 0 0-6.6-8.42l-11.59-2a8.07 8.07 0 0 0-9.1 5.61l-8.6 25.05a8 8 0 0 1-7.79 5.41h-9.8a8.07 8.07 0 0 1-7.79-5.41l-8.6-25.05a8.07 8.07 0 0 0-9.1-5.61l-11.59 2a8.07 8.07 0 0 0-6.6 8.42l.4 26.45a8 8 0 0 1-5.49 7.71c-2.3.9-7.3 2.81-9.7 3.71c-2.8 1-6.1.2-8.8-2.91l-16.51-20.34A8 8 0 0 0 156.75 73l-10.2 5.91a7.94 7.94 0 0 0-3.3 10.09l9.4 24.75a8.06 8.06 0 0 1-2.5 9.11c-2.5 2-5 4.11-7.4 6.22a8 8 0 0 1-9.39.9L111 116.14a8 8 0 0 0-10.5 1.51l-7.49 9a8 8 0 0 0 .3 10.62l17.29 19.94a8 8 0 0 1 .7 9.52q-2.55 4-4.8 8.41a8.11 8.11 0 0 1-8.59 4.11l-25.89-5a8 8 0 0 0-9.4 5l-4 11a8.05 8.05 0 0 0 3.9 9.92L85.58 213a7.94 7.94 0 0 1 3.9 8.62c-.6 3.2-1.2 6.31-1.7 9.51a8.08 8.08 0 0 1-6.6 6.82l-26.08 4.2a8.09 8.09 0 0 0-7.1 7.92v11.72a7.86 7.86 0 0 0 7.1 7.92l26.08 4.2a8 8 0 0 1 6.6 6.82c.5 3.2 1 6.41 1.7 9.51a8.08 8.08 0 0 1-3.9 8.62L62.49 311.7a8.05 8.05 0 0 0-3.9 9.92l4 11a7.94 7.94 0 0 0 9.4 5l25.89-5a8 8 0 0 1 8.59 4.11q2.25 4.2 4.8 8.41a8.16 8.16 0 0 1-.7 9.52l-17.29 19.96a8 8 0 0 0-.3 10.62l7.49 9a7.88 7.88 0 0 0 10.5 1.51l22.69-13.63a8 8 0 0 1 9.39.9c2.4 2.11 4.9 4.21 7.4 6.22a8 8 0 0 1 2.5 9.11l-9.4 24.75a8 8 0 0 0 3.3 10.12l10.2 5.91a8 8 0 0 0 10.39-2.21l16.79-20.64c2.1-2.6 5.5-3.7 8.2-2.6c3.4 1.4 5.7 2.2 9.9 3.61a8 8 0 0 1 5.49 7.71l-.4 26.45a8.07 8.07 0 0 0 6.6 8.42l11.59 2a8.07 8.07 0 0 0 9.1-5.61l8.6-25a8 8 0 0 1 7.79-5.41h9.8a8.07 8.07 0 0 1 7.79 5.41l8.6 25a8.07 8.07 0 0 0 9.1 5.61l11.59-2a8.07 8.07 0 0 0 6.6-8.42l-.4-26.45a8 8 0 0 1 5.49-7.71c4.2-1.41 7-2.51 9.6-3.51s5.8-1 8.3 2.1l17 20.94A8 8 0 0 0 355 439l10.2-5.91a7.93 7.93 0 0 0 3.3-10.12l-9.4-24.75a8.08 8.08 0 0 1 2.5-9.12c2.5-2 5-4.1 7.4-6.21a8 8 0 0 1 9.39-.9L401 395.66a8 8 0 0 0 10.5-1.51l7.49-9a8 8 0 0 0-.3-10.62l-17.29-19.94a8 8 0 0 1-.7-9.52q2.55-4.05 4.8-8.41a8.11 8.11 0 0 1 8.59-4.11l25.89 5a8 8 0 0 0 9.4-5l4-11a8.05 8.05 0 0 0-3.9-9.92l-23.09-12.82a7.94 7.94 0 0 1-3.9-8.62c.6-3.2 1.2-6.31 1.7-9.51a8.08 8.08 0 0 1 6.6-6.82l26.08-4.2a8.09 8.09 0 0 0 7.1-7.92V250a8.25 8.25 0 0 0-7.27-7.73zM256 112a143.82 143.82 0 0 1 139.38 108.12A16 16 0 0 1 379.85 240H274.61a16 16 0 0 1-13.91-8.09l-52.1-91.71a16 16 0 0 1 9.85-23.39A146.94 146.94 0 0 1 256 112zM112 256a144 144 0 0 1 43.65-103.41a16 16 0 0 1 25.17 3.47L233.06 248a16 16 0 0 1 0 15.87l-52.67 91.7a16 16 0 0 1-25.18 3.36A143.94 143.94 0 0 1 112 256zm144 144a146.9 146.9 0 0 1-38.19-4.95a16 16 0 0 1-9.76-23.44l52.58-91.55a16 16 0 0 1 13.88-8H379.9a16 16 0 0 1 15.52 19.88A143.84 143.84 0 0 1 256 400z",
+              fill: "currentColor"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$8 = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const ConstructOutline = /* @__PURE__ */ defineComponent({
+    name: "ConstructOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$8,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              d: "M436.67 184.11a27.17 27.17 0 0 1-38.3 0l-22.48-22.49a27.15 27.15 0 0 1 0-38.29l50.89-50.89a.85.85 0 0 0-.26-1.38C393.68 57 351.09 64.15 324.05 91c-25.88 25.69-27.35 64.27-17.87 98a27 27 0 0 1-7.67 27.14l-173 160.76a40.76 40.76 0 1 0 57.57 57.54l162.15-173.3a27 27 0 0 1 26.77-7.7c33.46 8.94 71.49 7.26 97.07-17.94c27.49-27.08 33.42-74.94 20.1-102.33a.85.85 0 0 0-1.36-.22z",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-miterlimit": "10",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              d: "M224 284c-17.48-17-25.49-24.91-31-30.29a18.24 18.24 0 0 1-3.33-21.35a20.76 20.76 0 0 1 3.5-4.62l15.68-15.29a18.66 18.66 0 0 1 5.63-3.87a18.11 18.11 0 0 1 20 3.62c5.45 5.29 15.43 15 33.41 32.52",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              d: "M317.07 291.3c40.95 38.1 90.62 83.27 110 99.41a13.46 13.46 0 0 1 .94 19.92L394.63 444a14 14 0 0 1-20.29-.76c-16.53-19.18-61.09-67.11-99.27-107",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              d: "M17.34 193.5l29.41-28.74a4.71 4.71 0 0 1 3.41-1.35a4.85 4.85 0 0 1 3.41 1.35h0a9.86 9.86 0 0 0 8.19 2.77c3.83-.42 7.92-1.6 10.57-4.12c6-5.8-.94-17.23 4.34-24.54a207 207 0 0 1 19.78-22.6c6-5.88 29.84-28.32 69.9-44.45A107.31 107.31 0 0 1 206.67 64c22.59 0 40 10 46.26 15.67a89.54 89.54 0 0 1 10.28 11.64a78.92 78.92 0 0 0-9.21-2.77a68.82 68.82 0 0 0-20-1.26c-13.33 1.09-29.41 7.26-38 14c-13.9 11-19.87 25.72-20.81 44.71c-.68 14.12 2.72 22.1 36.1 55.49a6.6 6.6 0 0 1-.34 9.16l-18.22 18a6.88 6.88 0 0 1-9.54.09c-21.94-21.94-36.65-33.09-45-38.16s-15.07-6.5-18.3-6.85a30.85 30.85 0 0 0-18.27 3.87a11.39 11.39 0 0 0-2.64 2a14.14 14.14 0 0 0 .42 20.08l1.71 1.6a4.63 4.63 0 0 1 0 6.64L71.73 246.6a4.71 4.71 0 0 1-3.41 1.4a4.86 4.86 0 0 1-3.41-1.35l-47.57-46.43a4.88 4.88 0 0 1 0-6.72z",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$7 = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const FolderOpenOutline = /* @__PURE__ */ defineComponent({
+    name: "FolderOpenOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$7,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              d: "M64 192v-72a40 40 0 0 1 40-40h75.89a40 40 0 0 1 22.19 6.72l27.84 18.56a40 40 0 0 0 22.19 6.72H408a40 40 0 0 1 40 40v40",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              d: "M479.9 226.55L463.68 392a40 40 0 0 1-39.93 40H88.25a40 40 0 0 1-39.93-40L32.1 226.55A32 32 0 0 1 64 192h384.1a32 32 0 0 1 31.8 34.55z",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$6 = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const ImagesOutline = /* @__PURE__ */ defineComponent({
+    name: "ImagesOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock("svg", _hoisted_1$6, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
+    }
+  });
+  const _hoisted_1$5 = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const RefreshOutline = /* @__PURE__ */ defineComponent({
+    name: "RefreshOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$5,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              d: "M320 146s24.36-12-64-12a160 160 0 1 0 160 160",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-miterlimit": "10",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32",
+              d: "M256 58l80 80l-80 80"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$4 = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const SearchOutline = /* @__PURE__ */ defineComponent({
+    name: "SearchOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$4,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              d: "M221.09 64a157.09 157.09 0 1 0 157.09 157.09A157.1 157.1 0 0 0 221.09 64z",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-miterlimit": "10",
+              "stroke-width": "32"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-miterlimit": "10",
+              "stroke-width": "32",
+              d: "M338.29 338.29L448 448"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _sfc_main$5 = /* @__PURE__ */ defineComponent({
+    __name: "MagnusIcon",
+    props: {
+      name: {},
+      size: { default: 18 },
+      depth: { default: 1 }
+    },
+    setup(__props) {
+      const props = __props;
+      const icons = {
+        albums: AlbumsOutline,
+        back: ArrowBackOutline,
+        book: BookOutline,
+        cog: CogOutline,
+        construct: ConstructOutline,
+        folder: FolderOpenOutline,
+        images: ImagesOutline,
+        refresh: RefreshOutline,
+        search: SearchOutline
+      };
+      const component = computed(() => icons[props.name] || CogOutline);
+      return (_ctx, _cache) => {
+        return openBlock(), createBlock(unref(Icon), {
+          size: __props.size,
+          depth: __props.depth
+        }, {
+          default: withCtx(() => [
+            (openBlock(), createBlock(resolveDynamicComponent(component.value)))
           ]),
-          createBaseVNode("nav", _hoisted_3$2, [
-            createBaseVNode(
-              "button",
-              {
-                type: "button",
-                class: normalizeClass({ "is-active": tab.value === "sessions" }),
-                onClick: _cache[1] || (_cache[1] = ($event) => tab.value = "sessions")
-              },
-              "任务会话",
-              2
-              /* CLASS */
-            ),
-            createBaseVNode(
-              "button",
-              {
-                type: "button",
-                class: normalizeClass({ "is-active": tab.value === "experiences" }),
-                onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "experiences")
-              },
-              "Experience",
-              2
-              /* CLASS */
-            ),
-            createBaseVNode(
-              "button",
-              {
-                type: "button",
-                class: normalizeClass({ "is-active": tab.value === "tools" }),
-                onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "tools")
-              },
-              "Tools",
-              2
-              /* CLASS */
-            ),
-            createBaseVNode(
-              "button",
-              {
-                type: "button",
-                class: normalizeClass({ "is-active": tab.value === "project" }),
-                onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "project")
-              },
-              "项目摘要",
-              2
-              /* CLASS */
-            )
-          ]),
-          unref(memory).loading ? (openBlock(), createElementBlock("div", _hoisted_4$2, "正在读取记忆...")) : unref(memory).error && !unref(memory).snapshot ? (openBlock(), createElementBlock("div", _hoisted_5$2, [
-            createBaseVNode(
-              "span",
-              null,
-              toDisplayString(unref(memory).error),
-              1
-              /* TEXT */
-            ),
-            createBaseVNode("button", {
-              type: "button",
-              onClick: _cache[5] || (_cache[5] = //@ts-ignore
-              (...args) => unref(memory).load && unref(memory).load(...args))
-            }, "重试")
-          ])) : (openBlock(), createElementBlock("section", _hoisted_6$2, [
-            unref(memory).message || unref(memory).error ? (openBlock(), createElementBlock(
-              "div",
-              {
-                key: 0,
-                class: normalizeClass(["mda-memory-feedback", { "is-error": !!unref(memory).error }])
-              },
-              toDisplayString(unref(memory).error || unref(memory).message),
-              3
-              /* TEXT, CLASS */
-            )) : createCommentVNode("v-if", true),
-            tab.value === "sessions" ? (openBlock(), createElementBlock(
-              Fragment,
-              { key: 1 },
-              [
-                !sessions.value.length ? (openBlock(), createElementBlock("div", _hoisted_7$2, "当前项目暂无活跃任务会话。")) : (openBlock(), createElementBlock(
-                  Fragment,
-                  { key: 1 },
-                  [
-                    createBaseVNode("label", _hoisted_8$2, [
-                      _cache[25] || (_cache[25] = createBaseVNode(
-                        "span",
-                        null,
-                        "页面会话",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "select",
-                        {
-                          "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => sessionId.value = $event)
-                        },
-                        [
-                          (openBlock(true), createElementBlock(
-                            Fragment,
-                            null,
-                            renderList(sessions.value, (session) => {
-                              return openBlock(), createElementBlock("option", {
-                                key: session.id,
-                                value: session.id
-                              }, toDisplayString(session.pageKey) + " · " + toDisplayString(formatTime(session.updatedAt)), 9, _hoisted_9$2);
-                            }),
-                            128
-                            /* KEYED_FRAGMENT */
-                          ))
-                        ],
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelSelect, sessionId.value]
-                      ])
-                    ]),
-                    activeSession.value ? (openBlock(), createElementBlock("div", _hoisted_10$2, [
-                      createBaseVNode("label", _hoisted_11$2, [
-                        _cache[26] || (_cache[26] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("累计需求 "),
-                            createBaseVNode("small", null, "每行一条")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => sessionDraft.requirements = $event),
-                            rows: "5"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, sessionDraft.requirements]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_12$2, [
-                        _cache[27] || (_cache[27] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("目标文件 "),
-                            createBaseVNode("small", null, "每行一个")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => sessionDraft.targetFiles = $event),
-                            rows: "3"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, sessionDraft.targetFiles]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_13$2, [
-                        _cache[28] || (_cache[28] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("已确认 Experience "),
-                            createBaseVNode("small", null, "每行一个 Experience ID")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => sessionDraft.confirmedExperienceIds = $event),
-                            rows: "3"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, sessionDraft.confirmedExperienceIds]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_14$2, [
-                        _cache[29] || (_cache[29] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("已确认事实 "),
-                            createBaseVNode("small", null, "每行一条")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => sessionDraft.confirmedFacts = $event),
-                            rows: "4"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, sessionDraft.confirmedFacts]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_15$2, [
-                        _cache[30] || (_cache[30] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("待确认假设 "),
-                            createBaseVNode("small", null, "每行一条")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => sessionDraft.assumptions = $event),
-                            rows: "4"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, sessionDraft.assumptions]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_16$2, [
-                        _cache[31] || (_cache[31] = createBaseVNode(
-                          "span",
-                          null,
-                          "上一版增强提示词",
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => sessionDraft.lastEnhancedPrompt = $event),
-                            rows: "10",
-                            class: "is-code"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, sessionDraft.lastEnhancedPrompt]
-                        ])
-                      ]),
-                      createBaseVNode("div", _hoisted_17$2, [
-                        createBaseVNode("button", {
-                          class: "is-danger",
-                          type: "button",
-                          disabled: unref(memory).saving,
-                          onClick: removeSession
-                        }, "清除此会话", 8, _hoisted_18$2),
-                        createBaseVNode("button", {
-                          class: "is-primary",
-                          type: "button",
-                          disabled: unref(memory).saving,
-                          onClick: saveSession
-                        }, toDisplayString(unref(memory).saving ? "保存中..." : "保存会话"), 9, _hoisted_19$2)
-                      ])
-                    ])) : createCommentVNode("v-if", true)
-                  ],
-                  64
-                  /* STABLE_FRAGMENT */
-                ))
-              ],
-              64
-              /* STABLE_FRAGMENT */
-            )) : tab.value === "experiences" ? (openBlock(), createElementBlock(
-              Fragment,
-              { key: 2 },
-              [
-                !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_20$2, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
-                  Fragment,
-                  { key: 1 },
-                  [
-                    createBaseVNode("label", _hoisted_21$1, [
-                      _cache[32] || (_cache[32] = createBaseVNode(
-                        "span",
-                        null,
-                        "Experience",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "select",
-                        {
-                          "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => experienceId.value = $event)
-                        },
-                        [
-                          (openBlock(true), createElementBlock(
-                            Fragment,
-                            null,
-                            renderList(experiences.value, (experience) => {
-                              return openBlock(), createElementBlock("option", {
-                                key: experience.meta.id,
-                                value: experience.meta.id
-                              }, toDisplayString(experience.meta.name) + " · " + toDisplayString(experience.meta.status), 9, _hoisted_22);
-                            }),
-                            128
-                            /* KEYED_FRAGMENT */
-                          ))
-                        ],
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelSelect, experienceId.value]
-                      ])
-                    ]),
-                    activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_23, [
-                      createBaseVNode("label", _hoisted_24, [
-                        _cache[33] || (_cache[33] = createBaseVNode(
-                          "span",
-                          null,
-                          "名称",
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "input",
-                          {
-                            "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => experienceDraft.name = $event),
-                            type: "text"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, experienceDraft.name]
-                        ])
-                      ]),
-                      createBaseVNode("div", _hoisted_25, [
-                        createBaseVNode("label", _hoisted_26, [
-                          _cache[35] || (_cache[35] = createBaseVNode(
-                            "span",
-                            null,
-                            "状态",
-                            -1
-                            /* CACHED */
-                          )),
-                          withDirectives(createBaseVNode(
-                            "select",
-                            {
-                              "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => experienceDraft.status = $event)
-                            },
-                            [..._cache[34] || (_cache[34] = [
-                              createBaseVNode(
-                                "option",
-                                { value: "active" },
-                                "active",
-                                -1
-                                /* CACHED */
-                              ),
-                              createBaseVNode(
-                                "option",
-                                { value: "needs-verification" },
-                                "needs-verification",
-                                -1
-                                /* CACHED */
-                              ),
-                              createBaseVNode(
-                                "option",
-                                { value: "stale" },
-                                "stale",
-                                -1
-                                /* CACHED */
-                              )
-                            ])],
-                            512
-                            /* NEED_PATCH */
-                          ), [
-                            [vModelSelect, experienceDraft.status]
-                          ])
-                        ]),
-                        createBaseVNode("label", _hoisted_27, [
-                          _cache[37] || (_cache[37] = createBaseVNode(
-                            "span",
-                            null,
-                            "置信度",
-                            -1
-                            /* CACHED */
-                          )),
-                          withDirectives(createBaseVNode(
-                            "select",
-                            {
-                              "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => experienceDraft.confidence = $event)
-                            },
-                            [..._cache[36] || (_cache[36] = [
-                              createBaseVNode(
-                                "option",
-                                { value: "high" },
-                                "high",
-                                -1
-                                /* CACHED */
-                              ),
-                              createBaseVNode(
-                                "option",
-                                { value: "medium" },
-                                "medium",
-                                -1
-                                /* CACHED */
-                              ),
-                              createBaseVNode(
-                                "option",
-                                { value: "low" },
-                                "low",
-                                -1
-                                /* CACHED */
-                              )
-                            ])],
-                            512
-                            /* NEED_PATCH */
-                          ), [
-                            [vModelSelect, experienceDraft.confidence]
-                          ])
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_28, [
-                        _cache[38] || (_cache[38] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("触发标签 "),
-                            createBaseVNode("small", null, "每行一个")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => experienceDraft.triggerTags = $event),
-                            rows: "3"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, experienceDraft.triggerTags]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_29, [
-                        _cache[39] || (_cache[39] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("适用条件 "),
-                            createBaseVNode("small", null, "每行一条")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => experienceDraft.applicableWhen = $event),
-                            rows: "4"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, experienceDraft.applicableWhen]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_30, [
-                        _cache[40] || (_cache[40] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("不适用条件 "),
-                            createBaseVNode("small", null, "每行一条")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => experienceDraft.notApplicableWhen = $event),
-                            rows: "4"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, experienceDraft.notApplicableWhen]
-                        ])
-                      ]),
-                      createBaseVNode("label", _hoisted_31, [
-                        _cache[41] || (_cache[41] = createBaseVNode(
-                          "span",
-                          null,
-                          [
-                            createTextVNode("Experience 正文 "),
-                            createBaseVNode("small", null, "Markdown")
-                          ],
-                          -1
-                          /* CACHED */
-                        )),
-                        withDirectives(createBaseVNode(
-                          "textarea",
-                          {
-                            "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => experienceDraft.context = $event),
-                            rows: "14",
-                            class: "is-code"
-                          },
-                          null,
-                          512
-                          /* NEED_PATCH */
-                        ), [
-                          [vModelText, experienceDraft.context]
-                        ])
-                      ]),
-                      createBaseVNode("details", _hoisted_32, [
-                        _cache[45] || (_cache[45] = createBaseVNode(
-                          "summary",
-                          null,
-                          "结构化约束",
-                          -1
-                          /* CACHED */
-                        )),
-                        createBaseVNode("label", _hoisted_33, [
-                          _cache[42] || (_cache[42] = createBaseVNode(
-                            "span",
-                            null,
-                            "Recipes JSON",
-                            -1
-                            /* CACHED */
-                          )),
-                          withDirectives(createBaseVNode(
-                            "textarea",
-                            {
-                              "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => experienceDraft.recipes = $event),
-                              rows: "8",
-                              class: "is-code"
-                            },
-                            null,
-                            512
-                            /* NEED_PATCH */
-                          ), [
-                            [vModelText, experienceDraft.recipes]
-                          ])
-                        ]),
-                        createBaseVNode("label", _hoisted_34, [
-                          _cache[43] || (_cache[43] = createBaseVNode(
-                            "span",
-                            null,
-                            "Source contracts JSON",
-                            -1
-                            /* CACHED */
-                          )),
-                          withDirectives(createBaseVNode(
-                            "textarea",
-                            {
-                              "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => experienceDraft.sourceContracts = $event),
-                              rows: "8",
-                              class: "is-code"
-                            },
-                            null,
-                            512
-                            /* NEED_PATCH */
-                          ), [
-                            [vModelText, experienceDraft.sourceContracts]
-                          ])
-                        ]),
-                        createBaseVNode("label", _hoisted_35, [
-                          _cache[44] || (_cache[44] = createBaseVNode(
-                            "span",
-                            null,
-                            "Checklist JSON",
-                            -1
-                            /* CACHED */
-                          )),
-                          withDirectives(createBaseVNode(
-                            "textarea",
-                            {
-                              "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => experienceDraft.verificationChecklist = $event),
-                              rows: "8",
-                              class: "is-code"
-                            },
-                            null,
-                            512
-                            /* NEED_PATCH */
-                          ), [
-                            [vModelText, experienceDraft.verificationChecklist]
-                          ])
-                        ])
-                      ]),
-                      createBaseVNode("div", _hoisted_36, [
-                        createBaseVNode("button", {
-                          class: "is-primary",
-                          type: "button",
-                          disabled: unref(memory).saving,
-                          onClick: saveExperience
-                        }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_37)
-                      ])
-                    ])) : createCommentVNode("v-if", true)
-                  ],
-                  64
-                  /* STABLE_FRAGMENT */
-                ))
-              ],
-              64
-              /* STABLE_FRAGMENT */
-            )) : tab.value === "tools" ? (openBlock(), createElementBlock(
-              Fragment,
-              { key: 3 },
-              [
-                !toolProviders.value.length && !resourceProviders.value.length && !tools.value.length && !resources.value.length ? (openBlock(), createElementBlock("div", _hoisted_38, "当前没有可用 Tool 或 Resource。")) : (openBlock(), createElementBlock("div", _hoisted_39, [
-                  _cache[46] || (_cache[46] = createBaseVNode(
-                    "div",
-                    { class: "mda-memory-section-title" },
-                    "Tool Providers",
-                    -1
-                    /* CACHED */
-                  )),
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(toolProviders.value, (provider) => {
-                      return openBlock(), createElementBlock("div", {
-                        key: provider.id,
-                        class: "mda-memory-provider"
-                      }, [
-                        createBaseVNode("div", null, [
-                          createBaseVNode(
-                            "strong",
-                            null,
-                            toDisplayString(provider.title || provider.id),
-                            1
-                            /* TEXT */
-                          ),
-                          createBaseVNode(
-                            "small",
-                            null,
-                            toDisplayString(provider.id) + " · " + toDisplayString(provider.source || "builtin") + " · " + toDisplayString(provider.toolCount || 0) + " tools",
-                            1
-                            /* TEXT */
-                          )
-                        ]),
-                        createBaseVNode(
-                          "p",
-                          null,
-                          toDisplayString(provider.description),
-                          1
-                          /* TEXT */
-                        )
-                      ]);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  )),
-                  _cache[47] || (_cache[47] = createBaseVNode(
-                    "div",
-                    { class: "mda-memory-section-title" },
-                    "Tools",
-                    -1
-                    /* CACHED */
-                  )),
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(tools.value, (tool) => {
-                      return openBlock(), createElementBlock("div", {
-                        key: tool.name,
-                        class: "mda-memory-tool"
-                      }, [
-                        createBaseVNode("div", null, [
-                          createBaseVNode(
-                            "strong",
-                            null,
-                            toDisplayString(tool.name),
-                            1
-                            /* TEXT */
-                          ),
-                          createBaseVNode(
-                            "small",
-                            null,
-                            toDisplayString(tool.providerId || tool.source || "builtin") + " · " + toDisplayString(tool.category) + " · " + toDisplayString(tool.access),
-                            1
-                            /* TEXT */
-                          )
-                        ]),
-                        createBaseVNode(
-                          "p",
-                          null,
-                          toDisplayString(tool.description),
-                          1
-                          /* TEXT */
-                        )
-                      ]);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  )),
-                  _cache[48] || (_cache[48] = createBaseVNode(
-                    "div",
-                    { class: "mda-memory-section-title" },
-                    "Resource Providers",
-                    -1
-                    /* CACHED */
-                  )),
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(resourceProviders.value, (provider) => {
-                      return openBlock(), createElementBlock("div", {
-                        key: provider.id,
-                        class: "mda-memory-provider"
-                      }, [
-                        createBaseVNode("div", null, [
-                          createBaseVNode(
-                            "strong",
-                            null,
-                            toDisplayString(provider.title || provider.id),
-                            1
-                            /* TEXT */
-                          ),
-                          createBaseVNode(
-                            "small",
-                            null,
-                            toDisplayString(provider.id) + " · " + toDisplayString(provider.source || "builtin") + " · " + toDisplayString(provider.resourceCount || 0) + " resources",
-                            1
-                            /* TEXT */
-                          )
-                        ]),
-                        createBaseVNode(
-                          "p",
-                          null,
-                          toDisplayString(provider.description),
-                          1
-                          /* TEXT */
-                        )
-                      ]);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  )),
-                  _cache[49] || (_cache[49] = createBaseVNode(
-                    "div",
-                    { class: "mda-memory-section-title" },
-                    "Resources",
-                    -1
-                    /* CACHED */
-                  )),
-                  (openBlock(true), createElementBlock(
-                    Fragment,
-                    null,
-                    renderList(resources.value, (resource) => {
-                      return openBlock(), createElementBlock("div", {
-                        key: resource.uri,
-                        class: "mda-memory-tool"
-                      }, [
-                        createBaseVNode("div", null, [
-                          createBaseVNode(
-                            "strong",
-                            null,
-                            toDisplayString(resource.name),
-                            1
-                            /* TEXT */
-                          ),
-                          createBaseVNode(
-                            "small",
-                            null,
-                            toDisplayString(resource.providerId || "builtin") + " · " + toDisplayString(resource.category) + " · " + toDisplayString(resource.mimeType),
-                            1
-                            /* TEXT */
-                          )
-                        ]),
-                        createBaseVNode(
-                          "p",
-                          null,
-                          toDisplayString(resource.description),
-                          1
-                          /* TEXT */
-                        )
-                      ]);
-                    }),
-                    128
-                    /* KEYED_FRAGMENT */
-                  ))
-                ]))
-              ],
-              64
-              /* STABLE_FRAGMENT */
-            )) : (openBlock(), createElementBlock(
-              Fragment,
-              { key: 4 },
-              [
-                _cache[50] || (_cache[50] = createBaseVNode(
-                  "div",
-                  { class: "mda-memory-project-note" },
-                  "Project.md 由源码扫描和 Experience 索引自动生成，不在这里手工修改。",
-                  -1
-                  /* CACHED */
-                )),
-                createBaseVNode(
-                  "pre",
-                  _hoisted_40,
-                  toDisplayString(((_a2 = unref(memory).snapshot) == null ? void 0 : _a2.projectDocument) || "暂无项目摘要。"),
-                  1
-                  /* TEXT */
-                )
-              ],
-              64
-              /* STABLE_FRAGMENT */
-            ))
-          ]))
-        ])) : createCommentVNode("v-if", true);
+          _: 1
+          /* STABLE */
+        }, 8, ["size", "depth"]);
       };
     }
   });
+  const SOURCE_SERVER_URL = typeof window !== "undefined" && ((_a = window.__MAGNUS_SIDE_PANEL__) == null ? void 0 : _a.sourceServerUrl) || "http://127.0.0.1:17321";
+  const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
+  const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
+  const SOURCE_SERVER_HEALTH_URL = `${SOURCE_SERVER_URL}/health`;
+  function createSourceServerHeaders(extraHeaders) {
+    return __spreadValues({
+      "Content-Type": "application/json",
+      [MAGNUS_INTERNAL_REQUEST_HEADER]: MAGNUS_INTERNAL_REQUEST_VALUE
+    }, extraHeaders || {});
+  }
+  function sourceServerJson(_0) {
+    return __async(this, arguments, function* (pathname, options = {}) {
+      const timeoutMs = Number(options.timeoutMs || 1e4);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
+      try {
+        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
+          method: options.method || "GET",
+          headers: createSourceServerHeaders(options.headers),
+          body: options.body ? JSON.stringify(options.body) : void 0,
+          signal: controller.signal
+        });
+        const data = yield response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+          const error = new Error(data.error || `本地源码服务请求失败：${response.status}`);
+          error.payload = data;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          throw new Error(options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应`);
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+  }
+  function sourceServerNdjson(_0) {
+    return __async(this, arguments, function* (pathname, options = {}) {
+      const timeoutMs = Number(options.timeoutMs || 1e4);
+      const controller = options.controller || new AbortController();
+      let timedOut = false;
+      const timeoutId = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+      try {
+        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
+          method: options.method || "GET",
+          headers: createSourceServerHeaders(options.headers),
+          body: options.body ? JSON.stringify(options.body) : void 0,
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          const text = yield response.text().catch(() => "");
+          throw new Error(text || `本地源码服务请求失败：${response.status}`);
+        }
+        if (!response.body) return null;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result = null;
+        while (true) {
+          const { done, value } = yield reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const event = JSON.parse(trimmed);
+            if (typeof options.onEvent === "function") options.onEvent(event);
+            if (event.type === "result") result = event.result || null;
+            if (event.type === "error") {
+              const error = new Error(event.error || "本地源码服务请求失败");
+              error.payload = event;
+              throw error;
+            }
+          }
+        }
+        const finalLine = buffer.trim();
+        if (finalLine) {
+          const event = JSON.parse(finalLine);
+          if (typeof options.onEvent === "function") options.onEvent(event);
+          if (event.type === "result") result = event.result || null;
+          if (event.type === "error") {
+            const error = new Error(event.error || "本地源码服务请求失败");
+            error.payload = event;
+            throw error;
+          }
+        }
+        return result;
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          const abortError = new Error(timedOut ? options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应` : options.abortMessage || "请求已停止");
+          abortError.name = timedOut ? "TimeoutError" : "AbortError";
+          throw abortError;
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+  }
+  function probeSourceServer(timeoutMs = 2500) {
+    return __async(this, null, function* () {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
+      try {
+        const response = yield fetch(SOURCE_SERVER_HEALTH_URL, {
+          method: "GET",
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `HTTP ${response.status}` };
+        }
+        const data = yield response.json().catch(() => ({}));
+        if ((data == null ? void 0 : data.success) === false) {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: data.error || "health success=false" };
+        }
+        return { online: true, url: SOURCE_SERVER_HEALTH_URL, message: "" };
+      } catch (error) {
+        if ((error == null ? void 0 : error.name) === "AbortError") {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `health timeout (${timeoutMs}ms)` };
+        }
+        const message = error instanceof Error ? error.message : String(error || "unknown error");
+        return { online: false, url: SOURCE_SERVER_HEALTH_URL, message };
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+  }
+  function normalizeSourceServerProject(raw) {
+    const files = Array.isArray(raw.files) ? raw.files : [];
+    return {
+      name: raw.name || "本地项目",
+      path: raw.path || "",
+      kind: raw.kind || "unknown",
+      source: "source-server",
+      fileCount: raw.fileCount || files.length,
+      files,
+      snippets: raw.snippets || {},
+      context: raw.context || null,
+      stack: raw.stack || [],
+      stackText: raw.stackText || "",
+      limited: !!raw.limited
+    };
+  }
   function useMcpStatus() {
     const servers = /* @__PURE__ */ ref([]);
     const logs = /* @__PURE__ */ ref([]);
@@ -11792,50 +11193,50 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     onScopeDispose(stopPolling);
     return { servers, logs, config, loading, error, refresh, reload, stop, startPolling, stopPolling };
   }
-  const _hoisted_1$1 = {
+  const _hoisted_1$3 = {
     class: "mda-mcp-panel",
     role: "dialog",
     "aria-label": "MCP 状态"
   };
-  const _hoisted_2$1 = { class: "mda-mcp-head" };
-  const _hoisted_3$1 = { class: "mda-mcp-head-actions" };
-  const _hoisted_4$1 = ["disabled"];
-  const _hoisted_5$1 = ["disabled"];
-  const _hoisted_6$1 = { class: "mda-mcp-body" };
-  const _hoisted_7$1 = {
+  const _hoisted_2$2 = { class: "mda-mcp-head" };
+  const _hoisted_3$2 = { class: "mda-mcp-head-actions" };
+  const _hoisted_4$2 = ["disabled"];
+  const _hoisted_5$2 = ["disabled"];
+  const _hoisted_6$2 = { class: "mda-mcp-body" };
+  const _hoisted_7$2 = {
     key: 0,
     class: "mda-mcp-error"
   };
-  const _hoisted_8$1 = { class: "mda-mcp-config" };
-  const _hoisted_9$1 = { class: "mda-mcp-section-title" };
-  const _hoisted_10$1 = {
+  const _hoisted_8$2 = { class: "mda-mcp-config" };
+  const _hoisted_9$2 = { class: "mda-mcp-section-title" };
+  const _hoisted_10$2 = {
     key: 1,
     class: "mda-mcp-empty"
   };
-  const _hoisted_11$1 = {
+  const _hoisted_11$2 = {
     key: 2,
     class: "mda-mcp-servers"
   };
-  const _hoisted_12$1 = { class: "mda-mcp-server-head" };
-  const _hoisted_13$1 = { class: "mda-mcp-server-name" };
-  const _hoisted_14$1 = { class: "mda-mcp-server-status" };
-  const _hoisted_15$1 = ["disabled", "onClick"];
-  const _hoisted_16$1 = {
+  const _hoisted_12$2 = { class: "mda-mcp-server-head" };
+  const _hoisted_13$2 = { class: "mda-mcp-server-name" };
+  const _hoisted_14$2 = { class: "mda-mcp-server-status" };
+  const _hoisted_15$2 = ["disabled", "onClick"];
+  const _hoisted_16$2 = {
     key: 0,
     class: "mda-mcp-server-error"
   };
-  const _hoisted_17$1 = {
+  const _hoisted_17$2 = {
     key: 1,
     class: "mda-mcp-tools"
   };
-  const _hoisted_18$1 = { class: "mda-mcp-logs" };
-  const _hoisted_19$1 = {
+  const _hoisted_18$2 = { class: "mda-mcp-logs" };
+  const _hoisted_19$2 = {
     key: 0,
     class: "mda-mcp-empty"
   };
-  const _hoisted_20$1 = { class: "mda-mcp-log-time" };
-  const _hoisted_21 = { class: "mda-mcp-log-line" };
-  const _sfc_main$2 = /* @__PURE__ */ defineComponent({
+  const _hoisted_20$2 = { class: "mda-mcp-log-time" };
+  const _hoisted_21$2 = { class: "mda-mcp-log-line" };
+  const _sfc_main$4 = /* @__PURE__ */ defineComponent({
     __name: "McpStatusPanel",
     props: {
       visible: { type: Boolean }
@@ -11861,8 +11262,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           class: "mda-mcp-overlay",
           onClick: _cache[3] || (_cache[3] = withModifiers(($event) => _ctx.$emit("close"), ["self"]))
         }, [
-          createBaseVNode("section", _hoisted_1$1, [
-            createBaseVNode("header", _hoisted_2$1, [
+          createBaseVNode("section", _hoisted_1$3, [
+            createBaseVNode("header", _hoisted_2$2, [
               _cache[4] || (_cache[4] = createBaseVNode(
                 "span",
                 { class: "mda-mcp-title" },
@@ -11870,21 +11271,21 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_3$1, [
+              createBaseVNode("div", _hoisted_3$2, [
                 createBaseVNode("button", {
                   class: "mda-mcp-btn",
                   type: "button",
                   disabled: unref(loading),
                   onClick: _cache[0] || (_cache[0] = //@ts-ignore
                   (...args) => unref(reload) && unref(reload)(...args))
-                }, toDisplayString(unref(loading) ? "处理中…" : "重新加载"), 9, _hoisted_4$1),
+                }, toDisplayString(unref(loading) ? "处理中…" : "重新加载"), 9, _hoisted_4$2),
                 createBaseVNode("button", {
                   class: "mda-mcp-btn",
                   type: "button",
                   disabled: unref(loading),
                   onClick: _cache[1] || (_cache[1] = //@ts-ignore
                   (...args) => unref(refresh) && unref(refresh)(...args))
-                }, toDisplayString(unref(loading) ? "刷新中…" : "刷新"), 9, _hoisted_5$1),
+                }, toDisplayString(unref(loading) ? "刷新中…" : "刷新"), 9, _hoisted_5$2),
                 createBaseVNode("button", {
                   class: "mda-mcp-btn",
                   type: "button",
@@ -11892,15 +11293,15 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 }, "关闭")
               ])
             ]),
-            createBaseVNode("div", _hoisted_6$1, [
+            createBaseVNode("div", _hoisted_6$2, [
               unref(error) ? (openBlock(), createElementBlock(
                 "div",
-                _hoisted_7$1,
+                _hoisted_7$2,
                 "读取失败：" + toDisplayString(unref(error)),
                 1
                 /* TEXT */
               )) : createCommentVNode("v-if", true),
-              createBaseVNode("div", _hoisted_8$1, [
+              createBaseVNode("div", _hoisted_8$2, [
                 createBaseVNode("div", null, [
                   _cache[5] || (_cache[5] = createBaseVNode(
                     "strong",
@@ -11936,12 +11337,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ]),
               createBaseVNode(
                 "div",
-                _hoisted_9$1,
+                _hoisted_9$2,
                 "已登记的 MCP（" + toDisplayString(unref(servers).length) + "）",
                 1
                 /* TEXT */
               ),
-              !unref(servers).length ? (openBlock(), createElementBlock("div", _hoisted_10$1, [..._cache[7] || (_cache[7] = [
+              !unref(servers).length ? (openBlock(), createElementBlock("div", _hoisted_10$2, [..._cache[7] || (_cache[7] = [
                 createTextVNode(
                   " 暂无。请在项目根放 ",
                   -1
@@ -11971,7 +11372,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   -1
                   /* CACHED */
                 )
-              ])])) : (openBlock(), createElementBlock("ul", _hoisted_11$1, [
+              ])])) : (openBlock(), createElementBlock("ul", _hoisted_11$2, [
                 (openBlock(true), createElementBlock(
                   Fragment,
                   null,
@@ -11980,7 +11381,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       key: server.name,
                       class: "mda-mcp-server"
                     }, [
-                      createBaseVNode("div", _hoisted_12$1, [
+                      createBaseVNode("div", _hoisted_12$2, [
                         createBaseVNode(
                           "span",
                           {
@@ -11992,14 +11393,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         ),
                         createBaseVNode(
                           "span",
-                          _hoisted_13$1,
+                          _hoisted_13$2,
                           toDisplayString(server.name),
                           1
                           /* TEXT */
                         ),
                         createBaseVNode(
                           "span",
-                          _hoisted_14$1,
+                          _hoisted_14$2,
                           toDisplayString(server.status === "ready" ? `就绪 · ${server.toolCount} 个工具` : server.status === "failed" ? "失败" : server.status),
                           1
                           /* TEXT */
@@ -12010,16 +11411,16 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           type: "button",
                           disabled: unref(loading),
                           onClick: ($event) => unref(stop)(server.name)
-                        }, "停止", 8, _hoisted_15$1)) : createCommentVNode("v-if", true)
+                        }, "停止", 8, _hoisted_15$2)) : createCommentVNode("v-if", true)
                       ]),
                       server.error ? (openBlock(), createElementBlock(
                         "div",
-                        _hoisted_16$1,
+                        _hoisted_16$2,
                         toDisplayString(server.error),
                         1
                         /* TEXT */
                       )) : createCommentVNode("v-if", true),
-                      server.tools && server.tools.length ? (openBlock(), createElementBlock("ul", _hoisted_17$1, [
+                      server.tools && server.tools.length ? (openBlock(), createElementBlock("ul", _hoisted_17$2, [
                         (openBlock(true), createElementBlock(
                           Fragment,
                           null,
@@ -12052,8 +11453,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_18$1, [
-                !unref(logs).length ? (openBlock(), createElementBlock("div", _hoisted_19$1, "暂无日志")) : createCommentVNode("v-if", true),
+              createBaseVNode("div", _hoisted_18$2, [
+                !unref(logs).length ? (openBlock(), createElementBlock("div", _hoisted_19$2, "暂无日志")) : createCommentVNode("v-if", true),
                 (openBlock(true), createElementBlock(
                   Fragment,
                   null,
@@ -12064,14 +11465,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     }, [
                       createBaseVNode(
                         "span",
-                        _hoisted_20$1,
+                        _hoisted_20$2,
                         toDisplayString(formatTime(log.at)),
                         1
                         /* TEXT */
                       ),
                       createBaseVNode(
                         "span",
-                        _hoisted_21,
+                        _hoisted_21$2,
                         toDisplayString(log.line),
                         1
                         /* TEXT */
@@ -12417,13 +11818,38 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       cleanupRouteResolver
     };
   }
+  const LATEST_PANEL_BINDING_KEY = "magnus:sidepanel-binding:latest";
+  function readLatestPanelBinding() {
+    try {
+      const raw = window.localStorage.getItem(LATEST_PANEL_BINDING_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      return data && typeof data === "object" ? data : null;
+    } catch (error) {
+      return null;
+    }
+  }
+  function rememberLatestPanelBinding(snapshot) {
+    if (!(snapshot == null ? void 0 : snapshot.workspaceId) && (snapshot == null ? void 0 : snapshot.browserTabId) == null) return;
+    try {
+      window.localStorage.setItem(LATEST_PANEL_BINDING_KEY, JSON.stringify({
+        workspaceId: snapshot.workspaceId || "",
+        browserTabId: snapshot.browserTabId,
+        windowId: snapshot.windowId,
+        page: snapshot.page || null,
+        savedAt: Date.now()
+      }));
+    } catch (error) {
+    }
+  }
   function useSidePanelBridge({
     sidePanelConfig,
     currentPageHref,
     onNetworkRequest,
     onRuntimeEvent,
     onCommandResult,
-    scheduleRouteResolve
+    scheduleRouteResolve,
+    startPickerOnConnect = true
   }) {
     const appUiStore = useAppUiStore();
     let socket = null;
@@ -12496,13 +11922,16 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           }
           if (message.type === "sideiframe.bound_session") {
             pageSessionId = message.pageSessionId || "";
+            rememberLatestPanelBinding(message.snapshot);
             applyRemoteSnapshot(message.snapshot);
             sendSidePanelCommand("context.get");
-            sendSidePanelCommand("picker.start");
+            if (startPickerOnConnect) sendSidePanelCommand("picker.start");
           } else if (message.type === "session.event") {
             applyRemoteSessionEvent(message);
           } else if (message.type === "session.command_result") {
             onCommandResult == null ? void 0 : onCommandResult(message);
+          } else if (message.type === "error") {
+            appUiStore.setToast(message.error || "Side Panel Bridge 连接失败");
           }
         });
         nextSocket.addEventListener("close", () => {
@@ -12735,7 +12164,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     });
   }
-  function useSourceProject({ projectStorageKey }) {
+  function useSourceProject({ currentPageHref }) {
     const projectStore = useProjectStore();
     const appUiStore = useAppUiStore();
     const composerStore = useComposerStore();
@@ -12749,27 +12178,46 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       serviceMessage: sourceServiceMessage
     } = storeToRefs(projectStore);
     const fileInputRef = /* @__PURE__ */ ref(null);
+    function boundPageUrl() {
+      const pageUrl = String((currentPageHref == null ? void 0 : currentPageHref.value) || "").trim();
+      if (!pageUrl || pageUrl.includes("/settings")) return "";
+      return pageUrl;
+    }
     function rememberProjectPath(projectValue) {
-      if (!projectValue || projectValue.source !== "source-server" || !projectValue.path) return;
-      try {
-        const value = JSON.stringify({
-          path: projectValue.path,
-          name: projectValue.name || "",
-          savedAt: Date.now()
-        });
-        window.localStorage.setItem(projectStorageKey.value, value);
-      } catch (error) {
-      }
+      return __async(this, null, function* () {
+        if (!projectValue || projectValue.source !== "source-server" || !projectValue.path) return;
+        const pageUrl = boundPageUrl();
+        if (!pageUrl) return;
+        try {
+          yield sourceServerJson("/api/registry/bind", {
+            method: "POST",
+            body: {
+              url: pageUrl,
+              projectRoot: projectValue.path
+            },
+            timeoutMs: 5e3,
+            timeoutMessage: "保存页面项目绑定超时"
+          });
+        } catch (error) {
+        }
+      });
     }
     function savedProjectPath() {
-      try {
-        const raw = window.localStorage.getItem(projectStorageKey.value);
-        if (!raw) return "";
-        const data = JSON.parse(raw);
-        return data && typeof data.path === "string" ? data.path : "";
-      } catch (error) {
-        return "";
-      }
+      return __async(this, null, function* () {
+        var _a2;
+        const pageUrl = boundPageUrl();
+        if (!pageUrl) return "";
+        try {
+          const data = yield sourceServerJson(`/api/registry/resolve?url=${encodeURIComponent(pageUrl)}`, {
+            timeoutMs: 3e3,
+            timeoutMessage: "读取页面项目绑定超时"
+          });
+          const projectRoot = (_a2 = data == null ? void 0 : data.binding) == null ? void 0 : _a2.projectRoot;
+          return typeof projectRoot === "string" ? projectRoot : "";
+        } catch (error) {
+          return "";
+        }
+      });
     }
     function projectInterpreterAdapter() {
       if (!modelStore.selectedModelId) return null;
@@ -12809,7 +12257,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     }
     function restoreSavedProject() {
       return __async(this, null, function* () {
-        const path = savedProjectPath();
+        const path = yield savedProjectPath();
         if (!path || project.value || sourceServiceStatus.value === "loading") return false;
         sourceServiceStatus.value = "loading";
         sourceServiceError.value = "";
@@ -12857,11 +12305,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         });
         const selectedProject = data.project || {};
         projectStore.setProject(normalizeSourceServerProject(selectedProject));
-        rememberProjectPath(project.value);
+        yield rememberProjectPath(project.value);
         resetAfterProjectChange();
         const interpretedProject = yield runProjectInterpreter(selectedProject.path, selectedProject);
         projectStore.setProject(normalizeSourceServerProject(interpretedProject || {}));
-        rememberProjectPath(project.value);
+        yield rememberProjectPath(project.value);
         projectStore.setServiceStatus("connected");
         appUiStore.setToast(`已关联 ${project.value.name}`);
       });
@@ -13459,10 +12907,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       return Array.from(new Set(terms));
     }
     function contextStyleTerms(info) {
-      const style = (info == null ? void 0 : info.computedStyle) || {};
+      const style2 = (info == null ? void 0 : info.computedStyle) || {};
       const terms = [];
       for (const key of ["width", "height", "objectFit", "fontSize", "fontWeight", "backgroundSize", "backgroundPosition"]) {
-        terms.push(...extractSearchTerms(style[key] || ""));
+        terms.push(...extractSearchTerms(style2[key] || ""));
       }
       return Array.from(new Set(terms));
     }
@@ -13816,8 +13264,8 @@ ${source}` : "",
         terms.push(...extractSearchTerms(attr == null ? void 0 : attr.value));
       }
       for (const item of subtree.styles || []) {
-        const style = (item == null ? void 0 : item.style) || {};
-        for (const value of Object.values(style)) terms.push(...extractSearchTerms(value));
+        const style2 = (item == null ? void 0 : item.style) || {};
+        for (const value of Object.values(style2)) terms.push(...extractSearchTerms(value));
       }
       return terms;
     }
@@ -14713,11 +14161,9 @@ ${result.rawText}` : ""
     }, { immediate: true });
     return message;
   }
-  const LEGACY_PROJECT_STORAGE_PREFIX = "magnus:source-project:";
   function createMagnusRuntimeState(runtime) {
     var _a2;
     const { api, currentPageHref, sidePanelConfig, routePagePath, pageHost } = runtime;
-    const projectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
     const composerStore = useComposerStore();
     const composer = createComposerFacade(composerStore);
     const requests = usePageRequests();
@@ -14728,7 +14174,7 @@ ${result.rawText}` : ""
     const selection = setupSelectionRuntime({
       sendCommand: (type, payload, options) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload, options)
     });
-    const source = useSourceProject({ projectStorageKey });
+    const source = useSourceProject({ currentPageHref });
     const route = useRouteResolver({
       project: source.project,
       currentPageHref,
@@ -14763,12 +14209,15 @@ ${result.rawText}` : ""
       onNetworkRequest: (payload) => {
         requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
       },
-      scheduleRouteResolve: route.scheduleRouteResolve
+      scheduleRouteResolve: route.scheduleRouteResolve,
+      startPickerOnConnect: api.sidePanel !== false
     });
     const prompt = setupPromptRuntime();
     model = setupModelRuntime();
     const message = setupChatRuntime();
     return {
+      api,
+      currentPageHref,
       requests,
       source,
       route,
@@ -15241,7 +14690,7 @@ ${result.rawText}` : ""
     };
   }
   function sleep$1(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve2) => setTimeout(resolve2, ms));
   }
   function hasUsableModelResult(result) {
     return ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).some((item) => {
@@ -15283,7 +14732,7 @@ ${result.rawText}` : ""
     return Number(((_a2 = next[0]) == null ? void 0 : _a2.score) || 0) > Number(((_b = current[0]) == null ? void 0 : _b.score) || 0);
   }
   function createMagnusActions(state) {
-    const { source, search, selection, model } = state;
+    const { api, currentPageHref, source, search, selection, model } = state;
     const workflow = createComposerWorkflow(state);
     return {
       chooseProject: source.chooseProject,
@@ -15295,6 +14744,8 @@ ${result.rawText}` : ""
       clearSelections: selection.clearSelections,
       sendComposer: workflow.sendComposer,
       openSourceFile,
+      openSettings: () => openSettings(api, (currentPageHref == null ? void 0 : currentPageHref.value) || ""),
+      rebindSidePanel,
       copyTextWithToast,
       toggleCandidateFile: (hit) => toggleCandidateFile(hit, search),
       toggleCandidateDetail: (hit) => toggleCandidateDetail(hit, search),
@@ -15314,6 +14765,37 @@ ${result.rawText}` : ""
       resetModelAssist: model.resetModelAssist,
       stopModelAssist: model.stopModelAssist
     };
+  }
+  function rebindSidePanel() {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "magnus.sidepanel.rebind" }, "*");
+      return;
+    }
+    window.location.reload();
+  }
+  function openSettings(api, currentPageHref) {
+    var _a2, _b;
+    const baseUrl = ((_a2 = api == null ? void 0 : api.sidePanelConfig) == null ? void 0 : _a2.sourceServerUrl) || window.location.origin;
+    const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+    const binding = readLatestPanelBinding();
+    if ((binding == null ? void 0 : binding.workspaceId) || (binding == null ? void 0 : binding.browserTabId)) {
+      const params = new URLSearchParams();
+      if (binding.workspaceId) params.set("workspaceId", binding.workspaceId);
+      if (binding.browserTabId != null) params.set("tabId", String(binding.browserTabId));
+      if (binding.windowId != null) params.set("windowId", String(binding.windowId));
+      const pageUrl = ((_b = binding.page) == null ? void 0 : _b.url) || currentPageHref || "";
+      if (pageUrl) params.set("pageUrl", pageUrl);
+      window.open(`${normalizedBaseUrl}/settings?${params.toString()}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: "magnus.settings.open",
+        sourceServerUrl: baseUrl
+      }, "*");
+      return;
+    }
+    window.open(`${normalizedBaseUrl}/settings`, "_blank", "noopener,noreferrer");
   }
   function openSourceFile(file, line, column) {
     return __async(this, null, function* () {
@@ -15356,7 +14838,7 @@ ${result.rawText}` : ""
   }
   function copyTextByHost(text) {
     if (!window.parent || window.parent === window) return Promise.resolve(false);
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       const requestId = `magnus-clipboard-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       let settled = false;
       const cleanup = () => {
@@ -15367,7 +14849,7 @@ ${result.rawText}` : ""
         if (settled) return;
         settled = true;
         cleanup();
-        resolve(ok);
+        resolve2(ok);
       };
       const handleMessage = (event) => {
         const message = event.data || {};
@@ -15387,7 +14869,7 @@ ${result.rawText}` : ""
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
     }
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       var _a2;
       const textarea = document.createElement("textarea");
       textarea.value = text;
@@ -15402,7 +14884,7 @@ ${result.rawText}` : ""
         ok = false;
       }
       (_a2 = textarea.parentNode) == null ? void 0 : _a2.removeChild(textarea);
-      resolve(ok);
+      resolve2(ok);
     });
   }
   function provideMagnusRuntime(api, state, actions) {
@@ -15413,6 +14895,8 @@ ${result.rawText}` : ""
       resolveRoute: route.resolveCurrentPageRoute,
       selectProject: source.chooseProject,
       openSourceFile: actions.openSourceFile,
+      openSettings: actions.openSettings,
+      rebindSidePanel: actions.rebindSidePanel,
       copyPrompt: () => actions.copyTextWithToast(composer.promptText.value),
       copyText: actions.copyTextWithToast,
       previewSelection: actions.previewSelection,
@@ -15492,8 +14976,11 @@ ${result.rawText}` : ""
       appUiStore.cleanupToast();
     });
     return {
+      currentPageHref,
       fileInputRef: source.fileInputRef,
       onFileInputChange: source.onFileInputChange,
+      openSettings: actions.openSettings,
+      rebindSidePanel: actions.rebindSidePanel,
       pageHost
     };
   }
@@ -15532,11 +15019,11 @@ ${result.rawText}` : ""
     onScopeDispose(stop);
     return { probe };
   }
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
   function reloadThroughSidePanelHost(timeoutMs = 4e3) {
     if (typeof window === "undefined" || window.parent === window) return Promise.resolve(false);
     const requestId = `update-reload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       let settled = false;
       const cleanup = () => {
         window.clearTimeout(timer);
@@ -15546,7 +15033,7 @@ ${result.rawText}` : ""
         if (settled) return;
         settled = true;
         cleanup();
-        resolve(ok);
+        resolve2(ok);
       };
       const onMessage = (event) => {
         const message = event.data || {};
@@ -15651,47 +15138,48 @@ ${result.rawText}` : ""
     return { info, applying, applyMessage, check, apply: apply2 };
   }
   const magnusLogo = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBYRXhpZgAATU0AKgAAAAgAAgESAAMAAAABAAEAAIdpAAQAAAABAAAAJgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAACn6ADAAQAAAABAAABXQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgBXQKfAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAKv/aAAwDAQACEQMRAD8A/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAON+IHxB8GfCzwjqHjr4gatDouh6XH5k9zMTgDoFVVBZ3Y8Kigsx4AJr8Kfjn/wWA8barqN3on7Pvh+20TS8PDHqmsxGe/kLgBZobYOsEBUnKiUz7uNyKcpXhH/AAUZ/aS1r41fF/WfBFjqiv4E8D3UlnZwRjbFNdxqI7q5l+bMriUPHG3CrGPkG53Z/wA0d5+0PdyqnmPzg/dIx8pOM556j+8Oe2AD7muv+Cj/AO2zb3skqfEyQ4b7h0vSDHzghP8Ajyz39j/OvtH9n/8A4K6eLbfVrfR/2hNJtNS0WeYQf2vpcTW11boA26a4gLPFP8wGRF5RVQzBWOEr8QIUEsknmsWBOEUnPO7JJ642j+L2xV4rKkUcgUIztynAIZcruKjqSQSTjtjpxQB/b94K8beEviN4X0/xr4G1WDW9D1SPzba7tn3xuucEeqsrAq6sAysCrAMCB1NfzS/8EtP2hb34W/FxPhXrt+7eF/iFMIEjkc+VbawCy28kanhftGPJfHLsYyfuV/S1QAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAH//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuY8b6tPoPgzX9ctt3nadp91cptXe26GJnGFHU5HA7109Z+raZa61pV7o98C1tfwyQSgEglJVKMARyODQB/DYtzd3Omj+0NzuT8zEY2s2MjAAHXp6dO1UIZJGA/d7FY/IoJAwDgkHqcYycdTXf/ED4f6z8K/Fes/DvxRCbfUfDl7cWNwgycvA+0SKxAJWVQro20ZVlbvXDRxR7/IuSVVBlv9rH3Se/HGO39QBsiJHK8bNvi4DSJxkZDDtz24/HBqZImdppZAVj/jI4AweMe5Hr65qurpHJH5QJuAzKgxnYRwzYHPAOR16egq7H5scqJG+HZwEx8vKjg55PA46f1oA0/D3ibWfBPiTSvFmjqyXnh2/g1KNW+49xZSLcI5I/hLIOB7j0x/ccjB1DryGAI/Gv43v2ZfhDc/Gf42+DPASWy3FpqWsRNexvL5bNaQN514RtZXytukmCp7D15/sjoAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD8tv+Cgf7DJ+OdlJ8WfhbYJL48s4447qyGxF1WFdsasWd0RZ4EHysTl0UJyQgr+bzWNB1zR9fm0DxFp82j6jZSeXc2tzE8U0LKcMkiuA6kYOcgYPHQV/cZXkvxN+A3wa+MsAh+KHg7TfETpG8Uc9zApuYVcYPk3C4miPoyOpB5BBoA/i5tIkgjnkbqARuI5JJwcEcjcOpz9etbugeG9Y17W7bSvDWnTarq12witrO0jee5ndzgiOKMM5xk7gBx0PFf1AT/wDBL/8AY0nmaZvCN6oclig1rUtmSc9DccfhX1h8Lvgj8Jfgrpj6T8LPCtj4dhmCiaS3izcT7M7TPcPummIzwZHYjpQB8Zf8E/P2Mrn9nLw1ceOviDFH/wAJ94igWKWFGDrp1pkP9nDgkNI7ANKwO0YVV4BZv0goooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD//1P38ooooAKKKKACiiigAooooAKKKKACiiigAorzTxp8Z/g/8OJhbfEHx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AooooAKKKKAP/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACuE8Y/C74Z/ERI4/iB4R0jxMsOdg1Swt70JuGDt89HxkcHFd3RQB84P+x5+yjIct8HvCY6/d0WzXr9Iq6PQv2av2dfDE8N14d+F/hfTri2cSRSwaNZRyo46MriLcGGOuc17ZRQA1VVFCIAqjgAcAU6iigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9k=";
-  const _hoisted_1 = { class: "mda-root" };
-  const _hoisted_2 = {
+  const _hoisted_1$2 = { class: "mda-root" };
+  const _hoisted_2$1 = {
     class: "mda-panel",
     "aria-label": "Magnus"
   };
-  const _hoisted_3 = { class: "mda-head" };
-  const _hoisted_4 = { class: "mda-head-main" };
-  const _hoisted_5 = { class: "mda-title" };
-  const _hoisted_6 = ["src"];
-  const _hoisted_7 = { class: "mda-subtitle" };
-  const _hoisted_8 = {
+  const _hoisted_3$1 = { class: "mda-head" };
+  const _hoisted_4$1 = { class: "mda-head-main" };
+  const _hoisted_5$1 = { class: "mda-title" };
+  const _hoisted_6$1 = ["src"];
+  const _hoisted_7$1 = { class: "mda-subtitle" };
+  const _hoisted_8$1 = { class: "mda-head-actions" };
+  const _hoisted_9$1 = {
     key: 0,
     class: "mda-service-down",
     role: "alert"
   };
-  const _hoisted_9 = { class: "mda-service-down-main" };
-  const _hoisted_10 = { class: "mda-service-down-hint" };
-  const _hoisted_11 = ["disabled"];
-  const _hoisted_12 = {
+  const _hoisted_10$1 = { class: "mda-service-down-main" };
+  const _hoisted_11$1 = { class: "mda-service-down-hint" };
+  const _hoisted_12$1 = ["disabled"];
+  const _hoisted_13$1 = {
     key: 1,
     class: "mda-update-bar",
     role: "status"
   };
-  const _hoisted_13 = { class: "mda-update-main" };
-  const _hoisted_14 = { class: "mda-update-title" };
-  const _hoisted_15 = { class: "mda-update-hint" };
-  const _hoisted_16 = {
+  const _hoisted_14$1 = { class: "mda-update-main" };
+  const _hoisted_15$1 = { class: "mda-update-title" };
+  const _hoisted_16$1 = { class: "mda-update-hint" };
+  const _hoisted_17$1 = {
     key: 1,
     class: "mda-update-spinner",
     "aria-hidden": "true"
   };
-  const _hoisted_17 = { class: "mda-body mda-chat-body" };
-  const _hoisted_18 = {
+  const _hoisted_18$1 = { class: "mda-body mda-chat-body" };
+  const _hoisted_19$1 = {
     key: 2,
     class: "mda-project-checking",
     role: "status",
     "aria-live": "polite"
   };
-  const _hoisted_19 = { class: "mda-project-checking-box" };
-  const _hoisted_20 = { class: "mda-project-checking-text" };
-  const _sfc_main$1 = /* @__PURE__ */ defineComponent({
+  const _hoisted_20$1 = { class: "mda-project-checking-box" };
+  const _hoisted_21$1 = { class: "mda-project-checking-text" };
+  const _sfc_main$3 = /* @__PURE__ */ defineComponent({
     __name: "MagnusPanel",
     props: {
       api: {}
@@ -15723,48 +15211,116 @@ ${result.rawText}` : ""
       const {
         fileInputRef,
         onFileInputChange,
+        openSettings: openSettings2,
+        rebindSidePanel: rebindSidePanel2,
         pageHost
       } = createMagnusRuntime(props.api);
       return (_ctx, _cache) => {
         var _a2;
-        return openBlock(), createElementBlock("main", _hoisted_1, [
-          createBaseVNode("section", _hoisted_2, [
-            createBaseVNode("header", _hoisted_3, [
-              createBaseVNode("div", _hoisted_4, [
-                createBaseVNode("div", _hoisted_5, [
+        return openBlock(), createElementBlock("main", _hoisted_1$2, [
+          createBaseVNode("section", _hoisted_2$1, [
+            createBaseVNode("header", _hoisted_3$1, [
+              createBaseVNode("div", _hoisted_4$1, [
+                createBaseVNode("div", _hoisted_5$1, [
                   createBaseVNode("img", {
                     class: "mda-title-logo",
                     src: unref(magnusLogo),
                     alt: "Magnus"
-                  }, null, 8, _hoisted_6)
+                  }, null, 8, _hoisted_6$1)
                 ]),
                 createBaseVNode(
                   "div",
-                  _hoisted_7,
+                  _hoisted_7$1,
                   toDisplayString(unref(pageHost)),
                   1
                   /* TEXT */
                 )
+              ]),
+              createBaseVNode("div", _hoisted_8$1, [
+                createBaseVNode(
+                  "span",
+                  {
+                    class: "mda-head-icon",
+                    role: "button",
+                    tabindex: "0",
+                    title: "重新绑定当前页面",
+                    "aria-label": "重新绑定当前页面",
+                    onClick: _cache[0] || (_cache[0] = //@ts-ignore
+                    (...args) => unref(rebindSidePanel2) && unref(rebindSidePanel2)(...args)),
+                    onKeydown: [
+                      _cache[1] || (_cache[1] = withKeys(withModifiers(
+                        //@ts-ignore
+                        (...args) => unref(rebindSidePanel2) && unref(rebindSidePanel2)(...args),
+                        ["prevent"]
+                      ), ["enter"])),
+                      _cache[2] || (_cache[2] = withKeys(withModifiers(
+                        //@ts-ignore
+                        (...args) => unref(rebindSidePanel2) && unref(rebindSidePanel2)(...args),
+                        ["prevent"]
+                      ), ["space"]))
+                    ]
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "refresh",
+                      size: 19
+                    })
+                  ],
+                  32
+                  /* NEED_HYDRATION */
+                ),
+                createBaseVNode(
+                  "span",
+                  {
+                    class: "mda-head-icon",
+                    role: "button",
+                    tabindex: "0",
+                    title: "打开设置",
+                    "aria-label": "打开设置",
+                    onClick: _cache[3] || (_cache[3] = //@ts-ignore
+                    (...args) => unref(openSettings2) && unref(openSettings2)(...args)),
+                    onKeydown: [
+                      _cache[4] || (_cache[4] = withKeys(withModifiers(
+                        //@ts-ignore
+                        (...args) => unref(openSettings2) && unref(openSettings2)(...args),
+                        ["prevent"]
+                      ), ["enter"])),
+                      _cache[5] || (_cache[5] = withKeys(withModifiers(
+                        //@ts-ignore
+                        (...args) => unref(openSettings2) && unref(openSettings2)(...args),
+                        ["prevent"]
+                      ), ["space"]))
+                    ]
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "cog",
+                      size: 20
+                    })
+                  ],
+                  32
+                  /* NEED_HYDRATION */
+                )
               ])
             ]),
-            unref(serviceOnline) === false ? (openBlock(), createElementBlock("div", _hoisted_8, [
-              _cache[6] || (_cache[6] = createBaseVNode(
+            unref(serviceOnline) === false ? (openBlock(), createElementBlock("div", _hoisted_9$1, [
+              _cache[12] || (_cache[12] = createBaseVNode(
                 "span",
                 { class: "mda-service-down-icon" },
                 "⚠",
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_9, [
-                _cache[4] || (_cache[4] = createBaseVNode(
+              createBaseVNode("div", _hoisted_10$1, [
+                _cache[10] || (_cache[10] = createBaseVNode(
                   "div",
                   { class: "mda-service-down-title" },
                   "本地服务不可达",
                   -1
                   /* CACHED */
                 )),
-                createBaseVNode("div", _hoisted_10, [
-                  _cache[3] || (_cache[3] = createTextVNode(
+                createBaseVNode("div", _hoisted_11$1, [
+                  _cache[9] || (_cache[9] = createTextVNode(
                     " 正在探测 ",
                     -1
                     /* CACHED */
@@ -15790,7 +15346,7 @@ ${result.rawText}` : ""
                     /* STABLE_FRAGMENT */
                   )) : createCommentVNode("v-if", true)
                 ]),
-                _cache[5] || (_cache[5] = createBaseVNode(
+                _cache[11] || (_cache[11] = createBaseVNode(
                   "div",
                   { class: "mda-service-down-hint" },
                   [
@@ -15807,26 +15363,26 @@ ${result.rawText}` : ""
                 type: "button",
                 disabled: retryChecking.value,
                 onClick: retryHealth
-              }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_11)
-            ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_12, [
-              _cache[7] || (_cache[7] = createBaseVNode(
+              }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_12$1)
+            ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_13$1, [
+              _cache[13] || (_cache[13] = createBaseVNode(
                 "span",
                 { class: "mda-update-icon" },
                 "⬆",
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_13, [
+              createBaseVNode("div", _hoisted_14$1, [
                 createBaseVNode(
                   "div",
-                  _hoisted_14,
+                  _hoisted_15$1,
                   toDisplayString(unref(updateApplying) ? "更新中…" : `发现新版本 v${unref(updateInfo).latest}`),
                   1
                   /* TEXT */
                 ),
                 createBaseVNode(
                   "div",
-                  _hoisted_15,
+                  _hoisted_16$1,
                   toDisplayString(unref(updateMessage) || `当前 v${unref(updateInfo).current}，可一键更新（服务会自动重启）`),
                   1
                   /* TEXT */
@@ -15836,11 +15392,11 @@ ${result.rawText}` : ""
                 key: 0,
                 class: "mda-update-btn",
                 type: "button",
-                onClick: _cache[0] || (_cache[0] = //@ts-ignore
+                onClick: _cache[6] || (_cache[6] = //@ts-ignore
                 (...args) => unref(applyUpdate) && unref(applyUpdate)(...args))
-              }, "更新")) : (openBlock(), createElementBlock("span", _hoisted_16))
+              }, "更新")) : (openBlock(), createElementBlock("span", _hoisted_17$1))
             ])) : createCommentVNode("v-if", true),
-            createBaseVNode("div", _hoisted_17, [
+            createBaseVNode("div", _hoisted_18$1, [
               createBaseVNode(
                 "input",
                 {
@@ -15850,19 +15406,19 @@ ${result.rawText}` : ""
                   type: "file",
                   webkitdirectory: "",
                   multiple: "",
-                  onChange: _cache[1] || (_cache[1] = //@ts-ignore
+                  onChange: _cache[7] || (_cache[7] = //@ts-ignore
                   (...args) => unref(onFileInputChange) && unref(onFileInputChange)(...args))
                 },
                 null,
                 544
                 /* NEED_HYDRATION, NEED_PATCH */
               ),
-              createVNode(_sfc_main$b),
-              createVNode(_sfc_main$4)
+              createVNode(_sfc_main$c),
+              createVNode(_sfc_main$6)
             ]),
-            projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_18, [
-              createBaseVNode("div", _hoisted_19, [
-                _cache[9] || (_cache[9] = createBaseVNode(
+            projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_19$1, [
+              createBaseVNode("div", _hoisted_20$1, [
+                _cache[15] || (_cache[15] = createBaseVNode(
                   "div",
                   { class: "mda-project-checking-spinner" },
                   null,
@@ -15870,7 +15426,7 @@ ${result.rawText}` : ""
                   /* CACHED */
                 )),
                 createBaseVNode("div", null, [
-                  _cache[8] || (_cache[8] = createBaseVNode(
+                  _cache[14] || (_cache[14] = createBaseVNode(
                     "div",
                     { class: "mda-project-checking-title" },
                     "正在检查项目",
@@ -15879,7 +15435,7 @@ ${result.rawText}` : ""
                   )),
                   createBaseVNode(
                     "div",
-                    _hoisted_20,
+                    _hoisted_21$1,
                     toDisplayString(projectCheckingText.value),
                     1
                     /* TEXT */
@@ -15887,12 +15443,1615 @@ ${result.rawText}` : ""
                 ])
               ])
             ])) : createCommentVNode("v-if", true),
-            createVNode(_sfc_main$3),
-            createVNode(_sfc_main$2, {
+            createVNode(_sfc_main$4, {
               visible: unref(mcpPanelOpen),
-              onClose: _cache[2] || (_cache[2] = ($event) => unref(appUiStore).setMcpPanelOpen(false))
+              onClose: _cache[8] || (_cache[8] = ($event) => unref(appUiStore).setMcpPanelOpen(false))
             }, null, 8, ["visible"])
           ])
+        ]);
+      };
+    }
+  });
+  const useMemoryStore = /* @__PURE__ */ defineStore("magnus.memory", () => {
+    const projectStore = useProjectStore();
+    const open = /* @__PURE__ */ ref(false);
+    const loading = /* @__PURE__ */ ref(false);
+    const saving = /* @__PURE__ */ ref(false);
+    const error = /* @__PURE__ */ ref("");
+    const message = /* @__PURE__ */ ref("");
+    const snapshot = /* @__PURE__ */ ref(null);
+    const toolProviders = /* @__PURE__ */ ref([]);
+    const tools = /* @__PURE__ */ ref([]);
+    const resourceProviders = /* @__PURE__ */ ref([]);
+    const resources = /* @__PURE__ */ ref([]);
+    function openPanel() {
+      return __async(this, null, function* () {
+        open.value = true;
+        yield load();
+      });
+    }
+    function closePanel() {
+      open.value = false;
+      error.value = "";
+      message.value = "";
+    }
+    function load() {
+      return __async(this, null, function* () {
+        var _a2;
+        if (!((_a2 = projectStore.current) == null ? void 0 : _a2.path) || projectStore.current.source !== "source-server") {
+          snapshot.value = null;
+          error.value = "请先关联本地源码项目";
+          return;
+        }
+        loading.value = true;
+        error.value = "";
+        message.value = "";
+        try {
+          const projectPath = projectStore.current.path;
+          const [result, toolResult, resourceResult] = yield Promise.all([
+            sourceServerJson("/api/memory/read", {
+              method: "POST",
+              body: { projectPath },
+              timeoutMs: 1e4,
+              timeoutMessage: "读取记忆超时，请确认本地源码服务可用"
+            }),
+            sourceServerJson("/api/agent/tools", {
+              timeoutMs: 5e3,
+              timeoutMessage: "读取工具清单超时"
+            }),
+            sourceServerJson(`/api/agent/resources?projectPath=${encodeURIComponent(projectPath)}`, {
+              timeoutMs: 5e3,
+              timeoutMessage: "读取资源清单超时"
+            })
+          ]);
+          snapshot.value = result.memory || null;
+          toolProviders.value = Array.isArray(toolResult.providers) ? toolResult.providers : [];
+          tools.value = Array.isArray(toolResult.tools) ? toolResult.tools : [];
+          resourceProviders.value = Array.isArray(resourceResult.providers) ? resourceResult.providers : [];
+          resources.value = Array.isArray(resourceResult.resources) ? resourceResult.resources : [];
+        } catch (cause) {
+          error.value = (cause == null ? void 0 : cause.message) || "读取记忆失败";
+        } finally {
+          loading.value = false;
+        }
+      });
+    }
+    function saveExperience(payload) {
+      return __async(this, null, function* () {
+        return save("/api/experience", payload, "项目经验已保存");
+      });
+    }
+    function saveSession(payload) {
+      return __async(this, null, function* () {
+        return save("/api/memory/session", payload, "任务会话已保存");
+      });
+    }
+    function removeSession(id) {
+      return __async(this, null, function* () {
+        return save("/api/memory/session/remove", { id }, "任务会话已清除");
+      });
+    }
+    function save(pathname, payload, successMessage) {
+      return __async(this, null, function* () {
+        var _a2;
+        saving.value = true;
+        error.value = "";
+        message.value = "";
+        try {
+          const result = yield sourceServerJson(pathname, {
+            method: "POST",
+            body: __spreadProps(__spreadValues({}, payload), {
+              projectPath: ((_a2 = projectStore.current) == null ? void 0 : _a2.path) || ""
+            }),
+            timeoutMs: 1e4,
+            timeoutMessage: "保存记忆超时，请确认本地源码服务可用"
+          });
+          snapshot.value = result.memory || null;
+          message.value = successMessage;
+          return true;
+        } catch (cause) {
+          error.value = (cause == null ? void 0 : cause.message) || "保存记忆失败";
+          return false;
+        } finally {
+          saving.value = false;
+        }
+      });
+    }
+    return {
+      open,
+      loading,
+      saving,
+      error,
+      message,
+      snapshot,
+      toolProviders,
+      tools,
+      resourceProviders,
+      resources,
+      openPanel,
+      closePanel,
+      load,
+      saveExperience,
+      saveSession,
+      removeSession
+    };
+  });
+  const _hoisted_1$1 = {
+    key: 0,
+    class: "mda-memory-head"
+  };
+  const _hoisted_2 = { class: "mda-settings-layout" };
+  const _hoisted_3 = {
+    key: 0,
+    class: "mda-settings-sidebar"
+  };
+  const _hoisted_4 = { class: "mda-settings-search" };
+  const _hoisted_5 = { class: "mda-settings-main" };
+  const _hoisted_6 = {
+    key: 0,
+    class: "mda-settings-main-head"
+  };
+  const _hoisted_7 = {
+    key: 1,
+    class: "mda-memory-tabs",
+    "aria-label": "记忆类型"
+  };
+  const _hoisted_8 = {
+    key: 2,
+    class: "mda-memory-state"
+  };
+  const _hoisted_9 = {
+    key: 3,
+    class: "mda-memory-state is-error"
+  };
+  const _hoisted_10 = {
+    key: 4,
+    class: "mda-memory-body"
+  };
+  const _hoisted_11 = {
+    key: 0,
+    class: "mda-memory-empty"
+  };
+  const _hoisted_12 = { class: "mda-memory-field" };
+  const _hoisted_13 = ["value"];
+  const _hoisted_14 = {
+    key: 0,
+    class: "mda-memory-form"
+  };
+  const _hoisted_15 = { class: "mda-memory-field" };
+  const _hoisted_16 = { class: "mda-memory-field" };
+  const _hoisted_17 = { class: "mda-memory-field" };
+  const _hoisted_18 = { class: "mda-memory-field" };
+  const _hoisted_19 = { class: "mda-memory-field" };
+  const _hoisted_20 = { class: "mda-memory-field" };
+  const _hoisted_21 = { class: "mda-memory-actions" };
+  const _hoisted_22 = ["disabled"];
+  const _hoisted_23 = ["disabled"];
+  const _hoisted_24 = {
+    key: 0,
+    class: "mda-memory-empty"
+  };
+  const _hoisted_25 = {
+    key: 1,
+    class: "mda-settings-assets"
+  };
+  const _hoisted_26 = {
+    key: 1,
+    class: "mda-settings-asset-thumb is-empty"
+  };
+  const _hoisted_27 = { class: "mda-settings-asset-main" };
+  const _hoisted_28 = {
+    key: 0,
+    class: "mda-memory-empty"
+  };
+  const _hoisted_29 = { class: "mda-memory-field" };
+  const _hoisted_30 = ["value"];
+  const _hoisted_31 = {
+    key: 0,
+    class: "mda-memory-form"
+  };
+  const _hoisted_32 = { class: "mda-memory-field" };
+  const _hoisted_33 = { class: "mda-memory-row" };
+  const _hoisted_34 = { class: "mda-memory-field" };
+  const _hoisted_35 = { class: "mda-memory-field" };
+  const _hoisted_36 = { class: "mda-memory-field" };
+  const _hoisted_37 = { class: "mda-memory-field" };
+  const _hoisted_38 = { class: "mda-memory-field" };
+  const _hoisted_39 = { class: "mda-memory-field" };
+  const _hoisted_40 = { class: "mda-memory-advanced" };
+  const _hoisted_41 = { class: "mda-memory-field" };
+  const _hoisted_42 = { class: "mda-memory-field" };
+  const _hoisted_43 = { class: "mda-memory-field" };
+  const _hoisted_44 = { class: "mda-memory-actions" };
+  const _hoisted_45 = ["disabled"];
+  const _hoisted_46 = {
+    key: 0,
+    class: "mda-memory-empty"
+  };
+  const _hoisted_47 = {
+    key: 1,
+    class: "mda-memory-form"
+  };
+  const _hoisted_48 = { class: "mda-memory-project-doc" };
+  const _sfc_main$2 = /* @__PURE__ */ defineComponent({
+    __name: "MemorySettingsPanel",
+    props: {
+      mode: { default: "panel" }
+    },
+    emits: ["back", "select-project"],
+    setup(__props) {
+      const props = __props;
+      const memory = useMemoryStore();
+      const appUi = useAppUiStore();
+      const selectionStore = useSelectionStore();
+      const tab = /* @__PURE__ */ ref("sessions");
+      const sessionId = /* @__PURE__ */ ref("");
+      const experienceId = /* @__PURE__ */ ref("");
+      const sessionDraft = /* @__PURE__ */ reactive({
+        requirements: "",
+        targetFiles: "",
+        confirmedExperienceIds: "",
+        confirmedFacts: "",
+        assumptions: "",
+        lastEnhancedPrompt: ""
+      });
+      const experienceDraft = /* @__PURE__ */ reactive({
+        name: "",
+        status: "needs-verification",
+        confidence: "medium",
+        triggerTags: "",
+        applicableWhen: "",
+        notApplicableWhen: "",
+        context: "",
+        recipes: "[]",
+        sourceContracts: "[]",
+        verificationChecklist: "[]"
+      });
+      const sessions = computed(() => {
+        var _a2;
+        return ((_a2 = memory.snapshot) == null ? void 0 : _a2.taskSessions) || [];
+      });
+      const experiences = computed(() => {
+        var _a2;
+        return ((_a2 = memory.snapshot) == null ? void 0 : _a2.experiences) || [];
+      });
+      const toolProviders = computed(() => memory.toolProviders || []);
+      const tools = computed(() => memory.tools || []);
+      const resourceProviders = computed(() => memory.resourceProviders || []);
+      const resources = computed(() => memory.resources || []);
+      const selectionAssets = computed(() => selectionStore.promptAssets || []);
+      const activeSession = computed(() => sessions.value.find((item) => item.id === sessionId.value) || null);
+      const activeExperience = computed(() => experiences.value.find((item) => {
+        var _a2;
+        return ((_a2 = item.meta) == null ? void 0 : _a2.id) === experienceId.value;
+      }) || null);
+      const projectLabel = computed(() => {
+        var _a2, _b;
+        return ((_b = (_a2 = memory.snapshot) == null ? void 0 : _a2.project) == null ? void 0 : _b.name) || "当前源码项目";
+      });
+      const isPage = computed(() => props.mode === "page");
+      const visible = computed(() => isPage.value || memory.open);
+      const activeTitle = computed(() => {
+        if (tab.value === "sessions") return "任务记忆";
+        if (tab.value === "assets") return "选区资产";
+        if (tab.value === "experiences") return "Experience";
+        if (tab.value === "tools") return "Tools / Resources";
+        return "项目摘要";
+      });
+      watch(sessions, (value) => {
+        var _a2;
+        if (!value.some((item) => item.id === sessionId.value)) sessionId.value = ((_a2 = value[0]) == null ? void 0 : _a2.id) || "";
+      }, { immediate: true });
+      watch(experiences, (value) => {
+        var _a2, _b;
+        if (!value.some((item) => {
+          var _a3;
+          return ((_a3 = item.meta) == null ? void 0 : _a3.id) === experienceId.value;
+        })) experienceId.value = ((_b = (_a2 = value[0]) == null ? void 0 : _a2.meta) == null ? void 0 : _b.id) || "";
+      }, { immediate: true });
+      watch(activeSession, (session) => {
+        if (!session) return;
+        sessionDraft.requirements = toLines(session.requirements);
+        sessionDraft.targetFiles = toLines(session.targetFiles);
+        sessionDraft.confirmedExperienceIds = toLines(session.confirmedExperienceIds);
+        sessionDraft.confirmedFacts = toLines(session.confirmedFacts);
+        sessionDraft.assumptions = toLines(session.assumptions);
+        sessionDraft.lastEnhancedPrompt = session.lastEnhancedPrompt || "";
+      }, { immediate: true });
+      watch(activeExperience, (experience) => {
+        var _a2, _b, _c, _d, _e, _f;
+        if (!experience) return;
+        experienceDraft.name = ((_a2 = experience.meta) == null ? void 0 : _a2.name) || "";
+        experienceDraft.status = ((_b = experience.meta) == null ? void 0 : _b.status) || "needs-verification";
+        experienceDraft.confidence = ((_c = experience.meta) == null ? void 0 : _c.confidence) || "medium";
+        experienceDraft.triggerTags = toLines((_d = experience.meta) == null ? void 0 : _d.triggerTags);
+        experienceDraft.applicableWhen = toLines((_e = experience.meta) == null ? void 0 : _e.applicableWhen);
+        experienceDraft.notApplicableWhen = toLines((_f = experience.meta) == null ? void 0 : _f.notApplicableWhen);
+        experienceDraft.context = experience.context || "";
+        experienceDraft.recipes = formatJson(experience.recipes);
+        experienceDraft.sourceContracts = formatJson(experience.sourceContracts);
+        experienceDraft.verificationChecklist = formatJson(experience.verificationChecklist);
+      }, { immediate: true });
+      function toLines(value) {
+        return Array.isArray(value) ? value.join("\n") : "";
+      }
+      function fromLines(value) {
+        return value.split("\n").map((item) => item.trim()).filter(Boolean);
+      }
+      function formatJson(value) {
+        return JSON.stringify(Array.isArray(value) ? value : [], null, 2);
+      }
+      function parseJsonArray(value, label) {
+        const parsed = JSON.parse(value || "[]");
+        if (!Array.isArray(parsed)) throw new Error(`${label} 必须是 JSON 数组`);
+        return parsed;
+      }
+      function saveSession() {
+        return __async(this, null, function* () {
+          if (!activeSession.value) return;
+          const ok = yield memory.saveSession({
+            id: activeSession.value.id,
+            requirements: fromLines(sessionDraft.requirements),
+            targetFiles: fromLines(sessionDraft.targetFiles),
+            confirmedExperienceIds: fromLines(sessionDraft.confirmedExperienceIds),
+            confirmedFacts: fromLines(sessionDraft.confirmedFacts),
+            assumptions: fromLines(sessionDraft.assumptions),
+            lastEnhancedPrompt: sessionDraft.lastEnhancedPrompt
+          });
+          if (ok) appUi.setToast("任务会话已保存");
+        });
+      }
+      function removeSession() {
+        return __async(this, null, function* () {
+          if (!activeSession.value) return;
+          const ok = yield memory.removeSession(activeSession.value.id);
+          if (ok) appUi.setToast("任务会话已清除");
+        });
+      }
+      function saveExperience() {
+        return __async(this, null, function* () {
+          if (!activeExperience.value) return;
+          try {
+            const ok = yield memory.saveExperience({
+              id: activeExperience.value.meta.id,
+              name: experienceDraft.name,
+              status: experienceDraft.status,
+              confidence: experienceDraft.confidence,
+              triggerTags: fromLines(experienceDraft.triggerTags),
+              applicableWhen: fromLines(experienceDraft.applicableWhen),
+              notApplicableWhen: fromLines(experienceDraft.notApplicableWhen),
+              context: experienceDraft.context,
+              recipes: parseJsonArray(experienceDraft.recipes, "Recipes"),
+              sourceContracts: parseJsonArray(experienceDraft.sourceContracts, "Source contracts"),
+              verificationChecklist: parseJsonArray(experienceDraft.verificationChecklist, "Checklist")
+            });
+            if (ok) appUi.setToast("Experience 已保存");
+          } catch (cause) {
+            memory.error = (cause == null ? void 0 : cause.message) || "结构化约束格式错误";
+          }
+        });
+      }
+      function formatTime(value) {
+        return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+      }
+      function assetThumbStyle(asset) {
+        return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+      }
+      return (_ctx, _cache) => {
+        var _a2;
+        return visible.value ? (openBlock(), createElementBlock(
+          "div",
+          {
+            key: 0,
+            class: normalizeClass(["mda-memory-shell", { "is-page": isPage.value }]),
+            role: "dialog",
+            "aria-modal": "true",
+            "aria-label": "Magnus 设置"
+          },
+          [
+            !isPage.value ? (openBlock(), createElementBlock("header", _hoisted_1$1, [
+              createBaseVNode("div", null, [
+                _cache[31] || (_cache[31] = createBaseVNode(
+                  "strong",
+                  null,
+                  "记忆设置",
+                  -1
+                  /* CACHED */
+                )),
+                createBaseVNode(
+                  "span",
+                  null,
+                  toDisplayString(projectLabel.value),
+                  1
+                  /* TEXT */
+                )
+              ]),
+              createBaseVNode("button", {
+                class: "mda-icon mda-memory-close",
+                type: "button",
+                title: "关闭",
+                "aria-label": "关闭",
+                onClick: _cache[0] || (_cache[0] = //@ts-ignore
+                (...args) => unref(memory).closePanel && unref(memory).closePanel(...args))
+              }, "×")
+            ])) : createCommentVNode("v-if", true),
+            createBaseVNode("div", _hoisted_2, [
+              isPage.value ? (openBlock(), createElementBlock("aside", _hoisted_3, [
+                createBaseVNode("button", {
+                  class: "mda-settings-back",
+                  type: "button",
+                  onClick: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("back"))
+                }, [
+                  createVNode(_sfc_main$5, {
+                    name: "back",
+                    size: 16
+                  }),
+                  _cache[32] || (_cache[32] = createBaseVNode(
+                    "span",
+                    null,
+                    "返回 Magnus",
+                    -1
+                    /* CACHED */
+                  ))
+                ]),
+                createBaseVNode("label", _hoisted_4, [
+                  createVNode(_sfc_main$5, {
+                    name: "search",
+                    size: 17
+                  }),
+                  _cache[33] || (_cache[33] = createBaseVNode(
+                    "input",
+                    {
+                      type: "text",
+                      placeholder: "搜索设置...",
+                      disabled: ""
+                    },
+                    null,
+                    -1
+                    /* CACHED */
+                  ))
+                ]),
+                _cache[39] || (_cache[39] = createBaseVNode(
+                  "div",
+                  { class: "mda-settings-group-label" },
+                  "项目",
+                  -1
+                  /* CACHED */
+                )),
+                createBaseVNode(
+                  "button",
+                  {
+                    class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "sessions" }]),
+                    type: "button",
+                    onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "sessions")
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "albums",
+                      size: 17
+                    }),
+                    _cache[34] || (_cache[34] = createTextVNode(
+                      "任务记忆 ",
+                      -1
+                      /* CACHED */
+                    ))
+                  ],
+                  2
+                  /* CLASS */
+                ),
+                createBaseVNode(
+                  "button",
+                  {
+                    class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "assets" }]),
+                    type: "button",
+                    onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "assets")
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "images",
+                      size: 17
+                    }),
+                    _cache[35] || (_cache[35] = createTextVNode(
+                      "选区资产 ",
+                      -1
+                      /* CACHED */
+                    ))
+                  ],
+                  2
+                  /* CLASS */
+                ),
+                createBaseVNode(
+                  "button",
+                  {
+                    class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "experiences" }]),
+                    type: "button",
+                    onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "experiences")
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "book",
+                      size: 17
+                    }),
+                    _cache[36] || (_cache[36] = createTextVNode(
+                      "Experience ",
+                      -1
+                      /* CACHED */
+                    ))
+                  ],
+                  2
+                  /* CLASS */
+                ),
+                createBaseVNode(
+                  "button",
+                  {
+                    class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "project" }]),
+                    type: "button",
+                    onClick: _cache[5] || (_cache[5] = ($event) => tab.value = "project")
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "folder",
+                      size: 17
+                    }),
+                    _cache[37] || (_cache[37] = createTextVNode(
+                      "项目摘要 ",
+                      -1
+                      /* CACHED */
+                    ))
+                  ],
+                  2
+                  /* CLASS */
+                ),
+                _cache[40] || (_cache[40] = createBaseVNode(
+                  "div",
+                  { class: "mda-settings-group-label" },
+                  "扩展",
+                  -1
+                  /* CACHED */
+                )),
+                createBaseVNode(
+                  "button",
+                  {
+                    class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "tools" }]),
+                    type: "button",
+                    onClick: _cache[6] || (_cache[6] = ($event) => tab.value = "tools")
+                  },
+                  [
+                    createVNode(_sfc_main$5, {
+                      name: "construct",
+                      size: 17
+                    }),
+                    _cache[38] || (_cache[38] = createTextVNode(
+                      "Tools / Resources ",
+                      -1
+                      /* CACHED */
+                    ))
+                  ],
+                  2
+                  /* CLASS */
+                )
+              ])) : createCommentVNode("v-if", true),
+              createBaseVNode("main", _hoisted_5, [
+                isPage.value ? (openBlock(), createElementBlock("header", _hoisted_6, [
+                  createBaseVNode("div", null, [
+                    _cache[41] || (_cache[41] = createBaseVNode(
+                      "span",
+                      null,
+                      "Magnus 设置",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "strong",
+                      null,
+                      toDisplayString(activeTitle.value),
+                      1
+                      /* TEXT */
+                    ),
+                    createBaseVNode(
+                      "em",
+                      null,
+                      toDisplayString(projectLabel.value),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("button", {
+                    class: "mda-settings-primary",
+                    type: "button",
+                    onClick: _cache[7] || (_cache[7] = ($event) => _ctx.$emit("select-project"))
+                  }, "选择源码")
+                ])) : createCommentVNode("v-if", true),
+                !isPage.value ? (openBlock(), createElementBlock("nav", _hoisted_7, [
+                  createBaseVNode(
+                    "button",
+                    {
+                      type: "button",
+                      class: normalizeClass({ "is-active": tab.value === "sessions" }),
+                      onClick: _cache[8] || (_cache[8] = ($event) => tab.value = "sessions")
+                    },
+                    "任务会话",
+                    2
+                    /* CLASS */
+                  ),
+                  createBaseVNode(
+                    "button",
+                    {
+                      type: "button",
+                      class: normalizeClass({ "is-active": tab.value === "experiences" }),
+                      onClick: _cache[9] || (_cache[9] = ($event) => tab.value = "experiences")
+                    },
+                    "Experience",
+                    2
+                    /* CLASS */
+                  ),
+                  createBaseVNode(
+                    "button",
+                    {
+                      type: "button",
+                      class: normalizeClass({ "is-active": tab.value === "tools" }),
+                      onClick: _cache[10] || (_cache[10] = ($event) => tab.value = "tools")
+                    },
+                    "Tools",
+                    2
+                    /* CLASS */
+                  ),
+                  createBaseVNode(
+                    "button",
+                    {
+                      type: "button",
+                      class: normalizeClass({ "is-active": tab.value === "project" }),
+                      onClick: _cache[11] || (_cache[11] = ($event) => tab.value = "project")
+                    },
+                    "项目摘要",
+                    2
+                    /* CLASS */
+                  )
+                ])) : createCommentVNode("v-if", true),
+                unref(memory).loading ? (openBlock(), createElementBlock("div", _hoisted_8, "正在读取记忆...")) : unref(memory).error && !unref(memory).snapshot ? (openBlock(), createElementBlock("div", _hoisted_9, [
+                  createBaseVNode(
+                    "span",
+                    null,
+                    toDisplayString(unref(memory).error),
+                    1
+                    /* TEXT */
+                  ),
+                  createBaseVNode("button", {
+                    type: "button",
+                    onClick: _cache[12] || (_cache[12] = //@ts-ignore
+                    (...args) => unref(memory).load && unref(memory).load(...args))
+                  }, "重试")
+                ])) : (openBlock(), createElementBlock("section", _hoisted_10, [
+                  unref(memory).message || unref(memory).error ? (openBlock(), createElementBlock(
+                    "div",
+                    {
+                      key: 0,
+                      class: normalizeClass(["mda-memory-feedback", { "is-error": !!unref(memory).error }])
+                    },
+                    toDisplayString(unref(memory).error || unref(memory).message),
+                    3
+                    /* TEXT, CLASS */
+                  )) : createCommentVNode("v-if", true),
+                  tab.value === "sessions" ? (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 1 },
+                    [
+                      !sessions.value.length ? (openBlock(), createElementBlock("div", _hoisted_11, "当前项目暂无活跃任务会话。")) : (openBlock(), createElementBlock(
+                        Fragment,
+                        { key: 1 },
+                        [
+                          createBaseVNode("label", _hoisted_12, [
+                            _cache[42] || (_cache[42] = createBaseVNode(
+                              "span",
+                              null,
+                              "页面会话",
+                              -1
+                              /* CACHED */
+                            )),
+                            withDirectives(createBaseVNode(
+                              "select",
+                              {
+                                "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => sessionId.value = $event)
+                              },
+                              [
+                                (openBlock(true), createElementBlock(
+                                  Fragment,
+                                  null,
+                                  renderList(sessions.value, (session) => {
+                                    return openBlock(), createElementBlock("option", {
+                                      key: session.id,
+                                      value: session.id
+                                    }, toDisplayString(session.pageKey) + " · " + toDisplayString(formatTime(session.updatedAt)), 9, _hoisted_13);
+                                  }),
+                                  128
+                                  /* KEYED_FRAGMENT */
+                                ))
+                              ],
+                              512
+                              /* NEED_PATCH */
+                            ), [
+                              [vModelSelect, sessionId.value]
+                            ])
+                          ]),
+                          activeSession.value ? (openBlock(), createElementBlock("div", _hoisted_14, [
+                            createBaseVNode("label", _hoisted_15, [
+                              _cache[43] || (_cache[43] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("累计需求 "),
+                                  createBaseVNode("small", null, "每行一条")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => sessionDraft.requirements = $event),
+                                  rows: "5"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, sessionDraft.requirements]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_16, [
+                              _cache[44] || (_cache[44] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("目标文件 "),
+                                  createBaseVNode("small", null, "每行一个")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => sessionDraft.targetFiles = $event),
+                                  rows: "3"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, sessionDraft.targetFiles]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_17, [
+                              _cache[45] || (_cache[45] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("已确认 Experience "),
+                                  createBaseVNode("small", null, "每行一个 Experience ID")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => sessionDraft.confirmedExperienceIds = $event),
+                                  rows: "3"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, sessionDraft.confirmedExperienceIds]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_18, [
+                              _cache[46] || (_cache[46] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("已确认事实 "),
+                                  createBaseVNode("small", null, "每行一条")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => sessionDraft.confirmedFacts = $event),
+                                  rows: "4"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, sessionDraft.confirmedFacts]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_19, [
+                              _cache[47] || (_cache[47] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("待确认假设 "),
+                                  createBaseVNode("small", null, "每行一条")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => sessionDraft.assumptions = $event),
+                                  rows: "4"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, sessionDraft.assumptions]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_20, [
+                              _cache[48] || (_cache[48] = createBaseVNode(
+                                "span",
+                                null,
+                                "上一版增强提示词",
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => sessionDraft.lastEnhancedPrompt = $event),
+                                  rows: "10",
+                                  class: "is-code"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, sessionDraft.lastEnhancedPrompt]
+                              ])
+                            ]),
+                            createBaseVNode("div", _hoisted_21, [
+                              createBaseVNode("button", {
+                                class: "is-danger",
+                                type: "button",
+                                disabled: unref(memory).saving,
+                                onClick: removeSession
+                              }, "清除此会话", 8, _hoisted_22),
+                              createBaseVNode("button", {
+                                class: "is-primary",
+                                type: "button",
+                                disabled: unref(memory).saving,
+                                onClick: saveSession
+                              }, toDisplayString(unref(memory).saving ? "保存中..." : "保存会话"), 9, _hoisted_23)
+                            ])
+                          ])) : createCommentVNode("v-if", true)
+                        ],
+                        64
+                        /* STABLE_FRAGMENT */
+                      ))
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  )) : tab.value === "assets" ? (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 2 },
+                    [
+                      !selectionAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_24, "当前页面暂无选区资产。")) : (openBlock(), createElementBlock("div", _hoisted_25, [
+                        (openBlock(true), createElementBlock(
+                          Fragment,
+                          null,
+                          renderList(selectionAssets.value, (asset) => {
+                            return openBlock(), createElementBlock("article", {
+                              key: asset.uid,
+                              class: "mda-settings-asset"
+                            }, [
+                              asset.thumbnailUrl ? (openBlock(), createElementBlock(
+                                "div",
+                                {
+                                  key: 0,
+                                  class: "mda-settings-asset-thumb",
+                                  style: normalizeStyle(assetThumbStyle(asset))
+                                },
+                                null,
+                                4
+                                /* STYLE */
+                              )) : (openBlock(), createElementBlock(
+                                "div",
+                                _hoisted_26,
+                                toDisplayString(asset.index),
+                                1
+                                /* TEXT */
+                              )),
+                              createBaseVNode("div", _hoisted_27, [
+                                createBaseVNode(
+                                  "strong",
+                                  null,
+                                  toDisplayString(asset.token),
+                                  1
+                                  /* TEXT */
+                                ),
+                                createBaseVNode(
+                                  "span",
+                                  null,
+                                  toDisplayString(asset.summary),
+                                  1
+                                  /* TEXT */
+                                ),
+                                createBaseVNode(
+                                  "code",
+                                  null,
+                                  toDisplayString(asset.selector || asset.className || asset.text || "-"),
+                                  1
+                                  /* TEXT */
+                                )
+                              ])
+                            ]);
+                          }),
+                          128
+                          /* KEYED_FRAGMENT */
+                        ))
+                      ]))
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  )) : tab.value === "experiences" ? (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 3 },
+                    [
+                      !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_28, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
+                        Fragment,
+                        { key: 1 },
+                        [
+                          createBaseVNode("label", _hoisted_29, [
+                            _cache[49] || (_cache[49] = createBaseVNode(
+                              "span",
+                              null,
+                              "Experience",
+                              -1
+                              /* CACHED */
+                            )),
+                            withDirectives(createBaseVNode(
+                              "select",
+                              {
+                                "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => experienceId.value = $event)
+                              },
+                              [
+                                (openBlock(true), createElementBlock(
+                                  Fragment,
+                                  null,
+                                  renderList(experiences.value, (experience) => {
+                                    return openBlock(), createElementBlock("option", {
+                                      key: experience.meta.id,
+                                      value: experience.meta.id
+                                    }, toDisplayString(experience.meta.name) + " · " + toDisplayString(experience.meta.status), 9, _hoisted_30);
+                                  }),
+                                  128
+                                  /* KEYED_FRAGMENT */
+                                ))
+                              ],
+                              512
+                              /* NEED_PATCH */
+                            ), [
+                              [vModelSelect, experienceId.value]
+                            ])
+                          ]),
+                          activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_31, [
+                            createBaseVNode("label", _hoisted_32, [
+                              _cache[50] || (_cache[50] = createBaseVNode(
+                                "span",
+                                null,
+                                "名称",
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "input",
+                                {
+                                  "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => experienceDraft.name = $event),
+                                  type: "text"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, experienceDraft.name]
+                              ])
+                            ]),
+                            createBaseVNode("div", _hoisted_33, [
+                              createBaseVNode("label", _hoisted_34, [
+                                _cache[52] || (_cache[52] = createBaseVNode(
+                                  "span",
+                                  null,
+                                  "状态",
+                                  -1
+                                  /* CACHED */
+                                )),
+                                withDirectives(createBaseVNode(
+                                  "select",
+                                  {
+                                    "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => experienceDraft.status = $event)
+                                  },
+                                  [..._cache[51] || (_cache[51] = [
+                                    createBaseVNode(
+                                      "option",
+                                      { value: "active" },
+                                      "active",
+                                      -1
+                                      /* CACHED */
+                                    ),
+                                    createBaseVNode(
+                                      "option",
+                                      { value: "needs-verification" },
+                                      "needs-verification",
+                                      -1
+                                      /* CACHED */
+                                    ),
+                                    createBaseVNode(
+                                      "option",
+                                      { value: "stale" },
+                                      "stale",
+                                      -1
+                                      /* CACHED */
+                                    )
+                                  ])],
+                                  512
+                                  /* NEED_PATCH */
+                                ), [
+                                  [vModelSelect, experienceDraft.status]
+                                ])
+                              ]),
+                              createBaseVNode("label", _hoisted_35, [
+                                _cache[54] || (_cache[54] = createBaseVNode(
+                                  "span",
+                                  null,
+                                  "置信度",
+                                  -1
+                                  /* CACHED */
+                                )),
+                                withDirectives(createBaseVNode(
+                                  "select",
+                                  {
+                                    "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => experienceDraft.confidence = $event)
+                                  },
+                                  [..._cache[53] || (_cache[53] = [
+                                    createBaseVNode(
+                                      "option",
+                                      { value: "high" },
+                                      "high",
+                                      -1
+                                      /* CACHED */
+                                    ),
+                                    createBaseVNode(
+                                      "option",
+                                      { value: "medium" },
+                                      "medium",
+                                      -1
+                                      /* CACHED */
+                                    ),
+                                    createBaseVNode(
+                                      "option",
+                                      { value: "low" },
+                                      "low",
+                                      -1
+                                      /* CACHED */
+                                    )
+                                  ])],
+                                  512
+                                  /* NEED_PATCH */
+                                ), [
+                                  [vModelSelect, experienceDraft.confidence]
+                                ])
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_36, [
+                              _cache[55] || (_cache[55] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("触发标签 "),
+                                  createBaseVNode("small", null, "每行一个")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => experienceDraft.triggerTags = $event),
+                                  rows: "3"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, experienceDraft.triggerTags]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_37, [
+                              _cache[56] || (_cache[56] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("适用条件 "),
+                                  createBaseVNode("small", null, "每行一条")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => experienceDraft.applicableWhen = $event),
+                                  rows: "4"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, experienceDraft.applicableWhen]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_38, [
+                              _cache[57] || (_cache[57] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("不适用条件 "),
+                                  createBaseVNode("small", null, "每行一条")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[26] || (_cache[26] = ($event) => experienceDraft.notApplicableWhen = $event),
+                                  rows: "4"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, experienceDraft.notApplicableWhen]
+                              ])
+                            ]),
+                            createBaseVNode("label", _hoisted_39, [
+                              _cache[58] || (_cache[58] = createBaseVNode(
+                                "span",
+                                null,
+                                [
+                                  createTextVNode("Experience 正文 "),
+                                  createBaseVNode("small", null, "Markdown")
+                                ],
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "textarea",
+                                {
+                                  "onUpdate:modelValue": _cache[27] || (_cache[27] = ($event) => experienceDraft.context = $event),
+                                  rows: "14",
+                                  class: "is-code"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, experienceDraft.context]
+                              ])
+                            ]),
+                            createBaseVNode("details", _hoisted_40, [
+                              _cache[62] || (_cache[62] = createBaseVNode(
+                                "summary",
+                                null,
+                                "结构化约束",
+                                -1
+                                /* CACHED */
+                              )),
+                              createBaseVNode("label", _hoisted_41, [
+                                _cache[59] || (_cache[59] = createBaseVNode(
+                                  "span",
+                                  null,
+                                  "Recipes JSON",
+                                  -1
+                                  /* CACHED */
+                                )),
+                                withDirectives(createBaseVNode(
+                                  "textarea",
+                                  {
+                                    "onUpdate:modelValue": _cache[28] || (_cache[28] = ($event) => experienceDraft.recipes = $event),
+                                    rows: "8",
+                                    class: "is-code"
+                                  },
+                                  null,
+                                  512
+                                  /* NEED_PATCH */
+                                ), [
+                                  [vModelText, experienceDraft.recipes]
+                                ])
+                              ]),
+                              createBaseVNode("label", _hoisted_42, [
+                                _cache[60] || (_cache[60] = createBaseVNode(
+                                  "span",
+                                  null,
+                                  "Source contracts JSON",
+                                  -1
+                                  /* CACHED */
+                                )),
+                                withDirectives(createBaseVNode(
+                                  "textarea",
+                                  {
+                                    "onUpdate:modelValue": _cache[29] || (_cache[29] = ($event) => experienceDraft.sourceContracts = $event),
+                                    rows: "8",
+                                    class: "is-code"
+                                  },
+                                  null,
+                                  512
+                                  /* NEED_PATCH */
+                                ), [
+                                  [vModelText, experienceDraft.sourceContracts]
+                                ])
+                              ]),
+                              createBaseVNode("label", _hoisted_43, [
+                                _cache[61] || (_cache[61] = createBaseVNode(
+                                  "span",
+                                  null,
+                                  "Checklist JSON",
+                                  -1
+                                  /* CACHED */
+                                )),
+                                withDirectives(createBaseVNode(
+                                  "textarea",
+                                  {
+                                    "onUpdate:modelValue": _cache[30] || (_cache[30] = ($event) => experienceDraft.verificationChecklist = $event),
+                                    rows: "8",
+                                    class: "is-code"
+                                  },
+                                  null,
+                                  512
+                                  /* NEED_PATCH */
+                                ), [
+                                  [vModelText, experienceDraft.verificationChecklist]
+                                ])
+                              ])
+                            ]),
+                            createBaseVNode("div", _hoisted_44, [
+                              createBaseVNode("button", {
+                                class: "is-primary",
+                                type: "button",
+                                disabled: unref(memory).saving,
+                                onClick: saveExperience
+                              }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_45)
+                            ])
+                          ])) : createCommentVNode("v-if", true)
+                        ],
+                        64
+                        /* STABLE_FRAGMENT */
+                      ))
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  )) : tab.value === "tools" ? (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 4 },
+                    [
+                      !toolProviders.value.length && !resourceProviders.value.length && !tools.value.length && !resources.value.length ? (openBlock(), createElementBlock("div", _hoisted_46, "当前没有可用 Tool 或 Resource。")) : (openBlock(), createElementBlock("div", _hoisted_47, [
+                        _cache[63] || (_cache[63] = createBaseVNode(
+                          "div",
+                          { class: "mda-memory-section-title" },
+                          "Tool Providers",
+                          -1
+                          /* CACHED */
+                        )),
+                        (openBlock(true), createElementBlock(
+                          Fragment,
+                          null,
+                          renderList(toolProviders.value, (provider) => {
+                            return openBlock(), createElementBlock("div", {
+                              key: provider.id,
+                              class: "mda-memory-provider"
+                            }, [
+                              createBaseVNode("div", null, [
+                                createBaseVNode(
+                                  "strong",
+                                  null,
+                                  toDisplayString(provider.title || provider.id),
+                                  1
+                                  /* TEXT */
+                                ),
+                                createBaseVNode(
+                                  "small",
+                                  null,
+                                  toDisplayString(provider.id) + " · " + toDisplayString(provider.source || "builtin") + " · " + toDisplayString(provider.toolCount || 0) + " tools",
+                                  1
+                                  /* TEXT */
+                                )
+                              ]),
+                              createBaseVNode(
+                                "p",
+                                null,
+                                toDisplayString(provider.description),
+                                1
+                                /* TEXT */
+                              )
+                            ]);
+                          }),
+                          128
+                          /* KEYED_FRAGMENT */
+                        )),
+                        _cache[64] || (_cache[64] = createBaseVNode(
+                          "div",
+                          { class: "mda-memory-section-title" },
+                          "Tools",
+                          -1
+                          /* CACHED */
+                        )),
+                        (openBlock(true), createElementBlock(
+                          Fragment,
+                          null,
+                          renderList(tools.value, (tool) => {
+                            return openBlock(), createElementBlock("div", {
+                              key: tool.name,
+                              class: "mda-memory-tool"
+                            }, [
+                              createBaseVNode("div", null, [
+                                createBaseVNode(
+                                  "strong",
+                                  null,
+                                  toDisplayString(tool.name),
+                                  1
+                                  /* TEXT */
+                                ),
+                                createBaseVNode(
+                                  "small",
+                                  null,
+                                  toDisplayString(tool.providerId || tool.source || "builtin") + " · " + toDisplayString(tool.category) + " · " + toDisplayString(tool.access),
+                                  1
+                                  /* TEXT */
+                                )
+                              ]),
+                              createBaseVNode(
+                                "p",
+                                null,
+                                toDisplayString(tool.description),
+                                1
+                                /* TEXT */
+                              )
+                            ]);
+                          }),
+                          128
+                          /* KEYED_FRAGMENT */
+                        )),
+                        _cache[65] || (_cache[65] = createBaseVNode(
+                          "div",
+                          { class: "mda-memory-section-title" },
+                          "Resource Providers",
+                          -1
+                          /* CACHED */
+                        )),
+                        (openBlock(true), createElementBlock(
+                          Fragment,
+                          null,
+                          renderList(resourceProviders.value, (provider) => {
+                            return openBlock(), createElementBlock("div", {
+                              key: provider.id,
+                              class: "mda-memory-provider"
+                            }, [
+                              createBaseVNode("div", null, [
+                                createBaseVNode(
+                                  "strong",
+                                  null,
+                                  toDisplayString(provider.title || provider.id),
+                                  1
+                                  /* TEXT */
+                                ),
+                                createBaseVNode(
+                                  "small",
+                                  null,
+                                  toDisplayString(provider.id) + " · " + toDisplayString(provider.source || "builtin") + " · " + toDisplayString(provider.resourceCount || 0) + " resources",
+                                  1
+                                  /* TEXT */
+                                )
+                              ]),
+                              createBaseVNode(
+                                "p",
+                                null,
+                                toDisplayString(provider.description),
+                                1
+                                /* TEXT */
+                              )
+                            ]);
+                          }),
+                          128
+                          /* KEYED_FRAGMENT */
+                        )),
+                        _cache[66] || (_cache[66] = createBaseVNode(
+                          "div",
+                          { class: "mda-memory-section-title" },
+                          "Resources",
+                          -1
+                          /* CACHED */
+                        )),
+                        (openBlock(true), createElementBlock(
+                          Fragment,
+                          null,
+                          renderList(resources.value, (resource) => {
+                            return openBlock(), createElementBlock("div", {
+                              key: resource.uri,
+                              class: "mda-memory-tool"
+                            }, [
+                              createBaseVNode("div", null, [
+                                createBaseVNode(
+                                  "strong",
+                                  null,
+                                  toDisplayString(resource.name),
+                                  1
+                                  /* TEXT */
+                                ),
+                                createBaseVNode(
+                                  "small",
+                                  null,
+                                  toDisplayString(resource.providerId || "builtin") + " · " + toDisplayString(resource.category) + " · " + toDisplayString(resource.mimeType),
+                                  1
+                                  /* TEXT */
+                                )
+                              ]),
+                              createBaseVNode(
+                                "p",
+                                null,
+                                toDisplayString(resource.description),
+                                1
+                                /* TEXT */
+                              )
+                            ]);
+                          }),
+                          128
+                          /* KEYED_FRAGMENT */
+                        ))
+                      ]))
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  )) : (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 5 },
+                    [
+                      _cache[67] || (_cache[67] = createBaseVNode(
+                        "div",
+                        { class: "mda-memory-project-note" },
+                        "Project.md 由源码扫描和 Experience 索引自动生成，不在这里手工修改。",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode(
+                        "pre",
+                        _hoisted_48,
+                        toDisplayString(((_a2 = unref(memory).snapshot) == null ? void 0 : _a2.projectDocument) || "暂无项目摘要。"),
+                        1
+                        /* TEXT */
+                      )
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  ))
+                ]))
+              ])
+            ])
+          ],
+          2
+          /* CLASS */
+        )) : createCommentVNode("v-if", true);
+      };
+    }
+  });
+  const _hoisted_1 = { class: "mda-settings-page" };
+  const _sfc_main$1 = /* @__PURE__ */ defineComponent({
+    __name: "SettingsPage",
+    props: {
+      api: {}
+    },
+    setup(__props) {
+      var _a2;
+      const props = __props;
+      const panelTicket = /* @__PURE__ */ ref("");
+      const initialParams = new URLSearchParams(window.location.search);
+      const initialRecent = readLatestPanelBinding() || {};
+      const targetPageHref = /* @__PURE__ */ ref(initialParams.get("pageUrl") || ((_a2 = initialRecent == null ? void 0 : initialRecent.page) == null ? void 0 : _a2.url) || "");
+      const runtime = {
+        api: __spreadProps(__spreadValues({}, props.api), {
+          sidePanel: false
+        }),
+        currentPageHref: targetPageHref,
+        sidePanelConfig: computed(() => __spreadProps(__spreadValues({}, props.api.sidePanelConfig || {}), {
+          panelTicket: panelTicket.value
+        })),
+        routePagePath: computed(() => window.location.pathname),
+        pageHost: computed(() => "settings")
+      };
+      const state = createMagnusRuntimeState(runtime);
+      const memory = useMemoryStore();
+      const fileInputRef = state.source.fileInputRef;
+      const onFileInputChange = state.source.onFileInputChange;
+      onMounted(() => __async(this, null, function* () {
+        yield ensurePanelTicket();
+        state.bridge.connectSidePanelBridge();
+        yield state.source.restoreSavedProject();
+        yield memory.load();
+      }));
+      onBeforeUnmount(() => {
+        state.bridge.disconnectSidePanelBridge();
+      });
+      function goBack() {
+        if (window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+        window.close();
+      }
+      function chooseProjectAndReload() {
+        return __async(this, null, function* () {
+          yield state.source.chooseProject();
+          yield memory.load();
+        });
+      }
+      function ensurePanelTicket() {
+        return __async(this, null, function* () {
+          var _a3, _b, _c;
+          if (panelTicket.value) return;
+          const params = new URLSearchParams(window.location.search);
+          const recent = readLatestPanelBinding() || {};
+          const workspaceId = params.get("workspaceId") || recent.workspaceId || "";
+          const tabId = Number(params.get("tabId") || recent.browserTabId || 0);
+          const windowId = Number(params.get("windowId") || recent.windowId || 0);
+          if (!workspaceId && !tabId) {
+            panelTicket.value = params.get("panelTicket") || "";
+            return;
+          }
+          const result = yield sourceServerJson("/api/panel/bind", {
+            method: "POST",
+            body: {
+              workspaceId,
+              tabId,
+              windowId,
+              page: recent.page || null
+            },
+            timeoutMs: 5e3,
+            timeoutMessage: "设置页绑定当前页面超时"
+          });
+          panelTicket.value = (result == null ? void 0 : result.panelTicket) || "";
+          const pageUrl = ((_b = (_a3 = result == null ? void 0 : result.snapshot) == null ? void 0 : _a3.page) == null ? void 0 : _b.url) || ((_c = recent == null ? void 0 : recent.page) == null ? void 0 : _c.url) || params.get("pageUrl") || "";
+          if (pageUrl) targetPageHref.value = pageUrl;
+        });
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock("main", _hoisted_1, [
+          createBaseVNode(
+            "input",
+            {
+              ref_key: "fileInputRef",
+              ref: fileInputRef,
+              class: "mda-file-input",
+              type: "file",
+              webkitdirectory: "",
+              multiple: "",
+              onChange: _cache[0] || (_cache[0] = //@ts-ignore
+              (...args) => unref(onFileInputChange) && unref(onFileInputChange)(...args))
+            },
+            null,
+            544
+            /* NEED_HYDRATION, NEED_PATCH */
+          ),
+          createVNode(_sfc_main$2, {
+            mode: "page",
+            onBack: goBack,
+            onSelectProject: chooseProjectAndReload
+          })
         ]);
       };
     }
@@ -15903,8 +17062,17 @@ ${result.rawText}` : ""
       api: {}
     },
     setup(__props) {
+      const isSettingsPage = computed(() => {
+        return typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === "/settings";
+      });
       return (_ctx, _cache) => {
-        return openBlock(), createBlock(_sfc_main$1, { api: __props.api }, null, 8, ["api"]);
+        return isSettingsPage.value ? (openBlock(), createBlock(_sfc_main$1, {
+          key: 0,
+          api: __props.api
+        }, null, 8, ["api"])) : (openBlock(), createBlock(_sfc_main$3, {
+          key: 1,
+          api: __props.api
+        }, null, 8, ["api"]));
       };
     }
   });
@@ -15986,7 +17154,7 @@ ${result.rawText}` : ""
       }
     };
   }
-  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  background: #f7f8fa;\n  pointer-events: auto;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  /* position: fixed; */\n  position: relative;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 0;\n  box-shadow: none;\n  pointer-events: auto;\n  overflow: hidden;\n}\n\n.mda-project-checking {\n  position: absolute;\n  inset: 56px 0 0;\n  z-index: 40;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(247, 248, 250, 0.78);\n  backdrop-filter: blur(2px);\n}\n\n.mda-project-checking-box {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  width: min(360px, 92%);\n  padding: 16px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.16);\n}\n\n.mda-project-checking-spinner {\n  width: 22px;\n  height: 22px;\n  border: 2px solid #dbe4ef;\n  border-top-color: #2563eb;\n  border-radius: 999px;\n  animation: mda-spin 0.8s linear infinite;\n  flex: 0 0 auto;\n}\n\n.mda-project-checking-title {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-checking-text {\n  margin-top: 3px;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n}\n\n@keyframes mda-spin {\n  to {\n    transform: rotate(360deg);\n  }\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 10px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composite {\n  background: #f2f7ff;\n  border-color: #c7dbf5;\n}\n\n.mda-composite-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n}\n\n.mda-composite-tag {\n  flex: 0 0 auto;\n  padding: 1px 6px;\n  border-radius: 4px;\n  background: #e2e8f0;\n  color: #475569;\n  font-size: 11px;\n}\n\n.mda-composite-tag.mda-composite-render {\n  background: #dbeafe;\n  color: #1d4ed8;\n}\n\n.mda-composite-anchor {\n  color: #94a3b8;\n  font-size: 11px;\n}\n\n.mda-composite-line {\n  color: #2563eb;\n  font-weight: 600;\n}\n\n.mda-plan {\n  background: #f6fdf7;\n  border-color: #c7e8cf;\n}\n\n/* 修改计划正文限高滚动，避免内容过长挡住聊天区与输入框 */\n.mda-plan-body {\n  display: grid;\n  gap: 8px;\n  max-height: 38vh;\n  overflow-y: auto;\n}\n\n/* 「定位与修改计划」整块模块：一个头部、一个收起开关，整块折叠 */\n.mda-result-module {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-result-module-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 2px 2px 0;\n}\n\n.mda-result-module-title {\n  font-size: 12px;\n  font-weight: 600;\n  color: #334155;\n}\n\n.mda-result-module-body {\n  display: grid;\n  gap: 8px;\n  max-height: 60vh;\n  overflow-y: auto;\n}\n\n.mda-plan-summary {\n  font-size: 12px;\n  color: #14532d;\n  font-weight: 600;\n}\n\n.mda-plan-block {\n  display: grid;\n  gap: 4px;\n}\n\n.mda-plan-block-title {\n  font-size: 11px;\n  color: #64748b;\n  font-weight: 600;\n}\n\n.mda-plan-target {\n  display: grid;\n  gap: 2px;\n  padding: 4px 6px;\n  border-left: 2px solid #86efac;\n  background: #fff;\n  border-radius: 4px;\n}\n\n.mda-plan-what,\n.mda-plan-why {\n  font-size: 12px;\n  color: #334155;\n}\n\n.mda-plan-why {\n  color: #94a3b8;\n}\n\n.mda-plan-line {\n  font-size: 12px;\n  color: #475569;\n}\n\n.mda-plan-check {\n  display: grid;\n  grid-template-columns: 16px 1fr;\n  align-items: start;\n  gap: 6px;\n  padding: 5px 6px;\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  background: #fff;\n  font-size: 12px;\n  line-height: 1.45;\n  color: #334155;\n  cursor: pointer;\n}\n\n.mda-plan-check input {\n  width: 14px;\n  height: 14px;\n  margin: 1px 0 0;\n}\n\n.mda-plan-check.is-checked {\n  color: #64748b;\n  background: #f8fafc;\n}\n\n.mda-plan-check.is-checked span {\n  text-decoration: line-through;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  min-height: 18px;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 100%;\n  /* max-width: min(440px, calc(100vw - 18px)); */\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);\n  transform: translateY(-10px) scale(2.2) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-build-version {\n  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;\n  font-size: 10px;\n  line-height: 31px;\n  color: #98a2b3;\n  white-space: nowrap;\n  user-select: text;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-settings-trigger {\n  flex: 0 0 auto;\n  font-size: 16px;\n}\n\n.mda-memory-shell {\n  position: absolute;\n  z-index: 50;\n  inset: 0;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  background: #f7f8fa;\n  color: #1f2328;\n}\n\n.mda-memory-head {\n  min-height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 8px 10px 8px 14px;\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-head > div {\n  min-width: 0;\n  display: grid;\n  gap: 1px;\n}\n\n.mda-memory-head strong {\n  font-size: 14px;\n}\n\n.mda-memory-head span {\n  overflow: hidden;\n  color: #6b7280;\n  font-size: 12px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-memory-close {\n  font-size: 21px;\n}\n\n.mda-memory-tabs {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-tabs button {\n  min-width: 0;\n  height: 38px;\n  padding: 0 8px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.mda-memory-tabs button:hover {\n  color: #111827;\n  background: #f8fafc;\n}\n\n.mda-memory-tabs button.is-active {\n  border-bottom-color: #2563eb;\n  color: #111827;\n  font-weight: 700;\n}\n\n.mda-memory-body {\n  flex: 1 1 auto;\n  min-height: 0;\n  padding: 14px;\n  overflow: auto;\n}\n\n.mda-memory-feedback {\n  margin-bottom: 12px;\n  padding: 8px 10px;\n  border: 1px solid #abefc6;\n  border-radius: 6px;\n  background: #ecfdf3;\n  color: #067647;\n  font-size: 12px;\n}\n\n.mda-memory-feedback.is-error {\n  border-color: #fecdca;\n  background: #fef3f2;\n  color: #b42318;\n}\n\n.mda-memory-state,\n.mda-memory-empty {\n  display: grid;\n  place-items: center;\n  gap: 10px;\n  min-height: 180px;\n  padding: 24px;\n  color: #667085;\n  text-align: center;\n}\n\n.mda-memory-state.is-error {\n  color: #b42318;\n}\n\n.mda-memory-state button {\n  height: 30px;\n  padding: 0 12px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  cursor: pointer;\n}\n\n.mda-memory-form {\n  display: grid;\n  gap: 12px;\n  margin-top: 14px;\n}\n\n.mda-memory-field {\n  min-width: 0;\n  display: grid;\n  gap: 6px;\n}\n\n.mda-memory-field > span {\n  color: #344054;\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-memory-field small {\n  color: #98a2b3;\n  font-size: 11px;\n  font-weight: 400;\n}\n\n.mda-memory-field input,\n.mda-memory-field select,\n.mda-memory-field textarea {\n  width: 100%;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #1f2937;\n  outline: none;\n  font: inherit;\n}\n\n.mda-memory-field input,\n.mda-memory-field select {\n  height: 34px;\n  padding: 0 9px;\n}\n\n.mda-memory-field textarea {\n  min-height: 66px;\n  padding: 8px 9px;\n  resize: vertical;\n  line-height: 1.5;\n}\n\n.mda-memory-field textarea.is-code {\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-memory-field input:focus,\n.mda-memory-field select:focus,\n.mda-memory-field textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);\n}\n\n.mda-memory-row {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 10px;\n}\n\n.mda-memory-advanced {\n  border-top: 1px solid #e4e7ec;\n  padding-top: 10px;\n}\n\n.mda-memory-advanced summary {\n  cursor: pointer;\n  color: #344054;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-memory-advanced[open] {\n  display: grid;\n  gap: 12px;\n}\n\n.mda-memory-advanced[open] summary {\n  margin-bottom: 2px;\n}\n\n.mda-memory-actions {\n  position: sticky;\n  bottom: -14px;\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 8px;\n  padding: 12px 0 14px;\n  background: #f7f8fa;\n}\n\n.mda-memory-actions button {\n  height: 34px;\n  padding: 0 13px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font-weight: 650;\n}\n\n.mda-memory-actions button.is-primary {\n  border-color: #2563eb;\n  background: #2563eb;\n  color: #ffffff;\n}\n\n.mda-memory-actions button.is-danger {\n  border-color: #fda29b;\n  color: #b42318;\n}\n\n.mda-memory-actions button:disabled {\n  cursor: not-allowed;\n  opacity: 0.55;\n}\n\n.mda-memory-section-title {\n  margin-top: 4px;\n  color: #344054;\n  font-size: 12px;\n  font-weight: 750;\n}\n\n.mda-memory-tool,\n.mda-memory-provider {\n  display: grid;\n  gap: 6px;\n  padding: 10px 11px;\n  border: 1px solid #d8dee6;\n  border-radius: 6px;\n  background: #ffffff;\n}\n\n.mda-memory-tool > div,\n.mda-memory-provider > div {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 10px;\n}\n\n.mda-memory-tool strong,\n.mda-memory-provider strong {\n  color: #111827;\n  font-size: 13px;\n}\n\n.mda-memory-tool small,\n.mda-memory-provider small {\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-memory-tool p,\n.mda-memory-provider p {\n  margin: 0;\n  color: #475467;\n  font-size: 12px;\n  line-height: 1.45;\n}\n\n.mda-memory-project-note {\n  margin-bottom: 10px;\n  color: #667085;\n  font-size: 12px;\n}\n\n.mda-memory-project-doc {\n  min-height: 240px;\n  margin: 0;\n  padding: 12px;\n  overflow: auto;\n  border: 1px solid #d8dee6;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n/* 本地服务未启动提示条 */\n.mda-service-down {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin: 8px 12px 0;\n  padding: 10px 12px;\n  border: 1px solid #f0c36d;\n  background: #fff8e6;\n  border-radius: 8px;\n  color: #7a5b00;\n}\n.mda-service-down-icon {\n  font-size: 16px;\n  line-height: 1;\n}\n.mda-service-down-main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n.mda-service-down-title {\n  font-size: 13px;\n  font-weight: 600;\n}\n.mda-service-down-hint {\n  font-size: 12px;\n  margin-top: 2px;\n  color: #8a6d1f;\n}\n.mda-service-down-hint code {\n  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;\n  background: rgba(122, 91, 0, 0.1);\n  padding: 1px 5px;\n  border-radius: 4px;\n}\n.mda-service-down-retry {\n  flex: 0 0 auto;\n  padding: 5px 12px;\n  border: 1px solid #e0a93b;\n  background: #fff;\n  color: #7a5b00;\n  border-radius: 6px;\n  font-size: 12px;\n  cursor: pointer;\n}\n.mda-service-down-retry:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n\n/* 新版本更新提示条 */\n.mda-update-bar {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin: 8px 12px 0;\n  padding: 10px 12px;\n  border: 1px solid #9ecbff;\n  background: #eef6ff;\n  border-radius: 8px;\n  color: #0b4a86;\n}\n.mda-update-icon { font-size: 15px; line-height: 1; }\n.mda-update-main { flex: 1 1 auto; min-width: 0; }\n.mda-update-title { font-size: 13px; font-weight: 600; }\n.mda-update-hint { font-size: 12px; margin-top: 2px; color: #2b6cb0; }\n.mda-update-btn {\n  flex: 0 0 auto;\n  padding: 5px 14px;\n  border: none;\n  background: #1a73e8;\n  color: #fff;\n  border-radius: 6px;\n  font-size: 12px;\n  cursor: pointer;\n}\n.mda-update-btn:hover { background: #1666d0; }\n.mda-update-spinner {\n  flex: 0 0 auto;\n  width: 14px;\n  height: 14px;\n  border: 2px solid #9ecbff;\n  border-top-color: #1a73e8;\n  border-radius: 50%;\n  animation: mda-update-spin 0.8s linear infinite;\n}\n@keyframes mda-update-spin { to { transform: rotate(360deg); } }\n\n/* 顶栏图标组 + MCP 状态面板 */\n.mda-head-actions { display: flex; align-items: center; gap: 4px; }\n.mda-mcp-overlay {\n  position: absolute; inset: 0; z-index: 40;\n  background: rgba(15, 23, 42, 0.32);\n  display: flex; align-items: stretch; justify-content: stretch;\n}\n.mda-mcp-panel {\n  display: flex; flex-direction: column; width: 100%; height: 100%;\n  background: #fff;\n}\n.mda-mcp-head {\n  display: flex; align-items: center; justify-content: space-between;\n  padding: 10px 12px; border-bottom: 1px solid #eef0f3;\n}\n.mda-mcp-title { font-size: 14px; font-weight: 600; }\n.mda-mcp-head-actions { display: flex; gap: 6px; }\n.mda-mcp-btn {\n  padding: 4px 12px; border: 1px solid #d7dbe0; background: #fff;\n  border-radius: 6px; font-size: 12px; cursor: pointer;\n}\n.mda-mcp-btn:disabled { opacity: 0.6; cursor: default; }\n.mda-mcp-body { flex: 1 1 auto; overflow-y: auto; padding: 12px; }\n.mda-mcp-error { color: #d03050; font-size: 12px; margin-bottom: 8px; }\n.mda-mcp-section-title { font-size: 12px; font-weight: 600; color: #667085; margin: 12px 0 6px; }\n.mda-mcp-config {\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid #eef0f3;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n.mda-mcp-config div {\n  display: grid;\n  gap: 3px;\n}\n.mda-mcp-config strong {\n  color: #667085;\n  font-size: 11px;\n}\n.mda-mcp-config code {\n  color: #344054;\n  font: 11px/1.45 ui-monospace, Menlo, monospace;\n  word-break: break-all;\n}\n.mda-mcp-empty { font-size: 12px; color: #98a2b3; }\n.mda-mcp-empty code { background: #f2f4f7; padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; }\n.mda-mcp-servers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }\n.mda-mcp-server { border: 1px solid #eef0f3; border-radius: 8px; padding: 8px 10px; }\n.mda-mcp-server-head { display: flex; align-items: center; gap: 6px; }\n.mda-mcp-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }\n.mda-mcp-dot.is-ready { background: #12b76a; }\n.mda-mcp-dot.is-failed { background: #f04438; }\n.mda-mcp-server-name { font-size: 13px; font-weight: 600; }\n.mda-mcp-server-status { font-size: 11px; color: #667085; margin-left: auto; }\n.mda-mcp-mini-btn {\n  flex: 0 0 auto;\n  padding: 2px 8px;\n  border: 1px solid #d7dbe0;\n  border-radius: 6px;\n  background: #fff;\n  color: #344054;\n  cursor: pointer;\n  font-size: 11px;\n}\n.mda-mcp-mini-btn:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n.mda-mcp-server-error { font-size: 11px; color: #d03050; margin-top: 4px; word-break: break-all; }\n.mda-mcp-tools { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }\n.mda-mcp-tool { font-size: 11px; font-family: ui-monospace, Menlo, monospace; color: #344054; }\n.mda-mcp-logs {\n  border: 1px solid #eef0f3; border-radius: 8px; padding: 8px;\n  background: #0b1020; max-height: 240px; overflow-y: auto;\n}\n.mda-mcp-log { display: flex; gap: 8px; font-size: 11px; font-family: ui-monospace, Menlo, monospace; line-height: 1.6; }\n.mda-mcp-log-time { color: #64748b; flex: 0 0 auto; }\n.mda-mcp-log-line { color: #cbd5e1; word-break: break-all; }\n\n/* 左下角菜单（绑定项目 / MCP 设置 / 设置） */\n.mda-menu-wrap { position: relative; display: inline-flex; }\n.mda-menu-backdrop { position: fixed; inset: 0; z-index: 49; }\n.mda-menu {\n  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 50;\n  min-width: 132px; padding: 4px;\n  background: #fff; border: 1px solid #e4e7ec; border-radius: 8px;\n  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.14);\n}\n.mda-menu-item {\n  display: block; width: 100%; text-align: left;\n  padding: 7px 10px; border: none; background: transparent;\n  border-radius: 6px; font-size: 13px; color: #344054; cursor: pointer;\n}\n.mda-menu-item:hover { background: #f2f4f7; }\n';
+  const styles = ':host {\n  all: initial;\n  color-scheme: light;\n}\n\n.mda-root,\n.mda-root * {\n  box-sizing: border-box;\n}\n\n.mda-root {\n  position: fixed;\n  inset: 0;\n  background: #f7f8fa;\n  pointer-events: auto;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-panel {\n  /* position: fixed; */\n  position: relative;\n  inset: 0;\n  width: 100%;\n  max-width: none;\n  height: 100vh;\n  background: #f7f8fa;\n  color: #1f2328;\n  border-left: 0;\n  box-shadow: none;\n  pointer-events: auto;\n  overflow: hidden;\n}\n\n.mda-project-checking {\n  position: absolute;\n  inset: 56px 0 0;\n  z-index: 40;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(247, 248, 250, 0.78);\n  backdrop-filter: blur(2px);\n}\n\n.mda-project-checking-box {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  width: min(360px, 92%);\n  padding: 16px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.16);\n}\n\n.mda-project-checking-spinner {\n  width: 22px;\n  height: 22px;\n  border: 2px solid #dbe4ef;\n  border-top-color: #2563eb;\n  border-radius: 999px;\n  animation: mda-spin 0.8s linear infinite;\n  flex: 0 0 auto;\n}\n\n.mda-project-checking-title {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-checking-text {\n  margin-top: 3px;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n}\n\n@keyframes mda-spin {\n  to {\n    transform: rotate(360deg);\n  }\n}\n\n.mda-floating-note {\n  position: fixed;\n  z-index: 2147483647;\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid rgba(37, 99, 235, 0.55);\n  border-radius: 8px;\n  background: #ffffff;\n  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);\n  pointer-events: auto;\n  cursor: auto;\n}\n\n.mda-selection-highlight {\n  position: fixed;\n  z-index: 2147483643;\n  border: 2px solid rgba(37, 99, 235, 0.88);\n  border-radius: 4px;\n  background: rgba(37, 99, 235, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);\n  pointer-events: none;\n}\n\n.mda-selection-highlight.has-note {\n  border-color: rgba(22, 163, 74, 0.9);\n  background: rgba(22, 163, 74, 0.08);\n  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);\n}\n\n.mda-selection-highlight.is-editing {\n  border-color: #111827;\n  background: rgba(17, 24, 39, 0.08);\n  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);\n}\n\n.mda-change-badge {\n  position: fixed;\n  z-index: 2147483645;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #16a34a;\n  color: #ffffff;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);\n  cursor: pointer;\n  pointer-events: auto;\n  white-space: nowrap;\n}\n\n.mda-change-badge:hover {\n  background: #15803d;\n}\n\n.mda-floating-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-floating-textarea {\n  width: 100%;\n  min-height: 72px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-head {\n  position: relative;\n  height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 0 88px 0 14px;\n  background: #ffffff;\n  border-bottom: 1px solid #d8dee6;\n  cursor: default;\n  user-select: none;\n}\n\n.mda-head-main {\n  min-width: 0;\n}\n\n.mda-title {\n  font-weight: 700;\n  font-size: 14px;\n  color: #15191f;\n}\n\n.mda-subtitle {\n  margin-top: 1px;\n  max-width: 280px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-icon {\n  width: 28px;\n  height: 28px;\n  border: 1px solid transparent;\n  border-radius: 6px;\n  background: transparent;\n  color: #4b5563;\n  cursor: pointer;\n  font-size: 17px;\n  line-height: 26px;\n}\n\n.mda-icon:hover {\n  background: #eef2f6;\n  border-color: #d8dee6;\n  color: #111827;\n}\n\n.mda-head-actions {\n  position: absolute;\n  top: 14px;\n  right: 18px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  z-index: 3;\n}\n\n.mda-head-icon {\n  display: grid;\n  place-items: center;\n  width: 28px;\n  height: 28px;\n  border-radius: 8px;\n  color: #4b5563;\n  cursor: pointer;\n}\n\n.mda-head-icon:hover {\n  background: #eef2f6;\n  color: #111827;\n}\n\n.mda-body {\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  height: calc(100vh - 56px);\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-body {\n  display: flex;\n  flex-direction: column;\n  gap: 0;\n  padding: 0;\n  overflow: hidden;\n}\n\n.mda-chat-thread {\n  flex: 1 1 auto;\n  display: grid;\n  align-content: start;\n  gap: 10px;\n  min-height: 0;\n  padding: 12px;\n  overflow: auto;\n}\n\n.mda-chat-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n}\n\n.mda-chat-message.is-user {\n  grid-template-columns: minmax(0, 1fr) 32px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  grid-column: 2;\n  grid-row: 1;\n  background: #2563eb;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  grid-column: 1;\n  justify-self: end;\n  max-width: 86%;\n  background: #e8f0ff;\n  border-color: #b8cdfb;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  background: #0f766e;\n  font-size: 11px;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  background: #f0fdfa;\n  border-color: #99f6e4;\n}\n\n.mda-message-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-message-bubble {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-message-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-message-text {\n  color: #4b5563;\n  font-size: 12px;\n  white-space: pre-wrap;\n}\n\n.mda-message-pre {\n  max-height: 280px;\n  margin: 0;\n  padding: 9px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-composer-wrap {\n  flex: 0 0 auto;\n  display: grid;\n  gap: 8px;\n  padding: 6px 10px;\n  border-top: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-composite {\n  background: #f2f7ff;\n  border-color: #c7dbf5;\n}\n\n.mda-composite-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-size: 12px;\n}\n\n.mda-composite-tag {\n  flex: 0 0 auto;\n  padding: 1px 6px;\n  border-radius: 4px;\n  background: #e2e8f0;\n  color: #475569;\n  font-size: 11px;\n}\n\n.mda-composite-tag.mda-composite-render {\n  background: #dbeafe;\n  color: #1d4ed8;\n}\n\n.mda-composite-anchor {\n  color: #94a3b8;\n  font-size: 11px;\n}\n\n.mda-composite-line {\n  color: #2563eb;\n  font-weight: 600;\n}\n\n.mda-plan {\n  background: #f6fdf7;\n  border-color: #c7e8cf;\n}\n\n/* 修改计划正文限高滚动，避免内容过长挡住聊天区与输入框 */\n.mda-plan-body {\n  display: grid;\n  gap: 8px;\n  max-height: 38vh;\n  overflow-y: auto;\n}\n\n/* 「定位与修改计划」整块模块：一个头部、一个收起开关，整块折叠 */\n.mda-result-module {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-result-module-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 2px 2px 0;\n}\n\n.mda-result-module-title {\n  font-size: 12px;\n  font-weight: 600;\n  color: #334155;\n}\n\n.mda-result-module-body {\n  display: grid;\n  gap: 8px;\n  max-height: 60vh;\n  overflow-y: auto;\n}\n\n.mda-plan-summary {\n  font-size: 12px;\n  color: #14532d;\n  font-weight: 600;\n}\n\n.mda-plan-block {\n  display: grid;\n  gap: 4px;\n}\n\n.mda-plan-block-title {\n  font-size: 11px;\n  color: #64748b;\n  font-weight: 600;\n}\n\n.mda-plan-target {\n  display: grid;\n  gap: 2px;\n  padding: 4px 6px;\n  border-left: 2px solid #86efac;\n  background: #fff;\n  border-radius: 4px;\n}\n\n.mda-plan-what,\n.mda-plan-why {\n  font-size: 12px;\n  color: #334155;\n}\n\n.mda-plan-why {\n  color: #94a3b8;\n}\n\n.mda-plan-line {\n  font-size: 12px;\n  color: #475569;\n}\n\n.mda-plan-check {\n  display: grid;\n  grid-template-columns: 16px 1fr;\n  align-items: start;\n  gap: 6px;\n  padding: 5px 6px;\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  background: #fff;\n  font-size: 12px;\n  line-height: 1.45;\n  color: #334155;\n  cursor: pointer;\n}\n\n.mda-plan-check input {\n  width: 14px;\n  height: 14px;\n  margin: 1px 0 0;\n}\n\n.mda-plan-check.is-checked {\n  color: #64748b;\n  background: #f8fafc;\n}\n\n.mda-plan-check.is-checked span {\n  text-decoration: line-through;\n}\n\n.mda-composer-options.is-compact {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0;\n  border: 0;\n  background: transparent;\n}\n\n.mda-model-select {\n  max-width: 154px;\n  height: 26px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-editor {\n  display: grid;\n  gap: 8px;\n  padding: 9px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n\n.mda-model-editor-head,\n.mda-model-actions {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-model-editor-head strong {\n  color: #111827;\n  font-size: 12px;\n}\n\n.mda-model-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n  gap: 8px;\n}\n\n.mda-model-grid label {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-model-grid label.is-wide {\n  grid-column: 1 / -1;\n}\n\n.mda-model-input {\n  width: 100%;\n  height: 30px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 0 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-model-input:focus,\n.mda-model-select:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-model-hint {\n  margin: -2px 0 0;\n  color: #667085;\n  font-size: 11px;\n  line-height: 1.4;\n}\n\n.mda-option-title {\n  color: #111827;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-option-desc {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-choice-list {\n  display: grid;\n  gap: 7px;\n  max-height: 300px;\n  overflow: auto;\n}\n\n.mda-choice-card {\n  display: grid;\n  gap: 5px;\n  padding: 8px;\n  border: 1px solid #dbe3ee;\n  border-radius: 7px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-choice-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-choice-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-choice-check span,\n.mda-file-link {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-file-link {\n  width: 100%;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  text-align: left;\n  font: inherit;\n}\n\n.mda-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-choice-meta {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-route-inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  min-width: 0;\n  padding: 0 2px;\n}\n\n.mda-route-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 650;\n  white-space: nowrap;\n}\n\n.mda-route-file {\n  flex: 1 1 auto;\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  overflow: hidden;\n  text-align: left;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-route-file:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-route-empty {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-copy-icon {\n  position: relative;\n  flex: 0 0 auto;\n  width: 20px;\n  height: 20px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  cursor: pointer;\n}\n\n.mda-copy-icon::before,\n.mda-copy-icon::after {\n  content: "";\n  position: absolute;\n  width: 9px;\n  height: 10px;\n  border: 1.5px solid #667085;\n  border-radius: 2px;\n}\n\n.mda-copy-icon::before {\n  top: 4px;\n  left: 7px;\n  background: #ffffff;\n}\n\n.mda-copy-icon::after {\n  top: 7px;\n  left: 4px;\n  background: #ffffff;\n}\n\n.mda-copy-icon:hover {\n  background: #f2f4f7;\n}\n\n.mda-copy-icon:hover::before,\n.mda-copy-icon:hover::after {\n  border-color: #101828;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-composer-input {\n  width: 100%;\n  height: 38px;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 8px;\n  padding: 0 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-send-btn {\n  height: 38px;\n  padding: 0 13px;\n  border: 1px solid #2563eb;\n  border-radius: 8px;\n  background: #2563eb;\n  color: #ffffff;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-agent-body {\n  gap: 12px;\n}\n\n.mda-agent-thread {\n  display: grid;\n  gap: 10px;\n}\n\n.mda-agent-message {\n  display: grid;\n  grid-template-columns: 42px minmax(0, 1fr);\n  gap: 10px;\n  align-items: start;\n  padding: 10px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-agent-avatar {\n  width: 34px;\n  height: 24px;\n  border-radius: 6px;\n  background: #111827;\n  color: #ffffff;\n  text-align: center;\n  font-size: 12px;\n  font-weight: 700;\n  line-height: 24px;\n}\n\n.mda-agent-content {\n  display: grid;\n  gap: 7px;\n  min-width: 0;\n}\n\n.mda-agent-title {\n  color: #111827;\n  font-size: 13px;\n  font-weight: 750;\n}\n\n.mda-agent-text {\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-agent-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.mda-section {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  border: 1px solid #d8dee6;\n  border-radius: 8px;\n  background: #ffffff;\n}\n\n.mda-section-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 12px;\n}\n\n.mda-section-title {\n  font-size: 13px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-section-desc {\n  margin-top: 2px;\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-toolbar,\n.mda-copy-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n\n.mda-btn {\n  min-width: 0;\n  height: 32px;\n  padding: 0 10px;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #263241;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  font-weight: 650;\n  line-height: 30px;\n  white-space: nowrap;\n}\n\n.mda-btn:hover {\n  background: #f1f5f9;\n}\n\n.mda-btn:disabled {\n  opacity: 0.48;\n  cursor: not-allowed;\n}\n\n.mda-btn-primary {\n  background: #2563eb;\n  border-color: #2563eb;\n  color: #ffffff;\n}\n\n.mda-btn-primary:hover {\n  background: #1d4ed8;\n}\n\n.mda-dot {\n  flex: 0 0 auto;\n  width: 8px;\n  height: 8px;\n  margin-top: 5px;\n  border-radius: 99px;\n  background: #9ca3af;\n}\n\n.mda-dot.is-active {\n  background: #16a34a;\n  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);\n}\n\n.mda-file-input {\n  display: none;\n}\n\n.mda-empty {\n  min-height: 48px;\n  padding: 10px;\n  border: 1px dashed #cfd7e2;\n  border-radius: 6px;\n  color: #6b7280;\n  background: #f8fafc;\n  font-size: 12px;\n}\n\n.mda-project {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-project-name {\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-project-meta {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-project-path {\n  padding: 7px 8px;\n  border-radius: 6px;\n  background: #f1f5f9;\n  color: #334155;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-warning {\n  padding: 8px 10px;\n  border: 1px solid #f4c27a;\n  border-radius: 6px;\n  background: #fff7ed;\n  color: #9a3412;\n  font-size: 12px;\n}\n\n.mda-request-summary {\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-search-input {\n  width: 100%;\n  min-height: 58px;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 7px 8px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-search-input:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-check-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-check-row input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-candidate-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-candidate-card.is-selected {\n  border-color: #2563eb;\n  background: #eff6ff;\n}\n\n.mda-candidate-head {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;\n  gap: 8px;\n  align-items: center;\n}\n\n.mda-candidate-check {\n  display: grid;\n  grid-template-columns: 16px minmax(0, 1fr);\n  gap: 7px;\n  align-items: center;\n  min-width: 0;\n}\n\n.mda-candidate-check input {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n}\n\n.mda-candidate-head strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #111827;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-head span {\n  height: 22px;\n  min-width: 34px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #dbeafe;\n  color: #1d4ed8;\n  text-align: center;\n  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-candidate-reasons {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-candidate-stage {\n  color: #64748b;\n  font-size: 12px;\n}\n\n.mda-candidate-reasons span {\n  max-width: 100%;\n  padding: 3px 6px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font-size: 11px;\n  line-height: 1.35;\n}\n\n.mda-candidate-snippet,\n.mda-candidate-log {\n  max-height: 150px;\n  margin: 0;\n  padding: 8px;\n  overflow: auto;\n  border-radius: 6px;\n  background: #0f172a;\n  color: #e5edf7;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-log-file-label {\n  flex: none;\n}\n\n.mda-log-file-link {\n  min-width: 0;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  text-align: left;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-log-file-link:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-link-btn {\n  justify-self: start;\n  height: 24px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #2563eb;\n  cursor: pointer;\n  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-link-btn:hover {\n  color: #1d4ed8;\n  text-decoration: underline;\n}\n\n.mda-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n\n.mda-tag {\n  max-width: 180px;\n  height: 24px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #eef2f6;\n  color: #394454;\n  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-info {\n  border: 1px solid #e2e8f0;\n  border-radius: 6px;\n  overflow: hidden;\n}\n\n.mda-row {\n  display: grid;\n  grid-template-columns: 64px minmax(0, 1fr);\n  gap: 10px;\n  padding: 8px 10px;\n  border-bottom: 1px solid #e2e8f0;\n}\n\n.mda-row:last-child {\n  border-bottom: 0;\n}\n\n.mda-row span {\n  color: #6b7280;\n  font-size: 12px;\n}\n\n.mda-row strong {\n  min-width: 0;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-selection-list {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-selection-card {\n  display: grid;\n  gap: 8px;\n  padding: 10px;\n  border: 1px solid #dbe3ee;\n  border-radius: 8px;\n  background: #fbfdff;\n}\n\n.mda-selection-card:hover {\n  border-color: #9db8f8;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);\n}\n\n.mda-selection-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.mda-selection-title {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 12px;\n  font-weight: 700;\n  color: #111827;\n}\n\n.mda-inline-badge {\n  height: 18px;\n  padding: 0 6px;\n  border-radius: 999px;\n  background: #dcfce7;\n  color: #166534;\n  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-mini-btn {\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #cfd7e2;\n  border-radius: 5px;\n  background: #ffffff;\n  color: #4b5563;\n  cursor: pointer;\n  font-family: inherit;\n  font-size: 12px;\n  line-height: 22px;\n}\n\n.mda-mini-btn:hover {\n  background: #f1f5f9;\n  color: #111827;\n}\n\n.mda-selection-meta {\n  display: grid;\n  grid-template-columns: 54px minmax(0, 1fr);\n  gap: 8px;\n  color: #5b6573;\n  font-size: 12px;\n}\n\n.mda-selection-meta span {\n  font-weight: 700;\n}\n\n.mda-selection-meta strong {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  color: #1f2937;\n  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-selection-text {\n  max-height: 44px;\n  overflow: auto;\n  color: #4b5563;\n  font-size: 12px;\n}\n\n.mda-note {\n  min-height: 74px;\n  resize: vertical;\n}\n\n.mda-textarea,\n.mda-prompt {\n  width: 100%;\n  min-width: 0;\n  resize: vertical;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  padding: 9px 10px;\n  background: #ffffff;\n  color: #111827;\n  outline: none;\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-textarea:focus,\n.mda-prompt:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);\n}\n\n.mda-prompt {\n  min-height: 230px;\n  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  font-size: 12px;\n}\n\n.mda-toast {\n  flex: 1 1 auto;\n  min-width: 0;\n  color: #047857;\n  font-size: 12px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n/* Codex-like chat surface overrides. */\n.mda-panel {\n  width: 100%;\n  /* max-width: min(440px, calc(100vw - 18px)); */\n  background: #ffffff;\n  border-left-color: #e5e7eb;\n  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.14);\n}\n\n.mda-head {\n  height: 52px;\n  padding: 0 12px 0 16px;\n  border-bottom-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-title {\n  display: flex;\n  align-items: center;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-title-logo {\n  display: block;\n  width: auto;\n  height: 28px;\n  object-fit: contain;\n}\n\n.mda-subtitle {\n  max-width: 306px;\n  color: #667085;\n}\n\n.mda-chat-body {\n  background: #ffffff;\n}\n\n.mda-chat-thread {\n  gap: 14px;\n  padding: 16px 14px 18px;\n  background: #ffffff;\n}\n\n.mda-chat-message,\n.mda-chat-message.is-user {\n  display: flex;\n  gap: 9px;\n  align-items: flex-start;\n}\n\n.mda-chat-message.is-user {\n  justify-content: flex-end;\n}\n\n.mda-message-avatar {\n  flex: 0 0 auto;\n  width: auto;\n  min-width: 34px;\n  height: 22px;\n  padding: 0 7px;\n  border-radius: 999px;\n  background: #f2f4f7;\n  color: #344054;\n  font-size: 11px;\n  font-weight: 650;\n  line-height: 22px;\n}\n\n.mda-chat-message.is-user .mda-message-avatar {\n  display: none;\n}\n\n.mda-chat-message.is-agent .mda-message-avatar {\n  color: #fff;\n}\n\n.mda-message-bubble {\n  gap: 6px;\n  max-width: 100%;\n  padding: 0;\n  border: 0;\n  border-radius: 0;\n  background: transparent;\n}\n\n.mda-message-work {\n  display: flex;\n  align-items: center;\n  min-height: 24px;\n}\n\n.mda-message-work-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  padding: 0;\n  border: 0;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-message-work-label {\n  color: #667085;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.mda-message-work-caret {\n  width: 8px;\n  height: 8px;\n  border-right: 1.5px solid #98a2b3;\n  border-bottom: 1.5px solid #98a2b3;\n  transform: rotate(45deg) translateY(-1px);\n  transition: transform 160ms ease;\n}\n\n.mda-message-work-caret.is-open {\n  transform: rotate(225deg) translateY(-1px);\n}\n\n.mda-message-logs {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-log-item {\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.55;\n  word-break: break-word;\n}\n\n.mda-message-log-pre {\n  max-height: 360px;\n  margin: 0;\n  padding: 8px 9px;\n  overflow: auto;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n}\n\n.mda-message-log-item.is-candidate-log {\n  display: flex;\n  gap: 4px;\n  align-items: baseline;\n  min-width: 0;\n  padding: 6px 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 10px;\n  background: #f8fafc;\n  color: #344054;\n  font-weight: 650;\n}\n\n.mda-message-content {\n  display: grid;\n  gap: 6px;\n}\n\n.mda-message-content.has-work {\n  padding-top: 10px;\n  border-top: 1px solid #eaecf0;\n}\n\n.mda-chat-message.is-agent .mda-message-bubble {\n  display: grid;\n  gap: 8px;\n  padding: 10px 11px;\n  border: 1px solid #99f6e4;\n  border-radius: 12px;\n  background: #f0fdfa;\n}\n\n.mda-chat-message.is-user .mda-message-bubble {\n  max-width: 86%;\n  padding: 9px 11px;\n  border: 1px solid #e5e7eb;\n  border-radius: 14px;\n  background: #f6f7f9;\n}\n\n.mda-message-title {\n  color: #101828;\n  font-size: 13px;\n  font-weight: 680;\n}\n\n.mda-message-text {\n  color: #344054;\n  font-size: 12px;\n  line-height: 1.55;\n}\n\n.mda-message-pre {\n  max-height: 320px;\n  border: 1px solid #e4e7ec;\n  border-radius: 10px;\n  background: #101828;\n  color: #f2f4f7;\n}\n\n.mda-composer-wrap {\n  gap: 10px;\n  padding: 12px;\n  border-top-color: #eceff3;\n  background: #ffffff;\n}\n\n.mda-composer-options {\n  gap: 8px;\n  padding: 10px;\n  border-color: #e4e7ec;\n  border-radius: 12px;\n  background: #f9fafb;\n}\n\n.mda-collapsible-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-collapse-btn {\n  flex: 0 0 auto;\n  height: 24px;\n  padding: 0 8px;\n  border: 1px solid #d0d5dd;\n  border-radius: 7px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-collapse-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-collapsed-summary {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  font-size: 12px;\n  line-height: 1.45;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-options.is-compact {\n  padding: 0 2px;\n}\n\n.mda-choice-list {\n  gap: 8px;\n  max-height: 260px;\n}\n\n.mda-choice-card {\n  gap: 6px;\n  padding: 9px;\n  border-color: #e4e7ec;\n  border-radius: 10px;\n  background: #ffffff;\n}\n\n.mda-choice-card.is-selected {\n  border-color: #98a2b3;\n  background: #f2f4f7;\n}\n\n.mda-choice-check {\n  color: #101828;\n}\n\n.mda-choice-meta {\n  color: #667085;\n}\n\n.mda-composer {\n  gap: 9px;\n  align-items: end;\n  padding: 9px;\n  border: 1px solid #d0d5dd;\n  border-radius: 16px;\n  background: #ffffff;\n  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);\n}\n\n.mda-composer-input {\n  height: 34px;\n  border: 0;\n  border-radius: 0;\n  padding: 0 2px;\n  background: transparent;\n  color: #101828;\n  font-size: 13px;\n  line-height: 34px;\n}\n\n.mda-composer-input:not([readonly]) {\n  cursor: text;\n}\n\n.mda-send-btn {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 58px;\n  height: 34px;\n  padding: 0;\n  border-color: #101828;\n  border-radius: 11px;\n  background: #101828;\n  font-weight: 650;\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1d2939;\n}\n\n.mda-btn-primary {\n  border-color: #101828;\n  background: #101828;\n}\n\n.mda-btn-primary:hover {\n  background: #1d2939;\n}\n\n.mda-link-btn {\n  color: #344054;\n}\n\n.mda-link-btn:hover {\n  color: #101828;\n}\n\n.mda-model-editor {\n  border-color: #e4e7ec;\n  border-radius: 14px;\n  background: #ffffff;\n  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);\n}\n\n.mda-model-actions {\n  justify-content: flex-end;\n}\n\n.mda-model-actions .mda-mini-btn {\n  margin-right: auto;\n}\n\n.mda-composer-prebar {\n  display: flex;\n  align-items: center;\n  justify-content: flex-start;\n  min-height: 28px;\n  /* padding: 8px 8px 10px 6px; */\n  overflow: visible;\n}\n\n.mda-composer-prebar-main {\n  display: flex;\n  flex-wrap: nowrap;\n  align-items: flex-end;\n  gap: 8px;\n  min-width: 0;\n  overflow: visible;\n}\n\n.mda-asset-strip {\n  position: relative;\n  display: flex;\n  align-items: flex-end;\n  gap: 0;\n  min-width: 0;\n  padding: 10px 10px 12px 10px;\n  overflow: visible;\n  isolation: isolate;\n}\n\n.mda-asset-card {\n  position: relative;\n  flex: 0 0 auto;\n  width: 62px;\n  height: 84px;\n  margin-left: -62px;\n  overflow: visible;\n  z-index: 1;\n  transition: margin-left 180ms ease;\n}\n\n.mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-strip:hover .mda-asset-card {\n  margin-left: 10px;\n}\n\n.mda-asset-strip:hover .mda-asset-card:first-child {\n  margin-left: 0;\n}\n\n.mda-asset-card:hover {\n  z-index: 40;\n}\n\n.mda-asset-card:nth-child(6n + 1) .mda-asset-chip {\n  --mda-asset-rotate: -9deg;\n}\n\n.mda-asset-card:nth-child(6n + 2) .mda-asset-chip {\n  --mda-asset-rotate: 6deg;\n}\n\n.mda-asset-card:nth-child(6n + 3) .mda-asset-chip {\n  --mda-asset-rotate: -4deg;\n}\n\n.mda-asset-card:nth-child(6n + 4) .mda-asset-chip {\n  --mda-asset-rotate: 9deg;\n}\n\n.mda-asset-card:nth-child(6n + 5) .mda-asset-chip {\n  --mda-asset-rotate: -7deg;\n}\n\n.mda-asset-card:nth-child(6n + 6) .mda-asset-chip {\n  --mda-asset-rotate: 4deg;\n}\n\n.mda-asset-chip {\n  position: relative;\n  display: block;\n  width: 62px;\n  height: 84px;\n  padding: 4px 4px 10px;\n  border: 0;\n  border-radius: 3px;\n  background: #ffffff;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);\n  cursor: pointer;\n  overflow: visible;\n  transform: translateY(0) rotate(var(--mda-asset-rotate, -4deg));\n  transform-origin: center bottom;\n  transition: transform 180ms ease, box-shadow 180ms ease;\n}\n\n.mda-asset-thumb {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 1px;\n  background: #e5e7eb center center / cover no-repeat;\n  background-size: contain;\n  background-position: center;\n  color: #667085;\n  font: 12px/70px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-asset-chip:hover {\n  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.22);\n  transform: translateY(-4px) rotate(0deg);\n}\n\n.mda-asset-remove {\n  position: absolute;\n  top: -10px;\n  right: -10px;\n  z-index: 45;\n  width: 26px;\n  height: 26px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #20252d;\n  color: #f8fafc;\n  font: 16px/26px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  cursor: pointer;\n  opacity: 0;\n  pointer-events: none;\n  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.28);\n  transition: opacity 160ms ease, transform 160ms ease;\n  transform: translateY(4px);\n}\n\n.mda-asset-card:hover .mda-asset-remove,\n.mda-asset-card:focus-within .mda-asset-remove,\n.mda-asset-chip:hover .mda-asset-remove,\n.mda-asset-chip:focus .mda-asset-remove {\n  opacity: 1;\n  pointer-events: auto;\n  transform: translateY(0);\n}\n\n.mda-asset-remove:hover {\n  background: #111827;\n}\n\n.mda-popover-panel {\n  position: fixed;\n  z-index: 2147483647;\n  display: block;\n  min-width: 0;\n  min-height: 72px;\n  overflow: auto;\n  border: 1px solid #d0d5dd;\n  border-radius: 14px;\n  background: rgba(255, 255, 255, 0.99);\n  color: #101828;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);\n  backdrop-filter: blur(10px);\n  pointer-events: auto;\n}\n\n.mda-asset-popover {\n  display: grid;\n  gap: 10px;\n  padding: 12px;\n  min-width: 0;\n}\n\n.mda-asset-popover-head {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px;\n}\n\n.mda-asset-popover-badge {\n  flex: 0 0 auto;\n  min-width: 0;\n  height: 22px;\n  padding: 0 8px;\n  border-radius: 999px;\n  background: #e0edff;\n  color: #1d4ed8;\n  font: 11px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-asset-popover-title-wrap {\n  min-width: 0;\n  display: grid;\n  gap: 3px;\n}\n\n.mda-asset-popover-title {\n  color: #101828;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-asset-popover-subtitle {\n  color: #667085;\n  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  word-break: break-all;\n}\n\n.mda-asset-popover-grid {\n  display: grid;\n  gap: 8px;\n}\n\n.mda-asset-popover-grid-item,\n.mda-asset-popover-section {\n  display: grid;\n  gap: 4px;\n  min-width: 0;\n}\n\n.mda-asset-popover-grid-item span,\n.mda-asset-popover-section span {\n  color: #475467;\n  font-size: 11px;\n  font-weight: 650;\n}\n\n.mda-asset-popover-grid-item pre,\n.mda-asset-popover-section pre {\n  margin: 0;\n  padding: 7px 8px;\n  overflow: auto;\n  border-radius: 8px;\n  background: #f8fafc;\n  color: #344054;\n  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  word-break: break-word;\n}\n\n.mda-composer {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);\n  gap: 8px;\n  align-items: stretch;\n  padding: 10px 12px;\n  border: 1px solid #d9dee7;\n  border-radius: 20px;\n  background: #ffffff;\n  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.08);\n}\n\n.mda-composer-input {\n  display: block;\n  width: 100%;\n  min-height: 72px;\n  max-height: 184px;\n  border: 0;\n  border-radius: 0;\n  padding: 4px 2px 0;\n  background: transparent;\n  color: #101828;\n  font-size: 14px;\n  line-height: 1.6;\n  resize: none;\n  overflow: auto;\n  white-space: pre-wrap;\n  outline: none;\n}\n\n.mda-composer-shortcut {\n  display: grid;\n  gap: 5px;\n  max-height: 188px;\n  padding-top: 6px;\n  overflow: auto;\n  border-top: 1px solid #eef2f6;\n}\n\n.mda-composer-shortcut-item {\n  display: grid;\n  grid-template-columns: 34px minmax(0, 1fr);\n  align-items: center;\n  gap: 8px;\n  padding: 6px 8px;\n  border: 0;\n  border-radius: 12px;\n  background: #f8fafc;\n  color: #101828;\n  text-align: left;\n  cursor: pointer;\n}\n\n.mda-composer-shortcut-item.is-active,\n.mda-composer-shortcut-item:hover {\n  background: #eaf2ff;\n}\n\n.mda-composer-shortcut-thumb {\n  width: 34px;\n  height: 34px;\n  border-radius: 8px;\n  background: #e5e7eb center center / cover no-repeat;\n  color: #667085;\n  font: 12px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: center;\n}\n\n.mda-composer-shortcut-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-composer-shortcut-meta {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-composer-shortcut-meta strong {\n  color: #1d4ed8;\n  font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-composer-shortcut-meta em {\n  overflow: hidden;\n  color: #667085;\n  font-style: normal;\n  font-size: 12px;\n  line-height: 1.35;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-composer-shortcut-empty {\n  padding: 6px 2px 2px;\n  color: #98a2b3;\n  font-size: 12px;\n}\n\n.mda-composer-toolbar {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left,\n.mda-toolbar-right {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  min-width: 0;\n}\n\n.mda-toolbar-left {\n  flex: 1 1 auto;\n}\n\n.mda-toolbar-right {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn,\n.mda-send-btn {\n  flex: 0 0 auto;\n}\n\n.mda-tool-icon-btn {\n  position: relative;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n}\n\n.mda-tool-icon-btn::before,\n.mda-tool-icon-btn::after {\n  content: "";\n  position: absolute;\n  left: 8px;\n  right: 8px;\n  top: 14px;\n  height: 2px;\n  border-radius: 999px;\n  background: currentColor;\n}\n\n.mda-tool-icon-btn::after {\n  transform: rotate(90deg);\n}\n\n.mda-tool-icon-btn:hover {\n  background: #f2f4f7;\n  color: #101828;\n}\n\n.mda-tool-icon-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-assist-chip,\n.mda-inline-text-btn,\n.mda-model-trigger {\n  height: 28px;\n  border: 0;\n  background: transparent;\n  color: #344054;\n  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-assist-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 7px;\n  padding: 0 4px;\n  color: #344054;\n  cursor: pointer;\n}\n\n.mda-assist-chip.is-active {\n  color: #1d87f5;\n}\n\n.mda-assist-chip:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n.mda-chip-shield {\n  position: relative;\n  width: 17px;\n  height: 17px;\n  border: 1.5px solid currentColor;\n  border-radius: 50%;\n}\n\n.mda-chip-shield::before {\n  content: "";\n  position: absolute;\n  left: 5px;\n  top: 2px;\n  width: 3px;\n  height: 8px;\n  border-right: 1.5px solid currentColor;\n  border-bottom: 1.5px solid currentColor;\n  transform: rotate(38deg);\n}\n\n.mda-inline-text-btn {\n  max-width: 90px;\n  padding: 0;\n  cursor: pointer;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  line-height: 31px;\n}\n\n.mda-inline-text-btn:hover {\n  color: #101828;\n}\n\n.mda-build-version {\n  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;\n  font-size: 10px;\n  line-height: 31px;\n  color: #98a2b3;\n  white-space: nowrap;\n  user-select: text;\n}\n\n.mda-model-menu {\n  position: relative;\n  flex: 0 0 auto;\n}\n\n.mda-model-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  max-width: 160px;\n  min-width: 0;\n  padding: 0 2px;\n  color: #101828;\n  cursor: pointer;\n}\n\n.mda-model-trigger.is-active {\n  color: #1d4ed8;\n}\n\n.mda-model-trigger:disabled {\n  opacity: 0.55;\n  cursor: not-allowed;\n}\n\n.mda-model-trigger strong,\n.mda-model-trigger em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-trigger strong {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-trigger em {\n  color: #667085;\n  font-style: normal;\n  font-weight: 650;\n}\n\n.mda-model-trigger i {\n  width: 9px;\n  height: 9px;\n  border-right: 2px solid #667085;\n  border-bottom: 2px solid #667085;\n  transform: rotate(45deg) translateY(-2px);\n}\n\n.mda-model-dropdown {\n  position: absolute;\n  right: -8px;\n  bottom: calc(100% + 10px);\n  z-index: 40;\n  display: grid;\n  gap: 4px;\n  width: 220px;\n  padding: 10px;\n  border: 1px solid #e4e7ec;\n  border-radius: 18px;\n  background: rgba(255, 255, 255, 0.98);\n  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);\n  backdrop-filter: blur(12px);\n}\n\n.mda-model-option {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  min-width: 0;\n  min-height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #101828;\n  cursor: pointer;\n  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  text-align: left;\n}\n\n.mda-model-option:hover,\n.mda-model-option.is-selected {\n  background: #f5f7fb;\n}\n\n.mda-model-option.is-selected::after {\n  content: "";\n  flex: 0 0 auto;\n  width: 6px;\n  height: 10px;\n  margin-left: 4px;\n  border-right: 2px solid #111827;\n  border-bottom: 2px solid #111827;\n  transform: rotate(45deg);\n}\n\n.mda-model-option span,\n.mda-model-option em {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-model-option span {\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-model-option em {\n  color: #667085;\n  font-style: normal;\n}\n\n.mda-model-divider {\n  height: 1px;\n  margin: 4px 2px;\n  background: #eceff3;\n}\n\n.mda-send-btn {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  border: 0;\n  border-radius: 999px;\n  background: #161b22;\n  color: #ffffff;\n  cursor: pointer;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-send-arrow {\n  position: relative;\n  width: 16px;\n  height: 16px;\n}\n\n.mda-send-arrow::before {\n  content: "";\n  position: absolute;\n  left: 7px;\n  top: 3px;\n  width: 2px;\n  height: 12px;\n  border-radius: 999px;\n  background: #ffffff;\n}\n\n.mda-send-arrow::after {\n  content: "";\n  position: absolute;\n  left: 3px;\n  top: 2px;\n  width: 8px;\n  height: 8px;\n  border-top: 2px solid #ffffff;\n  border-left: 2px solid #ffffff;\n  transform: rotate(45deg);\n}\n\n.mda-send-btn:not(:disabled):hover {\n  background: #1f2937;\n}\n\n.mda-send-btn.is-stopping {\n  border-color: #101828;\n  background: #101828;\n  color: #ffffff;\n  opacity: 0.72;\n}\n\n.mda-send-btn.is-stopping:not(:disabled):hover {\n  background: #101828;\n  opacity: 0.86;\n}\n\n.mda-stop-icon {\n  display: block;\n  width: 13px;\n  height: 13px;\n  border-radius: 3px;\n  background: currentColor;\n}\n\n.mda-send-btn:disabled {\n  opacity: 0.45;\n  cursor: not-allowed;\n}\n\n@media (max-width: 460px) {\n  .mda-composer-toolbar {\n    align-items: stretch;\n    flex-direction: column;\n  }\n\n  .mda-toolbar-left,\n  .mda-toolbar-right {\n    width: 100%;\n    justify-content: space-between;\n  }\n\n  .mda-model-trigger {\n    max-width: 140px;\n  }\n\n  .mda-model-dropdown {\n    right: 0;\n    width: min(220px, calc(100vw - 40px));\n  }\n}\n\n.mda-floating-note {\n  border-color: #d0d5dd;\n  border-radius: 12px;\n  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);\n}\n\n.mda-floating-textarea {\n  border-color: #d0d5dd;\n  border-radius: 9px;\n}\n\n.mda-floating-textarea:focus {\n  border-color: #101828;\n  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);\n}\n\n.mda-settings-trigger {\n  flex: 0 0 auto;\n  font-size: 16px;\n}\n\n.mda-memory-shell {\n  position: absolute;\n  z-index: 50;\n  inset: 0;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  background: #f7f8fa;\n  color: #1f2328;\n}\n\n.mda-memory-head {\n  min-height: 56px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 8px 10px 8px 14px;\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-head > div {\n  min-width: 0;\n  display: grid;\n  gap: 1px;\n}\n\n.mda-memory-head strong {\n  font-size: 14px;\n}\n\n.mda-memory-head span {\n  overflow: hidden;\n  color: #6b7280;\n  font-size: 12px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-memory-close {\n  font-size: 21px;\n}\n\n.mda-memory-tabs {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n  border-bottom: 1px solid #d8dee6;\n  background: #ffffff;\n}\n\n.mda-memory-tabs button {\n  min-width: 0;\n  height: 38px;\n  padding: 0 8px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  font-size: 12px;\n}\n\n.mda-memory-tabs button:hover {\n  color: #111827;\n  background: #f8fafc;\n}\n\n.mda-memory-tabs button.is-active {\n  border-bottom-color: #2563eb;\n  color: #111827;\n  font-weight: 700;\n}\n\n.mda-memory-body {\n  flex: 1 1 auto;\n  min-height: 0;\n  padding: 14px;\n  overflow: auto;\n}\n\n.mda-memory-feedback {\n  margin-bottom: 12px;\n  padding: 8px 10px;\n  border: 1px solid #abefc6;\n  border-radius: 6px;\n  background: #ecfdf3;\n  color: #067647;\n  font-size: 12px;\n}\n\n.mda-memory-feedback.is-error {\n  border-color: #fecdca;\n  background: #fef3f2;\n  color: #b42318;\n}\n\n.mda-memory-state,\n.mda-memory-empty {\n  display: grid;\n  place-items: center;\n  gap: 10px;\n  min-height: 180px;\n  padding: 24px;\n  color: #667085;\n  text-align: center;\n}\n\n.mda-memory-state.is-error {\n  color: #b42318;\n}\n\n.mda-memory-state button {\n  height: 30px;\n  padding: 0 12px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  cursor: pointer;\n}\n\n.mda-memory-form {\n  display: grid;\n  gap: 12px;\n  margin-top: 14px;\n}\n\n.mda-memory-field {\n  min-width: 0;\n  display: grid;\n  gap: 6px;\n}\n\n.mda-memory-field > span {\n  color: #344054;\n  font-size: 12px;\n  font-weight: 650;\n}\n\n.mda-memory-field small {\n  color: #98a2b3;\n  font-size: 11px;\n  font-weight: 400;\n}\n\n.mda-memory-field input,\n.mda-memory-field select,\n.mda-memory-field textarea {\n  width: 100%;\n  min-width: 0;\n  border: 1px solid #cfd7e2;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #1f2937;\n  outline: none;\n  font: inherit;\n}\n\n.mda-memory-field input,\n.mda-memory-field select {\n  height: 34px;\n  padding: 0 9px;\n}\n\n.mda-memory-field textarea {\n  min-height: 66px;\n  padding: 8px 9px;\n  resize: vertical;\n  line-height: 1.5;\n}\n\n.mda-memory-field textarea.is-code {\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n.mda-memory-field input:focus,\n.mda-memory-field select:focus,\n.mda-memory-field textarea:focus {\n  border-color: #2563eb;\n  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);\n}\n\n.mda-memory-row {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 10px;\n}\n\n.mda-memory-advanced {\n  border-top: 1px solid #e4e7ec;\n  padding-top: 10px;\n}\n\n.mda-memory-advanced summary {\n  cursor: pointer;\n  color: #344054;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-memory-advanced[open] {\n  display: grid;\n  gap: 12px;\n}\n\n.mda-memory-advanced[open] summary {\n  margin-bottom: 2px;\n}\n\n.mda-memory-actions {\n  position: sticky;\n  bottom: -14px;\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 8px;\n  padding: 12px 0 14px;\n  background: #f7f8fa;\n}\n\n.mda-memory-actions button {\n  height: 34px;\n  padding: 0 13px;\n  border: 1px solid #d0d5dd;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  cursor: pointer;\n  font-weight: 650;\n}\n\n.mda-memory-actions button.is-primary {\n  border-color: #2563eb;\n  background: #2563eb;\n  color: #ffffff;\n}\n\n.mda-memory-actions button.is-danger {\n  border-color: #fda29b;\n  color: #b42318;\n}\n\n.mda-memory-actions button:disabled {\n  cursor: not-allowed;\n  opacity: 0.55;\n}\n\n.mda-memory-section-title {\n  margin-top: 4px;\n  color: #344054;\n  font-size: 12px;\n  font-weight: 750;\n}\n\n.mda-memory-tool,\n.mda-memory-provider {\n  display: grid;\n  gap: 6px;\n  padding: 10px 11px;\n  border: 1px solid #d8dee6;\n  border-radius: 6px;\n  background: #ffffff;\n}\n\n.mda-memory-tool > div,\n.mda-memory-provider > div {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 10px;\n}\n\n.mda-memory-tool strong,\n.mda-memory-provider strong {\n  color: #111827;\n  font-size: 13px;\n}\n\n.mda-memory-tool small,\n.mda-memory-provider small {\n  color: #667085;\n  font-size: 11px;\n}\n\n.mda-memory-tool p,\n.mda-memory-provider p {\n  margin: 0;\n  color: #475467;\n  font-size: 12px;\n  line-height: 1.45;\n}\n\n.mda-memory-project-note {\n  margin-bottom: 10px;\n  color: #667085;\n  font-size: 12px;\n}\n\n.mda-memory-project-doc {\n  min-height: 240px;\n  margin: 0;\n  padding: 12px;\n  overflow: auto;\n  border: 1px solid #d8dee6;\n  border-radius: 6px;\n  background: #ffffff;\n  color: #344054;\n  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n.mda-chat-body {\n  height: calc(100vh - 52px);\n}\n\n.mda-settings-page,\n.mda-settings-page .mda-memory-shell {\n  position: fixed;\n  inset: 0;\n  width: 100%;\n  height: 100vh;\n  background: #ffffff;\n  color: #1f2328;\n  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-memory-shell.is-page {\n  position: fixed;\n  z-index: 1;\n  background: #ffffff;\n}\n\n.mda-settings-layout {\n  display: flex;\n  min-width: 0;\n  min-height: 0;\n  height: 100%;\n}\n\n.mda-memory-shell:not(.is-page) .mda-settings-layout {\n  display: flex;\n  flex-direction: column;\n}\n\n.mda-settings-sidebar {\n  flex: 0 0 270px;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  height: 100%;\n  padding: 16px 12px;\n  border-right: 1px solid #eceff3;\n  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));\n}\n\n.mda-settings-back {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  align-self: flex-start;\n  height: 36px;\n  padding: 0 8px;\n  border: 0;\n  border-radius: 8px;\n  background: transparent;\n  color: #667085;\n  cursor: pointer;\n  text-align: left;\n  font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-settings-back:hover {\n  background: #e6ebf2;\n  color: #101828;\n}\n\n.mda-settings-search {\n  position: relative;\n  display: block;\n  width: 100%;\n  min-width: 0;\n  box-sizing: border-box;\n  margin: 10px 0 18px;\n}\n\n.mda-settings-search .xicon {\n  position: absolute;\n  left: 11px;\n  top: 50%;\n  color: #98a2b3;\n  transform: translateY(-50%);\n}\n\n.mda-settings-search input {\n  width: 100%;\n  max-width: 100%;\n  box-sizing: border-box;\n  height: 34px;\n  padding: 0 12px 0 32px;\n  border: 1px solid #d8dee6;\n  border-radius: 10px;\n  background: #ffffff;\n  color: #667085;\n  outline: none;\n  font: 13px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-settings-group-label {\n  margin: 14px 10px 8px;\n  color: #98a2b3;\n  font-size: 12px;\n  font-weight: 700;\n}\n\n.mda-settings-nav {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  width: 100%;\n  height: 34px;\n  padding: 0 10px;\n  border: 0;\n  border-radius: 12px;\n  background: transparent;\n  color: #344054;\n  cursor: pointer;\n  text-align: left;\n  font: 13px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-settings-nav:hover,\n.mda-settings-nav.is-active {\n  background: #eef2f6;\n  color: #101828;\n}\n\n.mda-settings-nav.is-active {\n  font-weight: 700;\n}\n\n.mda-settings-nav .xicon,\n.mda-settings-back .xicon {\n  flex: 0 0 auto;\n}\n\n.mda-settings-main {\n  flex: 1 1 auto;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  min-height: 0;\n  background: #ffffff;\n}\n\n.mda-settings-main-head {\n  flex: 0 0 auto;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 14px;\n  min-height: 92px;\n  padding: 22px 28px;\n  border-bottom: 1px solid #f0f2f5;\n}\n\n.mda-settings-main-head div {\n  display: grid;\n  gap: 2px;\n  min-width: 0;\n}\n\n.mda-settings-main-head span {\n  color: #667085;\n  font-size: 12px;\n}\n\n.mda-settings-main-head strong {\n  color: #101828;\n  font-size: 24px;\n  line-height: 1.2;\n}\n\n.mda-settings-main-head em {\n  overflow: hidden;\n  color: #98a2b3;\n  font-style: normal;\n  font-size: 13px;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-settings-primary {\n  flex: 0 0 auto;\n  height: 34px;\n  padding: 0 14px;\n  border: 1px solid #101828;\n  border-radius: 10px;\n  background: #101828;\n  color: #ffffff;\n  cursor: pointer;\n  font: 13px/32px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n  font-weight: 700;\n}\n\n.mda-settings-primary:hover {\n  background: #1d2939;\n}\n\n.mda-memory-shell.is-page .mda-memory-body {\n  width: min(860px, calc(100vw - 340px));\n  padding: 28px;\n}\n\n.mda-memory-shell.is-page .mda-memory-form {\n  gap: 16px;\n  margin-top: 18px;\n}\n\n.mda-memory-shell.is-page .mda-memory-field input,\n.mda-memory-shell.is-page .mda-memory-field select {\n  height: 38px;\n}\n\n.mda-memory-shell.is-page .mda-memory-tool,\n.mda-memory-shell.is-page .mda-memory-provider {\n  border-radius: 10px;\n}\n\n.mda-settings-assets {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));\n  gap: 14px;\n}\n\n.mda-settings-asset {\n  display: grid;\n  grid-template-columns: 84px minmax(0, 1fr);\n  gap: 12px;\n  align-items: center;\n  min-width: 0;\n  padding: 12px;\n  border: 1px solid #e4e7ec;\n  border-radius: 12px;\n  background: #ffffff;\n}\n\n.mda-settings-asset-thumb {\n  width: 84px;\n  height: 84px;\n  border-radius: 8px;\n  background: #f2f4f7 center center / contain no-repeat;\n  color: #667085;\n  display: grid;\n  place-items: center;\n  font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;\n}\n\n.mda-settings-asset-thumb.is-empty {\n  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);\n}\n\n.mda-settings-asset-main {\n  display: grid;\n  gap: 5px;\n  min-width: 0;\n}\n\n.mda-settings-asset-main strong {\n  color: #101828;\n  font-size: 13px;\n}\n\n.mda-settings-asset-main span,\n.mda-settings-asset-main code {\n  min-width: 0;\n  overflow: hidden;\n  color: #667085;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.mda-settings-asset-main code {\n  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;\n}\n\n@media (max-width: 720px) {\n  .mda-settings-sidebar {\n    flex-basis: 210px;\n  }\n\n  .mda-memory-shell.is-page .mda-memory-body {\n    width: auto;\n    padding: 18px;\n  }\n}\n\n/* 本地服务未启动提示条 */\n.mda-service-down {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin: 8px 12px 0;\n  padding: 10px 12px;\n  border: 1px solid #f0c36d;\n  background: #fff8e6;\n  border-radius: 8px;\n  color: #7a5b00;\n}\n.mda-service-down-icon {\n  font-size: 16px;\n  line-height: 1;\n}\n.mda-service-down-main {\n  flex: 1 1 auto;\n  min-width: 0;\n}\n.mda-service-down-title {\n  font-size: 13px;\n  font-weight: 600;\n}\n.mda-service-down-hint {\n  font-size: 12px;\n  margin-top: 2px;\n  color: #8a6d1f;\n}\n.mda-service-down-hint code {\n  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;\n  background: rgba(122, 91, 0, 0.1);\n  padding: 1px 5px;\n  border-radius: 4px;\n}\n.mda-service-down-retry {\n  flex: 0 0 auto;\n  padding: 5px 12px;\n  border: 1px solid #e0a93b;\n  background: #fff;\n  color: #7a5b00;\n  border-radius: 6px;\n  font-size: 12px;\n  cursor: pointer;\n}\n.mda-service-down-retry:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n\n/* 新版本更新提示条 */\n.mda-update-bar {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin: 8px 12px 0;\n  padding: 10px 12px;\n  border: 1px solid #9ecbff;\n  background: #eef6ff;\n  border-radius: 8px;\n  color: #0b4a86;\n}\n.mda-update-icon { font-size: 15px; line-height: 1; }\n.mda-update-main { flex: 1 1 auto; min-width: 0; }\n.mda-update-title { font-size: 13px; font-weight: 600; }\n.mda-update-hint { font-size: 12px; margin-top: 2px; color: #2b6cb0; }\n.mda-update-btn {\n  flex: 0 0 auto;\n  padding: 5px 14px;\n  border: none;\n  background: #1a73e8;\n  color: #fff;\n  border-radius: 6px;\n  font-size: 12px;\n  cursor: pointer;\n}\n.mda-update-btn:hover { background: #1666d0; }\n.mda-update-spinner {\n  flex: 0 0 auto;\n  width: 14px;\n  height: 14px;\n  border: 2px solid #9ecbff;\n  border-top-color: #1a73e8;\n  border-radius: 50%;\n  animation: mda-update-spin 0.8s linear infinite;\n}\n@keyframes mda-update-spin { to { transform: rotate(360deg); } }\n\n/* MCP 状态面板 */\n.mda-mcp-overlay {\n  position: absolute; inset: 0; z-index: 40;\n  background: rgba(15, 23, 42, 0.32);\n  display: flex; align-items: stretch; justify-content: stretch;\n}\n.mda-mcp-panel {\n  display: flex; flex-direction: column; width: 100%; height: 100%;\n  background: #fff;\n}\n.mda-mcp-head {\n  display: flex; align-items: center; justify-content: space-between;\n  padding: 10px 12px; border-bottom: 1px solid #eef0f3;\n}\n.mda-mcp-title { font-size: 14px; font-weight: 600; }\n.mda-mcp-head-actions { display: flex; gap: 6px; }\n.mda-mcp-btn {\n  padding: 4px 12px; border: 1px solid #d7dbe0; background: #fff;\n  border-radius: 6px; font-size: 12px; cursor: pointer;\n}\n.mda-mcp-btn:disabled { opacity: 0.6; cursor: default; }\n.mda-mcp-body { flex: 1 1 auto; overflow-y: auto; padding: 12px; }\n.mda-mcp-error { color: #d03050; font-size: 12px; margin-bottom: 8px; }\n.mda-mcp-section-title { font-size: 12px; font-weight: 600; color: #667085; margin: 12px 0 6px; }\n.mda-mcp-config {\n  display: grid;\n  gap: 6px;\n  padding: 8px;\n  border: 1px solid #eef0f3;\n  border-radius: 8px;\n  background: #f8fafc;\n}\n.mda-mcp-config div {\n  display: grid;\n  gap: 3px;\n}\n.mda-mcp-config strong {\n  color: #667085;\n  font-size: 11px;\n}\n.mda-mcp-config code {\n  color: #344054;\n  font: 11px/1.45 ui-monospace, Menlo, monospace;\n  word-break: break-all;\n}\n.mda-mcp-empty { font-size: 12px; color: #98a2b3; }\n.mda-mcp-empty code { background: #f2f4f7; padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; }\n.mda-mcp-servers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }\n.mda-mcp-server { border: 1px solid #eef0f3; border-radius: 8px; padding: 8px 10px; }\n.mda-mcp-server-head { display: flex; align-items: center; gap: 6px; }\n.mda-mcp-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }\n.mda-mcp-dot.is-ready { background: #12b76a; }\n.mda-mcp-dot.is-failed { background: #f04438; }\n.mda-mcp-server-name { font-size: 13px; font-weight: 600; }\n.mda-mcp-server-status { font-size: 11px; color: #667085; margin-left: auto; }\n.mda-mcp-mini-btn {\n  flex: 0 0 auto;\n  padding: 2px 8px;\n  border: 1px solid #d7dbe0;\n  border-radius: 6px;\n  background: #fff;\n  color: #344054;\n  cursor: pointer;\n  font-size: 11px;\n}\n.mda-mcp-mini-btn:disabled {\n  opacity: 0.6;\n  cursor: default;\n}\n.mda-mcp-server-error { font-size: 11px; color: #d03050; margin-top: 4px; word-break: break-all; }\n.mda-mcp-tools { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }\n.mda-mcp-tool { font-size: 11px; font-family: ui-monospace, Menlo, monospace; color: #344054; }\n.mda-mcp-logs {\n  border: 1px solid #eef0f3; border-radius: 8px; padding: 8px;\n  background: #0b1020; max-height: 240px; overflow-y: auto;\n}\n.mda-mcp-log { display: flex; gap: 8px; font-size: 11px; font-family: ui-monospace, Menlo, monospace; line-height: 1.6; }\n.mda-mcp-log-time { color: #64748b; flex: 0 0 auto; }\n.mda-mcp-log-line { color: #cbd5e1; word-break: break-all; }\n\n/* 左下角菜单（绑定项目 / MCP 设置 / 设置） */\n.mda-menu-wrap { position: relative; display: inline-flex; }\n.mda-menu-backdrop { position: fixed; inset: 0; z-index: 49; }\n.mda-menu {\n  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 50;\n  min-width: 132px; padding: 4px;\n  background: #fff; border: 1px solid #e4e7ec; border-radius: 8px;\n  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.14);\n}\n.mda-menu-item {\n  display: block; width: 100%; text-align: left;\n  padding: 7px 10px; border: none; background: transparent;\n  border-radius: 6px; font-size: 13px; color: #344054; cursor: pointer;\n}\n.mda-menu-item:hover { background: #f2f4f7; }\n';
   (function bootstrapMagnusSidePanel() {
     const APP_KEY = "__MAGNUS_DEV_ASSISTANT__";
     const ROOT_ID = "magnus-side-panel-root";

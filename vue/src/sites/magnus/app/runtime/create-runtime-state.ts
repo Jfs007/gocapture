@@ -1,4 +1,3 @@
-import { computed } from 'vue';
 import { sourceServerJson } from '../services/source-service';
 import { normalizeRequestInfo } from '../utils/request';
 import { usePageRequests } from '../infrastructure/page-requests.adapter';
@@ -15,11 +14,8 @@ import { setupModelRuntime } from './setup/model';
 import { setupChatRuntime } from './setup/chat';
 import type { MagnusRuntimeContext, MagnusRuntimeState } from './context';
 
-const LEGACY_PROJECT_STORAGE_PREFIX = 'magnus:source-project:';
-
 export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusRuntimeState {
   const { api, currentPageHref, sidePanelConfig, routePagePath, pageHost } = runtime;
-  const projectStorageKey = computed(() => `${LEGACY_PROJECT_STORAGE_PREFIX}${pageHost.value}`);
   const composerStore = useComposerStore();
   const composer: any = createComposerFacade(composerStore);
   const requests = usePageRequests();
@@ -32,7 +28,7 @@ export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusR
     sendCommand: (type, payload, options) => bridge?.sendSidePanelCommand(type, payload, options)
   });
 
-  const source = useSourceProject({ projectStorageKey });
+  const source = useSourceProject({ currentPageHref });
 
   const route = useRouteResolver({
     project: source.project,
@@ -73,7 +69,8 @@ export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusR
     onNetworkRequest: (payload: unknown) => {
       requests.rememberRequest(normalizeRequestInfo(payload || {}, currentPageHref.value));
     },
-    scheduleRouteResolve: route.scheduleRouteResolve
+    scheduleRouteResolve: route.scheduleRouteResolve,
+    startPickerOnConnect: api.sidePanel !== false
   });
 
   const prompt = setupPromptRuntime();
@@ -81,6 +78,8 @@ export function createMagnusRuntimeState(runtime: MagnusRuntimeContext): MagnusR
   const message = setupChatRuntime();
 
   return {
+    api,
+    currentPageHref,
     requests,
     source,
     route,

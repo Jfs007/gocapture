@@ -11,6 +11,32 @@
           </div>
           <div class="mda-subtitle">{{ pageHost }}</div>
         </div>
+        <div class="mda-head-actions">
+          <span
+            class="mda-head-icon"
+            role="button"
+            tabindex="0"
+            title="重新绑定当前页面"
+            aria-label="重新绑定当前页面"
+            @click="rebindSidePanel"
+            @keydown.enter.prevent="rebindSidePanel"
+            @keydown.space.prevent="rebindSidePanel"
+          >
+            <MagnusIcon name="refresh" :size="19" />
+          </span>
+          <span
+            class="mda-head-icon"
+            role="button"
+            tabindex="0"
+            title="打开设置"
+            aria-label="打开设置"
+            @click="openSettings"
+            @keydown.enter.prevent="openSettings"
+            @keydown.space.prevent="openSettings"
+          >
+            <MagnusIcon name="cog" :size="20" />
+          </span>
+        </div>
       </header>
 
       <div v-if="serviceOnline === false" class="mda-service-down" role="alert">
@@ -59,7 +85,6 @@
           </div>
         </div>
       </div>
-      <MemorySettingsPanel />
       <McpStatusPanel :visible="mcpPanelOpen" @close="appUiStore.setMcpPanelOpen(false)" />
     </section>
   </main>
@@ -68,7 +93,7 @@
 <script setup lang="ts">
 import ChatThread from '../components/chat/ChatThread.vue';
 import ComposerPanel from '../components/composer/ComposerPanel.vue';
-import MemorySettingsPanel from '../components/settings/MemorySettingsPanel.vue';
+import MagnusIcon from '../components/common/MagnusIcon.vue';
 import McpStatusPanel from '../components/mcp/McpStatusPanel.vue';
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
@@ -107,6 +132,8 @@ const projectCheckingText = computed(() => {
 const {
   fileInputRef,
   onFileInputChange,
+  openSettings,
+  rebindSidePanel,
   pageHost
 } = createMagnusRuntime(props.api);
 </script>

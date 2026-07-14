@@ -18,23 +18,6 @@
       <ComposerInput ref="composerInputRef" />
       <div class="mda-composer-toolbar">
         <div class="mda-toolbar-left">
-          <div class="mda-menu-wrap">
-            <button
-              class="mda-tool-icon-btn"
-              type="button"
-              title="菜单"
-              :disabled="sourceServiceStatus === 'loading'"
-              @click="menuOpen = !menuOpen"
-            />
-            <template v-if="menuOpen">
-              <div class="mda-menu-backdrop" @click="menuOpen = false" />
-              <div class="mda-menu" role="menu">
-                <button class="mda-menu-item" type="button" @click="onMenu('bind')">绑定项目</button>
-                <button class="mda-menu-item" type="button" @click="onMenu('mcp')">MCP 设置</button>
-                <button class="mda-menu-item" type="button" @click="onMenu('settings')">设置</button>
-              </div>
-            </template>
-          </div>
           <button v-if="selectedItems.length" class="mda-inline-text-btn" type="button" @click="commands.clearSelections">清空选区</button>
           <span class="mda-build-version" :title="`构建版本 ${buildVersion}`">build {{ buildVersion }}</span>
         </div>
@@ -56,23 +39,24 @@
       </div>
     </div>
 
-    <div v-if="routeResolverTrace" class="mda-route-inline">
-      <span class="mda-route-label">页面源码地址</span>
-      <button v-if="routeFilePath" class="mda-route-file" type="button" @click="commands.openSourceFile(routeFilePath)">
-        {{ routeFilePath }}
-      </button>
-      <span v-else class="mda-route-empty">暂无命中</span>
-      <button
-        v-if="routeFilePath"
-        class="mda-copy-icon"
-        type="button"
-        title="复制页面源码地址"
-        aria-label="复制页面源码地址"
-        @click="copyRouteFilePath"
-      />
+    <div class="mda-route-inline">
+      <template v-if="routeResolverTrace">
+        <span class="mda-route-label">页面源码地址</span>
+        <button v-if="routeFilePath" class="mda-route-file" type="button" @click="commands.openSourceFile(routeFilePath)">
+          {{ routeFilePath }}
+        </button>
+        <span v-else class="mda-route-empty">暂无命中</span>
+        <button
+          v-if="routeFilePath"
+          class="mda-copy-icon"
+          type="button"
+          title="复制页面源码地址"
+          aria-label="复制页面源码地址"
+          @click="copyRouteFilePath"
+        />
+      </template>
+      <span v-if="toastText" class="mda-toast">{{ toastText }}</span>
     </div>
-
-    <div class="mda-toast">{{ toastText }}</div>
   </section>
 </template>
 
@@ -82,7 +66,6 @@ import { useMagnusCommands } from '../../app/runtime/commands';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useComposerStore } from '../../stores/composer.store';
 import { useModelStore } from '../../stores/model.store';
-import { useMemoryStore } from '../../stores/memory.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useRouteStore } from '../../stores/route.store';
 import { useSearchStore } from '../../stores/search.store';
@@ -100,17 +83,7 @@ const commands = useMagnusCommands();
 const appUiStore = useAppUiStore();
 const composerStore = useComposerStore();
 const modelStore = useModelStore();
-const memoryStore = useMemoryStore();
 const projectStore = useProjectStore();
-
-// 左下角菜单：绑定项目 / MCP 设置 / 设置（原顶栏图标会被遮挡，统一收进这里）。
-const menuOpen = ref(false);
-function onMenu(action) {
-  menuOpen.value = false;
-  if (action === 'bind') commands.selectProject();
-  else if (action === 'mcp') appUiStore.setMcpPanelOpen(true);
-  else if (action === 'settings') memoryStore.openPanel();
-}
 const routeStore = useRouteStore();
 const searchStore = useSearchStore();
 const selectionStore = useSelectionStore();
@@ -124,7 +97,6 @@ const selectedItems = computed(() => selectionStore.items);
 const project = computed(() => projectStore.current);
 const modelAssistLoading = computed(() => modelStore.status === 'running');
 const routeResolverTrace = computed(() => routeStore.resolverTrace);
-const sourceServiceStatus = computed(() => projectStore.serviceStatus);
 const toastText = computed(() => appUiStore.toastText);
 const composerCanSend = computed(() => {
   if (modelAssistLoading.value) return true;

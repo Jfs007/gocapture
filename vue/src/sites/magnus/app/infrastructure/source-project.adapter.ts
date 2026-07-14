@@ -12,7 +12,7 @@ import { useModelStore } from '../../stores/model.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 
-export function useSourceProject({ projectStorageKey }) {
+export function useSourceProject({ currentPageHref }) {
   const projectStore = useProjectStore();
   const appUiStore = useAppUiStore();
   const composerStore = useComposerStore();
@@ -27,25 +27,40 @@ export function useSourceProject({ projectStorageKey }) {
   } = storeToRefs(projectStore);
   const fileInputRef = ref(null);
 
-  function rememberProjectPath(projectValue) {
+  function boundPageUrl() {
+    const pageUrl = String(currentPageHref?.value || '').trim();
+    if (!pageUrl || pageUrl.includes('/settings')) return '';
+    return pageUrl;
+  }
+
+  async function rememberProjectPath(projectValue) {
     if (!projectValue || projectValue.source !== 'source-server' || !projectValue.path) return;
+    const pageUrl = boundPageUrl();
+    if (!pageUrl) return;
     try {
-      const value = JSON.stringify({
-        path: projectValue.path,
-        name: projectValue.name || '',
-        savedAt: Date.now()
+      await sourceServerJson('/api/registry/bind', {
+        method: 'POST',
+        body: {
+          url: pageUrl,
+          projectRoot: projectValue.path
+        },
+        timeoutMs: 5000,
+        timeoutMessage: '保存页面项目绑定超时'
       });
-      window.localStorage.setItem(projectStorageKey.value, value);
     } catch (error) {
     }
   }
 
-  function savedProjectPath() {
+  async function savedProjectPath() {
+    const pageUrl = boundPageUrl();
+    if (!pageUrl) return '';
     try {
-      const raw = window.localStorage.getItem(projectStorageKey.value);
-      if (!raw) return '';
-      const data = JSON.parse(raw);
-      return data && typeof data.path === 'string' ? data.path : '';
+      const data = await sourceServerJson(`/api/registry/resolve?url=${encodeURIComponent(pageUrl)}`, {
+        timeoutMs: 3000,
+        timeoutMessage: '读取页面项目绑定超时'
+      });
+      const projectRoot = data?.binding?.projectRoot;
+      return typeof projectRoot === 'string' ? projectRoot : '';
     } catch (error) {
       return '';
     }
@@ -88,7 +103,7 @@ export function useSourceProject({ projectStorageKey }) {
   }
 
   async function restoreSavedProject() {
-    const path = savedProjectPath();
+    const path = await savedProjectPath();
     if (!path || project.value || sourceServiceStatus.value === 'loading') return false;
     sourceServiceStatus.value = 'loading';
     sourceServiceError.value = '';
@@ -135,11 +150,11 @@ export function useSourceProject({ projectStorageKey }) {
     });
     const selectedProject = data.project || {};
     projectStore.setProject(normalizeSourceServerProject(selectedProject));
-    rememberProjectPath(project.value);
+    await rememberProjectPath(project.value);
     resetAfterProjectChange();
     const interpretedProject = await runProjectInterpreter(selectedProject.path, selectedProject);
     projectStore.setProject(normalizeSourceServerProject(interpretedProject || {}));
-    rememberProjectPath(project.value);
+    await rememberProjectPath(project.value);
     projectStore.setServiceStatus('connected');
     appUiStore.setToast(`已关联 ${project.value.name}`);
   }

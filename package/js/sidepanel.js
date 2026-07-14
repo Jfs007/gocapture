@@ -26,6 +26,14 @@ function panelUrl(panelTicket) {
   return `${sourceServerUrl}/ui/?panelTicket=${encodeURIComponent(panelTicket)}`;
 }
 
+function settingsUrl(context) {
+  const params = new URLSearchParams();
+  if (context.workspaceId) params.set('workspaceId', context.workspaceId);
+  if (context.tabId) params.set('tabId', String(context.tabId));
+  if (context.page?.url) params.set('pageUrl', context.page.url);
+  return `${sourceServerUrl}/settings?${params.toString()}`;
+}
+
 function loadIframe(panelTicket, options = {}) {
   const frame = getFrame();
   if (!frame) return;
@@ -78,6 +86,9 @@ async function rebindPanel(context) {
   if (!response || response.success === false) {
     throw new Error(response?.error || '重新绑定失败。');
   }
+  context.workspaceId = response.workspace?.workspaceId || context.workspaceId || '';
+  context.tabId = Number(response.workspace?.tabId || context.tabId || 0);
+  context.page = response.workspace?.page || context.page || null;
   return response.panelTicket;
 }
 
@@ -100,8 +111,17 @@ async function preparePanel(context) {
   }
   context.workspaceId = response.workspace?.workspaceId || context.workspaceId || '';
   context.tabId = Number(response.workspace?.tabId || context.tabId || 0);
+  context.page = response.workspace?.page || context.page || null;
   context.panelTicket = response.panelTicket || '';
   return context.panelTicket;
+}
+
+async function requestRebindPanel(options = {}) {
+  setStatus(options.status || '重新绑定页面...');
+  const panelTicket = await rebindPanel(panelContext);
+  panelContext.panelTicket = panelTicket;
+  loadIframe(panelTicket, { force: options.force ?? panelTicket !== loadedPanelTicket });
+  return panelTicket;
 }
 
 async function writeClipboardText(text) {
@@ -133,6 +153,28 @@ window.addEventListener('message', event => {
   const message = event.data || {};
   const frame = getFrame();
   if (frame && event.source !== frame.contentWindow) return;
+  if (message.type === 'magnus.settings.open') {
+    (async () => {
+      try {
+        setStatus('正在打开设置...');
+        if (!panelContext.workspaceId || !panelContext.tabId) {
+          const panelTicket = await rebindPanel(panelContext);
+          panelContext.panelTicket = panelTicket;
+        }
+        const url = settingsUrl(panelContext);
+        if (chrome.tabs && chrome.tabs.create) {
+          chrome.tabs.create({ url });
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+        setStatus('');
+      } catch (error) {
+        console.error('[Magnus] open settings failed:', error);
+        setStatus(`打开设置失败：${error.message || error}`);
+      }
+    })();
+    return;
+  }
   if (message.type === 'magnus.sidepanel.reload') {
     const requestId = message.requestId || '';
     (async () => {
@@ -151,6 +193,29 @@ window.addEventListener('message', event => {
         setStatus(`重新绑定失败：${error.message || error}`);
         event.source?.postMessage({
           type: 'magnus.sidepanel.reload.result',
+          requestId,
+          ok: false,
+          error: error.message || String(error),
+        }, event.origin || '*');
+      }
+    })();
+    return;
+  }
+  if (message.type === 'magnus.sidepanel.rebind') {
+    const requestId = message.requestId || '';
+    (async () => {
+      try {
+        await requestRebindPanel({ status: '重新绑定页面...' });
+        event.source?.postMessage({
+          type: 'magnus.sidepanel.rebind.result',
+          requestId,
+          ok: true,
+        }, event.origin || '*');
+      } catch (error) {
+        console.error('[Magnus] side panel rebind failed:', error);
+        setStatus(`绑定失败：${error.message || error}`);
+        event.source?.postMessage({
+          type: 'magnus.sidepanel.rebind.result',
           requestId,
           ok: false,
           error: error.message || String(error),
@@ -184,18 +249,4 @@ document.addEventListener('DOMContentLoaded', () => {
     setStatus(`初始化失败：${error.message || error}`);
   });
 
-  const rebindButton = document.getElementById('magnus-sidepanel-rebind');
-  if (rebindButton) {
-    rebindButton.addEventListener('click', async () => {
-      try {
-        setStatus('重新绑定页面...');
-        const panelTicket = await rebindPanel(panelContext);
-        panelContext.panelTicket = panelTicket;
-        loadIframe(panelTicket, { force: panelTicket !== loadedPanelTicket });
-      } catch (error) {
-        console.error('[Magnus] side panel rebind failed:', error);
-        setStatus(`绑定失败：${error.message || error}`);
-      }
-    });
-  }
 });

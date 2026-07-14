@@ -26,11 +26,13 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@vicons/ionicons5": "^0.13.0",
+    "@vicons/utils": "^0.1.4",
     "archiver": "^7.0.1",
-    "chokidar": "^3.6.0",
-    "vitepress": "^1.6.4",
-    "vue-tsc": "^2.0.0",
     "axios": "^1.13.2",
-    "pinia": "^3.0.4"
+    "chokidar": "^3.6.0",
+    "pinia": "^3.0.4",
+    "vitepress": "^1.6.4",
+    "vue-tsc": "^2.0.0"
   }
 }
