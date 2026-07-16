@@ -22,8 +22,16 @@ function normalizePath(value) {
   return normalized;
 }
 
+// 容错：模型常把单个路径写成 scope.path（而非 schema 的 roots/files）。既然给了 path 就用它限定范围，
+// 别退化成"没范围→扫全项目"。path 指向文件时按 files 用、指向目录时按 roots 用（两处都纳入，互不影响）。
+function scopePathHints(request) {
+  const value = normalizePath(request?.scope?.path);
+  if (!value) return [];
+  return [value];
+}
+
 function requestRoots(request) {
-  return (request?.scope?.roots || [])
+  return [...(request?.scope?.roots || []), ...scopePathHints(request)]
     .map(normalizePath)
     .filter(Boolean);
 }

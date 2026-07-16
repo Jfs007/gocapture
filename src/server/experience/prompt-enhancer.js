@@ -1,12 +1,7 @@
 const { readProjectText } = require('../core/fs-utils');
 const path = require('path');
 const { ensureProjectContext } = require('./project-context');
-const {
-  loadExperienceContexts,
-  loadExperienceMetas,
-  recordExperienceVerification,
-  saveCandidateExperience,
-} = require('./experience-store');
+const { runRecon } = require('./recon');
 const {
   compactTaskSession,
   getOrCreateTaskSession,
@@ -637,8 +632,10 @@ function buildChangePlanPrompt(input) {
     '第三步 · 产出计划：',
     '- roughTask.targets[].codeSnippet 是「粗定位源码块」（选区大致所在的那一列/那一块，**不一定是精确节点**），作用是把你限定在正确区块内；精确到哪个节点由你在第一步对齐得出。若块里根本没有选区对应的节点、或对不齐 → 写 openQuestions，绝不改成相邻/兄弟节点。',
     '- targetFiles.content（完整文件）用于确认真实符号、判断连带影响。',
-    '- 项目经验(matchedExperiences)/发现证据(discovery) 只用于约束「应复用哪些项目模式/组件/hook/API」；无真实证据不写。',
-    '- 不得臆造接口字段、响应结构、函数名、导入路径、状态变量或组件 API。',
+    '- recon.reuse 是侦察到的「项目公共件 + 一段真实用法片段」（首选依据）：产计划直接照片段里的 import 路径与用法写，别重造、别用框架原语。',
+    '- 片段通常已足够；除非确有必要，不要 read_file 去读公共件的整文件——知道「怎么用」用片段即可。',
+    '- 局部优先：先看选区/目标文件当前怎么实现这类东西，以它为准；recon 只填补当前代码没有先例的空白。不要用框架默认顶替（裸表格组件、裸 axios、裸全局变量、当前时间常量等）——recon.reuse 里已有项目自有做法就必须用它。',
+    '- 不得臆造接口字段、响应结构、函数名、导入路径、状态变量或组件 API；recon 没给证据、目标文件也没有先例时，写 openQuestions，不要编。',
     '- 连带影响(affected) 基于真实代码判断（类型定义、调用方、props/emits、样式、i18n、测试）；缺证据放 openQuestions。',
     '- 只规划与本次需求直接相关的改动，不顺带重构。',
     '',
@@ -647,12 +644,11 @@ function buildChangePlanPrompt(input) {
     '- changePlan.summary：一句源码语义的话说明本次改动。',
     '- changePlan.targets[]：{file, anchor, line, whatToChange(源码语义级：改哪个节点/符号), why}。',
     '- changePlan.affected[]：{file, reason}，连带影响的文件与原因。',
-    '- changePlan.reusePatterns[]：应复用的项目模式/组件/hook/API（引用真实证据）。',
+    '- changePlan.reusePatterns[]：应复用的项目做法/组件/hook/API（引用 recon 命中的真实文件作证据）。',
     '- changePlan.risks[] / verification[] / openQuestions[]：风险 / 如何验证 / 需用户确认的点。',
-    '- candidateExperience 必须返回 null。',
     '',
     '返回格式：',
-    '{"changePlan":{"selectionUnderstanding":"","summary":"","targets":[{"file":"","anchor":"","line":0,"whatToChange":"","why":""}],"affected":[{"file":"","reason":""}],"reusePatterns":[],"risks":[],"verification":[],"openQuestions":[]},"confirmedFacts":[],"assumptions":[],"usedExperienceIds":[],"candidateExperience":null}',
+    '{"changePlan":{"selectionUnderstanding":"","summary":"","targets":[{"file":"","anchor":"","line":0,"whatToChange":"","why":""}],"affected":[{"file":"","reason":""}],"reusePatterns":[],"risks":[],"verification":[],"openQuestions":[]},"confirmedFacts":[],"assumptions":[]}',
     '',
     `输入上下文:\n${safeJson(input)}`,
   ].join('\n');
@@ -995,34 +991,19 @@ async function enhanceLocatedPrompt(options) {
   }
   const taskSession = getOrCreateTaskSession(project, task);
   const activeTask = compactTaskSession(taskSession.session);
-  const activeExperienceIds = normalizeExperienceIds(activeTask.confirmedExperienceIds || []);
-  log(`任务上下文：${taskSession.mode === 'append' ? '复用' : '新建'}；key=${activeTask.pageKey}；需求 ${activeTask.requirements.length} 条；已确认 Experience ${activeExperienceIds.length} 个`);
+  log(`任务上下文：${taskSession.mode === 'append' ? '复用' : '新建'}；key=${activeTask.pageKey}；需求 ${activeTask.requirements.length} 条`);
 
-  const initialMetas = loadExperienceMetas(project);
-  const matchableMetas = initialMetas.filter(meta => meta.status === 'active' || meta.status === 'needs-verification');
-  const projectContext = ensureProjectContext(project, { experienceMetas: initialMetas });
-  log(`项目经验上下文：${projectContext.rebuilt ? '已重建' : '已复用'} Project.md；可匹配 Experience Meta ${matchableMetas.length} 个`);
-  if (!projectContext.writable) log(`项目经验目录不可写，将仅在本次请求内使用：${projectContext.error || '-'}`);
+  const projectContext = ensureProjectContext(project, {});
+  log(`项目上下文：${projectContext.rebuilt ? '已重建' : '已复用'} Project.md`);
+  if (!projectContext.writable) log(`项目 .magnus 目录不可写，本次仅在内存中使用：${projectContext.error || '-'}`);
 
-  let matchedExperienceIds = [];
-
-  const reusableExperienceIds = (activeExperienceIds || [])
-    .filter(id => matchableMetas.some(meta => meta.id === id))
-    .slice(0, 4);
-  if (reusableExperienceIds.length) {
-    matchedExperienceIds = reusableExperienceIds;
-    log(`任务上下文复用 Experience：${matchedExperienceIds.join('、')}，跳过 experience-match`);
-  } else if (matchableMetas.length) {
-    const match = await invokeJson(
-      invoke,
-      'experience-match',
-      buildExperienceMatchPrompt(projectContext, matchableMetas, task),
-      log
-    );
-    matchedExperienceIds = normalizeExperienceIds(match.parsed?.matchedExperienceIds || []).slice(0, 4);
-  }
-
-  const experiences = loadExperienceContexts(project, matchedExperienceIds);
+  // 实现侦察：LLM 只从「需求 + Structure.md」挑出需求明确提到的公共件 + 检索词；本地按变体搜「谁用了它」并抽用法片段。
+  const recon = await runRecon(project, {
+    requirement: task.userRequirement || activeTask.taskBrief || '',
+    invoke,
+    textCache,
+    log,
+  });
 
   const enhancementInput = {
     project: {
@@ -1034,10 +1015,12 @@ async function enhanceLocatedPrompt(options) {
     roughTask: task,
     activeTask,
     targetFiles: targetFileContext(project, modelItems, textCache),
-    matchedExperiences: experiences,
+    // recon.reuse = 侦察到的「项目公共件 + 一段真实用法片段」（首选依据、片段级，不喂整文件）。
+    recon: {
+      reuse: recon.reuse,
+    },
   };
-  // 变更规划阶段：tool-capable 循环——模型自己按需调用工具（project-crud 读源码/搜索/找引用 + MCP 查文档 + skills）
-  // 取真实信息后再产出计划。这一步取代了旧的「discovery-plan → 固定操作执行器」（那是 project-crud 工具的重复实现）。
+  // 变更规划阶段：tool-capable 循环——模型可按需 read_file 把侦察到的先例读全再照抄，产出计划。
   const enhanced = await runChangePlanWithTools({
     project,
     invoke,
@@ -1046,74 +1029,22 @@ async function enhanceLocatedPrompt(options) {
     textCache,
     toolRuntime,
   });
-  // 经验沉淀的证据：来自循环里模型真实调用的 find_related_examples/search_text 等工具的观测。
-  const discovery = discoveryFromObservations(enhanced.observations);
   let changePlan = normalizeChangePlan(enhanced.parsed?.changePlan);
-  let usedExperienceIds = normalizeExperienceIds(enhanced.parsed?.usedExperienceIds || matchedExperienceIds).slice(0, 4);
   const hasPlan = !!(changePlan.summary || changePlan.targets.length);
   if (hasPlan && !changePlanMatchesRoughSource(task, changePlan)) {
     log('变更规划被回退：计划未引用粗定位源码核心锚点，可能改判到同文件其它相似代码');
     changePlan = normalizeChangePlan(null);
-    usedExperienceIds = matchedExperienceIds;
   }
-  // 由 changePlan 派生一段可复制文本，旧的「复制提示词」UX 仍可用；无有效计划则回退。
   const enhancedPrompt = changePlanToText(changePlan, task) || fallback;
 
-  if (usedExperienceIds.length) {
-    recordExperienceVerification(project, usedExperienceIds);
-    log(`Experience 已验证：${usedExperienceIds.join('、')}`);
-  }
   const updatedSession = updateTaskSession(project, task, {
     targetFiles: task.targets.map(item => item.file).filter(Boolean),
-    confirmedExperienceIds: usedExperienceIds.length ? usedExperienceIds : matchedExperienceIds,
     confirmedFacts: enhanced.parsed?.confirmedFacts || [],
     assumptions: enhanced.parsed?.assumptions || [],
     enhancedPrompt,
   });
   if (updatedSession) {
-    log(`任务上下文已更新：需求 ${updatedSession.requirements.length} 条；Experience ${(updatedSession.confirmedExperienceIds || []).length} 个`);
-  }
-
-  let savedExperience = null;
-  let rawCandidate = null;
-  if (!experiences.length) {
-    const evidencePack = buildPatternExperienceEvidence(project, task, discovery, textCache, log);
-    if (evidencePack) {
-      const candidateResult = await invokeJson(
-        invoke,
-        'experience-candidate',
-        buildExperienceCandidatePrompt({
-          project: {
-            name: project.name,
-            kind: project.kind,
-            stack: project.stack || [],
-          },
-          patternCandidate: evidencePack,
-        }),
-        log
-      );
-      if (candidateResult.parsed?.shouldSave) {
-        rawCandidate = candidateResult.parsed.candidateExperience;
-        log('经验候选模型：建议保存项目经验');
-      } else {
-        log(`经验候选模型：不保存；${candidateResult.parsed?.reason || '未给出原因'}`);
-      }
-    }
-  }
-  if (!experiences.length && rawCandidate) {
-    const candidate = normalizeCandidateExperienceForSave({
-      ...rawCandidate,
-      discoverySummary: discovery?.plan?.objective || '',
-    }, project, discovery);
-    savedExperience = saveCandidateExperience(project, candidate);
-    log(savedExperience.saved
-      ? `候选经验已保存：${savedExperience.meta.id}（needs-verification）`
-      : `候选经验未保存：${savedExperience.reason}`);
-    if (savedExperience.saved) {
-      updateTaskSession(project, task, {
-        confirmedExperienceIds: [savedExperience.meta.id],
-      });
-    }
+    log(`任务上下文已更新：需求 ${updatedSession.requirements.length} 条`);
   }
 
   return {
@@ -1121,9 +1052,8 @@ async function enhanceLocatedPrompt(options) {
     enhancedPrompt,
     confirmedFacts: enhanced.parsed?.confirmedFacts || [],
     assumptions: enhanced.parsed?.assumptions || [],
-    usedExperienceIds,
-    savedExperience,
-    mode: experiences.length ? 'experience' : discovery ? 'discovery' : 'target-only',
+    recon: { candidates: recon.candidates, reuse: recon.reuse },
+    mode: 'recon',
   };
 }
 

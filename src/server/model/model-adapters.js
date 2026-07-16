@@ -3013,6 +3013,10 @@ function requestTextHttpsProxy(targetUrl, proxyUrl, options) {
 
 function requestTextWithClient(client, options) {
   return new Promise((resolve, reject) => {
+    let connected = false;
+    let received = 0;
+    let firstByteMs = 0;
+    const startedAt = Date.now();
     const req = client.request({
       protocol: options.protocol,
       hostname: options.hostname,
@@ -3025,6 +3029,8 @@ function requestTextWithClient(client, options) {
       let text = '';
       response.setEncoding('utf8');
       response.on('data', chunk => {
+        if (!received) firstByteMs = Date.now() - startedAt;
+        received += chunk.length;
         text += chunk;
       });
       response.on('end', () => {
@@ -3037,8 +3043,16 @@ function requestTextWithClient(client, options) {
         });
       });
     });
+    req.on('socket', socket => {
+      socket.on('connect', () => { connected = true; });
+      socket.on('secureConnect', () => { connected = true; });
+    });
     req.setTimeout(options.timeoutMs, () => {
-      req.destroy(new Error(`API 模型请求超过 ${Math.round(options.timeoutMs / 1000)} 秒`));
+      // 明确卡在哪一步：TCP 是否建连、是否收到过响应字节、首字节耗时——比笼统"超过 N 秒"好排查。
+      const stage = !connected ? 'TCP 连接未建立（可能网络/DNS/防火墙/代理拦截）'
+        : received === 0 ? '已连上但服务端 120s 内无任何响应（模型侧未返回，非本地问题）'
+          : `已收到 ${received} 字节但响应未结束（响应过大或中断）`;
+      req.destroy(new Error(`API 模型请求超过 ${Math.round(options.timeoutMs / 1000)} 秒：${stage}`));
     });
     const abortHandler = () => req.destroy(new Error('模型定位已停止'));
     if (options.signal) {
@@ -3086,20 +3100,28 @@ async function runApiAdapter(adapter, prompt, logs, signal, runtimeOptions = {})
       { role: 'user', content: prompt },
     ],
   };
-  appendLog(logs, `API 模型请求：${safeUrlLabel(adapter.endpoint)}；模型 ${adapter.model || '-'}`);
+  const bodyText = JSON.stringify(body);
+  appendLog(logs, `API 模型请求：${safeUrlLabel(adapter.endpoint)}；模型 ${adapter.model || '-'}；请求体 ${bodyText.length} 字符（超时上限 ${Math.round(adapter.timeoutMs / 1000)}s）`);
   appendLog(logs, adapter.proxyUrl ? `代理：${safeUrlLabel(adapter.proxyUrl)}` : '代理：未启用');
   const startedAt = Date.now();
-  const response = await requestApiText(adapter.endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    timeoutMs: adapter.timeoutMs,
-    proxyUrl: adapter.proxyUrl,
-    signal,
-  });
+  let response;
+  try {
+    response = await requestApiText(adapter.endpoint, {
+      method: 'POST',
+      headers,
+      body: bodyText,
+      timeoutMs: adapter.timeoutMs,
+      proxyUrl: adapter.proxyUrl,
+      signal,
+    });
+  } catch (error) {
+    // 把真实失败原因打进日志（前端可见），而不是被上层吞成笼统信息。
+    appendLog(logs, `API 模型请求失败：${Date.now() - startedAt}ms 后 ${error.message || error}`);
+    throw error;
+  }
   appendLog(logs, `API 模型响应：HTTP ${response.statusCode}，耗时 ${Date.now() - startedAt}ms，响应 ${response.text.length} 字符`);
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error(response.text || `API 模型请求失败：${response.statusCode}`);
+    throw new Error(`API 模型请求失败：HTTP ${response.statusCode} ${response.statusMessage || ''}；${(response.text || '').slice(0, 500)}`);
   }
   try {
     const data = JSON.parse(response.text);

@@ -2,6 +2,7 @@ const path = require('path');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { runModelTask } = require('../model/model-adapters');
 const { writeProjectContext } = require('./project-context');
+const { ensureStructureDoc } = require('./project-structure');
 
 const MAX_CONFIG_CHARS = 12000;
 const MAX_FILE_LIST = 420;
@@ -98,6 +99,7 @@ function buildDiscoveryPrompt(project) {
     '- 技术栈、UI 框架、路由、状态管理、请求库都必须从输入配置或入口文件中推断。',
     '- 如果怀疑存在 UI 框架，请输出用于本地验证的关键词，例如包名、样式文件名、入口 import 片段、可能的 class 前缀候选。',
     '- class 前缀只能作为待验证关键词，不能在第一轮当成已确认事实。',
+    '- businessFeatureDirs：顶层源码目录里，那些「其下每一项装的是一个具体业务页面/功能」的目录名（相对 src、只列顶层）。判据是内容性质——装的是一次性业务功能，而非可复用组件/hook/工具/基建/状态/路由；按项目实际结构判断，不要凭目录叫什么名字来定。',
     '- 返回严格 JSON，不输出 Markdown。',
     '',
     '返回格式：',
@@ -115,6 +117,7 @@ function buildDiscoveryPrompt(project) {
         mode: 'all | any',
         purpose: '',
       }],
+      businessFeatureDirs: [],
       uncertainty: [],
     }),
     '',
@@ -246,6 +249,12 @@ async function interpretProject(project, rawAdapter, options = {}) {
   });
   appendLog(logs, `Project Interpreter 第一轮输出：${discoveryResult.rawText.length} 字符`);
   const discovery = parseJsonObject(discoveryResult.rawText);
+  // 业务功能目录由 LLM 断定（非写死）；据此生成「复用骨架」Structure.md（扫盘，排除业务区）。
+  const businessFeatureDirs = (Array.isArray(discovery.businessFeatureDirs) ? discovery.businessFeatureDirs : [])
+    .map(item => String(item || '').trim().replace(/^src\//, '').replace(/\/+$/, ''))
+    .filter(Boolean);
+  const structure = ensureStructureDoc(project, businessFeatureDirs);
+  appendLog(logs, `Structure.md：复用骨架已生成（业务功能目录=${businessFeatureDirs.join('、') || '无'}）；${structure.writable ? '已写入 .magnus/Structure.md' : '仅内存（目录不可写）'}`);
   const verification = searchVerification(project, discovery.verificationSearches);
   appendLog(logs, `Project Interpreter 本地验证：执行 ${verification.length} 组检索`);
   const finalPrompt = buildFinalPrompt(project, discovery, verification);

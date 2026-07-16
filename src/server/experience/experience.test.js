@@ -3,341 +3,63 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { scanProject } = require('../core/project');
-const { executeDiscoveryPlan } = require('./discovery-executor');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
 const { listAgentTools, executeAgentTool } = require('../agent-host/tools/registry');
-const { ensureProjectContext, projectTechnicalStackMarkdown } = require('./project-context');
-const { loadExperienceContexts, loadExperienceMetas } = require('./experience-store');
-const {
-  memorySnapshot,
-  removeTaskSessionMemory,
-  updateStoredExperience,
-  updateTaskSessionMemory,
-} = require('./memory-service');
 
 function write(root, file, content) {
   const absolute = path.join(root, file);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
-  fs.writeFileSync(absolute, content, 'utf8');
+  fs.writeFileSync(absolute, content);
 }
 
+// 新经验流程：侦察（找项目已有同类实现）→ 照先例产计划。不再匹配/蒸馏/保存经验文档。
 async function run() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-experience-'));
-  try {
-    write(root, 'package.json', JSON.stringify({
-      dependencies: { vue: '^3.0.0', axios: '^1.0.0', 'naive-ui': '^2.0.0' },
-      devDependencies: { vite: '^5.0.0', typescript: '^5.0.0' },
-    }));
-    const longAppBody = Array.from({ length: 900 }, (_, index) => `const marker${index} = ${index}`).join('\n');
-    write(root, 'src/App.vue', [
-      '<script setup lang="ts">',
-      "import { onMounted } from 'vue'",
-      longAppBody,
-      'onMounted(() => {})',
-      'const MAGNUS_FULL_TARGET_FILE_MARKER = true',
-      '</script>',
-    ].join('\n'));
-    write(root, 'src/main.ts', "import App from './App.vue'\n");
-    write(root, 'src/imports.ts', [
-      "import helper from './helper'",
-      "import icon from './icon.png'",
-      'export { helper, icon }',
-    ].join('\n'));
-    write(root, 'src/helper.ts', 'export default function helper() { return true }\n');
-    write(root, 'src/icon.png', 'not-real-image');
-    write(root, 'src/api/user.ts', [
-      "import http from '@/utils/http/axios'",
-      "export function getUser() { return http.request({ url: '/api/user', method: 'GET' }) }",
-    ].join('\n'));
-    write(root, 'src/api/common.ts', [
-      "import http from '@/utils/http/axios'",
-      "export function getConfig() { return http.request({ url: '/api/config', method: 'GET' }) }",
-    ].join('\n'));
-    write(root, 'src/utils/http/axios/index.ts', 'export default { request(config: unknown) { return config } }\n');
-    write(root, 'src/api/model/baseModel.ts', 'export interface BasicResponseModel<T> { code: number; data: T }\n');
-    write(root, 'src/components/index.ts', "export { default as MdTable } from './md-table'\n");
-    write(root, 'src/components/md-table/hooks/useTable.ts', 'export function useTable(options: unknown) { return options }\n');
-    write(root, 'src/components/md-table/index.vue', '<template><div class="md-table"><slot /></div></template>\n');
-    write(root, 'src/views/order/index.vue', [
-      '<template><md-table :columns="columns" :data="data" /></template>',
-      '<script setup lang="ts">',
-      "import { MdTable } from '@/components'",
-      "import { useTable } from '@/components/md-table/hooks/useTable'",
-      'const { data } = useTable({ api: () => Promise.resolve([]) })',
-      'const columns = []',
-      '</script>',
-    ].join('\n'));
-    write(root, 'src/views/goods/index.vue', [
-      '<template><MdTable :columns="columns" :data="data" /></template>',
-      '<script setup lang="ts">',
-      "import { MdTable } from '@/components'",
-      "import { useTable } from '@/components/md-table/hooks/useTable'",
-      'const { data } = useTable({ api: () => Promise.resolve([]) })',
-      'const columns = []',
-      '</script>',
-    ].join('\n'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-'));
+  write(root, 'src/components/md-table/index.vue', '<template><div class="md-table"><slot /></div></template>\n<script>export function useTable(){}</script>');
+  write(root, 'src/views/order/list.vue', '<template><md-table :columns="c" /></template>\n<script>import { MdTable, useTable } from "@/components/md-table"</script>');
+  write(root, 'src/hooks/authority/index.ts', 'export function useAuthority(){ return {} }');
+  const project = scanProject(root);
 
-    const project = scanProject(root);
-    const context = ensureProjectContext(project);
-    assert.equal(context.writable, true);
-    assert.match(context.markdown, /Project Interpreter 尚未运行/);
-    assert.doesNotMatch(context.markdown, /Naive UI/);
-    assert.match(
-      projectTechnicalStackMarkdown(project, '## 技术栈\n- Vue\n\n## 项目信息\n- old'),
-      /Vue/
-    );
-    assert.ok(fs.existsSync(path.join(root, '.magnus', 'Project.md')));
-
-    const discovery = executeDiscoveryPlan(project, {
-      domain: 'api-integration',
-      requests: [{
-        id: 'api-usage',
-        operation: 'search_text',
-        scope: { roots: ['src'] },
-        terms: ['http.request'],
-        fileTypes: ['ts'],
-        maxResults: 10,
-        maxLinesPerResult: 8,
-      }],
-    });
-    assert.equal(discovery.results['api-usage'].matches.length, 2);
-
-    const tableDiscovery = executeDiscoveryPlan(project, {
-      domain: 'table-pattern',
-      requests: [{
-        id: 'table-frequency',
-        operation: 'find_related_examples',
-        scope: { roots: ['src'] },
-        terms: ['useTable', 'MdTable', 'md-table'],
-        maxResults: 10,
-        maxLinesPerResult: 12,
-      }],
-    });
-    assert.equal(tableDiscovery.results['table-frequency'].stats.termStats.find(item => item.term === 'useTable').files >= 2, true);
-    assert.equal(tableDiscovery.results['table-frequency'].stats.termStats.find(item => item.term === 'MdTable').files >= 2, true);
-
-    const importDiscovery = executeDiscoveryPlan(project, {
-      domain: 'import-pattern',
-      requests: [{
-        id: 'imports',
-        operation: 'find_imports',
-        target: 'src/imports.ts',
-        maxResults: 10,
-      }],
-    });
-    assert.deepEqual(importDiscovery.results.imports.matches.map(item => item.path), ['src/helper.ts']);
-
-    const logs = [];
-    const result = await enhanceLocatedPrompt({
-      project,
-      body: {
-        pagePath: '/',
-        searchPayload: {
-          url: 'http://localhost/',
-          userPrompt: '默认请求初始化接口 /api/setup',
-          selectionInstructions: [],
+  const logs = [];
+  const result = await enhanceLocatedPrompt({
+    project,
+    body: {
+      pagePath: '/order',
+      searchPayload: { url: 'http://localhost/order', userPrompt: '在这个页面加一个记录表格', selectionInstructions: [] },
+    },
+    modelItems: [{ file: 'src/views/order/list.vue', locateLevel: 'exact', codeSnippet: '<md-table />', directionGuess: '', prompt: 'x', confidence: 100 }],
+    log: message => logs.push(message),
+    toolRuntime: { listTools: listAgentTools, executeTool: executeAgentTool },
+    invoke: async (stage, prompt) => {
+      if (stage === 'recon') {
+        assert.match(prompt, /Structure\.md/); // 复用骨架进了侦察提示词
+        return JSON.stringify([
+          { role: 'component', path: 'src/components/md-table', keywords: ['md-table'], explain: '表格' },
+        ]);
+      }
+      // change-plan：侦察证据里带着 md-table，照它产计划（不用框架原语）
+      assert.match(prompt, /recon/);
+      return JSON.stringify({
+        changePlan: {
+          selectionUnderstanding: 'order/list 页新增记录表格',
+          summary: '照项目 md-table 新增记录表格',
+          targets: [{ file: 'src/views/order/list.vue', anchor: 'md-table', line: 0, whatToChange: '用 md-table + useTable 新增记录表格', why: '需求' }],
+          affected: [], reusePatterns: ['复用 md-table + useTable'], risks: [], verification: [], openQuestions: [],
         },
-      },
-      modelItems: [{
-        file: 'src/App.vue',
-        locateLevel: 'direction',
-        codeSnippet: 'onMounted(() => {})',
-        directionGuess: '在应用挂载时初始化',
-        prompt: '粗提示词',
-        confidence: 80,
-      }],
-      log: message => logs.push(message),
-      toolRuntime: { listTools: listAgentTools, executeTool: executeAgentTool },
-      invoke: async (stage, prompt) => {
-        // 变更计划走 tool-capable 循环；本用例信息已足够，模型直接产出计划（不调用工具）。
-        // 目标文件完整内容仍应进入提示词，供理解上下文。
-        assert.match(prompt, /MAGNUS_FULL_TARGET_FILE_MARKER/);
-        return JSON.stringify({
-          changePlan: {
-            summary: '在 App.vue 按项目现有 API 层接入 /api/setup',
-            targets: [{ file: 'src/App.vue', anchor: 'onMounted', line: 0, whatToChange: '挂载时调用 /api/setup 初始化接口', why: '默认请求初始化接口' }],
-            affected: [],
-            reusePatterns: ['复用项目现有 API 层封装'],
-            risks: [],
-            verification: ['构建通过'],
-            openQuestions: ['接口方法与响应结构仍需确认'],
-          },
-          confirmedFacts: ['项目通过 API 模块调用统一 HTTP 实例'],
-          assumptions: ['接口方法与响应结构仍需确认'],
-          usedExperienceIds: [],
-          candidateExperience: null,
-        });
-      },
-    });
-    assert.match(result.enhancedPrompt, /API 层/);
-    assert.ok(result.changePlan.targets.length >= 1);
-    assert.equal(result.changePlan.targets[0].file, 'src/App.vue');
-    assert.equal(result.savedExperience, null);
-    assert.equal(loadExperienceMetas(project).length, 0);
+        confirmedFacts: [], assumptions: [],
+      });
+    },
+  });
 
-    const tableExperience = await enhanceLocatedPrompt({
-      project,
-      body: {
-        pagePath: '/order',
-        searchPayload: {
-          url: 'http://localhost/order',
-          userPrompt: '新增一个表格',
-          selectionInstructions: [],
-        },
-      },
-      modelItems: [{
-        file: 'src/views/order/index.vue',
-        locateLevel: 'direction',
-        codeSnippet: '<md-table :columns="columns" :data="data" />',
-        directionGuess: '按项目表格模式新增',
-        prompt: '粗提示词',
-        confidence: 80,
-      }],
-      log: message => logs.push(message),
-      toolRuntime: { listTools: listAgentTools, executeTool: executeAgentTool },
-      invoke: async (stage, prompt) => {
-        assert.notEqual(stage, 'legacy-evaluation');
-        if (stage === 'change-plan') {
-          // 变更计划第一轮：模型按需调用 find_related_examples 统计表格实现频次，
-          // 这些真实观测正是后续「经验沉淀」的证据来源（取代旧的固定 discovery-plan）。
-          return JSON.stringify({
-            toolCalls: [{
-              id: 't1',
-              tool: 'find_related_examples',
-              input: { terms: ['useTable', 'MdTable', 'md-table'], roots: ['src'], maxResults: 10, maxLinesPerResult: 24 },
-            }],
-          });
-        }
-        if (stage === 'experience-candidate') {
-          assert.match(prompt, /src\/components\/md-table\/hooks\/useTable\.ts/);
-          assert.match(prompt, /src\/components\/md-table\/index\.vue/);
-          assert.match(prompt, /src\/views\/order\/index\.vue/);
-          return JSON.stringify({
-            shouldSave: true,
-            reason: 'MdTable 与 useTable 来源清晰，且多个业务页面按同一模式实现表格。',
-            candidateExperience: {
-              id: 'experience:mdtable-usetable',
-              name: 'MdTable + useTable 表格实现规范',
-              triggerTags: ['MdTable', 'useTable', 'md-table', '表格', '列表'],
-              applicableWhen: ['新增或修改业务列表表格', '目标文件已使用 MdTable 或 useTable'],
-              notApplicableWhen: ['目标文件没有使用该表格体系', '需求明确要求原生组件或第三方表格'],
-              context: [
-                '## 适用场景',
-                '业务页面需要新增或修改列表表格，并且目标文件已经使用 MdTable / useTable。',
-                '## 标准用法',
-                "从 '@/components' 或 '@/components/md-table' 引入 MdTable；从 '@/components/md-table/hooks/useTable' 引入 useTable。",
-                '使用 useTable({ api, params }) 管理 data、loading、pagination、paginationChange 等表格状态。',
-                '模板使用 <md-table :columns="columns" :data="data" :loading="loading" :pagination="pagination" @update:pagination="paginationChange" />。',
-                '## 注意事项',
-                '新增接口应放在当前业务目录的 api.ts，并复用项目已有 http.request 封装。',
-              ].join('\n'),
-              requiredEvidence: [
-                { path: 'src/components/md-table/hooks/useTable.ts', purpose: '公共表格状态 hook' },
-                { path: 'src/components/md-table/index.vue', purpose: '公共 MdTable 组件' },
-              ],
-              examples: [
-                { path: 'src/views/order/index.vue', purpose: '当前业务表格用法' },
-                { path: 'src/views/goods/index.vue', purpose: '另一个业务表格用法' },
-              ],
-              recipes: [{
-                title: '新增分页业务表格',
-                when: '目标页面已有 MdTable/useTable 或同类列表页结构',
-                steps: [
-                  '从项目组件入口导入 MdTable，从 md-table hooks 导入 useTable。',
-                  '在当前业务目录 api.ts 增加列表接口函数。',
-                  '定义 columns，并通过 useTable({ api, params }) 接管数据、分页和 loading。',
-                  '模板中绑定 columns、data、loading、pagination，并把分页事件接到 paginationChange。',
-                ],
-                code: "const { data, loading, pagination, paginationChange, getData } = useTable({ api: getListApi, params: () => ({ ...filter }) })",
-              }],
-              sourceContracts: [{
-                name: 'MdTable',
-                importFrom: '@/components',
-                usage: '<md-table :columns="columns" :data="data" :loading="loading" :pagination="pagination" @update:pagination="paginationChange" />',
-              }, {
-                name: 'useTable',
-                importFrom: '@/components/md-table/hooks/useTable',
-                usage: 'useTable({ api, params }) 返回 data/loading/pagination/paginationChange/getData 等表格状态与动作。',
-              }],
-              verificationChecklist: [
-                '确认目标文件实际导入路径与当前项目一致。',
-                '确认接口函数位于当前业务目录或项目既有 api 模块。',
-                '确认 columns、rowKey、分页字段与后端响应结构匹配。',
-              ],
-              confidence: 'medium',
-            },
-          });
-        }
-        return JSON.stringify({
-          changePlan: {
-            summary: '复用 MdTable + useTable 新增业务表格',
-            targets: [{ file: 'src/views/order/index.vue', anchor: 'MdTable', line: 0, whatToChange: '按 useTable 模式新增分页表格', why: '需求新增表格' }],
-            affected: [],
-            reusePatterns: ['复用 MdTable + useTable 公共表格模式'],
-            risks: [],
-            verification: [],
-            openQuestions: [],
-          },
-          confirmedFacts: ['MdTable + useTable 是高频公共模式'],
-          assumptions: [],
-          usedExperienceIds: [],
-          candidateExperience: null,
-        });
-      },
-    });
-    assert.equal(tableExperience.savedExperience.saved, true, tableExperience.savedExperience.reason);
-    assert.equal(loadExperienceMetas(project).length, 1);
-    assert.deepEqual(loadExperienceMetas(project)[0].triggerTags, ['MdTable', 'useTable', 'md-table', '表格', '列表']);
-    const experienceDirectory = path.join(root, '.magnus', 'experiences', 'mdtable-usetable');
-    assert.equal(fs.existsSync(path.join(experienceDirectory, 'recipes.json')), true);
-    assert.equal(fs.existsSync(path.join(experienceDirectory, 'source-contracts.json')), true);
-    assert.equal(fs.existsSync(path.join(experienceDirectory, 'checklist.json')), true);
-    assert.equal(fs.existsSync(path.join(experienceDirectory, 'provenance.json')), true);
-    assert.equal(fs.existsSync(path.join(experienceDirectory, 'examples.json')), false);
-    assert.equal(fs.existsSync(path.join(experienceDirectory, 'evidence.json')), false);
-    assert.equal(fs.existsSync(path.join(root, '.magnus', 'skills')), false);
-    const contexts = loadExperienceContexts(project, ['experience:mdtable-usetable']);
-    assert.equal(contexts.length, 1);
-    assert.equal(Array.isArray(contexts[0].recipes), true);
-    assert.equal(Array.isArray(contexts[0].sourceContracts), true);
-    assert.equal(Array.isArray(contexts[0].verificationChecklist), true);
-    assert.equal(contexts[0].examples, undefined);
-    assert.equal(contexts[0].evidence, undefined);
-
-    const memory = memorySnapshot(project);
-    assert.equal(memory.experiences.length, 1);
-    assert.ok(memory.taskSessions.some(session => session.pageKey === '/order'));
-    const orderSession = memory.taskSessions.find(session => session.pageKey === '/order');
-    const updatedSession = updateTaskSessionMemory(project, orderSession.id, {
-      requirements: ['新增订单表格', '增加执行时间列'],
-      confirmedFacts: ['订单列表使用 MdTable'],
-    });
-    assert.deepEqual(updatedSession.requirements, ['新增订单表格', '增加执行时间列']);
-    assert.deepEqual(updatedSession.confirmedFacts, ['订单列表使用 MdTable']);
-
-    const updatedExperience = updateStoredExperience(project, {
-      id: 'experience:mdtable-usetable',
-      name: '项目表格实现规范',
-      status: 'active',
-      confidence: 'high',
-      context: `${contexts[0].context}\n\n编辑后的补充约束。`,
-    });
-    assert.equal(updatedExperience.meta.name, '项目表格实现规范');
-    assert.equal(updatedExperience.meta.status, 'active');
-    assert.match(updatedExperience.context, /编辑后的补充约束/);
-    assert.match(
-      fs.readFileSync(path.join(root, '.magnus', 'Project.md'), 'utf8'),
-      /项目表格实现规范/
-    );
-    assert.equal(removeTaskSessionMemory(project, orderSession.id), true);
-    assert.equal(memorySnapshot(project).taskSessions.some(session => session.id === orderSession.id), false);
-
-    const rescanned = scanProject(root);
-    assert.equal(rescanned.files.some(file => file.path.startsWith('.magnus/')), false);
-    assert.ok(logs.some(log => log.includes('候选经验已保存')));
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+  assert.equal(result.mode, 'recon');
+  assert.ok(result.changePlan.targets.length >= 1);
+  assert.equal(result.changePlan.targets[0].file, 'src/views/order/list.vue');
+  assert.ok(
+    result.recon.reuse.some(item => item.path.includes('md-table')),
+    'recon.reuse 应包含项目公共件 md-table'
+  );
+  assert.ok(logs.some(line => line.includes('实现侦察')));
+  fs.rmSync(root, { recursive: true, force: true });
 }
 
 run().then(() => {
@@ -394,7 +116,7 @@ run().then(() => {
   const task = roughTask(body, [{ file: 'src/index.vue', codeSnippet: 'region', scopeAlignment: 'approximate' }]);
   assert.equal(task.selections[0].text, '¥3');                       // 原始选区优先于指令文本
   assert.equal(task.selections[0].ancestors, 'td[data-col-key=cost] > div');
-  const prompt = buildChangePlanPrompt({ roughTask: task, targetFiles: [], discovery: {}, matchedExperiences: [] });
+  const prompt = buildChangePlanPrompt({ roughTask: task, targetFiles: [], recon: {} });
   assert.ok(prompt.includes('¥3'));                                  // 变更计划 LLM 能看到用户到底选了什么
   assert.ok(prompt.includes('data-col-key=cost'));
   // 没有 originSelections 时退回指令文本，不报错

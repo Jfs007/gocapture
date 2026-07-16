@@ -69,6 +69,10 @@
         gap: 6px;
       }
 
+      .is-hidden {
+        display: none !important;
+      }
+
       .field > label {
         font-size: 13px;
         color: #4b5563;
@@ -193,6 +197,7 @@
                 <select id="promptMode">
                   <option value="dom-plan">DOM Plan</option>
                   <option value="freeform">自由提示词</option>
+                  <option value="pure" selected>纯 Prompt</option>
                 </select>
               </div>
               <div class="field">
@@ -219,7 +224,16 @@
               <textarea id="systemPrompt" class="large"></textarea>
             </div>
 
-            <div class="field">
+            <div class="field" id="purePromptField">
+              <label for="purePrompt">Prompt</label>
+              <textarea
+                id="purePrompt"
+                class="large"
+                placeholder="只输入要直接发给模型的完整 Prompt。纯 Prompt 模式不会拼接系统提示词、选区文本或额外上下文。"
+              ></textarea>
+            </div>
+
+            <div class="field composed-field">
               <label for="selectionText">选区文本</label>
               <textarea
                 id="selectionText"
@@ -228,7 +242,7 @@
               ></textarea>
             </div>
 
-            <div class="field">
+            <div class="field composed-field">
               <label for="requirementText">用户提示词</label>
               <textarea
                 id="requirementText"
@@ -237,7 +251,7 @@
               ></textarea>
             </div>
 
-            <div class="field">
+            <div class="field composed-field">
               <label for="extraContext">额外上下文</label>
               <textarea
                 id="extraContext"
@@ -253,7 +267,7 @@
               <button id="resetBtn">恢复默认提示词</button>
             </div>
 
-            <div class="field">
+            <div class="field composed-field">
               <label for="userPrompt">最终用户消息</label>
               <textarea id="userPrompt" class="large" readonly></textarea>
               <div class="hint">
@@ -285,7 +299,7 @@
     </div>
 
     <script>
-      const STORAGE_KEY = 'magnus-prompt-lab:v6';
+      const STORAGE_KEY = 'magnus-prompt-lab:v8';
       const TECH_STACK_PROMPT = [
         '## 技术栈',
         '- Vue',
@@ -351,6 +365,211 @@
           reason: ''
         })
       ].join('\n');
+      const DEFAULT_PURE_PROMPT = String.raw`你是前端项目实现侦察员。根据用户需求、目标文件、Project.md 和实时项目目录，输出实现前需要调查的项目事实和本地检索计划。
+
+边界：
+1. 不要写实现方案。
+2. 不要编造项目专有组件名、接口名、store 名、hook 名或文件路径。
+3. 只能根据用户需求、目标文件、Project.md、实时项目目录中的真实线索提出调查方向。
+4. 关键词必须用于发现项目已有同类实现，不是描述你打算怎么实现。
+5. 如果目录里能看到相关模块、components、api、hooks、ctx、utils、const 等线索，优先围绕这些线索设计检索。
+6. 如果没有真实线索，使用用户需求中的业务词和通用源码概念做探索，不要生成看似存在的专有名字。
+
+只返回 JSON：
+[
+  {
+    "role": "component | api | data-source | state | permission | validation | interaction | persistence",
+    "question": "要确认的项目事实",
+    "directoryClues": ["目录或文件线索"],
+    "keywords": ["检索关键词"],
+    "expectedEvidence": "希望本地返回什么证据",
+    "stopWhen": "停止检索的条件"
+  }
+]
+
+用户需求：
+添加一个选择记录列表，选择时间，选择店铺，操作人
+
+目标文件：
+未定位
+
+Project.md 摘要：
+## 技术栈
+- Vue
+- Vite
+- TypeScript
+- Sass
+- Vue Router
+- Vuex
+- Axios
+- Naive UI
+
+项目根目录：
+/Users/jojo/Documents/work-place/madao/winsup
+
+实时项目目录快照：
+.
+./package.json
+./vite.config.ts
+./tsconfig.json
+./src
+./src/main.ts
+./src/App.vue
+./src/layout/index.vue
+./src/layout/outer.vue
+./src/layout/content/index.vue
+./src/layout/menu/index.vue
+./src/layout/breadcrumb/index.vue
+./src/layout/header/index.vue
+./src/directives/index.ts
+./src/directives/v-lazy.ts
+./src/directives/v-track.ts
+./src/directives/v-trim.ts
+./src/enums/httpEnum.ts
+./src/enums/roleEnum.ts
+./src/enums/cacheEnum.ts
+./src/utils/http
+./src/utils/options.ts
+./src/utils/storage.ts
+./src/utils/date.ts
+./src/utils/deep.ts
+./src/utils/index.ts
+./src/utils/upload-tos.ts
+./src/components
+./src/components/md-table/index.vue
+./src/components/md-table/hooks
+./src/components/md-table/component
+./src/components/md-table/types
+./src/components/md-filter/index.vue
+./src/components/md-sup-filter/index.vue
+./src/components/md-sup-filter/item.vue
+./src/components/md-check-group/index.vue
+./src/components/md-customer/selector.vue
+./src/components/md-customer/api.ts
+./src/components/md-customer/useCustomer.ts
+./src/components/md-material-selector-drawer/index.vue
+./src/components/md-material-selector-drawer/api.ts
+./src/components/md-material-selector-drawer/useHook.ts
+./src/components/md-export-button/index.vue
+./src/components/md-upload/index.vue
+./src/components/md-upload-ultra/index.vue
+./src/components/md-diy-column-draggable/index.vue
+./src/components/v-render/index.ts
+./src/hooks
+./src/hooks/usePage.ts
+./src/hooks/useDownload.ts
+./src/hooks/useUpload.ts
+./src/hooks/useCache.ts
+./src/hooks/usePropsControl.ts
+./src/hooks/dictionary/index.ts
+./src/hooks/authority
+./src/api
+./src/api/common.ts
+./src/api/system.ts
+./src/api/user.ts
+./src/store
+./src/store/index.ts
+./src/store/modules.ts
+./src/store/modules
+./src/router
+./src/router/index.ts
+./src/router/constant.ts
+./src/router/modules
+./src/views
+./src/views/management/storeAuth/index.vue
+./src/views/management/storeAuth/api.ts
+./src/views/management/storeAuth/components/erp-wxshop.vue
+./src/views/management/storeAuth/components/operator-edit-modal.vue
+./src/views/management/storeAuth/components/erp-ali-shop.vue
+./src/views/management/storeAuth/components/authModal.vue
+./src/views/management/storeAuth/components/erp-ks-shop.vue
+./src/views/management/storeAuth/components/add-list.vue
+./src/views/management/storeAuth/components/erp-dy-shop.vue
+./src/views/management/team/api.ts
+./src/views/management/team/components/AccountManage.vue
+./src/views/management/team/components/DepartmentEdit.vue
+./src/views/management/team/components/AccountEdit.vue
+./src/views/management/team/components/RoleManage.vue
+./src/views/management/team/staff.vue
+./src/views/data-center/operation-data/api.ts
+./src/views/data-center/operation-data/ks-shop-data/index.vue
+./src/views/data-center/operation-data/ks-shop-data/const.ts
+./src/views/data-center/operation-data/ks-shop-data/StoreTable.vue
+./src/views/data-center/operation-data/ks-shop-data/ProductTable.vue
+./src/views/data-center/operation-data/ks-shop-data/api.ts
+./src/views/data-center/operation-data/ks-shop-data/CostDetailDrawer.vue
+./src/views/data-center/operation-data/ks-shop-data/CostEditModal.vue
+./src/views/data-center/operation-data/dy-shop-data/index.vue
+./src/views/data-center/operation-data/dy-shop-data/const.ts
+./src/views/task-center/const.ts
+./src/views/task-center/video-task/index.vue
+./src/views/task-center/video-task/ai-video/index.vue
+./src/views/task-center/video-task/ai-video/api.ts
+./src/views/task-center/store-goods-task/index.vue
+./src/views/task-center/store-goods-task/api.ts
+./src/views/task-center/store-goods-task/task-detail-modal.vue
+./src/views/ai-product/product-card/index.vue
+./src/views/ai-product/product-card/const.ts
+./src/views/ai-product/product-card/api.ts
+./src/views/ai-product/product-card/useHook.ts
+./src/views/ai-product/product-card/ctx/useCtx.ts
+./src/views/ai-product/product-card/components/auto-task-modal.vue
+./src/views/ai-product/product-card/components/auto-market-selection-drawer.vue
+./src/views/ai-product/product-card/components/product-selector-drawer.vue
+./src/views/ai-product/product-card/components/upload-config-card.vue
+./src/views/ai-product/product-card/components/use-store-selector.ts
+./src/views/ai-product/product-card/components/execution-plan-config.vue
+./src/views/ai-product/product-card/components/auto-market-selection-config-drawer.vue
+./src/views/ai-product/product-card/components/price
+./src/views/ai-product/product-card/components/auto-task-drawer.vue
+./src/views/ai-product/product-card/components/store-selector-drawer.vue
+./src/views/ai-product/product-card/components/import-product-modal.vue
+./src/views/ai-product/product-card/components/auto-distribution-task-drawer.vue
+./src/views/ai-product/product-card/components/product-selection-api.ts
+./src/views/ai-product/product-card/components/product-title
+./src/views/ai-product/product-card/components/auto-market-selection.shared.ts
+./src/views/ai-product/product-card/components/auto-config-modal.vue
+./src/views/ai-product/product-card/components/config-editor-drawer.vue
+./src/views/ai-product/goods-manage/index.vue
+./src/views/ai-product/goods-manage/const.ts
+./src/views/ai-product/goods-manage/api.ts
+./src/views/ai-product/goods-manage/components/plan-task-modal.vue
+./src/views/ai-product/goods-manage/components/copy-goods-modal.vue
+./src/views/ai-product/goods-manage/components/create-plan-modal.vue
+./src/views/ai-product/quick-put-goods/index.vue
+./src/views/ai-product/quick-put-goods/const.ts
+./src/views/ai-product/quick-put-goods/api.ts
+./src/views/ai-product/quick-put-goods/README.md
+./src/views/ai-product/quick-put-goods/utils/sku-mapper.ts
+./src/views/ai-product/quick-put-goods/utils/image-download.ts
+./src/views/ai-product/quick-put-goods/utils/sensitive-word-validator.ts
+./src/views/ai-product/quick-put-goods/utils/sku-validator.ts
+./src/views/ai-product/quick-put-goods/utils/sku-ratio.ts
+./src/views/ai-product/quick-put-goods/components/quick-edit-modal.vue
+./src/views/ai-product/quick-put-goods/components/hover-image-cropper.vue
+./src/views/ai-product/quick-put-goods/components/roi-calculation
+./src/views/ai-product/quick-put-goods/components/return-address-editor.vue
+./src/views/ai-product/quick-put-goods/components/product-url-sync.vue
+./src/views/ai-product/quick-put-goods/components/similar-goods-selector.vue
+./src/views/ai-product/quick-put-goods/components/cost-table.vue
+./src/views/ai-product/quick-put-goods/components/cost-modal.vue
+./src/views/ai-product/quick-put-goods/components/jinniu.vue
+./src/views/ai-product/quick-put-goods/components/spec-editor.vue
+./src/views/ai-product/quick-put-goods/components/create-detail-modal.vue
+./src/views/ai-product/quick-put-goods/components/return-address-viewer.vue
+./src/views/ai-product/quick-put-goods/components/roi-estimation-table.vue
+./src/views/ai-product/quick-put-goods/hooks/useHpzdAuth.ts
+./src/views/ai-product/quick-put-goods/hooks/useProductSync.ts
+./src/views/ai-product/quick-put-goods/hooks/useSpecDelete.ts
+./src/views/ai-product/quick-put-goods/ctx/const.ts
+./src/views/ai-product/quick-put-goods/ctx/types.ts
+./src/views/ai-product/quick-put-goods/ctx/channel-setup.ts
+./src/views/ai-product/quick-put-goods/ctx/modules
+./src/views/ai-product/quick-put-goods/ctx/useHook.ts
+./src/views/mediaLib/hot/api.ts
+./src/views/mediaLib/hot/jinniu/video-table-drawer.vue
+./src/views/login/index.vue
+./src/views/login/PwdForm.vue`;
 
       const els = {
         apiKey: document.getElementById('apiKey'),
@@ -358,6 +577,8 @@
         model: document.getElementById('model'),
         temperature: document.getElementById('temperature'),
         systemPrompt: document.getElementById('systemPrompt'),
+        purePrompt: document.getElementById('purePrompt'),
+        purePromptField: document.getElementById('purePromptField'),
         selectionText: document.getElementById('selectionText'),
         requirementText: document.getElementById('requirementText'),
         extraContext: document.getElementById('extraContext'),
@@ -390,6 +611,7 @@
           model: els.model.value,
           temperature: els.temperature.value,
           systemPrompt: els.systemPrompt.value,
+          purePrompt: els.purePrompt.value,
           selectionText: els.selectionText.value,
           requirementText: els.requirementText.value,
           extraContext: els.extraContext.value,
@@ -399,6 +621,9 @@
       }
 
       function buildUserPrompt() {
+        if (els.promptMode.value === 'pure') {
+          return els.purePrompt.value.trim();
+        }
         if (els.promptMode.value === 'dom-plan') {
           const pageContext = els.extraContext.value.trim() || '未提供';
           const requirement = els.requirementText.value.trim() || '找到源码';
@@ -434,7 +659,24 @@
         els.userPrompt.value = buildUserPrompt();
       }
 
+      function updateModeUi() {
+        const pure = els.promptMode.value === 'pure';
+        els.purePromptField.classList.toggle('is-hidden', !pure);
+        document.querySelectorAll('.composed-field').forEach((el) => {
+          el.classList.toggle('is-hidden', pure);
+        });
+        els.systemPrompt.parentElement.classList.toggle('is-hidden', pure);
+        els.planPresetBtn.classList.toggle('is-hidden', pure);
+      }
+
       function setDefaultPrompt() {
+        if (els.promptMode.value === 'pure') {
+          els.systemPrompt.value = '';
+          if (!els.purePrompt.value.trim()) {
+            els.purePrompt.value = DEFAULT_PURE_PROMPT;
+          }
+          return;
+        }
         if (els.promptMode.value === 'dom-plan') {
           els.systemPrompt.value = DOM_PLAN_SYSTEM_PROMPT;
           if (!els.requirementText.value.trim()) {
@@ -471,7 +713,7 @@
           els.requestStatus.classList.add('danger');
           return;
         }
-        if (!systemPrompt || !userPrompt) {
+        if (!userPrompt || (els.promptMode.value !== 'pure' && !systemPrompt)) {
           els.requestStatus.textContent = '提示词为空';
           els.requestStatus.classList.add('danger');
           return;
@@ -487,6 +729,12 @@
 
         const startedAt = Date.now();
         try {
+          const messages = els.promptMode.value === 'pure'
+            ? [{ role: 'user', content: userPrompt }]
+            : [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ];
           const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
@@ -497,10 +745,7 @@
               model,
               temperature,
               stream: false,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-              ]
+              messages
             })
           });
 
@@ -540,16 +785,20 @@
       const state = loadState();
       if (state) {
         els.apiKey.value = state.apiKey || '';
-        els.promptMode.value = state.promptMode || 'dom-plan';
+        els.promptMode.value = state.promptMode || 'pure';
         els.model.value = state.model || 'deepseek-chat';
         els.temperature.value = state.temperature || '0.2';
         els.systemPrompt.value = state.systemPrompt || DOM_PLAN_SYSTEM_PROMPT;
+        els.purePrompt.value = state.purePrompt || '';
         els.selectionText.value = state.selectionText || '';
         els.requirementText.value = state.requirementText || '';
         els.extraContext.value = state.extraContext || '';
+        updateModeUi();
         updateUserPrompt();
       } else {
+        els.promptMode.value = 'pure';
         setDefaultPrompt();
+        updateModeUi();
         updateUserPrompt();
       }
 
@@ -561,10 +810,18 @@
         els.systemPrompt
       ].forEach((el) => {
         el.addEventListener('input', () => {
+          if (el === els.promptMode) {
+            setDefaultPrompt();
+            updateModeUi();
+          }
           updateUserPrompt();
           saveState();
         });
         el.addEventListener('change', () => {
+          if (el === els.promptMode) {
+            setDefaultPrompt();
+            updateModeUi();
+          }
           updateUserPrompt();
           saveState();
         });
@@ -573,7 +830,8 @@
       [
         els.selectionText,
         els.requirementText,
-        els.extraContext
+        els.extraContext,
+        els.purePrompt
       ].forEach((el) => {
         el.addEventListener('input', () => {
           updateUserPrompt();
@@ -602,6 +860,7 @@
       });
       els.resetBtn.addEventListener('click', () => {
         setDefaultPrompt();
+        updateModeUi();
         updateUserPrompt();
         saveState();
         els.requestStatus.textContent = '已恢复默认提示词';
