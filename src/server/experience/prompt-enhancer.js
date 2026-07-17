@@ -829,20 +829,51 @@ function compactToolResult(result) {
 
 function selectChangePlanTools(tools, options = {}) {
   const allowedSources = new Set(options.allowedSources || ['builtin', 'mcp', 'skill']);
+  const allowedToolNames = new Set(options.allowedToolNames || []);
   const blockedProviders = new Set(options.blockedProviders || ['builtin.experience']);
   const blockedCategories = new Set(options.blockedCategories || ['experience']);
   return (tools || []).filter(tool => {
     if (blockedProviders.has(tool.providerId)) return false;
     if (blockedCategories.has(tool.category)) return false;
     if (!allowedSources.has(tool.source || 'unknown')) return false;
+    if (allowedToolNames.size && !allowedToolNames.has(tool.name)) return false;
     if (options.readOnlyOnly && tool.access !== 'read' && tool.access !== 'external') return false;
     return true;
   });
 }
 
-// 工具是拔插的、与链路无关：任何一次 LLM 调用都能看到当前注册的全部工具（project-crud + MCP + skills），
-// 需要时先调用工具取真实信息（如读源码、查外部系统、取项目经验），再产出结构化结果。
-function buildAgentToolsSection(tools) {
+function allowedChangePlanFiles(input) {
+  return Array.from(new Set([
+    ...(input?.targetFiles || []).map(item => item?.path),
+    ...(input?.recon?.reuse || []).map(item => item?.usage?.path),
+  ].filter(Boolean).map(item => String(item).replace(/^\/+/, ''))));
+}
+
+function selectScopedChangePlanTools(tools) {
+  const scopedBuiltinNames = new Set(['read_file', 'find_imports']);
+  const blockedBuiltinNames = new Set([
+    'search_text',
+    'find_symbol',
+    'find_endpoint',
+    'find_files',
+    'find_importers',
+    'find_related_examples',
+  ]);
+  const allowed = (tools || []).filter(tool => {
+    if ((tool.source || 'unknown') !== 'builtin') return true;
+    if (blockedBuiltinNames.has(tool.name)) return false;
+    return scopedBuiltinNames.has(tool.name);
+  });
+  return selectChangePlanTools(tools, {
+    readOnlyOnly: true,
+    allowedSources: ['builtin', 'mcp', 'skill'],
+    allowedToolNames: allowed.map(tool => tool.name),
+  });
+}
+
+// 工具是拔插的、与链路无关；change-plan 阶段只暴露本阶段需要的窄工具集。
+// 项目经验/先例发现已经由 recon 完成，这里只允许补读目标文件、侦察用法文件。
+function buildAgentToolsSection(tools, options = {}) {
   const lines = tools.slice(0, 40).map(tool => {
     const desc = truncate(tool.description || tool.title || '', 160);
     const schema = truncate(JSON.stringify(compactToolSchema(tool.inputSchema)), 800);
@@ -852,14 +883,52 @@ function buildAgentToolsSection(tools) {
     ].join('\n');
   });
   return [
-    '## 可用工具（拔插，按需调用；先取真实信息，再产出计划）',
-    '在产出 changePlan 之前，你可以调用下列工具收集真实依据。根据工具的 source/name/description/inputSchema 判断用途：builtin 工具用于读取/检索本地源码，mcp 工具用于外部服务能力（例如文档、设计稿、远端仓库、工单、知识库等），skill 工具用于项目或用户安装的专用能力。不要编造工具名，不要假设某个 MCP 一定存在。',
+    '## 可用工具（受限，只能补充当前计划缺失的真实依据）',
+    '经验/先例发现已经由 recon 完成；change-plan 不再负责重新搜索项目经验。默认只能读取当前目标文件和 recon 已命中的用法文件。缺少业务事实时写 openQuestions，不要用泛词全局搜索。',
+    options.allowedFiles?.length
+      ? `允许读取的文件：${options.allowedFiles.join('、')}`
+      : '',
+    '本地项目经验/先例检索已经由 recon 完成；本阶段不再暴露 search_text/find_symbol/find_endpoint/find_files/find_related_examples 等全局本地检索工具。',
+    'MCP/skill 属于 Agent Host 暴露的外部能力，不在本阶段硬编码限制；是否使用由模型根据工具描述和任务需要判断。',
     ...lines,
     '',
     '协议（严格遵守其一，不要混用）：',
     '- 需要调用工具：只返回 {"toolCalls":[{"id":"t1","tool":"<工具名>","input":{...}}]}（可一次多个）。',
     '- 信息足够，产出最终计划：返回原格式 {"changePlan":{...},"confirmedFacts":[],"assumptions":[],"usedExperienceIds":[],"candidateExperience":null}。',
   ].join('\n');
+}
+
+function normalizeToolFile(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+function requestedReadFiles(input) {
+  return [
+    ...(Array.isArray(input?.scope?.files) ? input.scope.files : []),
+    input?.scope?.path,
+    input?.path,
+  ].map(normalizeToolFile).filter(Boolean);
+}
+
+function validateChangePlanToolCall(name, input, allowedFiles) {
+  const allowed = new Set((allowedFiles || []).map(normalizeToolFile));
+  if (!allowed.size) return;
+  if (name === 'read_file') {
+    const files = requestedReadFiles(input);
+    if (!files.length) {
+      throw new Error(`change-plan read_file must specify scope.files/scope.path/path within allowed files: ${Array.from(allowed).join(', ')}`);
+    }
+    const denied = files.filter(file => !allowed.has(file));
+    if (denied.length) {
+      throw new Error(`change-plan read_file denied outside allowed files: ${denied.join(', ')}`);
+    }
+  }
+  if (name === 'find_imports') {
+    const target = normalizeToolFile(input?.target);
+    if (!target || !allowed.has(target)) {
+      throw new Error(`change-plan find_imports target must be one of allowed files: ${Array.from(allowed).join(', ')}`);
+    }
+  }
 }
 
 function formatToolObservation(observation) {
@@ -894,10 +963,11 @@ async function runChangePlanWithTools({ project, invoke, input, log, textCache, 
   const basePrompt = buildChangePlanPrompt(input);
   let tools = [];
   let executeTool = null;
+  const scopedFiles = allowedChangePlanFiles(input);
   // 工具运行时由调用方注入（agent-host 的 { listTools, executeTool }），experience 不再反向 require agent-host——
   // 这样打断了 registry → experience-tools → prompt-enhancer 的跨层循环依赖。无注入则退回无工具模式。
   if (toolRuntime && typeof toolRuntime.listTools === 'function' && typeof toolRuntime.executeTool === 'function') {
-    tools = selectChangePlanTools(toolRuntime.listTools(), { readOnlyOnly: true }); // 排除经验工具/写工具，防递归和副作用
+    tools = selectScopedChangePlanTools(toolRuntime.listTools()); // 排除经验发现类/全局搜索类工具，防职责重叠
     executeTool = toolRuntime.executeTool;
   } else {
     log('未注入工具运行时，change-plan 退回无工具模式');
@@ -908,12 +978,13 @@ async function runChangePlanWithTools({ project, invoke, input, log, textCache, 
     return { ...single, observations };
   }
   log(`change-plan 可用工具 ${tools.length} 个：${tools.map(tool => tool.name).join('、')}`);
+  log(`change-plan 工具范围：${scopedFiles.join('、') || '无目标文件'}；本地全局检索工具=关闭；MCP/skill=沿用 Agent Host 暴露结果`);
   const mcpTools = tools.filter(tool => tool.source === 'mcp');
   if (mcpTools.length) {
     log(`change-plan 可用 MCP 工具 ${mcpTools.length} 个：${mcpTools.map(tool => tool.name).join('、')}`);
   }
 
-  const toolsSection = buildAgentToolsSection(tools);
+  const toolsSection = buildAgentToolsSection(tools, { allowedFiles: scopedFiles });
   let last = { raw: '', parsed: null };
   for (let turn = 1; turn <= maxTurns; turn += 1) {
     const prompt = [
@@ -930,6 +1001,7 @@ async function runChangePlanWithTools({ project, invoke, input, log, textCache, 
       try {
         const toolInput = call.input || call.arguments || {};
         log(`change-plan 工具调用：${name}；input=${truncate(JSON.stringify(toolInput), 500)}`);
+        validateChangePlanToolCall(name, toolInput, scopedFiles);
         const { output, attempt } = await executeToolWithRetry(executeTool, project, { tool: name, input: toolInput }, {
           textCache,
           allowedTools: tools.map(tool => tool.name),

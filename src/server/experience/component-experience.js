@@ -46,6 +46,9 @@ function loadComponentExperiences(project) {
 }
 
 function renderDoc(record) {
+  if (/^#\s+/m.test(String(record.doc || '').trim())) {
+    return record.doc.endsWith('\n') ? record.doc : `${record.doc}\n`;
+  }
   return [
     `# ${record.name}（${record.componentPath}）`,
     '',

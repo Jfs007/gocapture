@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const { scanProject } = require('../core/project');
 const { parseReconPlan, keywordVariants, runRecon } = require('./recon');
+const { extractUsageDoc } = require('./usage-doc');
 
 function mkProject(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-'));
@@ -57,5 +58,48 @@ test('runRecon：LLM 只挑公共件，本地按变体搜谁用了它并抽真�
   assert.match(md.usage.snippet, /<md-table/);
   assert.match(md.usage.snippet, /import \{ MdTable \}/, '变体 MdTable 命中，抽到 import 行');
   assert.match(md.usage.snippet, /useTable\(/);
+  fs.rmSync(project.path, { recursive: true, force: true });
+});
+
+test('extractUsageDoc：从真实业务文件抽公共能力调用点、导入和绑定变量定义', () => {
+  const project = mkProject({
+    'src/components/md-table/index.vue': '<template><div /></template>',
+    'src/views/order/list.vue': [
+      '<template>',
+      '  <section>',
+      '    <md-table',
+      '      :columns="columns"',
+      '      :data="rows"',
+      '      @update:pagination="paginationChange"',
+      '    />',
+      '  </section>',
+      '</template>',
+      '<script setup lang="ts">',
+      "import { MdTable } from '@/components'",
+      "import { useTable } from '@/components/md-table/hooks/useTable'",
+      'const { rows, columns, paginationChange } = useTable({',
+      '  api: getList,',
+      '  columns: [',
+      "    { title: '选择时间', key: 'selectTime' },",
+      '  ],',
+      '})',
+      '</script>',
+    ].join('\n'),
+  });
+
+  const doc = extractUsageDoc(project, {
+    capabilityPath: 'src/components/md-table',
+    usagePath: 'src/views/order/list.vue',
+    terms: ['md-table'],
+  });
+
+  assert.ok(doc, '应抽出使用文档');
+  assert.match(doc.markdown, /## 调用点/);
+  assert.match(doc.markdown, /<md-table/);
+  assert.match(doc.markdown, /## 导入依赖/);
+  assert.match(doc.markdown, /import \{ MdTable \}/);
+  assert.match(doc.markdown, /useTable/);
+  assert.match(doc.markdown, /## 绑定变量定义/);
+  assert.match(doc.markdown, /const \{ rows, columns, paginationChange \}/);
   fs.rmSync(project.path, { recursive: true, force: true });
 });

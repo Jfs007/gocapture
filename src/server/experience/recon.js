@@ -9,6 +9,7 @@ const { uniq } = require('../utils');
 const { runDiscoveryOperation } = require('./discovery-executor');
 const { loadStructureDoc } = require('./project-structure');
 const { loadComponentExperiences, saveComponentExperiences } = require('./component-experience');
+const { extractUsageDoc, rankUsageFiles, scoreUsagePath } = require('./usage-doc');
 
 function buildReconPrompt(requirement, structureDoc) {
   return [
@@ -21,7 +22,7 @@ function buildReconPrompt(requirement, structureDoc) {
     '4. 不写实现方案，不解释。',
     '5. 不编造名字。',
     '6. 没有明显候选就输出 []。',
-    '7. keywords 只能来自用户需求原文或真实结构中的文件/目录名，不要扩写近义词。',
+    '7. keywords 只能来自真实结构中的文件名、目录名或路径片段；不能来自用户需求原文，不能输出“列表/表格/筛选/时间/店铺/操作人”这类需求词。',
     '',
     '公共能力优先范围：',
     'components/ hooks/ api/ store/ router/ enums/ utils/ directives/',
@@ -63,6 +64,31 @@ function parseReconPlan(raw) {
     .slice(0, 8);
 }
 
+function normalizeStructureText(structureDoc) {
+  return String(structureDoc || '').toLowerCase();
+}
+
+function isStructureKeyword(keyword, structureDoc) {
+  const value = String(keyword || '').trim();
+  if (!value) return false;
+  return normalizeStructureText(structureDoc).includes(value.toLowerCase());
+}
+
+function sanitizeReconCandidates(candidates, structureDoc) {
+  return (candidates || [])
+    .map(candidate => {
+      const pathParts = candidate.path.split('/').filter(Boolean);
+      const basename = pathParts[pathParts.length - 1] || '';
+      const keywords = uniq([
+        ...candidate.keywords.filter(keyword => isStructureKeyword(keyword, structureDoc)),
+        basename,
+        candidate.path,
+      ]).filter(keyword => isStructureKeyword(keyword, structureDoc));
+      return { ...candidate, keywords: keywords.slice(0, 3) };
+    })
+    .filter(candidate => candidate.path && candidate.keywords.length);
+}
+
 function toKebab(value) {
   return String(value).replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/[_\s]+/g, '-').toLowerCase();
 }
@@ -101,6 +127,26 @@ function extractUsage(project, filePath, terms, textCache) {
   return ranges.slice(0, 6).map(range => lines.slice(range.start, range.end).join('\n')).join('\n// …\n').slice(0, 700);
 }
 
+function candidateTerms(candidate) {
+  const basename = candidate.path.split('/').filter(Boolean).pop() || '';
+  return uniq([basename, candidate.path, ...candidate.keywords].flatMap(keywordVariants));
+}
+
+function archivedExperienceUsable(record) {
+  if (!record?.usagePath || !record?.doc) return false;
+  if (scoreUsagePath(record.usagePath, record.componentPath) < 50) return false;
+  if (!/##\s+(调用点|真实调用点|Template|Script|导入|绑定)/.test(record.doc)) return false;
+  const codeBlocks = Array.from(String(record.doc || '').matchAll(/```[\s\S]*?```/g))
+    .map(match => match[0].replace(/^```[^\n]*\n?/, '').replace(/\n?```$/, ''))
+    .join('\n');
+  const terms = candidateTerms({
+    path: record.componentPath,
+    keywords: [],
+  }).map(term => term.toLowerCase());
+  const code = codeBlocks.toLowerCase();
+  return terms.some(term => code.includes(term.toLowerCase()));
+}
+
 async function runRecon(project, options = {}) {
   const { requirement = '', invoke, textCache = new Map(), log = () => {} } = options;
   if (typeof invoke !== 'function') throw new Error('runRecon requires an invoke(stage, prompt) function.');
@@ -112,8 +158,17 @@ async function runRecon(project, options = {}) {
   const raw = await invoke('recon', prompt);
   log(`实现侦察模型返回(recon):\n${raw || '-'}`);
 
-  const candidates = parseReconPlan(raw);
+  const rawCandidates = parseReconPlan(raw);
+  const candidates = sanitizeReconCandidates(rawCandidates, structureDoc);
   log(`侦察候选（公共件）：${candidates.map(item => `${item.path}[${item.keywords.join('/')}]`).join('、') || '无'}`);
+  const dropped = rawCandidates
+    .map(item => {
+      const kept = new Set((candidates.find(candidate => candidate.path === item.path)?.keywords || []));
+      const removed = item.keywords.filter(keyword => !kept.has(keyword));
+      return removed.length ? `${item.path}[${removed.join('/')}]` : '';
+    })
+    .filter(Boolean);
+  if (dropped.length) log(`侦察候选关键词过滤：已丢弃非目录结构关键词 ${dropped.join('、')}`);
 
   const archived = new Map(loadComponentExperiences(project).map(record => [record.componentPath, record]));
   const reuse = [];
@@ -121,23 +176,30 @@ async function runRecon(project, options = {}) {
   for (const candidate of candidates) {
     // 清单命中：直接用已有档案的使用文档，跳过本地检索（越用越快）。
     const hit = archived.get(candidate.path);
-    if (hit) {
+    if (archivedExperienceUsable(hit)) {
       reuse.push({ role: hit.role, path: hit.componentPath, keywords: hit.keywords, files: hit.files, usage: { path: hit.usagePath, snippet: hit.doc } });
       log(`侦察命中经验清单：${candidate.path}（跳过本地检索）`);
       continue;
+    } else if (hit) {
+      log(`侦察经验清单过期/质量不足：${candidate.path}（重新本地取证）`);
     }
     // 本地：检索词扩变体，只在 src/ 内搜「谁用了它」，从真实用户文件抽调用点。
-    const terms = uniq(candidate.keywords.flatMap(keywordVariants));
+    const terms = candidateTerms(candidate);
     const result = runDiscoveryOperation(project, { operation: 'search_text', terms, scope: { roots: ['src'] }, maxResults: 20 }, textCache);
-    const ownPrefix = `${candidate.path}/`;
-    const users = (result.matches || []).map(match => match.path)
-      .filter(path => path !== candidate.path && !path.startsWith(ownPrefix));
+    const users = rankUsageFiles((result.matches || []).map(match => match.path), candidate.path);
+    log(`侦察取证候选文件：${candidate.path} → ${users.slice(0, 8).join('、') || '无'}`);
     const usagePath = users[0];
     if (!usagePath) {
       log(`侦察取证：${candidate.path} → src 内未找到使用它的文件`);
       continue;
     }
-    const snippet = extractUsage(project, usagePath, terms, textCache);
+    const usageDoc = extractUsageDoc(project, {
+      capabilityPath: candidate.path,
+      usagePath,
+      terms,
+      textCache,
+    });
+    const snippet = usageDoc?.markdown || extractUsage(project, usagePath, terms, textCache);
     if (!snippet) continue;
     reuse.push({ role: candidate.role, path: candidate.path, keywords: candidate.keywords, files: users.length, usage: { path: usagePath, snippet } });
     fresh.push({
