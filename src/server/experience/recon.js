@@ -132,19 +132,79 @@ function candidateTerms(candidate) {
   return uniq([basename, candidate.path, ...candidate.keywords].flatMap(keywordVariants));
 }
 
-function archivedExperienceUsable(record) {
-  if (!record?.usagePath || !record?.doc) return false;
-  if (scoreUsagePath(record.usagePath, record.componentPath) < 50) return false;
-  if (!/##\s+(调用点|真实调用点|Template|Script|导入|绑定)/.test(record.doc)) return false;
-  const codeBlocks = Array.from(String(record.doc || '').matchAll(/```[\s\S]*?```/g))
-    .map(match => match[0].replace(/^```[^\n]*\n?/, '').replace(/\n?```$/, ''))
-    .join('\n');
-  const terms = candidateTerms({
-    path: record.componentPath,
-    keywords: [],
-  }).map(term => term.toLowerCase());
-  const code = codeBlocks.toLowerCase();
-  return terms.some(term => code.includes(term.toLowerCase()));
+function buildUsageDocPrompt(candidate, usageDoc) {
+  return [
+    '你是项目经验示例裁剪器。根据本地证据包，输出一个公共能力的最小完整用法文档。',
+    '',
+    '规则：',
+    '1. 不写本次用户需求的实现方案。',
+    '2. 不编造证据包里没有的组件、hook、接口、字段或路径。',
+    '3. 保留能指导同类开发的最小完整用法：import、调用点、数据/hook、核心配置、刷新/分页/事件约定。',
+    '4. 删除一次性业务噪音；如果某段是业务示例字段，可以改成占位说明，但不要改写项目 API 名。',
+    '5. 只返回 Markdown 文档，不要返回 JSON，不要解释裁剪过程。',
+    '',
+    `公共能力：${candidate.path}`,
+    `角色：${candidate.role}`,
+    `关键词：${candidate.keywords.join(', ')}`,
+    '',
+    `本地证据包：\n${JSON.stringify(usageDoc?.evidence || usageDoc, null, 2)}`,
+  ].join('\n');
+}
+
+function normalizeProjectPath(project, value) {
+  let text = String(value || '').trim().replace(/\\/g, '/');
+  if (!text) return '';
+  const root = String(project?.path || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  if (root && text.startsWith(`${root}/`)) text = text.slice(root.length + 1);
+  return text.replace(/^\.?\//, '').replace(/\/+$/, '');
+}
+
+function projectHasFile(project, value) {
+  const filePath = normalizeProjectPath(project, value);
+  if (!filePath) return false;
+  return (project?.files || []).some(file => file.path === filePath);
+}
+
+function validateArchivedExperience(project, record) {
+  if (!record?.componentPath) return { usable: false, reason: '缺少 componentPath' };
+  if (!String(record?.doc || '').trim()) return { usable: false, reason: '缺少 doc.md' };
+
+  const evidenceFiles = uniq([record.usagePath, ...(record.usageFiles || [])]
+    .map(file => normalizeProjectPath(project, file))
+    .filter(Boolean));
+  if (!evidenceFiles.length) return { usable: false, reason: '缺少 evidence.json 使用文件' };
+
+  const existingEvidenceFiles = evidenceFiles.filter(file => projectHasFile(project, file));
+  if (!existingEvidenceFiles.length) {
+    return { usable: false, reason: `evidence 使用文件不存在：${evidenceFiles.join('、')}` };
+  }
+  return { usable: true, existingEvidenceFiles };
+}
+
+function usableUsageMarkdown(value, candidate) {
+  const text = String(value || '').trim().replace(/^```(?:markdown|md)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  if (!text || text.length < 80) return '';
+  const low = text.toLowerCase();
+  const terms = candidateTerms(candidate).map(term => term.toLowerCase());
+  if (!terms.some(term => low.includes(term))) return '';
+  return text.endsWith('\n') ? text : `${text}\n`;
+}
+
+async function buildUsageSnippet({ candidate, usageDoc, invoke, log }) {
+  if (!usageDoc) return '';
+  const prompt = buildUsageDocPrompt(candidate, usageDoc);
+  log(`侦察用法裁剪输入：${prompt.length} 字符；公共件=${candidate.path}；示例=${usageDoc.usageFile || '-'}`);
+  log(`侦察用法裁剪提示词(recon-usage):\n${prompt}`);
+  try {
+    const raw = await invoke('recon-usage', prompt);
+    log(`侦察用法裁剪模型返回(recon-usage):\n${raw || '-'}`);
+    const markdown = usableUsageMarkdown(raw, candidate);
+    if (markdown) return markdown;
+    log(`侦察用法裁剪结果不可用：${candidate.path}（回退本地证据 Markdown）`);
+  } catch (error) {
+    log(`侦察用法裁剪失败：${candidate.path}；${error.message || error}（回退本地证据 Markdown）`);
+  }
+  return usageDoc.markdown || '';
 }
 
 async function runRecon(project, options = {}) {
@@ -176,17 +236,18 @@ async function runRecon(project, options = {}) {
   for (const candidate of candidates) {
     // 清单命中：直接用已有档案的使用文档，跳过本地检索（越用越快）。
     const hit = archived.get(candidate.path);
-    if (archivedExperienceUsable(hit)) {
+    const archivedState = validateArchivedExperience(project, hit);
+    if (archivedState.usable) {
       reuse.push({ role: hit.role, path: hit.componentPath, keywords: hit.keywords, files: hit.files, usage: { path: hit.usagePath, snippet: hit.doc } });
-      log(`侦察命中经验清单：${candidate.path}（跳过本地检索）`);
+      log(`侦察命中经验清单：${candidate.path}（evidence 已验证：${archivedState.existingEvidenceFiles.join('、')}；跳过本地检索）`);
       continue;
     } else if (hit) {
-      log(`侦察经验清单过期/质量不足：${candidate.path}（重新本地取证）`);
+      log(`侦察经验清单失效：${candidate.path}；${archivedState.reason}（重新本地取证）`);
     }
     // 本地：检索词扩变体，只在 src/ 内搜「谁用了它」，从真实用户文件抽调用点。
     const terms = candidateTerms(candidate);
     const result = runDiscoveryOperation(project, { operation: 'search_text', terms, scope: { roots: ['src'] }, maxResults: 20 }, textCache);
-    const users = rankUsageFiles((result.matches || []).map(match => match.path), candidate.path);
+    const users = rankUsageFiles((result.matches || []).map(match => match.path), candidate.path, project);
     log(`侦察取证候选文件：${candidate.path} → ${users.slice(0, 8).join('、') || '无'}`);
     const usagePath = users[0];
     if (!usagePath) {
@@ -199,7 +260,8 @@ async function runRecon(project, options = {}) {
       terms,
       textCache,
     });
-    const snippet = usageDoc?.markdown || extractUsage(project, usagePath, terms, textCache);
+    const snippet = await buildUsageSnippet({ candidate, usageDoc, invoke, log })
+      || extractUsage(project, usagePath, terms, textCache);
     if (!snippet) continue;
     reuse.push({ role: candidate.role, path: candidate.path, keywords: candidate.keywords, files: users.length, usage: { path: usagePath, snippet } });
     fresh.push({

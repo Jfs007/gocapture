@@ -2,6 +2,7 @@ const path = require('path');
 const { makeSnippet, uniq } = require('../../../utils');
 const {
   MAX_EXCERPT_CHARS,
+  NATIVE_HTML_TAGS,
   STYLE_EXTENSIONS,
 } = require('../anchor/dom-utils');
 
@@ -20,6 +21,27 @@ function candidateExcerpt(text, candidate) {
   if (end - start <= MAX_EXCERPT_CHARS) return text.slice(start, end).trim();
   const chunks = positions.slice(0, 3).map(position => makeSnippet(text, position, 0));
   return uniq(chunks).join('\n\n').slice(0, MAX_EXCERPT_CHARS).trim();
+}
+
+function hasNativeMarkupTag(source) {
+  const pattern = /<([a-z][a-z0-9-]*)\b[^>]*>/gi;
+  let match;
+  while ((match = pattern.exec(source))) {
+    if (NATIVE_HTML_TAGS.has(match[1].toLowerCase())) return true;
+  }
+  return false;
+}
+
+function hasNativeRenderCall(source) {
+  const tagAlternation = [...NATIVE_HTML_TAGS].join('|');
+  const quotedNativeTag = `['"](?:${tagAlternation})['"]`;
+  const patterns = [
+    new RegExp(`\\bh\\s*\\(\\s*${quotedNativeTag}`, 'i'),
+    new RegExp(`\\bcreateElement\\s*\\(\\s*${quotedNativeTag}`, 'i'),
+    new RegExp(`\\bReact\\.createElement\\s*\\(\\s*${quotedNativeTag}`, 'i'),
+    new RegExp(`\\b(?:jsx|jsxs|_jsx|_jsxs)\\s*\\(\\s*${quotedNativeTag}`, 'i'),
+  ];
+  return patterns.some(pattern => pattern.test(source));
 }
 
 function candidateSourceRole(filePath, text) {
@@ -53,18 +75,8 @@ function candidateSourceRole(filePath, text) {
   }
   const renderSignals = [
     /<template[\s>]/i,
-    /\bdefineComponent\s*\(/,
-    /\bh\s*\(/,
-    /\bcreateElement\s*\(/,
-    /\bReact\.createElement\s*\(/,
-    /\breturn\s*\(\s*</,
-    /\bclassName\s*[=:]/,
-    /\bclass\s*:\s*/,
-    /\bclass\s*=/,
-    /\bsetup\s*\(/,
-    /\brender\s*[:=]\s*/,
   ];
-  if (renderSignals.some(pattern => pattern.test(source))) {
+  if (renderSignals.some(pattern => pattern.test(source)) || hasNativeMarkupTag(source) || hasNativeRenderCall(source)) {
     return {
       role: 'render-like',
       referenceOnly: false,

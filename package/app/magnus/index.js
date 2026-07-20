@@ -9885,7 +9885,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260716.233919.188";
+      const buildVersion = "20260720.130141.781";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();

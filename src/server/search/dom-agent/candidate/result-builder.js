@@ -1,5 +1,12 @@
 const { normalizeConfidence, isRenderCandidate, dominantRenderCandidate } = require('./candidate-relations');
 
+function roleRank(role) {
+  if (role === 'render') return 0;
+  if (role === 'assembly') return 1;
+  if (role === 'definition') return 2;
+  return 3;
+}
+
 function normalizeJudge(parsed, project, allowedFiles = []) {
   const fileSet = new Set((project.files || []).map(file => file.path));
   const allowed = new Set(allowedFiles);
@@ -29,7 +36,10 @@ function agentHits(inspection, judge, ownership = []) {
     // 但不能把已由客观文件事实确认的样式/数据定义(referenceOnly)冒充为 DOM 主渲染。
     selected = judge.files.filter(item => {
       const candidate = candidateByFile.get(item.file);
-      if (!candidate || candidate.referenceOnly) return false;
+      if (!candidate) return false;
+      // 定义驱动场景：definition 文件(referenceOnly)是「增/改一项」的真实落点，随 render 一起带出去给下游。
+      if (item.role === 'definition') return true;
+      if (candidate.referenceOnly) return false;
       return item.role === 'render' || isRenderCandidate(candidate) || !hasPrimaryCandidate;
     });
   } else {
@@ -104,7 +114,7 @@ function agentHits(inspection, judge, ownership = []) {
       ].filter(Boolean),
     });
   }
-  return ranked.sort((a, b) => b.score - a.score);
+  return ranked.sort((a, b) => roleRank(a.sourceRole) - roleRank(b.sourceRole) || b.score - a.score);
 }
 
 module.exports = {

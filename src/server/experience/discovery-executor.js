@@ -10,6 +10,7 @@ const OPERATIONS = new Set([
   'find_endpoint',
   'find_imports',
   'find_importers',
+  'find_directory_consumers',
   'find_related_examples',
 ]);
 const MAX_REQUESTS = 8;
@@ -89,35 +90,126 @@ function snippetAround(lines, lineIndex, maxLines) {
   };
 }
 
-function literalMatches(text, terms) {
+// 返回每个词的「所有」出现位置（不只第一处）：一个符号常「使用在前、定义在后」（如模板用 menuOptions、
+// 脚本里才 const menuOptions = ...），只取第一处会漏掉定义处，read_file 就永远读不到真正的定义。
+function literalMatches(text, terms, maxPerTerm = 6) {
   const lower = String(text || '').toLowerCase();
-  return (terms || [])
-    .map(String)
-    .map(term => term.trim())
-    .filter(Boolean)
-    .map(term => ({ term, index: lower.indexOf(term.toLowerCase()) }))
-    .filter(item => item.index >= 0);
+  const result = [];
+  for (const term of (terms || []).map(String).map(item => item.trim()).filter(Boolean)) {
+    const needle = term.toLowerCase();
+    let from = 0;
+    for (let count = 0; count < maxPerTerm; count += 1) {
+      const index = lower.indexOf(needle, from);
+      if (index < 0) break;
+      result.push({ term, index });
+      from = index + Math.max(1, needle.length);
+    }
+  }
+  return result.sort((a, b) => a.index - b.index);
 }
 
 function lineIndexAt(text, index) {
   return String(text || '').slice(0, Math.max(0, index)).split(/\r?\n/).length - 1;
 }
 
+// around 可能是「起止行」(120-180 / 120~180 / 120:180) 或「单行」(120)。返回 0-based 半开区间，非行区间返回 null。
+function parseLineRange(around) {
+  const text = String(around || '').trim();
+  const pair = text.match(/^(\d+)\s*[-~:]\s*(\d+)$/);
+  if (pair) {
+    const a = Number(pair[1]);
+    const b = Number(pair[2]);
+    return { start: Math.min(a, b), end: Math.max(a, b) };
+  }
+  const single = text.match(/^(\d+)$/);
+  if (single) return { start: Number(single[1]), end: Number(single[1]) };
+  return null;
+}
+
+// 通用地抽取文件里的顶层声明名(const/let/var/function/class)，miss 时回给模型「可下钻的符号清单」，
+// 让它换一个真实符号继续，而不是被喂回文件开头。不写任何具体符号字面量。
+function topLevelSymbols(text, limit = 48) {
+  const names = new Set();
+  const patterns = [
+    /(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g,
+    /(?:export\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)/g,
+    /(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/g,
+  ];
+  for (const re of patterns) {
+    let match;
+    while ((match = re.exec(text)) && names.size < limit) names.add(match[1]);
+  }
+  return Array.from(names).slice(0, limit);
+}
+
 function executeReadFile(project, request, textCache) {
-  const terms = requestTerms(request);
+  const around = String(request.around || '').trim();
+  const lineRange = parseLineRange(around);
+  // around 若是符号名(非行区间)，就作为下钻锚点；否则回退到普通 terms。
+  const terms = !lineRange && around ? [around] : requestTerms(request);
   return filesInScope(project, request).slice(0, requestLimit(request)).flatMap(file => {
     const text = readProjectText(project, file, textCache);
     const lines = numberedLines(text);
     const maxLines = lineLimit(request);
+    // 1) 行区间下钻：精确返回该段(span 上限 MAX_LINES，避免变相读全文)。
+    if (lineRange) {
+      const start = Math.max(0, lineRange.start - 1);
+      if (start >= lines.length) {
+        return [{
+          path: file.path,
+          relation: 'read-miss',
+          requested: around,
+          note: `该文件只有 ${lines.length} 行，行区间 ${around} 超出范围`,
+          availableSymbols: topLevelSymbols(text),
+        }];
+      }
+      const end = Math.min(lines.length, Math.max(lineRange.end, lineRange.start), start + MAX_LINES);
+      return [{
+        path: file.path,
+        relation: 'reads-range',
+        lineStart: start + 1,
+        lineEnd: end,
+        snippet: lines.slice(start, end).join('\n'),
+      }];
+    }
     const matches = literalMatches(text, terms);
     if (matches.length) {
-      return matches.slice(0, 4).map(match => ({
+      // 每处命中取一段上下文，合并重叠区间 → 覆盖「使用处」和「定义处」等所有出现，而不只第一处。
+      const before = Math.max(2, Math.floor(maxLines / 4));
+      const ranges = [];
+      for (const match of matches) {
+        const line = lineIndexAt(text, match.index);
+        const start = Math.max(0, line - before);
+        const end = Math.min(lines.length, line + (maxLines - before));
+        const last = ranges[ranges.length - 1];
+        if (last && start <= last.end + 1) {
+          last.end = Math.max(last.end, end);
+          last.terms.add(match.term);
+        } else {
+          ranges.push({ start, end, terms: new Set([match.term]) });
+        }
+      }
+      return ranges.slice(0, 4).map(range => ({
         path: file.path,
         relation: 'reads-focused',
-        matchedTerms: [match.term],
-        ...snippetAround(lines, lineIndexAt(text, match.index), maxLines),
+        matchedTerms: Array.from(range.terms),
+        lineStart: range.start + 1,
+        lineEnd: range.end,
+        snippet: lines.slice(range.start, range.end).join('\n'),
       }));
     }
+    // 指定了锚点却没命中：不要静默回退到文件开头(那会把「下钻请求」变成「再给一遍开头」)。
+    // 明确告诉模型没找到，并给出本文件可下钻的符号，让它换一个真实符号继续。
+    if (terms.length) {
+      return [{
+        path: file.path,
+        relation: 'read-miss',
+        requested: terms.join('、'),
+        note: '未在该文件中找到该锚点(符号/关键词)',
+        availableSymbols: topLevelSymbols(text),
+      }];
+    }
+    // 完全没给 around/terms：给文件开头作为初读。
     return [{
       path: file.path,
       relation: 'reads',
@@ -187,12 +279,23 @@ function importSpecifiers(text) {
     /\bexport\s+[^'"]+\s+from\s+['"]([^'"]+)['"]/g,
     /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
     /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\bimport\.meta\.glob(?:Eager)?\s*\(\s*['"]([^'"]+)['"]/g,
+    /\brequire\.context\s*\(\s*['"]([^'"]+)['"]/g,
   ];
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(text)) && result.length < 120) result.push(match[1]);
   }
   return uniq(result);
+}
+
+function specifierIndex(text, specifier) {
+  const quoted = [`'${specifier}'`, `"${specifier}"`];
+  for (const item of quoted) {
+    const index = String(text || '').indexOf(item);
+    if (index >= 0) return index;
+  }
+  return String(text || '').indexOf(specifier);
 }
 
 function resolveSpecifier(fromFile, specifier, fileSet) {
@@ -262,6 +365,91 @@ function executeFindImporters(project, request, textCache) {
       });
       break;
     }
+  }
+  return result;
+}
+
+function stripGlobSuffix(value) {
+  let text = String(value || '').replace(/\\/g, '/');
+  const globIndex = text.search(/[*{[]/);
+  if (globIndex >= 0) text = text.slice(0, globIndex);
+  text = text.replace(/\/+$/, '');
+  const ext = path.posix.extname(text);
+  if (ext) text = path.posix.dirname(text);
+  return text.replace(/\/+$/, '');
+}
+
+function resolveSpecifierDirectory(fromFile, specifier) {
+  const stripped = stripGlobSuffix(specifier);
+  if (!stripped) return '';
+  if (stripped.startsWith('.')) {
+    return path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), stripped));
+  }
+  if (stripped.startsWith('@/')) return path.posix.join('src', stripped.slice(2));
+  if (stripped.startsWith('src/')) return stripped;
+  return '';
+}
+
+function directoryConsumerRelation(fromFile, specifier, target, fileSet) {
+  const resolved = resolveSpecifier(fromFile, specifier, fileSet);
+  if (resolved === target) return 'imports-target';
+  const targetIsDirectory = !(fileSet.has(target) || path.posix.extname(target));
+  const targetDir = targetIsDirectory ? target : path.posix.dirname(target);
+  const specDir = resolveSpecifierDirectory(fromFile, specifier);
+  if (specDir && (targetDir === specDir || target.startsWith(`${specDir}/`))) {
+    return /[*{[]/.test(specifier) ? 'directory-glob-consumer' : 'directory-consumer';
+  }
+  return '';
+}
+
+function executeFindDirectoryConsumers(project, request, textCache) {
+  const fileSet = new Set((project.files || []).map(file => file.path));
+  const target = normalizePath(request.target || requestFiles(request)[0]);
+  if (!target) return [];
+  const targetIsDirectory = !(fileSet.has(target) || path.posix.extname(target));
+  const targetDir = targetIsDirectory ? target : path.posix.dirname(target);
+  const targetBase = path.posix.basename(target).replace(/\.[^.]+$/, '');
+  const pathNeedles = uniq([
+    targetIsDirectory ? target : target.replace(/\.[^.]+$/, ''),
+    targetIsDirectory ? `${target}/` : target,
+    `@/${(targetIsDirectory ? target : target.replace(/\.[^.]+$/, '')).replace(/^src\//, '')}`,
+  ].filter(Boolean));
+  const result = [];
+  for (const file of filesInScope(project, request)) {
+    if (file.path === target || result.length >= requestLimit(request)) continue;
+    const text = readProjectText(project, file, textCache);
+    const lines = numberedLines(text);
+    let best = null;
+    for (const specifier of importSpecifiers(text)) {
+      const relation = directoryConsumerRelation(file.path, specifier, target, fileSet);
+      if (!relation) continue;
+      if (targetIsDirectory && relation !== 'directory-glob-consumer') continue;
+      if (!targetIsDirectory && relation === 'directory-consumer') continue;
+      best = {
+        path: file.path,
+        relation,
+        matchedTerms: [specifier],
+        ...snippetAround(lines, lineIndexAt(text, specifierIndex(text, specifier)), lineLimit(request)),
+      };
+      break;
+    }
+    if (!best && !targetIsDirectory) {
+      const matches = literalMatches(text, pathNeedles);
+      if (matches.length) {
+        const first = matches.sort((a, b) => a.index - b.index)[0];
+        best = {
+          path: file.path,
+          relation: 'directory-path-reference',
+          matchedTerms: uniq(matches.map(item => item.term)).slice(0, 6),
+          ...snippetAround(lines, lineIndexAt(text, first.index), lineLimit(request)),
+        };
+      }
+    }
+    if (!best) continue;
+    best.targetFile = target;
+    best.targetDirectory = targetDir;
+    best.targetBasename = targetBase;
+    result.push(best);
   }
   return result;
 }
@@ -359,6 +547,8 @@ function executeRequest(project, request, textCache) {
       return executeFindImports(project, request, textCache);
     case 'find_importers':
       return executeFindImporters(project, request, textCache);
+    case 'find_directory_consumers':
+      return executeFindDirectoryConsumers(project, request, textCache);
     case 'find_related_examples':
       return executeRelatedExamples(project, request, textCache);
     default:
@@ -435,7 +625,7 @@ function discoveryPlanIssues(rawPlan) {
       && !request.terms.length) {
       issues.push(`${request.id}: ${request.operation} 缺少 terms`);
     }
-    if (['find_imports', 'find_importers'].includes(request.operation)
+    if (['find_imports', 'find_importers', 'find_directory_consumers'].includes(request.operation)
       && !request.target
       && !hasFiles) {
       issues.push(`${request.id}: ${request.operation} 缺少 target`);

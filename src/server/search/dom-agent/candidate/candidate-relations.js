@@ -7,6 +7,14 @@ const {
   traceCandidateOwners,
 } = require('./candidate-ownership');
 
+const COMPACT_EXCERPT_LIMIT = 900;
+
+function compactExcerpt(excerpt) {
+  const text = String(excerpt || '').trim();
+  if (text.length <= COMPACT_EXCERPT_LIMIT) return text;
+  return `${text.slice(0, COMPACT_EXCERPT_LIMIT).trim()}\n...<truncated ${text.length - COMPACT_EXCERPT_LIMIT} chars>`;
+}
+
 function hasPlannedGroupMatch(candidate) {
   return (candidate?.matchedGroups || []).some(group => {
     return group?.source === 'planned-group' && (group.keywords || []).length >= 2;
@@ -31,11 +39,18 @@ function renderExplanation(candidate) {
   if (candidate.sourceRole && candidate.sourceRole !== 'render-like') {
     return { eligible: false, strength: 0, reasons: [`源码角色 ${candidate.sourceRole} 尚不能证明可生成 DOM`] };
   }
-  const ownerGroups = candidateLayerGroups(candidate, ['render', 'scope']);
+  const ownerGroups = candidateLayerGroups(candidate, ['render'])
+    .filter(group => !group.scopeOnly);
+  const scopeGroups = candidateLayerGroups(candidate, ['scope']);
   const childGroups = candidateLayerGroups(candidate, ['child']);
   const matchedClassCount = Number(candidate.domCoverage?.matchedClassCount || 0);
   const matchedTextCount = Number(candidate.domTextCoverage?.matchedTextCount || 0);
-  const hasOwnerEvidence = ownerGroups.length > 0 || matchedClassCount >= 3;
+  const totalTextCount = Number(candidate.domTextCoverage?.totalTextCount || 0);
+  const structuralFacts = (candidate.keywordFacts || []).filter(item => {
+    return item.codeCount > 0 && !item.structureMismatch
+      && ['class-token', 'attribute-name', 'attribute-value'].includes(item.type);
+  }).length;
+  const hasOwnerEvidence = ownerGroups.length > 0 || matchedClassCount >= 3 || structuralFacts > 0;
   if (candidate.childComponentCandidate && !hasOwnerEvidence) {
     return {
       eligible: false,
@@ -43,10 +58,24 @@ function renderExplanation(candidate) {
       reasons: ['只命中子组件锚点，没有证据证明它拥有选区根结构'],
     };
   }
-  const structuralFacts = (candidate.keywordFacts || []).filter(item => {
-    return item.codeCount > 0 && !item.structureMismatch
-      && ['class-token', 'attribute-name', 'attribute-value'].includes(item.type);
-  }).length;
+  if (!hasOwnerEvidence && scopeGroups.length) {
+    return {
+      eligible: false,
+      strength: 0,
+      reasons: ['只命中范围/外壳锚点，没有证据证明它拥有选区根结构'],
+    };
+  }
+  if (!hasPlannedGroupMatch(candidate)
+    && matchedTextCount > 0
+    && totalTextCount > matchedTextCount
+    && matchedClassCount === 0
+    && structuralFacts === 0) {
+    return {
+      eligible: false,
+      strength: 0,
+      reasons: [`只命中扩区 DOM 的部分文案（${matchedTextCount}/${totalTextCount}），缺少结构证据证明它是选区渲染源`],
+    };
+  }
   if (candidate.valueProvider && candidate.sourceRole === 'unknown'
     && structuralFacts === 0 && matchedClassCount === 0) {
     return {
@@ -278,7 +307,8 @@ function compactInspectionForModel(inspection) {
       domCoverage: candidate.domCoverage || null,
       domTextCoverage: candidate.domTextCoverage || null,
       renderExplanation: renderExplanation(candidate),
-      excerpt: candidate.excerpt,
+      excerpt: compactExcerpt(candidate.excerpt),
+      excerptLength: String(candidate.excerpt || '').length,
     })),
   };
 }

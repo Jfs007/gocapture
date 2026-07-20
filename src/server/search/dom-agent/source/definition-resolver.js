@@ -71,6 +71,148 @@ function createDefinitionOwnerCandidate(project, owner, definition, textCache) {
   };
 }
 
+function observedRenderEvidence(observations = []) {
+  const seen = new Set();
+  const result = [];
+  for (const observation of observations || []) {
+    for (const match of observation?.result?.matches || []) {
+      const file = String(match?.path || '').replace(/^\/+/, '');
+      if (!file || seen.has(file)) continue;
+      seen.add(file);
+      result.push({
+        file,
+        relation: match.relation || '',
+        reason: observation.reason || '',
+        excerpt: match.snippet || '',
+      });
+    }
+  }
+  return result;
+}
+
+function syntaxFlowFiles(observations = []) {
+  const files = [];
+  for (const item of observations || []) {
+    if (item?.targetFile) files.push(item.targetFile);
+    if (item?.consumerFile) files.push(item.consumerFile);
+    for (const hop of item?.symbolHops || []) {
+      for (const consumer of hop?.consumers || []) {
+        if (consumer?.file) files.push(consumer.file);
+      }
+    }
+  }
+  return uniq(files.map(file => String(file || '').replace(/^\/+/, '')).filter(Boolean));
+}
+
+function compactSyntaxNode(node) {
+  return {
+    kind: node?.kind || '',
+    defines: (node?.defines || []).slice(0, 12),
+    uses: (node?.uses || []).slice(0, 24),
+    exports: (node?.exports || []).slice(0, 12),
+    relatedDefines: (node?.relatedDefines || []).slice(0, 12),
+    via: node?.via || '',
+    code: node?.code || '',
+  };
+}
+
+function compactSyntaxEvidenceFlow(observations = []) {
+  return (observations || []).slice(0, 5).map(item => ({
+    targetFile: item?.targetFile || '',
+    consumerFile: item?.consumerFile || '',
+    evidence: (item?.evidence || []).map(evidence => ({
+      kind: evidence.kind || '',
+      seedText: evidence.seedText || '',
+      reason: evidence.reason || '',
+    })),
+    chains: (item?.chains || []).slice(0, 3).map(chain => ({
+      seedText: chain.seedText || '',
+      evidence: chain.evidence ? {
+        kind: chain.evidence.kind || '',
+        seedText: chain.evidence.seedText || '',
+        reason: chain.evidence.reason || '',
+      } : null,
+      nextSearchSymbols: (chain.nextSearchSymbols || []).slice(0, 12),
+      nodes: (chain.nodes || []).slice(0, 6).map(compactSyntaxNode),
+    })),
+    nextSearchSymbols: (item?.nextSearchSymbols || []).slice(0, 12),
+    symbolHops: (item?.symbolHops || []).slice(0, 3).map(hop => ({
+      depth: hop?.depth || 0,
+      symbols: (hop?.symbols || []).slice(0, 12),
+      consumers: (hop?.consumers || []).slice(0, 6).map(consumer => ({
+        file: consumer?.file || '',
+        matchedSymbols: (consumer?.matchedSymbols || []).slice(0, 12),
+        nextSearchSymbols: (consumer?.nextSearchSymbols || []).slice(0, 12),
+        chains: (consumer?.chains || []).slice(0, 2).map(chain => ({
+          matchedSymbol: chain?.matchedSymbol || '',
+          seedText: chain?.seedText || '',
+          nextSearchSymbols: (chain?.nextSearchSymbols || []).slice(0, 12),
+          nodes: (chain?.nodes || []).slice(0, 4).map(compactSyntaxNode),
+        })),
+      })),
+    })),
+  }));
+}
+
+function normalizeRawRelations(parsed, inspection, ownership, observations = []) {
+  const unresolvedFiles = new Set(unresolvedDefinitionCandidates(inspection).map(item => item.file));
+  const observedFiles = observedRenderEvidence(observations).map(item => item.file);
+  const renderFiles = new Set([
+    ...((inspection?.candidates || []).filter(item => !item.referenceOnly).map(item => item.file)),
+    ...((ownership || []).map(item => item.file)),
+    ...observedFiles,
+    ...syntaxFlowFiles(observations),
+  ]);
+  return (Array.isArray(parsed?.relations) ? parsed.relations : [])
+    .map(item => ({
+      definitionFile: String(item?.definitionFile || '').replace(/^\/+/, ''),
+      renderFile: String(item?.renderFile || '').replace(/^\/+/, ''),
+      confidence: normalizeConfidence(item?.confidence),
+      reason: String(item?.reason || ''),
+    }))
+    .filter(item => unresolvedFiles.has(item.definitionFile) && renderFiles.has(item.renderFile));
+}
+
+function createObservedRelationCandidate(project, renderFile, definition, relation, textCache) {
+  const fileMap = buildFileMap(project);
+  const file = fileMap.get(renderFile);
+  if (!file) return null;
+  const text = readProjectText(project, file, textCache);
+  const roleInfo = candidateSourceRole(renderFile, text);
+  if (roleInfo.referenceOnly || roleInfo.role !== 'render-like') return null;
+  return {
+    file: renderFile,
+    score: 420,
+    matchedGroups: [{
+      priority: 1,
+      keywords: (definition.keywordFacts || []).map(item => item.keyword).filter(Boolean),
+      range: 'model-validated-relation',
+      reason: `模型基于工具观测确认定义文件与渲染源码关系：${definition.file}`,
+      source: 'model-validated-relation',
+      layer: 'render',
+    }],
+    keywordFacts: [],
+    commentOnly: [],
+    structureMismatches: [],
+    sourceRole: roleInfo.role,
+    referenceOnly: false,
+    valueProvider: false,
+    childComponentCandidate: false,
+    roleReasons: [
+      ...roleInfo.reasons,
+      '由 definition consumer 的工具观测，经定义关系分析确认',
+    ],
+    importRelation: null,
+    definitionLinks: [{
+      type: 'model-validated-relation',
+      definitionFile: definition.file,
+      confidence: relation.confidence,
+      reason: relation.reason,
+    }],
+    excerpt: candidateExcerpt(text, { positions: [0] }),
+  };
+}
+
 function enrichDefinitionOwners(project, inspection, ownership, textCache) {
   const candidateMap = new Map((inspection?.candidates || []).map(candidate => [candidate.file, candidate]));
   for (const definition of unresolvedDefinitionCandidates(inspection)) {
@@ -117,9 +259,11 @@ function enrichDefinitionOwners(project, inspection, ownership, textCache) {
   };
 }
 
-function buildDefinitionResolverPrompt(body, inspection, ownership) {
+function buildDefinitionResolverPrompt(body, inspection, ownership, observations = []) {
   const unresolved = unresolvedDefinitionCandidates(inspection);
   const primary = (inspection?.candidates || []).filter(candidate => !candidate.referenceOnly);
+  const observed = observedRenderEvidence(observations);
+  const syntaxFlow = compactSyntaxEvidenceFlow(observations);
   return [
     '你是 Magnus 的定义来源关系分析器。只分析已给出的真实源码片段之间是否存在“定义 -> 渲染使用”关系。',
     '你的目标不是修改代码，也不是直接按用户需求猜文件。',
@@ -127,6 +271,8 @@ function buildDefinitionResolverPrompt(body, inspection, ownership) {
     '如果现有片段已经能确认关系，返回 linked。',
     '如果只能从现有片段中提取可继续本地检索的原样关键词，返回 search。',
     '完全无法判断则返回 unresolved。',
+    'localRelationEvidence 是本地按“文件引用/路径模式 -> 语法闭合片段 -> 符号下一跳”生成的观察结果，不是结论。',
+    '你可以用 localRelationEvidence 判断数据是否可能从 definitionFiles 流向 renderCandidates；如果只证明到中间文件，必须返回 search 并给出下一跳原样关键词。',
     '禁止编造文件、变量、key、路径或检索词。searches 中每个关键词必须逐字存在于本次输入的源码片段中。',
     '最多返回 2 组 searches。',
     '严格返回 JSON，不输出 Markdown：',
@@ -153,10 +299,17 @@ function buildDefinitionResolverPrompt(body, inspection, ownership) {
       chain: owner.chain,
       excerpt: owner.excerpt,
     })), null, 2)}`,
+    `observedEvidence:\n${JSON.stringify(observed.map(item => ({
+      file: item.file,
+      relation: item.relation,
+      reason: item.reason,
+      excerpt: item.excerpt,
+    })), null, 2)}`,
+    `localRelationEvidence:\n${JSON.stringify(syntaxFlow, null, 2)}`,
   ].join('\n');
 }
 
-function definitionResolverCorpus(inspection, ownership) {
+function definitionResolverCorpus(inspection, ownership, observations = []) {
   return [
     ...((inspection?.candidates || []).flatMap(candidate => [
       candidate.file,
@@ -167,6 +320,11 @@ function definitionResolverCorpus(inspection, ownership) {
       owner.excerpt,
       ...(owner.chain || []),
     ])),
+    ...(observedRenderEvidence(observations).flatMap(item => [
+      item.file,
+      item.excerpt,
+    ])),
+    JSON.stringify(compactSyntaxEvidenceFlow(observations)),
   ].filter(Boolean).join('\n').toLowerCase();
 }
 
@@ -175,21 +333,15 @@ function keywordExistsInCorpus(keyword, corpus) {
   return !!value && String(corpus || '').includes(value);
 }
 
-function normalizeDefinitionResolver(parsed, inspection, ownership) {
-  const unresolvedFiles = new Set(unresolvedDefinitionCandidates(inspection).map(item => item.file));
-  const renderFiles = new Set([
-    ...((inspection?.candidates || []).filter(item => !item.referenceOnly).map(item => item.file)),
-    ...((ownership || []).map(item => item.file)),
-  ]);
-  const relations = (Array.isArray(parsed?.relations) ? parsed.relations : [])
-    .map(item => ({
-      definitionFile: String(item?.definitionFile || '').replace(/^\/+/, ''),
-      renderFile: String(item?.renderFile || '').replace(/^\/+/, ''),
-      confidence: normalizeConfidence(item?.confidence),
-      reason: String(item?.reason || ''),
-    }))
-    .filter(item => unresolvedFiles.has(item.definitionFile) && renderFiles.has(item.renderFile));
-  const corpus = definitionResolverCorpus(inspection, ownership);
+function normalizeDefinitionResolver(parsed, inspection, ownership, observations = []) {
+  const declaredStatus = ['linked', 'search', 'unresolved'].includes(parsed?.status)
+    ? parsed.status
+    : '';
+  const allowRelations = !declaredStatus || declaredStatus === 'linked';
+  const rawRelations = normalizeRawRelations(parsed, inspection, ownership, observations);
+  const relations = allowRelations ? rawRelations : [];
+  const pendingRelations = declaredStatus === 'search' ? rawRelations : [];
+  const corpus = definitionResolverCorpus(inspection, ownership, observations);
   const removed = [];
   const searches = normalizePlan({ searches: parsed?.searches }).searches
     .slice(0, MAX_DEFINITION_RESOLVER_SEARCHES)
@@ -202,19 +354,40 @@ function normalizeDefinitionResolver(parsed, inspection, ownership) {
       }),
     }))
     .filter(search => search.keywords.length);
+  const status = relations.length && declaredStatus !== 'search'
+    ? 'linked'
+    : searches.length && declaredStatus !== 'linked'
+      ? 'search'
+      : 'unresolved';
   return {
-    status: relations.length
-      ? 'linked'
-      : searches.length
-        ? 'search'
-        : 'unresolved',
+    status,
     relations,
+    pendingRelations,
     searches,
     removed: uniq(removed),
   };
 }
 
-function applyDefinitionResolverRelations(project, inspection, relations, ownership, textCache) {
+function definitionResolverSearchScopeFiles(inspection, ownership, observations = [], resolution = {}) {
+  const pending = resolution.pendingRelations || [];
+  const pendingFiles = pending.flatMap(relation => [
+    relation.renderFile,
+    relation.definitionFile,
+  ]);
+  const observedFiles = observedRenderEvidence(observations).map(item => item.file);
+  const syntaxFiles = syntaxFlowFiles(observations);
+  const candidateFiles = (inspection?.candidates || []).map(candidate => candidate.file);
+  const ownerFiles = (ownership || []).map(owner => owner.file);
+  return uniq([
+    ...pendingFiles,
+    ...observedFiles,
+    ...syntaxFiles,
+    ...candidateFiles,
+    ...ownerFiles,
+  ].filter(Boolean));
+}
+
+function applyDefinitionResolverRelations(project, inspection, relations, ownership, textCache, observations = []) {
   if (!(relations || []).length) return inspection;
   const candidateMap = new Map((inspection?.candidates || []).map(candidate => [candidate.file, candidate]));
   for (const relation of relations) {
@@ -223,6 +396,11 @@ function applyDefinitionResolverRelations(project, inspection, relations, owners
     const owner = (ownership || []).find(item => item.file === relation.renderFile);
     if (!candidateMap.has(relation.renderFile) && owner) {
       const renderCandidate = createDefinitionOwnerCandidate(project, owner, definition, textCache);
+      if (renderCandidate) candidateMap.set(renderCandidate.file, renderCandidate);
+    }
+    if (!candidateMap.has(relation.renderFile)
+      && observedRenderEvidence(observations).some(item => item.file === relation.renderFile)) {
+      const renderCandidate = createObservedRelationCandidate(project, relation.renderFile, definition, relation, textCache);
       if (renderCandidate) candidateMap.set(renderCandidate.file, renderCandidate);
     }
     const render = candidateMap.get(relation.renderFile);
@@ -259,5 +437,6 @@ module.exports = {
   enrichDefinitionOwners,
   buildDefinitionResolverPrompt,
   normalizeDefinitionResolver,
+  definitionResolverSearchScopeFiles,
   applyDefinitionResolverRelations,
 };

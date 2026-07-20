@@ -6,7 +6,7 @@ const EXPERIENCE_DIR = '.magnus';
 const PROJECT_META_FILE = 'project-meta.json';
 const PROJECT_DOC_FILE = 'Project.md';
 const PROJECT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const PROJECT_CONTEXT_VERSION = 6;
+const PROJECT_CONTEXT_VERSION = 7;
 
 const IMPORTANT_PATH_PATTERNS = [
   /^package\.json$/,
@@ -86,31 +86,13 @@ function directoryDescription(directory) {
   return known[name] || '项目源码目录';
 }
 
-function experienceSection(experienceMetas = []) {
-  return [
-    '## 已发现经验',
-    ...(experienceMetas.length
-      ? experienceMetas.map(meta => `- ${meta.id}：${meta.name || meta.id}（${meta.status || 'unknown'}）`)
-      : ['- 暂无']),
-    '',
-    '## 说明',
-    '- Experience 是已验证或待验证的项目经验，不是不可覆盖的硬规则。',
-    '- 当前目标文件和本次任务的真实源码证据优先于 Experience。',
-    '',
-  ];
-}
-
 function projectDocument(project, experienceMetas = [], interpretedMarkdown = '') {
   const interpreted = String(interpretedMarkdown || '').trim();
   if (interpreted) {
-    return [
-      interpreted,
-      '',
-      ...experienceSection(experienceMetas),
-    ].join('\n');
+    return interpreted.endsWith('\n') ? interpreted : `${interpreted}\n`;
   }
   return [
-    '# Project Overview',
+    '# Project.md',
     '',
     '## 状态',
     '- Project Interpreter 尚未运行；当前 Project.md 不提供项目技术栈或 UI 框架结论。',
@@ -120,7 +102,6 @@ function projectDocument(project, experienceMetas = [], interpretedMarkdown = ''
     `- 文件数：${project.fileCount || (project.files || []).length}`,
     `- 本地扫描类型：${project.kind || 'unknown'}`,
     '',
-    ...experienceSection(experienceMetas),
   ].join('\n');
 }
 
@@ -249,14 +230,6 @@ function writeProjectContext(project, markdown, options = {}) {
 
 function refreshProjectDocument(project, experienceMetas) {
   const context = ensureProjectContext(project, { experienceMetas });
-  if (!context.writable) return context;
-  try {
-    const current = safeRead(path.join(context.root, PROJECT_DOC_FILE));
-    const withoutExperienceSection = current.split(/\n## 已发现经验\n/)[0].trim();
-    atomicWrite(path.join(context.root, PROJECT_DOC_FILE), projectDocument(project, experienceMetas, withoutExperienceSection));
-  } catch (error) {
-    return { ...context, writable: false, error: error.message || String(error) };
-  }
   return context;
 }
 

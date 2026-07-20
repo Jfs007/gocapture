@@ -62,6 +62,15 @@ function sectionFromRanges(title, lines, ranges, maxChars = 1600) {
   return code ? { title, code } : null;
 }
 
+function codeFromRanges(lines, ranges, maxChars = 1800) {
+  return mergeLineRanges(ranges)
+    .map(range => lineSlice(lines, range.start, range.end))
+    .filter(Boolean)
+    .join('\n// ...\n')
+    .slice(0, maxChars)
+    .trim();
+}
+
 function namePattern(names) {
   const values = names.map(escapeRegExp).join('|');
   return values ? new RegExp(values, 'i') : null;
@@ -145,6 +154,32 @@ function definitionRange(lines, name) {
   return { start: Math.max(0, start - 1), end: Math.min(lines.length, end) };
 }
 
+function importedSymbols(importCode) {
+  const symbols = [];
+  const code = String(importCode || '');
+  for (const match of code.matchAll(/import\s+\{([^}]+)\}\s+from/g)) {
+    for (const raw of match[1].split(',')) {
+      const item = raw.trim().split(/\s+as\s+/i).pop();
+      if (item) symbols.push(item.trim());
+    }
+  }
+  for (const match of code.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from/g)) {
+    symbols.push(match[1]);
+  }
+  return uniq(symbols).slice(0, 20);
+}
+
+function definitionMap(lines, names, maxChars = 1800) {
+  const result = {};
+  for (const name of uniq(names || []).slice(0, 24)) {
+    const range = definitionRange(lines, name);
+    if (!range) continue;
+    const code = lineSlice(lines, range.start, range.end).slice(0, maxChars).trim();
+    if (code) result[name] = code;
+  }
+  return result;
+}
+
 function scoreUsagePath(filePath, capabilityPath = '') {
   const p = String(filePath || '');
   const ext = path.posix.extname(p).toLowerCase();
@@ -163,15 +198,57 @@ function scoreUsagePath(filePath, capabilityPath = '') {
   return score;
 }
 
-function rankUsageFiles(files, capabilityPath) {
+function fileSize(project, filePath) {
+  const file = (project?.files || []).find(item => item.path === filePath);
+  return Number(file?.size || file?.bytes || 0);
+}
+
+function rankUsageFiles(files, capabilityPath, project = null) {
   return uniq(files)
-    .map(file => ({ file, score: scoreUsagePath(file, capabilityPath) }))
+    .map(file => ({ file, score: scoreUsagePath(file, capabilityPath), size: fileSize(project, file) }))
     .filter(item => item.score > -80)
-    .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
+    .sort((a, b) => {
+      const aBusiness = a.file.startsWith('src/views/') ? 1 : 0;
+      const bBusiness = b.file.startsWith('src/views/') ? 1 : 0;
+      if (aBusiness !== bBusiness) return bBusiness - aBusiness;
+      const scoreDelta = b.score - a.score;
+      if (Math.abs(scoreDelta) >= 80) return scoreDelta;
+      if (a.size !== b.size) return a.size - b.size;
+      return b.score - a.score || a.file.localeCompare(b.file);
+    })
     .map(item => item.file);
 }
 
 function extractUsageDoc(project, options = {}) {
+  const evidence = buildUsageEvidencePackage(project, options);
+  if (!evidence) return null;
+  const sections = [
+    evidence.usageNode?.code ? { title: '调用点', code: evidence.usageNode.code } : null,
+    evidence.imports ? { title: '导入依赖', code: evidence.imports } : null,
+    evidence.hookCalls ? { title: '相关 Hook / 函数调用', code: evidence.hookCalls } : null,
+    Object.keys(evidence.bindingDefinitions || {}).length ? {
+      title: '绑定变量定义',
+      code: Object.entries(evidence.bindingDefinitions).map(([name, code]) => `// ${name}\n${code}`).join('\n\n'),
+    } : null,
+  ].filter(Boolean);
+  return {
+    usageFile: evidence.usageFile,
+    confidence: evidence.confidence,
+    names: evidence.names,
+    variables: evidence.bindings,
+    sections,
+    evidence,
+    markdown: renderUsageMarkdown({
+      capabilityPath: evidence.capabilityPath,
+      usagePath: evidence.usageFile,
+      confidence: evidence.confidence,
+      sections,
+      variables: evidence.bindings,
+    }),
+  };
+}
+
+function buildUsageEvidencePackage(project, options = {}) {
   const {
     capabilityPath = '',
     usagePath = '',
@@ -198,28 +275,25 @@ function extractUsageDoc(project, options = {}) {
     else callRanges.push({ start: Math.max(0, index - 1), end: Math.min(lines.length, index + 2) });
   });
 
-  const callText = callRanges.map(range => lineSlice(lines, range.start, range.end)).join('\n');
-  const variables = identifiersFromText(callText);
-  const definitionRanges = variables
-    .map(name => definitionRange(lines, name))
-    .filter(Boolean);
-
-  const sections = [
-    sectionFromRanges('调用点', lines, callRanges, 1800),
-    sectionFromRanges('导入依赖', lines, importRanges, 900),
-    sectionFromRanges('相关 Hook / 函数调用', lines, hookRanges, 1100),
-    sectionFromRanges('绑定变量定义', lines, definitionRanges, 1800),
-  ].filter(Boolean);
-
-  if (!sections.length) return null;
-  const confidence = Math.min(0.95, 0.45 + (callRanges.length ? 0.25 : 0) + (importRanges.length ? 0.15 : 0) + (definitionRanges.length ? 0.1 : 0));
+  const usageNodeCode = codeFromRanges(lines, callRanges, 2200);
+  const imports = codeFromRanges(lines, importRanges, 1200);
+  const hookCalls = codeFromRanges(lines, hookRanges, 1400);
+  const bindings = identifiersFromText(usageNodeCode);
+  const bindingDefinitions = definitionMap(lines, bindings);
+  const importedDefinitions = definitionMap(lines, importedSymbols(imports).filter(name => !names.includes(name)), 1200);
+  if (!usageNodeCode && !imports && !hookCalls && !Object.keys(bindingDefinitions).length) return null;
+  const confidence = Math.min(0.95, 0.45 + (usageNodeCode ? 0.25 : 0) + (imports ? 0.15 : 0) + (Object.keys(bindingDefinitions).length ? 0.1 : 0));
   return {
+    capabilityPath,
     usageFile: usagePath,
     confidence,
     names,
-    variables,
-    sections,
-    markdown: renderUsageMarkdown({ capabilityPath, usagePath, confidence, sections, variables }),
+    usageNode: usageNodeCode ? { kind: 'call-site', code: usageNodeCode } : null,
+    bindings,
+    imports,
+    hookCalls,
+    bindingDefinitions,
+    importedDefinitions,
   };
 }
 
@@ -242,8 +316,10 @@ function renderUsageMarkdown(record) {
 }
 
 module.exports = {
+  buildUsageEvidencePackage,
   capabilityNames,
   extractUsageDoc,
+  fileSize,
   rankUsageFiles,
   scoreUsagePath,
 };

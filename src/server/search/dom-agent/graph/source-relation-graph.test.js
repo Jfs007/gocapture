@@ -92,6 +92,30 @@ test('TypeScript exported factories are not classified as definitions only becau
   assert.equal(role.referenceOnly, false);
 });
 
+test('bootstrap files with setup/mount calls are not render sources without DOM evidence', () => {
+  const role = candidateSourceRole('src/main.ts', [
+    "import { createApp } from 'vue'",
+    "import App from './App.vue'",
+    "import { setupRouter } from './router'",
+    'const app = createApp(App)',
+    'setupRouter(app)',
+    'version.setup();',
+    "router.isReady().then(() => app.mount('#app'))",
+  ].join('\n'));
+  assert.equal(role.role, 'unknown');
+  assert.equal(role.referenceOnly, false);
+});
+
+test('script render calls with native DOM tags are render sources', () => {
+  const role = candidateSourceRole('src/components/render-cell.ts', [
+    'export function renderCell(value) {',
+    "  return h('div', { class: 'cell' }, value)",
+    '}',
+  ].join('\n'));
+  assert.equal(role.role, 'render-like');
+  assert.equal(role.referenceOnly, false);
+});
+
 test('TypeScript exported object and array data remain definition nodes for relation tracing', () => {
   const role = candidateSourceRole('src/constants/options.ts', [
     'export const OPTIONS: Array<{ label: string }> = [',

@@ -8,6 +8,7 @@ const path = require('path');
 const { scanProject } = require('../core/project');
 const { parseReconPlan, keywordVariants, runRecon } = require('./recon');
 const { extractUsageDoc } = require('./usage-doc');
+const { saveComponentExperiences } = require('./component-experience');
 
 function mkProject(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-'));
@@ -43,12 +44,30 @@ test('runRecon：LLM 只挑公共件，本地按变体搜谁用了它并抽真�
     ].join('\n'),
   });
   const invoke = async (stage, prompt) => {
-    assert.equal(stage, 'recon');
-    assert.match(prompt, /Structure\.md/);
-    assert.doesNotMatch(prompt, /Project\.md 摘要|featureDirectory/); // 不再喂 Project.md / 功能目录
-    return JSON.stringify([
-      { role: 'component', path: 'src/components/md-table', keywords: ['md-table'], explain: '表格' },
-    ]);
+    if (stage === 'recon') {
+      assert.match(prompt, /Structure\.md/);
+      assert.doesNotMatch(prompt, /Project\.md 摘要|featureDirectory/); // 不再喂 Project.md / 功能目录
+      return JSON.stringify([
+        { role: 'component', path: 'src/components/md-table', keywords: ['md-table'], explain: '表格' },
+      ]);
+    }
+    assert.equal(stage, 'recon-usage');
+    assert.match(prompt, /本地证据包/);
+    assert.match(prompt, /<md-table/);
+    assert.match(prompt, /useTable/);
+    return [
+      '# src/components/md-table',
+      '## Template 用法',
+      '```vue',
+      '<md-table :columns="columns" :data="data" @update:pagination="paginationChange" />',
+      '```',
+      '## 数据 Hook',
+      '```ts',
+      'import { MdTable } from "@/components"',
+      'import { useTable } from "@/components/md-table/hooks/useTable"',
+      'const { data, columns, pagination, paginationChange } = useTable({ api: getList })',
+      '```',
+    ].join('\n');
   };
   const result = await runRecon(project, { requirement: '添加一个选择记录列表', invoke });
   assert.equal(result.reuse.length, 1);
@@ -58,6 +77,128 @@ test('runRecon：LLM 只挑公共件，本地按变体搜谁用了它并抽真�
   assert.match(md.usage.snippet, /<md-table/);
   assert.match(md.usage.snippet, /import \{ MdTable \}/, '变体 MdTable 命中，抽到 import 行');
   assert.match(md.usage.snippet, /useTable\(/);
+  fs.rmSync(project.path, { recursive: true, force: true });
+});
+
+test('runRecon：多个业务文件使用同一公共件时优先选择体积更小的示例文件', async () => {
+  const largeColumns = Array.from({ length: 80 }, (_, index) => `const noise${index} = ${index}`).join('\n');
+  const project = mkProject({
+    'src/components/md-table/index.vue': '<template><div class="md-table"><slot /></div></template>',
+    'src/views/order/large.vue': [
+      '<template>',
+      '  <md-table :columns="columns" :data="data" />',
+      '</template>',
+      '<script setup>',
+      "import { MdTable } from '@/components'",
+      "import { useTable } from '@/components/md-table'",
+      largeColumns,
+      'const { data, columns } = useTable({ api: getLargeList })',
+      '</script>',
+    ].join('\n'),
+    'src/views/order/small.vue': [
+      '<template><md-table :columns="columns" :data="data" /></template>',
+      '<script setup>',
+      "import { MdTable } from '@/components'",
+      "import { useTable } from '@/components/md-table'",
+      'const { data, columns } = useTable({ api: getSmallList })',
+      '</script>',
+    ].join('\n'),
+  });
+  const invoke = async (stage) => {
+    if (stage === 'recon') {
+      return JSON.stringify([
+        { role: 'component', path: 'src/components/md-table', keywords: ['md-table'] },
+      ]);
+    }
+    return '# src/components/md-table\n\n```vue\n<md-table :columns="columns" :data="data" />\n```\n';
+  };
+
+  const result = await runRecon(project, { requirement: '添加一个选择记录列表', invoke });
+  assert.equal(result.reuse.length, 1);
+  assert.equal(result.reuse[0].usage.path, 'src/views/order/small.vue');
+  fs.rmSync(project.path, { recursive: true, force: true });
+});
+
+test('runRecon：命中已有经验包时直接复用，不因文档质量重新取证', async () => {
+  const project = mkProject({
+    'src/components/md-table/index.vue': '<template><div class="md-table"><slot /></div></template>',
+    'src/views/order/list.vue': '<template><md-table /></template>',
+  });
+  saveComponentExperiences(project, [{
+    componentPath: 'src/components/md-table',
+    name: 'md-table',
+    role: 'component',
+    keywords: ['md-table'],
+    usagePath: 'src/views/order/list.vue',
+    usageFiles: ['src/views/order/list.vue'],
+    files: 1,
+    doc: [
+      '# `src/components/md-table` 最小完整用法',
+      '',
+      '## 说明',
+      '已有经验文档，即使不是完整调用点格式，也应优先复用。',
+    ].join('\n'),
+  }]);
+  const stages = [];
+  const result = await runRecon(project, {
+    requirement: '添加一个选择记录列表',
+    invoke: async (stage) => {
+      stages.push(stage);
+      if (stage === 'recon') {
+        return JSON.stringify([
+          { role: 'component', path: 'src/components/md-table', keywords: ['md-table'] },
+        ]);
+      }
+      throw new Error(`不应调用 ${stage}`);
+    },
+  });
+  assert.deepEqual(stages, ['recon']);
+  assert.equal(result.reuse.length, 1);
+  assert.match(result.reuse[0].usage.snippet, /已有经验文档/);
+  fs.rmSync(project.path, { recursive: true, force: true });
+});
+
+test('runRecon：已有经验包的 evidence 使用文件不存在时判为失效并重新取证', async () => {
+  const project = mkProject({
+    'src/components/md-table/index.vue': '<template><div class="md-table"><slot /></div></template>',
+    'src/views/order/current.vue': [
+      '<template><md-table :columns="columns" :data="rows" /></template>',
+      '<script setup>',
+      "import { useTable } from '@/components/md-table'",
+      'const { rows, columns } = useTable({ api: getList })',
+      '</script>',
+    ].join('\n'),
+  });
+  saveComponentExperiences(project, [{
+    componentPath: 'src/components/md-table',
+    name: 'md-table',
+    role: 'component',
+    keywords: ['md-table'],
+    usagePath: 'src/views/order/deleted.vue',
+    usageFiles: ['src/views/order/deleted.vue'],
+    files: 1,
+    doc: '# `src/components/md-table` 最小完整用法\n\n旧文档，但 evidence 已失效。\n',
+  }]);
+  const stages = [];
+  const logs = [];
+  const result = await runRecon(project, {
+    requirement: '添加一个选择记录列表',
+    log: line => logs.push(line),
+    invoke: async (stage) => {
+      stages.push(stage);
+      if (stage === 'recon') {
+        return JSON.stringify([
+          { role: 'component', path: 'src/components/md-table', keywords: ['md-table'] },
+        ]);
+      }
+      assert.equal(stage, 'recon-usage');
+      return '# src/components/md-table\n\n```vue\n<md-table :columns="columns" :data="rows" />\n```\n';
+    },
+  });
+  assert.deepEqual(stages, ['recon', 'recon-usage']);
+  assert.equal(result.reuse.length, 1);
+  assert.equal(result.reuse[0].usage.path, 'src/views/order/current.vue');
+  assert.match(logs.join('\n'), /侦察经验清单失效/);
   fs.rmSync(project.path, { recursive: true, force: true });
 });
 

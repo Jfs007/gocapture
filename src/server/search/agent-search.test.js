@@ -985,7 +985,7 @@ test('multiple render candidates expand first while style and definition files s
       "import MetricCard from '../../components/MetricCard'",
       'export default defineComponent({',
       '  setup() {',
-      "    return () => h(MetricCard, { titleKey: 'metrics.roi', trend: '目标 3.5+' })",
+      "    return () => h('section', { class: 'dashboard-metrics' }, [h(MetricCard, { titleKey: 'metrics.roi', trend: '目标 3.5+' })])",
       '  }',
       '})',
     ].join('\n'),
@@ -1151,7 +1151,7 @@ test('high-frequency standalone definition keys do not create false render relat
   assert.deepEqual(definition.definitionLinks, []);
 });
 
-test('definition import owners become render candidates without an extra model relation call', async () => {
+test('definition import owners are not chased when no render candidate exists', async () => {
   const project = fixtureProject({
     'src/components/ActionBar.vue': [
       '<script setup>',
@@ -1174,16 +1174,6 @@ test('definition import owners become render candidates without an extra model r
       }],
       needMoreDom: false,
     }),
-    JSON.stringify({
-      status: 'unique',
-      files: [{
-        file: 'src/components/ActionBar.vue',
-        role: 'render',
-        confidence: 95,
-        reason: '渲染组件直接引用文案定义',
-      }],
-      followUpSearches: [],
-    }),
   ];
   let modelCalls = 0;
   const result = await runAgentSearch(project, {
@@ -1204,12 +1194,10 @@ test('definition import owners become render candidates without an extra model r
       };
     },
   });
-  assert.equal(modelCalls, 2);
-  assert.equal(result.hits[0]?.file, 'src/components/ActionBar.vue');
-  assert.ok(result.agent.inspection.candidates.some(candidate => {
-    return candidate.file === 'src/labels.ts'
-      && candidate.definitionLinks.some(link => link.renderFile === 'src/components/ActionBar.vue');
-  }));
+  assert.equal(modelCalls, 1);
+  assert.equal(result.needMoreDom, true);
+  assert.equal(result.hits.length, 0);
+  assert.equal(result.agent.evidence.primaryCandidateCount, 0);
 });
 
 test('definition relation resolver can link an indirect value provider when local imports are absent', async () => {
@@ -1282,7 +1270,96 @@ test('definition relation resolver can link an indirect value provider when loca
   assert.ok(result.agent.definitionResolution.relations.length);
 });
 
-test('definition relation resolver rejects invented search keywords', async () => {
+test('definition relation resolver executes follow-up searches before accepting tentative relations', async () => {
+  const project = fixtureProject({
+    'src/Menu.vue': [
+      '<template><nav class="menu-root"><Menu :options="menuOptions" /></nav></template>',
+      '<script setup>',
+      "const menuOptions = computed(() => store.routes)",
+      '</script>',
+    ].join('\n'),
+    'src/routes.ts': [
+      "export default [{ title: '快手经营数据' }, { title: '抖音经营数据' }]",
+    ].join('\n'),
+  });
+  const outputs = [
+    JSON.stringify({
+      searches: [{
+        keywords: ['快手经营数据', '抖音经营数据'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 1,
+        reason: 'menu text',
+      }, {
+        keywords: ['menu-root'],
+        mode: 'all',
+        range: 'same-file',
+        priority: 2,
+        reason: 'menu renderer',
+      }],
+      needMoreDom: false,
+    }),
+    JSON.stringify({
+      status: 'search',
+      relations: [{
+        definitionFile: 'src/routes.ts',
+        renderFile: 'src/Menu.vue',
+        confidence: 60,
+        reason: '需要先确认 menuOptions 的来源',
+      }],
+      searches: [{
+        keywords: ['menuOptions'],
+        mode: 'all',
+        range: 'same-file',
+        reason: '补充读取菜单 options 计算逻辑',
+      }],
+    }),
+    JSON.stringify({
+      status: 'linked',
+      relations: [{
+        definitionFile: 'src/routes.ts',
+        renderFile: 'src/Menu.vue',
+        confidence: 90,
+        reason: '补充片段显示 Menu 使用 menuOptions 渲染菜单选项',
+      }],
+      searches: [],
+    }),
+    JSON.stringify({
+      status: 'unique',
+      files: [{
+        file: 'src/Menu.vue',
+        role: 'render',
+        confidence: 95,
+        reason: '菜单组件渲染选区结构',
+      }],
+    }),
+  ];
+  const logs = [];
+  const result = await runAgentSearch(project, {
+    adapter: { type: 'api' },
+    pagePath: '/fixture',
+    userPrompt: '增加一个菜单',
+    selections: [{
+      element: { rawOuterHtml: '<nav class="menu-root"><a>快手经营数据</a><a>抖音经营数据</a></nav>' },
+      sourceLocate: { componentChain: [] },
+    }],
+  }, {
+    onLog: log => logs.push(log),
+    runModelTask: async () => ({
+      adapter: { id: 'test', name: 'test', type: 'api' },
+      rawText: outputs.shift(),
+      logs: [],
+    }),
+  });
+  assert.equal(result.hits[0]?.file, 'src/Menu.vue');
+  assert.ok(logs.some(log => log.includes('DOM Agent 定义关系分析输入（第 2 轮')));
+  assert.ok(logs.some(log => log.includes('scopedDefinitionSearch') && log.includes('menuOptions')));
+  assert.ok(result.agent.definitionResolution.relations.some(relation => {
+    return relation.definitionFile === 'src/routes.ts' && relation.renderFile === 'src/Menu.vue';
+  }));
+});
+
+test('definition-only candidates ask for more DOM instead of chasing definition owners', async () => {
   const project = fixtureProject({
     'src/labels.ts': [
       "export const labels = createLabels({ exportReport: makeLabel('导出报表') })",
@@ -1298,16 +1375,6 @@ test('definition relation resolver rejects invented search keywords', async () =
         reason: 'DOM text',
       }],
       needMoreDom: false,
-    }),
-    JSON.stringify({
-      status: 'search',
-      relations: [],
-      searches: [{
-        keywords: ['imaginaryComponent', 'exportReport'],
-        mode: 'any',
-        range: 'same-file',
-        reason: 'find render usage',
-      }],
     }),
   ];
   const logs = [];
@@ -1327,10 +1394,8 @@ test('definition relation resolver rejects invented search keywords', async () =
     }),
   });
   assert.equal(result.needMoreDom, true);
-  assert.ok(logs.some(log => {
-    return log.includes('定义关系检索词过滤')
-      && log.includes('imaginaryComponent');
-  }));
+  assert.ok(logs.some(log => log.includes('DOM Agent 无渲染候选')));
+  assert.ok(!logs.some(log => log.includes('DOM Agent 定义关系分析输入')));
 });
 
 test('style reference candidates are not accepted as final source when render candidates exist', async () => {
@@ -2794,6 +2859,28 @@ test('a definition-like config file is never returned as a render candidate', ()
   assert.equal(evidence.primaryCandidateCount, 0);
 });
 
+test('partial scope text alone does not promote a page file to render owner', () => {
+  const evidence = analyzeEvidenceSufficiency(
+    { searches: [], needMoreDom: false },
+    {
+      candidates: [{
+        file: 'src/views/data-center/operation-data/dy-shop-data/index.vue',
+        score: 420,
+        sourceRole: 'render-like',
+        referenceOnly: false,
+        childComponentCandidate: false,
+        matchedGroups: [{ source: 'keyword-fallback', layer: 'render', keywords: ['经营数据'] }],
+        keywordFacts: [{ keyword: '经营数据', codeCount: 1, type: '', structureMismatch: null }],
+        domCoverage: { matchedClassCount: 0, totalClassCount: 0 },
+        domTextCoverage: { matchedTextCount: 1, totalTextCount: 3 },
+      }],
+    },
+    []
+  );
+  assert.equal(evidence.insufficient, true);
+  assert.equal(evidence.primaryCandidateCount, 0);
+});
+
 test('data-driven menu: locates the menu component by its business class, not the router config that holds the labels', async () => {
   const project = fixtureProject({
     'src/layout/side-menu.vue': [
@@ -2830,49 +2917,6 @@ test('data-driven menu: locates the menu component by its business class, not th
   assert.equal(result.composite?.render.file, 'src/layout/side-menu.vue');
   assert.equal(calls, 3);
   assert.ok(logs.some(log => log.includes('DOM Agent 语义审查门')));
-});
-
-test('render explanation chooses the DOM owner over exported menu data and style references', () => {
-  const inspection = {
-    candidates: [{
-      file: 'src/router/menu.js',
-      score: 1900,
-      sourceRole: 'definition-like',
-      referenceOnly: true,
-      childComponentCandidate: false,
-      matchedGroups: [{ source: 'planned-group', layer: 'render', keywords: ['达人管理', '达人资源', '项目管理'] }],
-      keywordFacts: [],
-      domCoverage: { matchedClassCount: 0 },
-    }, {
-      file: 'src/layout/components/Navbar.vue',
-      score: 330,
-      sourceRole: 'render-like',
-      referenceOnly: false,
-      childComponentCandidate: true,
-      matchedGroups: [
-        { source: 'planned-group', layer: 'child', keywords: ['menu-item'] },
-        { source: 'scope-anchor', layer: 'scope', keywords: ['navbar'] },
-      ],
-      keywordFacts: [
-        { keyword: 'menubar', type: 'class-token', codeCount: 1, structureMismatch: null },
-        { keyword: 'menu-item', type: 'class-token', codeCount: 1, structureMismatch: null },
-      ],
-      domCoverage: { matchedClassCount: 4 },
-    }, {
-      file: 'src/styles/_common.scss',
-      score: 110,
-      sourceRole: 'style-reference',
-      referenceOnly: true,
-      childComponentCandidate: true,
-      matchedGroups: [{ source: 'planned-group', layer: 'child', keywords: ['tm-dropdown'] }],
-      keywordFacts: [],
-      domCoverage: { matchedClassCount: 1 },
-    }],
-  };
-  assert.equal(dominantRenderCandidate(inspection)?.file, 'src/layout/components/Navbar.vue');
-  const composite = buildComposite(inspection, [], 'src/layout/components/Navbar.vue');
-  assert.equal(composite.render.file, 'src/layout/components/Navbar.vue');
-  assert.deepEqual(composite.children, []);
 });
 
 test('Judge may confirm an unknown custom renderer but cannot promote objective references', () => {
