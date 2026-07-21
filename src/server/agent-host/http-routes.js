@@ -1,7 +1,7 @@
 'use strict';
 
 const { bindProjectContext } = require('../experience/project-context');
-const { runAgentLoop } = require('./loop/runner');
+const { runAgentTask } = require('./llm-adapter');
 const {
   memorySnapshot,
   removeTaskSessionMemory,
@@ -18,8 +18,10 @@ const {
   listAgentToolProviders,
   listAgentTools,
 } = require('./tools/registry');
+const { filterToolsByConfigAction } = require('./capabilities');
 const { getMcpStatus, registerConfiguredMcpProviders, stopMcpProvider } = require('./mcp/bootstrap');
 const { userConfigPath } = require('./mcp/config');
+const { loadLangChainRuntime } = require('./langchain/runtime');
 
 async function handleAgentHostRoutes(context) {
   const {
@@ -38,6 +40,20 @@ async function handleAgentHostRoutes(context) {
       success: true,
       providers: listAgentToolProviders(),
       tools: listAgentTools(),
+    });
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/agent/runtime') {
+    const langchain = loadLangChainRuntime();
+    sendJson(res, 200, {
+      success: true,
+      runtimes: {
+        langchain: {
+          available: langchain.available,
+          missing: langchain.missing,
+        },
+      },
     });
     return true;
   }
@@ -67,7 +83,7 @@ async function handleAgentHostRoutes(context) {
       onLog: () => {},
       connectTimeoutMs: Number(body.connectTimeoutMs || 30000),
     });
-    sendJson(res, 200, { success: true, registered: registered.map(item => ({ name: item.name, toolCount: item.toolCount, tools: item.tools })), ...getMcpStatus() });
+    sendJson(res, 200, { success: true, registered, ...getMcpStatus() });
     return true;
   }
 
@@ -97,10 +113,20 @@ async function handleAgentHostRoutes(context) {
       if (!finished) controller.abort();
     });
     try {
-      const result = await runAgentLoop(project, {
+      const tools = filterToolsByConfigAction(listAgentTools(), {
+        configAction: body.configAction || ['builtin', 'experience', 'skill', 'mcp'],
+        allowedTools: body.allowedTools,
+        readOnlyOnly: body.readOnlyOnly,
+      });
+      const result = await runAgentTask(project, {
         ...body,
+        objective: body.objective || body.prompt || '',
+        configAction: body.configAction || ['builtin', 'experience', 'skill', 'mcp'],
         signal: controller.signal,
         onEvent: event => writeStreamEvent(res, event),
+      }, {
+        tools,
+        executeTool: executeAgentTool,
       });
       finished = true;
       writeStreamEvent(res, { type: 'result', result });

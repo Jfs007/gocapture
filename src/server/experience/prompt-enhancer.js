@@ -1,5 +1,4 @@
 const { readProjectText } = require('../core/fs-utils');
-const path = require('path');
 const { ensureProjectContext } = require('./project-context');
 const { runRecon } = require('./recon');
 const {
@@ -39,459 +38,6 @@ function safeJson(value) {
   } catch (error) {
     return '{}';
   }
-}
-
-function projectFileSet(project) {
-  return new Set((project.files || []).map(file => file.path));
-}
-
-function normalizeEvidenceItems(items, project, fallbackPurpose) {
-  const files = projectFileSet(project);
-  return (Array.isArray(items) ? items : [])
-    .map(item => {
-      if (typeof item === 'string') return { path: item, purpose: fallbackPurpose };
-      return {
-        path: String(item?.path || '').trim(),
-        purpose: String(item?.purpose || item?.reason || fallbackPurpose || '').trim(),
-      };
-    })
-    .filter(item => files.has(item.path));
-}
-
-function normalizeCandidateExperienceForSave(candidate, project, discovery) {
-  if (!candidate) return null;
-  const textContext = String(candidate.context || candidate.content || candidate.description || '').trim();
-  const examples = normalizeEvidenceItems(candidate.examples, project, '模型返回案例');
-  const requiredEvidence = normalizeEvidenceItems(candidate.requiredEvidence, project, '基础能力证据');
-  const unique = (items) => {
-    const seen = new Set();
-    return items.filter(item => {
-      if (!item.path || seen.has(item.path)) return false;
-      seen.add(item.path);
-      return true;
-    }).slice(0, 10);
-  };
-  return {
-    ...candidate,
-    context: textContext,
-    examples: unique(examples),
-    requiredEvidence: unique(requiredEvidence),
-    recipes: Array.isArray(candidate.recipes) ? candidate.recipes : [],
-    sourceContracts: Array.isArray(candidate.sourceContracts) ? candidate.sourceContracts : [],
-    verificationChecklist: Array.isArray(candidate.verificationChecklist) ? candidate.verificationChecklist : [],
-    triggerTags: Array.from(new Set((candidate.triggerTags || []).map(String).filter(Boolean))),
-  };
-}
-
-function normalizePath(value) {
-  const normalized = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
-  if (!normalized || normalized.includes('../')) return '';
-  return normalized;
-}
-
-function projectFile(project, filePath) {
-  const normalized = normalizePath(filePath);
-  return (project.files || []).find(file => file.path === normalized) || null;
-}
-
-function resolveSpecifierFromFile(project, fromFile, specifier) {
-  const files = projectFileSet(project);
-  let base = '';
-  const value = String(specifier || '').trim();
-  if (!value) return '';
-  if (value.startsWith('.')) {
-    base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), value));
-  } else if (value.startsWith('@/')) {
-    base = path.posix.join('src', value.slice(2));
-  } else if (value.startsWith('src/')) {
-    base = value;
-  } else {
-    return '';
-  }
-  const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.vue', '.json'];
-  const candidates = extensions.map(ext => `${base}${ext}`);
-  for (const ext of extensions.slice(1)) candidates.push(`${base}/index${ext}`);
-  return candidates.find(candidate => files.has(candidate)) || '';
-}
-
-function parseImportBindings(text) {
-  const result = [];
-  const source = String(text || '');
-  const importPattern = /\bimport\s+([^'";]+?)\s+from\s+['"]([^'"]+)['"]/g;
-  let match;
-  while ((match = importPattern.exec(source))) {
-    const clause = match[1].trim();
-    const specifier = match[2];
-    const named = clause.match(/\{([\s\S]*?)\}/);
-    if (named) {
-      for (const item of named[1].split(',')) {
-        const parts = item.trim().split(/\s+as\s+/i).map(part => part.trim()).filter(Boolean);
-        if (!parts.length) continue;
-        result.push({
-          imported: parts[0],
-          local: parts[1] || parts[0],
-          specifier,
-          kind: 'named-import',
-        });
-      }
-    }
-    const withoutNamed = clause.replace(/\{[\s\S]*?\}/, '').replace(/,/g, ' ').trim();
-    const defaultName = withoutNamed.split(/\s+/).find(Boolean);
-    if (defaultName && defaultName !== '*') {
-      result.push({
-        imported: 'default',
-        local: defaultName,
-        specifier,
-        kind: 'default-import',
-      });
-    }
-    const namespace = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/);
-    if (namespace) {
-      result.push({
-        imported: '*',
-        local: namespace[1],
-        specifier,
-        kind: 'namespace-import',
-      });
-    }
-  }
-  return result;
-}
-
-function pascalToKebab(value) {
-  return String(value || '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/_/g, '-')
-    .toLowerCase();
-}
-
-function termUsageInText(term, text) {
-  const value = String(term || '').trim();
-  if (!value) return null;
-  const source = String(text || '');
-  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const kebab = pascalToKebab(value);
-  const usage = {
-    term: value,
-    symbol: new RegExp(`\\b${escaped}\\b`).test(source),
-    componentTag: new RegExp(`<\\s*(?:${escaped}|${kebab})\\b`, 'i').test(source),
-    call: new RegExp(`\\b${escaped}\\s*\\(`).test(source),
-    propOrString: new RegExp(`['"]${escaped}['"]|['"]${kebab}['"]`, 'i').test(source),
-  };
-  usage.used = usage.symbol || usage.componentTag || usage.call || usage.propOrString;
-  return usage;
-}
-
-function sourceLineForTerm(text, term) {
-  const lines = String(text || '').split(/\r?\n/);
-  const lowerTerm = String(term || '').toLowerCase();
-  const kebab = pascalToKebab(term);
-  const index = lines.findIndex(line => {
-    const lower = line.toLowerCase();
-    return lower.includes(lowerTerm) || lower.includes(kebab);
-  });
-  if (index < 0) return '';
-  return lines[index].trim();
-}
-
-function exportedTermPattern(term) {
-  const escaped = String(term || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\bexport\\b[\\s\\S]{0,400}\\b${escaped}\\b`);
-}
-
-function siblingImplementationFiles(project, filePath) {
-  const files = projectFileSet(project);
-  const directory = path.posix.dirname(filePath);
-  const ext = path.posix.extname(filePath);
-  const base = filePath.slice(0, -ext.length);
-  const candidates = [
-    `${base}.vue`,
-    `${base}.tsx`,
-    `${base}.jsx`,
-    `${directory}/index.vue`,
-    `${directory}/index.tsx`,
-    `${directory}/index.jsx`,
-  ];
-  return Array.from(new Set(candidates.filter(item => item !== filePath && files.has(item))));
-}
-
-function resolveBarrelExport(project, barrelFile, term, textCache) {
-  const source = projectFile(project, barrelFile);
-  if (!source) return null;
-  const text = readProjectText(project, source, textCache);
-  const lines = String(text || '').split(/\r?\n/);
-  const termPattern = new RegExp(`\\b${String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-  for (const line of lines) {
-    const specifier = (line.match(/\bfrom\s+['"]([^'"]+)['"]/) || [])[1];
-    if (!specifier) continue;
-    const isExportLine = /\bexport\b/.test(line);
-    const isImportedThenExported = /\bimport\b/.test(line) && exportedTermPattern(term).test(text);
-    if (!isExportLine && !isImportedThenExported) continue;
-    const mentionsTerm = termPattern.test(line);
-    const mentionsAll = /\bexport\s+\*/.test(line);
-    const mentionsKebab = line.toLowerCase().includes(pascalToKebab(term));
-    if (!mentionsTerm && !mentionsAll && !mentionsKebab) continue;
-    const resolved = resolveSpecifierFromFile(project, barrelFile, specifier);
-    if (resolved) {
-      return {
-        file: resolved,
-        via: barrelFile,
-        line: line.trim(),
-        chain: [barrelFile, resolved],
-        implementationFiles: siblingImplementationFiles(project, resolved),
-      };
-    }
-  }
-  return null;
-}
-
-function discoveryFrequencyTerms(discovery) {
-  const result = [];
-  for (const [id, entry] of Object.entries(discovery?.results || {})) {
-    for (const stat of entry?.stats?.termStats || []) {
-      if (stat.files >= 2 && stat.occurrences >= stat.files) {
-        result.push({
-          requestId: id,
-          term: stat.term,
-          files: stat.files,
-          occurrences: stat.occurrences,
-        });
-      }
-    }
-  }
-  const seen = new Set();
-  return result
-    .sort((a, b) => b.files - a.files || b.occurrences - a.occurrences || a.term.localeCompare(b.term))
-    .filter(item => {
-      const key = item.term.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 12);
-}
-
-function matchesForTerm(discovery, term, project) {
-  const files = projectFileSet(project);
-  const result = [];
-  for (const entry of Object.values(discovery?.results || {})) {
-    for (const match of entry?.matches || []) {
-      if (!files.has(match.path)) continue;
-      if (!(match.matchedTerms || []).some(item => String(item).toLowerCase() === String(term).toLowerCase())) continue;
-      result.push(match);
-    }
-  }
-  const seen = new Set();
-  return result.filter(match => {
-    if (seen.has(match.path)) return false;
-    seen.add(match.path);
-    return true;
-  });
-}
-
-function isLikelyReusableSource(filePath, examples) {
-  const file = String(filePath || '');
-  if (!file) return false;
-  const importers = examples.filter(item => item.path !== filePath).length;
-  if (importers < 2) return false;
-  return !/^src\/(?:views|pages|routes)\//.test(file);
-}
-
-function excerptForTerms(project, filePath, terms, textCache, maxChars = 2400) {
-  const file = projectFile(project, filePath);
-  if (!file) return '';
-  const text = readProjectText(project, file, textCache);
-  if (String(text || '').length <= maxChars) return String(text || '');
-  const lower = String(text || '').toLowerCase();
-  const index = (terms || [])
-    .map(term => lower.indexOf(String(term || '').toLowerCase()))
-    .filter(value => value >= 0)
-    .sort((a, b) => a - b)[0];
-  if (index === undefined) return String(text || '').slice(0, maxChars);
-  const start = Math.max(0, index - Math.floor(maxChars / 3));
-  return String(text || '').slice(start, start + maxChars);
-}
-
-function compactPatternExcerpt(project, filePath, terms, textCache, maxChars = 1800) {
-  const file = projectFile(project, filePath);
-  if (!file) return '';
-  const text = readProjectText(project, file, textCache);
-  const lines = String(text || '').split(/\r?\n/);
-  const lowerTerms = (terms || []).map(term => String(term || '').toLowerCase()).filter(Boolean);
-  const indexes = [];
-  lines.forEach((line, index) => {
-    const lower = line.toLowerCase();
-    if (lowerTerms.some(term => lower.includes(term) || lower.includes(pascalToKebab(term)))) {
-      indexes.push(index);
-    }
-  });
-  if (!indexes.length) return String(text || '').slice(0, maxChars);
-  const picked = [];
-  for (const index of indexes.slice(0, 8)) {
-    const start = Math.max(0, index - 4);
-    const end = Math.min(lines.length, index + 10);
-    picked.push({ start, end });
-  }
-  const merged = [];
-  for (const range of picked) {
-    const last = merged[merged.length - 1];
-    if (last && range.start <= last.end + 2) {
-      last.end = Math.max(last.end, range.end);
-    } else {
-      merged.push({ ...range });
-    }
-  }
-  let output = merged
-    .map(range => lines.slice(range.start, range.end).join('\n'))
-    .join('\n\n// ...\n\n');
-  if (output.length > maxChars) output = output.slice(0, maxChars);
-  return output;
-}
-
-function buildPatternExperienceEvidence(project, task, discovery, textCache, log) {
-  if (!discovery) return null;
-  const targetFiles = (task.targets || []).map(item => item.file).filter(Boolean);
-  if (!targetFiles.length) return null;
-  const targetFile = targetFiles[0];
-  const target = projectFile(project, targetFile);
-  if (!target) return null;
-  const targetText = readProjectText(project, target, textCache);
-  const frequencyTerms = discoveryFrequencyTerms(discovery);
-  const targetTerms = frequencyTerms
-    .map(item => ({ ...item, usage: termUsageInText(item.term, targetText) }))
-    .filter(item => item.usage?.used);
-
-  if (targetTerms.length) {
-    log(`经验触发器：目标文件命中高频项 ${targetTerms.map(item => `${item.term}=${item.files}文件/${item.occurrences}次`).join('、')}，开始校验来源和复用性`);
-  }
-
-  const imports = parseImportBindings(targetText);
-  const evidenceByFile = new Map();
-  const exampleByFile = new Map();
-  const confirmedTerms = [];
-
-  for (const item of targetTerms) {
-    const importBinding = imports.find(binding => binding.local === item.term || binding.imported === item.term);
-    let origin = null;
-    if (importBinding) {
-      const resolved = resolveSpecifierFromFile(project, targetFile, importBinding.specifier);
-      if (resolved) {
-        const barrel = resolveBarrelExport(project, resolved, item.term, textCache);
-        origin = barrel || {
-          file: resolved,
-          via: importBinding.specifier,
-          line: sourceLineForTerm(readProjectText(project, projectFile(project, resolved), textCache), item.term),
-          chain: [targetFile, resolved],
-          implementationFiles: siblingImplementationFiles(project, resolved),
-        };
-      }
-    }
-
-    const examples = matchesForTerm(discovery, item.term, project)
-      .filter(match => match.path !== origin?.file)
-      .filter(match => {
-        const file = projectFile(project, match.path);
-        if (!file) return false;
-        const text = readProjectText(project, file, textCache);
-        return !!termUsageInText(item.term, text)?.used;
-      });
-
-    if (!origin?.file) {
-      log(`经验校验跳过：${item.term} 高频但无法从目标文件 import/导出链追到来源`);
-      continue;
-    }
-    if (!isLikelyReusableSource(origin.file, examples)) {
-      log(`经验校验跳过：${item.term} 来源 ${origin.file} 未形成可复用公共来源或业务案例不足`);
-      continue;
-    }
-
-    confirmedTerms.push({
-      term: item.term,
-      files: item.files,
-      occurrences: item.occurrences,
-      usage: item.usage,
-      origin,
-      examples: examples.slice(0, 4).map(example => ({
-        path: example.path,
-        matchedTerms: example.matchedTerms || [],
-        snippet: String(example.snippet || '').slice(0, 1600),
-      })),
-    });
-    evidenceByFile.set(origin.file, {
-      path: origin.file,
-      purpose: origin.via && origin.via !== origin.file
-        ? `${item.term} 来源；由 ${origin.via} 导出/引入`
-        : `${item.term} 来源`,
-    });
-    for (const implFile of origin.implementationFiles || []) {
-      evidenceByFile.set(implFile, {
-        path: implFile,
-        purpose: `${item.term} 真实实现文件`,
-      });
-    }
-    if (origin.via && projectFile(project, origin.via)) {
-      evidenceByFile.set(origin.via, {
-        path: origin.via,
-        purpose: `${item.term} 的导出入口`,
-      });
-    }
-    for (const example of examples) {
-      if (exampleByFile.size >= 6) break;
-      exampleByFile.set(example.path, {
-        path: example.path,
-        purpose: `${item.term} 代表用法`,
-      });
-    }
-    log(`经验校验通过：${item.term} -> ${origin.file}；业务用例 ${examples.slice(0, 4).map(example => example.path).join('、')}`);
-  }
-
-  const examples = [
-    { path: targetFile, purpose: '当前目标文件中的模式用法' },
-    ...Array.from(exampleByFile.values()).filter(item => item.path !== targetFile),
-  ].slice(0, 3);
-  const requiredEvidence = Array.from(evidenceByFile.values());
-  if (confirmedTerms.length < 1 || examples.length < 2 || requiredEvidence.length < 1) {
-    if (targetTerms.length) {
-      log(`经验校验未通过：已确认来源 ${confirmedTerms.length} 个，业务案例 ${examples.length} 个，基础证据 ${requiredEvidence.length} 个`);
-    }
-    return null;
-  }
-
-  const termNames = confirmedTerms.map(item => item.term);
-  const sourceFiles = Array.from(new Set(requiredEvidence.map(item => item.path)));
-  return {
-    pattern: {
-      name: `${termNames.slice(0, 3).join(' + ')} 项目实现模式`,
-      terms: termNames,
-      triggerReason: `高频项 ${termNames.join('、')} 已在目标文件中使用，并能追到公共来源和多个业务用例`,
-    },
-    gate: {
-      terms: confirmedTerms.map(item => ({
-        term: item.term,
-        files: item.files,
-        occurrences: item.occurrences,
-        origin: item.origin,
-      })),
-      reason: `高频项 ${termNames.join('、')} 已在目标文件中使用，并能追到公共来源和多个业务用例`,
-    },
-    requiredEvidence,
-    examples,
-    target: {
-      file: targetFile,
-      purpose: '触发该模式校验的目标文件，仅作为一个用法案例，不代表本次业务需求需要沉淀',
-      excerpt: compactPatternExcerpt(project, targetFile, termNames, textCache, 1800),
-    },
-    sourceEvidence: sourceFiles.map(file => ({
-      path: file,
-      excerpt: compactPatternExcerpt(project, file, termNames, textCache, 1800),
-    })),
-    exampleEvidence: examples.map(item => ({
-      path: item.path,
-      purpose: item.purpose,
-      excerpt: compactPatternExcerpt(project, item.path, termNames, textCache, 1600),
-    })),
-    confirmedTerms,
-  };
 }
 
 function roughTask(body, modelItems) {
@@ -548,37 +94,6 @@ function fallbackEnhancedPrompt(task) {
     '- 严格复用项目已有组件、请求、状态和错误处理方式。',
     '- 缺少接口字段、返回结构或调用时机时，先确认真实代码，不要臆造。',
   ].filter(Boolean).join('\n\n');
-}
-
-function toExperienceId(value) {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  return text;
-}
-
-function normalizeExperienceIds(values) {
-  return (values || []).map(toExperienceId).filter(Boolean);
-}
-
-function buildExperienceMatchPrompt(projectContext, metas, task) {
-  return [
-    '你负责为当前开发任务匹配 Experience（项目经验）。只返回 JSON 对象，不修改代码。',
-    '',
-    '规则：',
-    '- Experience 是经验，不是硬规则；目标文件真实代码优先。',
-    '- 只选择确实适用于本任务的 Experience。',
-    '- 若 Experience 已覆盖实现方式，只为本次任务请求缺失事实，不要重新发现整个项目规范。',
-    '- requests 必须使用白名单 operation，不得返回 shell 命令。',
-    '',
-    '返回格式：',
-    '{"matchedExperienceIds":[],"missingFacts":[],"requests":[],"discoveryNeeded":false,"domain":""}',
-    '',
-    `Project.md:\n${projectContext.markdown}`,
-    '',
-    `Experience Meta:\n${safeJson(metas)}`,
-    '',
-    `当前粗任务:\n${safeJson(task)}`,
-  ].join('\n');
 }
 
 function roughSourceAnchors(value) {
@@ -750,69 +265,24 @@ function changePlanMatchesRoughSource(task, changePlan) {
   return enhancedPromptMatchesRoughSource(task, safeJson(changePlan));
 }
 
-function buildExperienceCandidatePrompt(input) {
-  return [
-    '你负责判断一组“高频触发后的项目实现模式证据”是否值得沉淀为 Magnus Experience。只返回 JSON 对象。',
-    '',
-    '定位：',
-    '- 高频只是门票，不是结论。你必须阅读 patternCandidate 判断它是否是项目级、可复用、能指导后续同类需求的实现经验。',
-    '- 不要判断本次业务需求是否可复用；本阶段只判断候选模式本身是否可沉淀。',
-    '- target 只是触发候选模式校验的一个用法案例，不是要沉淀的业务需求。',
-    '- Experience 应接近项目开发文档水准：说明适用场景、入口 import、核心组件/hook/工具怎么组合、实现步骤、注意事项。',
-    '- context/recipes/sourceContracts/verificationChecklist 是后续进入提示词的真正经验内容，必须能直接指导同类开发。',
-    '- requiredEvidence/examples 只用于存档追溯，不会作为后续提示词主体；不要把泛化搜索结果、无关 columns 文件或一次性业务页面塞进去。',
-    '- 不要把本次用户需求、接口名、字段名、一次性文案写成 triggerTags。',
-    '- triggerTags 只能是短标签或符号，例如 MdTable、useTable、md-table、表格、列表；不要超过 8 个。',
-    '- 如果只是当前页面细节、当前业务接口、当前字段，或证据不足以指导后续同类任务，shouldSave=false。',
-    '- shouldSave=true 时，candidateExperience.context 必须包含“如何使用”的具体写法，而不是空泛总结。',
-    '- requiredEvidence/examples 的 path 必须来自 patternCandidate 中的真实文件，且只保留证明该模式公共来源和代表用法所必需的最小集合。',
-    '',
-    '返回格式：',
-    '{"shouldSave":false,"reason":"","candidateExperience":null}',
-    '',
-    'candidateExperience 格式：',
-    '{"id":"","name":"","triggerTags":[],"applicableWhen":[],"notApplicableWhen":[],"context":"","recipes":[],"sourceContracts":[],"verificationChecklist":[],"requiredEvidence":[{"path":"src/...","purpose":""}],"examples":[{"path":"src/...","purpose":""}],"confidence":"medium"}',
-    '',
-    'context 建议结构：',
-    '## 适用场景',
-    '## 标准用法',
-    '## 关键文件',
-    '## 实现步骤',
-    '## 注意事项',
-    '',
-    `输入上下文:\n${safeJson(input)}`,
-  ].join('\n');
-}
-
-async function invokeJson(invoke, stage, prompt, log) {
+async function invokeChangePlanModel(project, { agentAdapter, langchainModel, signal, stage, prompt, log }) {
+  const { runAgentLlmTask } = require('../agent-host/llm-adapter');
   log(`经验增强模型阶段：${stage}；提示词 ${prompt.length} 字符`);
   log(`经验增强提示词(${stage}):\n${prompt}`);
-  const raw = await invoke(stage, prompt);
-  log(`经验增强模型返回(${stage}):\n${raw || '-'}`);
-  return { raw, parsed: parseJson(raw) };
+  const result = await runAgentLlmTask(agentAdapter, prompt, project, {
+    langchainModel,
+    signal,
+    stage,
+    systemPrompt: '你是 Magnus 项目经验发现与需求增强 agent。严格按用户提示返回 JSON，不执行代码修改。',
+    onLog: message => log(message),
+  });
+  log(`经验增强模型返回(${stage}):\n${result.rawText || '-'}`);
+  return { raw: result.rawText, parsed: parseJson(result.rawText) };
 }
 
 function truncate(value, max) {
   const text = String(value == null ? '' : value);
   return text.length > max ? `${text.slice(0, max)}…（已截断）` : text;
-}
-
-function compactToolSchema(schema) {
-  const value = schema && typeof schema === 'object' ? schema : {};
-  const properties = value.properties && typeof value.properties === 'object' ? value.properties : {};
-  const compactProperties = {};
-  for (const [key, prop] of Object.entries(properties).slice(0, 16)) {
-    compactProperties[key] = {
-      type: prop?.type || 'unknown',
-      description: truncate(prop?.description || prop?.title || '', 120),
-      enum: Array.isArray(prop?.enum) ? prop.enum.slice(0, 12) : undefined,
-    };
-  }
-  return {
-    type: value.type || 'object',
-    required: Array.isArray(value.required) ? value.required.slice(0, 16) : [],
-    properties: compactProperties,
-  };
 }
 
 function compactToolResult(result) {
@@ -827,21 +297,6 @@ function compactToolResult(result) {
   return JSON.stringify(result);
 }
 
-function selectChangePlanTools(tools, options = {}) {
-  const allowedSources = new Set(options.allowedSources || ['builtin', 'mcp', 'skill']);
-  const allowedToolNames = new Set(options.allowedToolNames || []);
-  const blockedProviders = new Set(options.blockedProviders || ['builtin.experience']);
-  const blockedCategories = new Set(options.blockedCategories || ['experience']);
-  return (tools || []).filter(tool => {
-    if (blockedProviders.has(tool.providerId)) return false;
-    if (blockedCategories.has(tool.category)) return false;
-    if (!allowedSources.has(tool.source || 'unknown')) return false;
-    if (allowedToolNames.size && !allowedToolNames.has(tool.name)) return false;
-    if (options.readOnlyOnly && tool.access !== 'read' && tool.access !== 'external') return false;
-    return true;
-  });
-}
-
 function allowedChangePlanFiles(input) {
   return Array.from(new Set([
     ...(input?.targetFiles || []).map(item => item?.path),
@@ -850,6 +305,7 @@ function allowedChangePlanFiles(input) {
 }
 
 function selectScopedChangePlanTools(tools) {
+  const { filterToolsByConfigAction } = require('../agent-host/capabilities');
   const scopedBuiltinNames = new Set(['read_file', 'find_imports']);
   const blockedBuiltinNames = new Set([
     'search_text',
@@ -864,38 +320,13 @@ function selectScopedChangePlanTools(tools) {
     if (blockedBuiltinNames.has(tool.name)) return false;
     return scopedBuiltinNames.has(tool.name);
   });
-  return selectChangePlanTools(tools, {
+  return filterToolsByConfigAction(allowed, {
+    configAction: ['builtin', 'skill'],
     readOnlyOnly: true,
-    allowedSources: ['builtin', 'mcp', 'skill'],
     allowedToolNames: allowed.map(tool => tool.name),
+    blockedProviders: ['builtin.experience'],
+    blockedCategories: ['experience'],
   });
-}
-
-// 工具是拔插的、与链路无关；change-plan 阶段只暴露本阶段需要的窄工具集。
-// 项目经验/先例发现已经由 recon 完成，这里只允许补读目标文件、侦察用法文件。
-function buildAgentToolsSection(tools, options = {}) {
-  const lines = tools.slice(0, 40).map(tool => {
-    const desc = truncate(tool.description || tool.title || '', 160);
-    const schema = truncate(JSON.stringify(compactToolSchema(tool.inputSchema)), 800);
-    return [
-      `- ${tool.name}${tool.source ? ` [${tool.source}]` : ''}${desc ? `：${desc}` : ''}`,
-      `  inputSchema: ${schema}`,
-    ].join('\n');
-  });
-  return [
-    '## 可用工具（受限，只能补充当前计划缺失的真实依据）',
-    '经验/先例发现已经由 recon 完成；change-plan 不再负责重新搜索项目经验。默认只能读取当前目标文件和 recon 已命中的用法文件。缺少业务事实时写 openQuestions，不要用泛词全局搜索。',
-    options.allowedFiles?.length
-      ? `允许读取的文件：${options.allowedFiles.join('、')}`
-      : '',
-    '本地项目经验/先例检索已经由 recon 完成；本阶段不再暴露 search_text/find_symbol/find_endpoint/find_files/find_related_examples 等全局本地检索工具。',
-    'MCP/skill 属于 Agent Host 暴露的外部能力，不在本阶段硬编码限制；是否使用由模型根据工具描述和任务需要判断。',
-    ...lines,
-    '',
-    '协议（严格遵守其一，不要混用）：',
-    '- 需要调用工具：只返回 {"toolCalls":[{"id":"t1","tool":"<工具名>","input":{...}}]}（可一次多个）。',
-    '- 信息足够，产出最终计划：返回原格式 {"changePlan":{...},"confirmedFacts":[],"assumptions":[],"usedExperienceIds":[],"candidateExperience":null}。',
-  ].join('\n');
 }
 
 function normalizeToolFile(value) {
@@ -903,11 +334,7 @@ function normalizeToolFile(value) {
 }
 
 function requestedReadFiles(input) {
-  return [
-    ...(Array.isArray(input?.scope?.files) ? input.scope.files : []),
-    input?.scope?.path,
-    input?.path,
-  ].map(normalizeToolFile).filter(Boolean);
+  return (Array.isArray(input?.files) ? input.files : []).map(normalizeToolFile).filter(Boolean);
 }
 
 function validateChangePlanToolCall(name, input, allowedFiles) {
@@ -916,7 +343,7 @@ function validateChangePlanToolCall(name, input, allowedFiles) {
   if (name === 'read_file') {
     const files = requestedReadFiles(input);
     if (!files.length) {
-      throw new Error(`change-plan read_file must specify scope.files/scope.path/path within allowed files: ${Array.from(allowed).join(', ')}`);
+      throw new Error(`change-plan read_file must specify files within allowed files: ${Array.from(allowed).join(', ')}`);
     }
     const denied = files.filter(file => !allowed.has(file));
     if (denied.length) {
@@ -931,35 +358,8 @@ function validateChangePlanToolCall(name, input, allowedFiles) {
   }
 }
 
-function formatToolObservation(observation) {
-  const input = truncate(JSON.stringify(observation.input || {}), 1000);
-  const body = observation.ok
-    ? truncate(compactToolResult(observation.result), observation.source === 'mcp' ? 8000 : 4000)
-    : `错误：${observation.error}`;
-  return [
-    `### ${observation.tool}${observation.ok ? '' : '（失败）'}`,
-    `input: ${input}`,
-    'result:',
-    body,
-  ].join('\n');
-}
-
-async function executeToolWithRetry(executeTool, project, call, context, retries = 1) {
-  let lastError;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const output = await executeTool(project, call, context);
-      return { output, attempt };
-    } catch (error) {
-      lastError = error;
-      if (attempt >= retries) break;
-    }
-  }
-  throw lastError;
-}
-
-// change-plan 走「tool-capable 循环」：模型可在产计划前调用当前场景允许的工具（项目源码、MCP 文档、Skills），取完再给最终计划。
-async function runChangePlanWithTools({ project, invoke, input, log, textCache, maxTurns = 4, toolRuntime = null }) {
+// change-plan 走 Agent Host / LangChain：模型可在产计划前调用当前场景允许的工具，取完再给最终计划。
+async function runChangePlanWithTools({ project, agentAdapter, langchainModel, signal, input, log, textCache, maxTurns = 4, toolRuntime = null }) {
   const basePrompt = buildChangePlanPrompt(input);
   let tools = [];
   let executeTool = null;
@@ -974,76 +374,83 @@ async function runChangePlanWithTools({ project, invoke, input, log, textCache, 
   }
   const observations = [];
   if (!tools.length || typeof executeTool !== 'function') {
-    const single = await invokeJson(invoke, 'change-plan', basePrompt, log);
+    const single = await invokeChangePlanModel(project, { agentAdapter, langchainModel, signal, stage: 'change-plan', prompt: basePrompt, log });
+    return { ...single, observations };
+  }
+  if (!agentAdapter && !langchainModel) {
+    log('未注入 Agent 模型适配器，change-plan 退回单次模型规划（无工具循环）');
+    const single = await invokeChangePlanModel(project, { agentAdapter, langchainModel, signal, stage: 'change-plan', prompt: basePrompt, log });
     return { ...single, observations };
   }
   log(`change-plan 可用工具 ${tools.length} 个：${tools.map(tool => tool.name).join('、')}`);
-  log(`change-plan 工具范围：${scopedFiles.join('、') || '无目标文件'}；本地全局检索工具=关闭；MCP/skill=沿用 Agent Host 暴露结果`);
-  const mcpTools = tools.filter(tool => tool.source === 'mcp');
-  if (mcpTools.length) {
-    log(`change-plan 可用 MCP 工具 ${mcpTools.length} 个：${mcpTools.map(tool => tool.name).join('、')}`);
-  }
+  log(`change-plan 工具范围：${scopedFiles.join('、') || '无目标文件'}；本地全局检索工具=关闭；skill=Agent Host registry；MCP=LangChain runtime 加载`);
 
-  const toolsSection = buildAgentToolsSection(tools, { allowedFiles: scopedFiles });
-  let last = { raw: '', parsed: null };
-  for (let turn = 1; turn <= maxTurns; turn += 1) {
+  const allowedToolNames = tools.map(tool => tool.name);
+  const guardedExecuteTool = async (toolProject, call, context) => {
+    const name = String(call.tool || call.name || '');
+    const toolInput = call.input || call.arguments || {};
+    validateChangePlanToolCall(name, toolInput, scopedFiles);
+    return executeTool(toolProject, { tool: name, input: toolInput }, {
+      ...context,
+      textCache,
+      allowedTools: allowedToolNames,
+      readOnlyOnly: true,
+    });
+  };
+  const { runAgentTask } = require('../agent-host/llm-adapter');
+  try {
+    const agentResult = await runAgentTask(project, {
+      adapter: agentAdapter,
+      langchainModel,
+      configAction: ['builtin', 'skill', 'mcp'],
+      maxTurns,
+      objective: [
+        basePrompt,
+        scopedFiles.length
+          ? `工具读取边界：只能调用 read_file({"files":[...]}) 读取这些文件：${scopedFiles.join('、')}。不要请求目录，不要请求范围外文件；缺证据时写 openQuestions。`
+          : '工具读取边界：当前没有可读目标文件；缺证据时写 openQuestions。',
+        maxTurns ? `最多进行 ${maxTurns} 轮工具观察；证据足够后必须输出最终 changePlan JSON。` : '',
+      ].filter(Boolean).join('\n\n'),
+      stage: 'change-plan',
+      systemPrompt: [
+        '你是 Magnus 项目经验发现与需求增强 agent。',
+        '需要真实依据时调用工具；证据足够时输出最终 changePlan JSON。',
+        '不要执行代码修改，不要编造项目事实。',
+      ].join('\n'),
+      onEvent: event => {
+        if (event.type === 'llm.input') {
+          const inputText = event.prompt || JSON.stringify(event.messages || [], null, 2);
+          log(`经验增强模型阶段：change-plan；输入 ${String(inputText || '').length} 字符；tools=${event.toolCount ?? '-'}`);
+          log(`经验增强输入(change-plan):\n${inputText || ''}`);
+        } else if (event.type === 'llm.output') {
+          log(`经验增强模型返回(change-plan):\n${event.rawText || '-'}`);
+        } else if (event.type === 'tool.start') {
+          log(`change-plan 工具调用：${event.toolCall?.tool || '-'}；input=${truncate(JSON.stringify(event.toolCall?.input || {}), 500)}`);
+        } else if (event.type === 'tool.result') {
+          observations.push(event.observation);
+          log(`change-plan 工具调用：${event.observation?.tool || '-'} ✓；结果 ${compactToolResult(event.observation?.result).length} 字符`);
+        } else if (event.type === 'tool.error') {
+          observations.push(event.observation);
+          log(`change-plan 工具调用：${event.observation?.tool || '-'} ✗ ${event.observation?.error || '-'}`);
+        }
+      },
+    }, {
+      tools,
+      executeTool: guardedExecuteTool,
+      textCache,
+    });
+    const raw = agentResult.rawText || '';
+    return { raw, parsed: parseJson(raw), observations };
+  } catch (error) {
+    if (!/recursion limit/i.test(error.message || '')) throw error;
+    log(`change-plan 工具循环达到上限，退回无工具最终规划：${error.message || error}`);
     const prompt = [
       basePrompt,
-      toolsSection,
-      observations.length ? `## 已取得的工具结果（产出计划的真实依据）\n${observations.map(formatToolObservation).join('\n\n')}` : '',
-      turn >= maxTurns ? '（已达工具调用上限，请直接产出最终 changePlan，不要再调用工具。）' : '',
-    ].filter(Boolean).join('\n\n');
-    last = await invokeJson(invoke, turn === 1 ? 'change-plan' : `change-plan-turn-${turn}`, prompt, log);
-    const calls = Array.isArray(last.parsed?.toolCalls) ? last.parsed.toolCalls : [];
-    if (turn >= maxTurns || !calls.length) return { ...last, observations };
-    for (const call of calls.slice(0, 5)) {
-      const name = String(call.tool || call.name || '');
-      try {
-        const toolInput = call.input || call.arguments || {};
-        log(`change-plan 工具调用：${name}；input=${truncate(JSON.stringify(toolInput), 500)}`);
-        validateChangePlanToolCall(name, toolInput, scopedFiles);
-        const { output, attempt } = await executeToolWithRetry(executeTool, project, { tool: name, input: toolInput }, {
-          textCache,
-          allowedTools: tools.map(tool => tool.name),
-          readOnlyOnly: true,
-        }, 1);
-        const compactedResult = compactToolResult(output.result);
-        observations.push({
-          tool: name,
-          source: output.providerId && output.providerId.startsWith('mcp.') ? 'mcp' : output.providerId,
-          input: toolInput,
-          ok: true,
-          result: output.result,
-        });
-        log(`change-plan 工具调用：${name} ✓${attempt ? `（重试 ${attempt} 次后成功）` : ''}；结果 ${compactedResult.length} 字符`);
-      } catch (error) {
-        observations.push({
-          tool: name,
-          input: call.input || call.arguments || {},
-          ok: false,
-          error: error.message || String(error),
-        });
-        log(`change-plan 工具调用：${name} ✗ ${error.message || error}`);
-      }
-    }
-    if (observations.length) {
-      log(`change-plan 工具结果已写入下一轮上下文：${observations.map(obs => obs.tool).join('、')}`);
-    }
+      '工具循环未能收敛。现在不要再调用工具，必须只基于已给出的目标文件和 recon 片段输出最终 changePlan JSON；缺证据写 openQuestions。',
+    ].join('\n\n');
+    const fallback = await invokeChangePlanModel(project, { agentAdapter, langchainModel, signal, stage: 'change-plan-fallback', prompt, log });
+    return { ...fallback, observations };
   }
-  return { ...last, observations };
-}
-
-// 从 tool-capable 循环的观测里，重建「经验沉淀」需要的 discovery 结构（find_related_examples/search_text 的 stats+matches）。
-function discoveryFromObservations(observations) {
-  const entries = (observations || [])
-    .filter(obs => obs.ok && obs.result && (obs.result.stats || obs.result.matches))
-    .map((obs, index) => [`obs-${index}`, {
-      operation: obs.result.operation || obs.tool,
-      stats: obs.result.stats || null,
-      matches: Array.isArray(obs.result.matches) ? obs.result.matches : [],
-    }]);
-  if (!entries.length) return null;
-  return { plan: { objective: '' }, results: Object.fromEntries(entries) };
 }
 
 async function enhanceLocatedPrompt(options) {
@@ -1052,13 +459,12 @@ async function enhanceLocatedPrompt(options) {
     body,
     modelItems,
     textCache = new Map(),
-    invoke,
     log = () => {},
     toolRuntime = null,
   } = options;
   const task = roughTask(body, modelItems);
   const fallback = fallbackEnhancedPrompt(task);
-  if (!modelItems?.length || typeof invoke !== 'function') {
+  if (!modelItems?.length || (!options.agentAdapter && !options.langchainModel)) {
     return { enhancedPrompt: fallback, usedExperienceIds: [], mode: 'fallback' };
   }
   const taskSession = getOrCreateTaskSession(project, task);
@@ -1072,7 +478,8 @@ async function enhanceLocatedPrompt(options) {
   // 实现侦察：LLM 只从「需求 + Structure.md」挑出需求明确提到的公共件 + 检索词；本地按变体搜「谁用了它」并抽用法片段。
   const recon = await runRecon(project, {
     requirement: task.userRequirement || activeTask.taskBrief || '',
-    invoke,
+    agentAdapter: options.agentAdapter,
+    langchainModel: options.langchainModel,
     textCache,
     log,
   });
@@ -1095,7 +502,9 @@ async function enhanceLocatedPrompt(options) {
   // 变更规划阶段：tool-capable 循环——模型可按需 read_file 把侦察到的先例读全再照抄，产出计划。
   const enhanced = await runChangePlanWithTools({
     project,
-    invoke,
+    agentAdapter: options.agentAdapter,
+    langchainModel: options.langchainModel,
+    signal: options.signal,
     input: enhancementInput,
     log,
     textCache,

@@ -1,216 +1,175 @@
-const { runModelTask } = require('../model/model-adapters');
-const { uniq } = require('../utils');
+'use strict';
+
 const { readProjectText } = require('../core/fs-utils');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const {
-  buildLocatorSystemPrompt,
-  normalizeLocatorDecision,
-  validateLocatorDecision,
-  locatorDecisionToSearchPlan,
-  locatorTechnicalStackMarkdown,
-} = require('./locator-protocol');
-
-const {
-  DEFAULT_DOM_AGENT_THRESHOLD,
-  DF_SCOPE_LIMIT,
-  parseJsonResult,
-  compressDomMarkup,
-  domAgentTrigger,
-  plannerDomInput,
   domContextDebugSummary,
+  plannerDomInput,
 } = require('./dom-agent/anchor/dom-utils');
-const {
-  buildPlannerPrompt,
-  normalizePlan,
-  filterPlanByVisibleEvidence,
-  splitRenderSearchesByDomScopes,
-  annotatePlanKeywordTypes,
-  planEvidenceKinds,
-  inheritedSearchKeywords,
-  expansionCombinedSearchPlan,
-} = require('./dom-agent/planner/planner-utils');
+const { runDomLocatorAgent } = require('./dom-agent/agents/dom-locator-agent');
 
-const {
-  candidateSort,
-  executeSearchPlan,
-  expansionRelatedCandidateHits,
-  keywordIndexes,
-} = require('./dom-agent/candidate/search-executor');
-
-const { inspectCandidates } = require('./dom-agent/candidate/candidate-inspector');
-const { resolveLocalCertainty } = require('./dom-agent/candidate/local-certainty');
-
-const {
-  unresolvedDefinitionCandidates,
-  enrichDefinitionOwners,
-  buildDefinitionResolverPrompt,
-  normalizeDefinitionResolver,
-  definitionResolverSearchScopeFiles,
-  applyDefinitionResolverRelations,
-} = require('./dom-agent/source/definition-resolver');
-
-const {
-  offsetToLineColumn,
-  focusAnchorsFromState,
-  computeFineLocation,
-  computeSourceScope,
-  regionByContainerAnchors,
-  attachFineLocation,
-} = require('./dom-agent/source/source-location');
-
-const {
-  isRenderCandidate,
-  dominantRenderCandidate,
-  reviewRenderHypotheses,
-  validateOriginRelation,
-  routeConfirmedOriginFiles,
-  analyzeEvidenceSufficiency,
-  compactInspectionForModel,
-  traceCandidateOwners,
-  buildJudgePrompt,
-  validateJudgeRouteDecision,
-  resolveByRouteRelation,
-  normalizeConfidence,
-  buildComposite,
-} = require('./dom-agent/candidate/candidate-relations');
-
-const {
-  normalizeJudge,
-  agentHits,
-} = require('./dom-agent/candidate/result-builder');
-const {
-  buildSourceRelationGraph,
-  relationGraphComposite,
-  relationGraphHits,
-  routeComponentRelations,
-  augmentRouteRelationsWithBreakpoints,
-} = require('./dom-agent/graph/source-relation-graph');
-const { traceFileEvidenceFlow } = require('./dom-agent/graph/syntax-evidence-flow');
-
-function scopedDefinitionSearchCandidates(project, searches, scopeFiles, textCache) {
-  const sourceByPath = new Map((project.files || []).map(file => [file.path, file]));
-  const candidateMap = new Map();
-  for (const filePath of scopeFiles || []) {
-    const file = sourceByPath.get(filePath);
-    if (!file) continue;
-    const text = readProjectText(project, file, textCache);
-    if (!text) continue;
-    for (const search of searches || []) {
-      const keywords = (search.keywords || []).filter(Boolean);
-      if (!keywords.length) continue;
-      const hitMap = new Map();
-      for (const keyword of keywords) {
-        const positions = keywordIndexes(text, keyword).slice(0, 4);
-        if (positions.length) hitMap.set(keyword, positions);
-      }
-      const matchedKeywords = [...hitMap.keys()];
-      const accepted = search.mode === 'all'
-        ? matchedKeywords.length === keywords.length
-        : matchedKeywords.length > 0;
-      if (!accepted) continue;
-      const old = candidateMap.get(filePath) || {
-        file: filePath,
-        score: 0,
-        matchedGroups: [],
-        matchedKeywords: [],
-        positions: [],
-      };
-      old.score += 180 + matchedKeywords.length * 30;
-      old.matchedGroups.push({
-        priority: search.priority || 1,
-        keywords: matchedKeywords,
-        range: 'definition-scoped-search',
-        reason: search.reason || '定义关系补充检索',
-        source: 'definition-scoped-search',
-        layer: search.layer || 'render',
-      });
-      old.matchedKeywords.push(...matchedKeywords);
-      old.positions.push(...matchedKeywords.flatMap(keyword => hitMap.get(keyword)).slice(0, 8));
-      candidateMap.set(filePath, old);
-    }
-  }
-	  return Array.from(candidateMap.values())
-	    .map(candidate => ({
-	      ...candidate,
-	      matchedKeywords: uniq(candidate.matchedKeywords),
-	      positions: uniq(candidate.positions).sort((a, b) => a - b),
-	    }))
-	    .sort(candidateSort);
+function projectFile(project, filePath) {
+  const normalized = String(filePath || '').replace(/\\/g, '/').replace(/^\.?\//, '');
+  return (project.files || []).find(file => file.path === normalized) || null;
 }
 
-function traceDefinitionEvidenceFlow(project, definitionCandidates, textCache, onLog, label = '') {
-  const files = uniq((definitionCandidates || [])
-    .map(item => item?.file || item)
-    .filter(Boolean))
-    .slice(0, 3);
-  if (!files.length) return [];
-  const flow = files.flatMap(file => traceFileEvidenceFlow(project, file, textCache));
-  const suffix = label ? `（${label}）` : '';
-  onLog(`本地调用：traceFileEvidenceFlow${suffix}(project, ${JSON.stringify(files)})`);
-  onLog(`本地输出：${JSON.stringify(flow, null, 2)}`);
-  return flow;
+function textAroundLine(project, filePath, line, textCache, radius = 18) {
+  const file = projectFile(project, filePath);
+  if (!file) return '';
+  const text = readProjectText(project, file, textCache);
+  const lines = text.split(/\r?\n/);
+  const target = Math.max(1, Number(line || 1));
+  const start = Math.max(1, target - radius);
+  const end = Math.min(lines.length, target + radius);
+  return lines.slice(start - 1, end).join('\n');
 }
 
-function definitionLinkedRenderDecision(inspection, definitionResolution) {
-  if (definitionResolution?.status !== 'linked' || !(definitionResolution.relations || []).length) {
-    return null;
-  }
-  const relations = definitionResolution.relations || [];
-  const renderFiles = uniq(relations.map(relation => relation.renderFile).filter(Boolean));
-  if (renderFiles.length !== 1) return null;
-  const renderFile = renderFiles[0];
-  const renderCandidate = (inspection.candidates || []).find(candidate => candidate.file === renderFile);
-  if (!renderCandidate || !isRenderCandidate(renderCandidate)) return null;
-  const definitionFiles = uniq(relations
-    .filter(relation => relation.renderFile === renderFile)
-    .map(relation => relation.definitionFile)
-    .filter(Boolean));
+function firstUsefulSnippet(project, filePath, textCache) {
+  const file = projectFile(project, filePath);
+  if (!file) return '';
+  const text = readProjectText(project, file, textCache);
+  return text.split(/\r?\n/).slice(0, 80).join('\n');
+}
+
+function routeFactsFromResult(body, routeResult) {
   return {
-    status: 'unique',
-    files: [
-      {
-        file: renderFile,
-        role: 'render',
-        confidence: Math.max(85, ...relations.map(relation => Number(relation.confidence || 0))),
-        reason: '定义关系分析已验证 definition -> render 闭合关系，且该 render 文件具备渲染资格',
-      },
-      ...definitionFiles.map(file => ({
-        file,
-        role: 'definition',
-        confidence: 85,
-        reason: `提供当前 DOM 的配置/文案定义，并已验证流向 ${renderFile}`,
-      })),
-    ],
-    source: 'definition-linked',
+    pagePath: body?.pagePath || body?.url || '',
+    matched: !!routeResult.trace?.matched,
+    bestPageFile: routeResult.trace?.bestPageFile || '',
+    hits: (routeResult.hits || []).slice(0, 8).map(hit => ({
+      file: hit.file,
+      routePath: hit.routePath,
+      reasons: hit.reasons || [],
+    })),
+  };
+}
+
+function searchSelections(domSelections) {
+  return domSelections.map(item => ({
+    index: item.index,
+    tag: item.tag,
+    selector: item.selector,
+    className: item.className,
+    directText: item.directText || item.text || '',
+    text: item.text || '',
+    markup: item.markup,
+    rawMarkupLength: item.rawMarkupLength,
+    compressedMarkupLength: item.compressedMarkupLength,
+  }));
+}
+
+function normalizeDecisionFiles(files) {
+  return (Array.isArray(files) ? files : [])
+    .map((item, index) => ({
+      file: String(item?.file || item?.path || '').replace(/\\/g, '/').replace(/^\.?\//, ''),
+      role: String(item?.role || (index === 0 ? 'render' : 'related')),
+      confidence: Number(item?.confidence || item?.score || 0),
+      reason: String(item?.reason || ''),
+      line: Number(item?.line || 0),
+      column: Number(item?.column || 0),
+      anchor: String(item?.anchor || ''),
+      snippet: String(item?.snippet || item?.codeSnippet || ''),
+    }))
+    .filter(item => item.file);
+}
+
+function buildSearchResult(project, body, routeResult, decision, rawText, textCache, debug = {}) {
+  const validFiles = normalizeDecisionFiles(decision.files)
+    .map(item => ({ ...item, exists: !!projectFile(project, item.file) }))
+    .filter(item => item.exists);
+  const enriched = validFiles.map((item, index) => {
+    const snippet = item.snippet
+      || (item.line ? textAroundLine(project, item.file, item.line, textCache) : firstUsefulSnippet(project, item.file, textCache));
+    return {
+      file: item.file,
+      score: item.confidence || Math.max(100, 1000 - index * 60),
+      stage: debug.stage || 'dom-agent',
+      role: item.role,
+      sourceRole: item.role,
+      line: item.line || 0,
+      column: item.column || 0,
+      anchor: item.anchor || '',
+      reasons: [
+        item.reason || '',
+        decision.reason || decision.stopReason || '',
+      ].filter(Boolean),
+      preciseEvidence: item.role === 'render',
+      snippet,
+      preciseSnippet: snippet,
+      modelCodeSnippet: snippet,
+      modelLocateLevel: item.line ? 'exact' : 'direction',
+      modelSnippetVerified: Boolean(snippet),
+    };
+  });
+  const render = enriched.find(item => item.role === 'render' || item.role === 'main-render') || enriched[0] || null;
+  const composite = render
+    ? {
+        render: {
+          file: render.file,
+          role: 'render',
+          score: render.score,
+          line: render.line || 0,
+          column: render.column || 0,
+          anchor: render.anchor || '',
+        },
+        children: enriched
+          .filter(item => item.file !== render.file && item.role === 'child')
+          .map(item => ({ file: item.file, anchor: item.anchor || item.reason || '' })),
+        coRenders: enriched
+          .filter(item => item.file !== render.file && /render/.test(item.role) && item.role !== 'child')
+          .map(item => ({ file: item.file, role: item.role, score: item.score, line: item.line || 0 })),
+        bridgeFiles: enriched
+          .filter(item => !/render|child/.test(item.role))
+          .map(item => ({ file: item.file, role: item.role })),
+        relations: (decision.relations || []).map(relation => ({
+          from: relation.from,
+          to: relation.to,
+          type: relation.type,
+          evidence: relation.evidence,
+        })),
+      }
+    : null;
+  const needMoreDom = !enriched.length && Boolean(decision.needMoreDom || decision.status === 'need-more-context');
+  return {
+    hits: enriched,
+    composite,
+    routeResolver: routeResult.trace,
+    agent: {
+      enabled: true,
+      runtime: 'langchain-staged',
+      status: decision.status || (enriched.length ? 'resolved' : 'need-more-context'),
+      needMoreDom,
+      files: validFiles,
+      rawText,
+      domContext: domContextDebugSummary(body),
+      ...debug,
+    },
+    needMoreDom,
+    needsMoreEvidence: needMoreDom,
   };
 }
 
 async function runAgentSearch(project, body, options = {}) {
   if (!project) throw new Error('No project selected.');
+  if (!body?.adapter && !options.langchainModel) {
+    throw new Error('DOM Agent requires an API model adapter.');
+  }
   const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
   const signal = options.signal;
-  const invokeModel = options.runModelTask || runModelTask;
-  const trigger = domAgentTrigger(body, { ...options, project });
-  onLog(`DOM Agent 触发判断：启用；${trigger.reason}`);
-
   const textCache = new Map();
-  // 断点解析器用的 LLM 通道（限定只按协议返回动作，不打分/不猜文件）。两处路由关系接线复用它。
-  const breakpointInvoke = async (stage, prompt) => {
-    const result = await invokeModel(body.adapter, prompt, project.path, {
-      signal,
-      onLog,
-      systemPrompt: '你是 Magnus 关系断点解析器。只按用户提示里的 JSON 协议返回一个动作，不打分、不猜文件。',
-    });
-    return result?.rawText || '';
-  };
+  onLog('DOM Agent runtime: LangChain tool-driven locator');
+
   onLog('本地调用：resolvePageRouteTrace(project, body)');
   const routeResult = resolvePageRouteTrace(project, body, textCache);
+  const routeFacts = routeFactsFromResult(body, routeResult);
   onLog(`本地输出：${JSON.stringify({
-    matched: !!routeResult.trace?.matched,
-    bestPageFile: routeResult.trace?.bestPageFile || '',
-    hits: (routeResult.hits || []).slice(0, 4).map(hit => hit.file),
+    matched: routeFacts.matched,
+    bestPageFile: routeFacts.bestPageFile,
+    hits: routeFacts.hits.slice(0, 6).map(hit => hit.file),
   }, null, 2)}`);
+
   const domSelections = plannerDomInput(body);
+  const domFacts = searchSelections(domSelections);
   onLog('本地调用：compressDomMarkup(selection DOM)');
   onLog(`本地输出：${JSON.stringify({
     selections: domSelections.map(item => ({
@@ -218,737 +177,28 @@ async function runAgentSearch(project, body, options = {}) {
       tag: item.tag,
       rawMarkupLength: item.rawMarkupLength,
       compressedMarkupLength: item.compressedMarkupLength,
-      repeatedGroupCount: item.compression.repeatedGroupCount,
-    })),
-  }, null, 2)}`);
-  if (!body.adapter) throw new Error('DOM Agent 需要已配置的定位模型。');
-  const plannerPrompt = buildPlannerPrompt(project, body, routeResult.trace, domSelections);
-  const plannerSystemPrompt = buildLocatorSystemPrompt(locatorTechnicalStackMarkdown(project));
-  onLog(`DOM Agent System Prompt（${plannerSystemPrompt.length} 字符）:\n${plannerSystemPrompt}`);
-  onLog(`DOM Agent Planner 输入（${plannerPrompt.length} 字符）:\n${plannerPrompt}`);
-  const plannerResult = await invokeModel(body.adapter, plannerPrompt, project.path, {
-    signal,
-    onLog,
-    systemPrompt: plannerSystemPrompt,
-    temperature: 0.2,
-  });
-  onLog(`DOM Agent Planner 输出（${plannerResult.rawText.length} 字符）:\n${plannerResult.rawText || '-'}`);
-  const plannerParsed = parseJsonResult(plannerResult.rawText);
-  const locatorDecision = normalizeLocatorDecision(plannerParsed || {});
-  const locatorValidation = validateLocatorDecision(locatorDecision);
-  if (locatorDecision.status) {
-    onLog(`DOM Agent LocatorDecision 校验：${locatorValidation.valid ? '通过' : `失败：${locatorValidation.errors.join('；')}`}`);
-  }
-  let plan = locatorValidation.valid
-    ? locatorDecisionToSearchPlan(locatorDecision)
-    : { searches: [], needMoreDom: false };
-  if (!plan.searches.length && !plan.needMoreDom) {
-    plan = normalizePlan(plannerParsed);
-  }
-  const filteredPlan = filterPlanByVisibleEvidence(plan, body, routeResult.trace);
-  if (filteredPlan.removed.length) {
-    onLog(`DOM Agent Planner 计划过滤：丢弃未在 DOM/路由证据中出现的词 ${filteredPlan.removed.join('、')}`);
-  }
-  plan = annotatePlanKeywordTypes(filteredPlan.plan, body);
-
-  const plannedKeywords = uniq((plan.searches || []).flatMap(search => search.keywords || []));
-  onLog(`DOM Agent 本地 DOM 上下文来源：${JSON.stringify(domContextDebugSummary(body, plannedKeywords), null, 2)}`);
-  const scopedSplitPlan = splitRenderSearchesByDomScopes(plan, body);
-  if (scopedSplitPlan.splitCount) {
-    onLog(`DOM Agent scoped 渲染块拆分：${scopedSplitPlan.splitCount} 个 render 组被拆分为父组件/子组件检索组`);
-    plan = scopedSplitPlan;
-  }
-  onLog(`DOM Agent 检索词定性：${JSON.stringify(planEvidenceKinds(plan), null, 2)}`);
-  const executionPlan = plan;
-  const inheritedKeywords = inheritedSearchKeywords(body?.agentState || null);
-  if (inheritedKeywords.length) {
-    onLog(`DOM Agent 扩区保留上一轮检索锚点用于引用链验证：${inheritedKeywords.join('、')}`);
-  }
-  const combinedPlan = expansionCombinedSearchPlan(executionPlan, body?.agentState || null);
-  if (!executionPlan.searches.length) {
-    if (executionPlan.needMoreDom || plan.needMoreDom) {
-      const localCertainty = resolveLocalCertainty(project, body, textCache, {
-        log: onLog,
-        locatorDecision,
-      });
-      if (localCertainty) {
-        onLog(`DOM Agent 扩区前本地唯一性验证收敛：${localCertainty.selected.file}`);
-        return attachFineLocation({
-          hits: localCertainty.hits,
-          composite: localCertainty.composite,
-          routeResolver: routeResult.trace,
-          apiTrace: null,
-          i18nTrace: null,
-          definitionTrace: null,
-          agent: {
-            enabled: true,
-            trigger,
-            plan: localCertainty.plan,
-            modelPlan: plan,
-            inspection: compactInspectionForModel(localCertainty.inspection),
-            localCertaintyBeforeExpand: true,
-            evidence: {
-              insufficient: false,
-              reason: 'Planner 请求扩区前，weakAnchors 已唯一命中可渲染源码',
-              candidateCount: localCertainty.inspection.candidates.length,
-            },
-          },
-        }, project, localCertainty.plan, body?.agentState || null, textCache, body);
-      }
-      const evidence = {
-        insufficient: true,
-        reason: 'Planner 判断当前选区无法形成稳定检索计划',
-        candidateCount: 0,
-      };
-      onLog(`DOM Agent 证据不足：${evidence.reason}`);
-      return {
-        hits: [],
-        routeResolver: routeResult.trace,
-        apiTrace: null,
-        i18nTrace: null,
-        definitionTrace: null,
-        needMoreDom: true,
-        needsMoreEvidence: true,
-        agent: {
-          enabled: true,
-          trigger,
-          plan: executionPlan,
-          modelPlan: plan,
-          evidence,
-          needMoreDom: true,
-        },
-      };
-    }
-    throw new Error('DOM Agent Planner 未返回可执行检索计划。');
-  }
-
-  let combinedCandidates = [];
-  if (combinedPlan.plan.searches.length) {
-    onLog(`本地调用：executeSearchPlan(project, ${JSON.stringify(combinedPlan.plan)})`);
-    combinedCandidates = executeSearchPlan(project, combinedPlan.plan, textCache).map(candidate => ({
-      ...candidate,
-      score: candidate.score + 180,
-    }));
-    onLog(`本地输出：${JSON.stringify({
-      candidateCount: combinedCandidates.length,
-      files: combinedCandidates.map(candidate => ({
-        file: candidate.file,
-        score: candidate.score,
-        matchedGroups: candidate.matchedGroups.map(group => group.keywords),
-      })),
-    }, null, 2)}`);
-  }
-
-  onLog(`本地调用：executeSearchPlan(project, ${JSON.stringify(executionPlan)})`);
-  const currentCandidates = executeSearchPlan(project, executionPlan, textCache);
-  const related = expansionRelatedCandidateHits(project, currentCandidates, body?.agentState || null, textCache);
-  if (related.relations.length) {
-    onLog(`DOM Agent 扩区引用链命中：${JSON.stringify(related.relations, null, 2)}`);
-  }
-  const candidateMap = new Map();
-  for (const candidate of [...combinedCandidates, ...currentCandidates, ...related.candidates]) {
-    const old = candidateMap.get(candidate.file);
-    if (!old || Number(candidate.score || 0) > Number(old.score || 0)) {
-      candidateMap.set(candidate.file, candidate);
-    }
-  }
-  const candidates = Array.from(candidateMap.values()).sort(candidateSort);
-  onLog(`本地输出：${JSON.stringify({
-    candidateCount: candidates.length,
-    files: candidates.map(candidate => ({
-      file: candidate.file,
-      score: candidate.score,
-      matchedGroups: candidate.matchedGroups.map(group => group.keywords),
+      repeatedGroupCount: item.compression?.repeatedGroupCount || 0,
     })),
   }, null, 2)}`);
 
-  onLog(`本地调用：inspectCandidates(project, ${JSON.stringify(candidates.map(item => item.file))})`);
-  const inspectionPlan = {
-    searches: [
-      ...combinedPlan.plan.searches,
-      ...executionPlan.searches,
-    ],
-  };
-  let inspection = inspectCandidates(project, candidates, inspectionPlan, textCache, body);
-  onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
-  const initialRenderReview = reviewRenderHypotheses(inspection);
-  onLog(`DOM Agent 渲染假设审查：${JSON.stringify(initialRenderReview, null, 2)}`);
-
-  const sourceRelationGraph = buildSourceRelationGraph(project, inspection, textCache);
-  onLog(`本地调用：buildSourceRelationGraph(project, inspection)`);
-  onLog(`本地输出：${JSON.stringify(sourceRelationGraph, null, 2)}`);
-  if (sourceRelationGraph.status === 'unique-complete') {
-    const hits = relationGraphHits(sourceRelationGraph, inspection);
-    const composite = relationGraphComposite(sourceRelationGraph);
-    onLog(`DOM Agent 本地关系图收敛：${sourceRelationGraph.bundles[0].owner} 将定义值传入直接渲染组件，跳过单文件最高分裁决`);
-    return attachFineLocation({
-      hits,
-      composite,
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      agent: {
-        enabled: true,
-        trigger,
-        plan: executionPlan,
-        modelPlan: plan,
-        inspection: compactInspectionForModel(inspection),
-        sourceRelationGraph,
-        localConverged: true,
-      },
-    }, project, executionPlan, body?.agentState || null, textCache, body);
-  }
-
-  // 静态组件边遍历 + 断点接线：静态到不了的强证据候选，若卡在动态墙（工厂/注册表/动态 key），
-  // 触发断点解析器（LLM 只回「下一步验证什么」，本地执行、补边）。天然稀发——常规命中都走静态边、不发模型调用。
-  let routeRelations = await augmentRouteRelationsWithBreakpoints(
-    project,
-    routeResult.trace,
-    inspection.candidates,
-    textCache,
-    { log: onLog, invoke: breakpointInvoke }
-  );
-  onLog(`本地调用：augmentRouteRelationsWithBreakpoints(project, route, ${JSON.stringify(inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file))})`);
-  onLog(`本地输出：${JSON.stringify(routeRelations, null, 2)}`);
-  const localRouteDecision = resolveByRouteRelation(
+  const decision = await runDomLocatorAgent(project, {
     body,
-    inspection,
-    routeResult.trace,
-    routeRelations
-  );
-  if (localRouteDecision) {
-    const evidence = {
-      insufficient: false,
-      reason: '当前精确路由、真实 import 链与 DOM 结构共同形成唯一候选',
-      candidateCount: inspection.candidates.length,
-      routeRelationCount: routeRelations.length,
-    };
-    const hits = agentHits(inspection, localRouteDecision, []);
-    const composite = buildComposite(inspection, [], localRouteDecision.files[0].file);
-    onLog(`DOM Agent 本地关系裁决：${localRouteDecision.files[0].reason}`);
-    onLog(`DOM Agent 最终输出：${JSON.stringify({
-      status: localRouteDecision.status,
-      files: hits.map(hit => ({
-        file: hit.file,
-        score: hit.score,
-        role: hit.sourceRole || '',
-      })),
-    }, null, 2)}`);
-    return attachFineLocation({
-      hits,
-      composite,
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      agent: {
-        enabled: true,
-        trigger,
-        plan: executionPlan,
-        modelPlan: plan,
-        inspection: compactInspectionForModel(inspection),
-        definitionResolution: null,
-        evidence,
-        routeRelations,
-        judge: localRouteDecision,
-      },
-    }, project, executionPlan, body?.agentState || null, textCache, body);
-  }
-
-  const renderCandidatesAfterRoute = inspection.candidates.filter(isRenderCandidate);
-  const unresolvedDefinitionsAfterRoute = unresolvedDefinitionCandidates(inspection);
-  if (!renderCandidatesAfterRoute.length && unresolvedDefinitionsAfterRoute.length) {
-    const syntaxEvidenceFlow = traceDefinitionEvidenceFlow(
-      project,
-      unresolvedDefinitionsAfterRoute,
-      textCache,
-      onLog,
-      '无渲染候选'
-    );
-    const evidence = {
-      insufficient: true,
-      reason: '当前只命中定义/配置文件，尚未找到生成 DOM 的渲染源码；不再沿定义文件继续扩大推断链路，需要扩区补充渲染结构证据',
-      candidateCount: inspection.candidates.length,
-      primaryCandidateCount: 0,
-      referenceCandidateCount: inspection.candidates.length,
-      unresolvedDefinitionFiles: unresolvedDefinitionsAfterRoute.map(item => item.file),
-      routeRelationCount: routeRelations.length,
-    };
-    onLog(`DOM Agent 无渲染候选：${evidence.reason}`);
-    return {
-      hits: [],
-      composite: null,
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      needMoreDom: true,
-      needsMoreEvidence: true,
-      agent: {
-        enabled: true,
-        trigger,
-        plan: executionPlan,
-        modelPlan: plan,
-        inspection: compactInspectionForModel(inspection),
-        sourceRelationGraph,
-        routeRelations,
-        syntaxEvidenceFlow,
-        evidence,
-        needMoreDom: true,
-      },
-    };
-  }
-
-  const initialOwnershipFiles = uniq([
-    ...inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
-    ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
-  ]);
-  let ownership = traceCandidateOwners(
-    project,
-    initialOwnershipFiles,
-    textCache
-  );
-  onLog(`本地调用：traceCandidateOwners(project, ${JSON.stringify(initialOwnershipFiles)})`);
-  onLog(`本地输出：${JSON.stringify(ownership, null, 2)}`);
-
-  const unresolvedBeforeOwners = unresolvedDefinitionCandidates(inspection);
-  if (unresolvedBeforeOwners.length) {
-    inspection = enrichDefinitionOwners(project, inspection, ownership, textCache);
-    onLog(`本地调用：enrichDefinitionOwners(project, ${JSON.stringify(unresolvedBeforeOwners.map(item => item.file))})`);
-    onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
-  }
-
-  let definitionResolution = null;
-  const definitionSearches = [];
-  const maxDefinitionResolverRounds = 3;
-  let lastDefinitionRelationEvidence = [];
-  for (let definitionRound = 1; definitionRound <= maxDefinitionResolverRounds; definitionRound += 1) {
-    const unresolvedDefinitions = unresolvedDefinitionCandidates(inspection);
-    if (!unresolvedDefinitions.length) break;
-    const relationEvidence = traceDefinitionEvidenceFlow(
-      project,
-      unresolvedDefinitions,
-      textCache,
-      onLog,
-      `定义关系分析第 ${definitionRound} 轮`
-    );
-    lastDefinitionRelationEvidence = relationEvidence;
-    const resolverPrompt = buildDefinitionResolverPrompt(body, inspection, ownership, relationEvidence);
-    onLog(`DOM Agent 定义关系分析输入（第 ${definitionRound} 轮，${resolverPrompt.length} 字符）:\n${resolverPrompt}`);
-    try {
-      const resolverResult = await invokeModel(body.adapter, resolverPrompt, project.path, {
-        signal,
-        onLog,
-        systemPrompt: '你是 Magnus 定义来源关系分析器。只根据提供的真实源码片段返回 JSON。',
-      });
-      onLog(`DOM Agent 定义关系分析输出（第 ${definitionRound} 轮，${resolverResult.rawText.length} 字符）:\n${resolverResult.rawText || '-'}`);
-      definitionResolution = normalizeDefinitionResolver(
-        parseJsonResult(resolverResult.rawText) || {},
-        inspection,
-        ownership,
-        relationEvidence
-      );
-      onLog(`DOM Agent 定义关系分析归一化（第 ${definitionRound} 轮）:\n${JSON.stringify(definitionResolution, null, 2)}`);
-      if (definitionResolution.removed.length) {
-        onLog(`DOM Agent 定义关系检索词过滤：丢弃未在输入源码片段中出现的词 ${definitionResolution.removed.join('、')}`);
-      }
-      if (definitionResolution.status === 'linked' && definitionResolution.relations.length) {
-        inspection = applyDefinitionResolverRelations(
-          project,
-          inspection,
-          definitionResolution.relations,
-          ownership,
-          textCache,
-          relationEvidence
-        );
-        onLog(`本地调用：applyDefinitionResolverRelations(${JSON.stringify(definitionResolution.relations)})`);
-        onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
-        break;
-      } else if (definitionResolution.status === 'search' && definitionResolution.searches.length) {
-        const definitionPlan = {
-          searches: definitionResolution.searches,
-          needMoreDom: false,
-        };
-        definitionSearches.push(...definitionResolution.searches);
-        const scopeFiles = definitionResolverSearchScopeFiles(
-          inspection,
-          ownership,
-          relationEvidence,
-          definitionResolution
-        );
-        onLog(`本地调用：scopedDefinitionSearch(project, ${JSON.stringify({
-          searches: definitionResolution.searches,
-          scopeFiles,
-        })})`);
-        const definitionCandidates = scopedDefinitionSearchCandidates(
-          project,
-          definitionResolution.searches,
-          scopeFiles,
-          textCache
-        );
-        onLog(`本地输出：${JSON.stringify({
-          candidateCount: definitionCandidates.length,
-          files: definitionCandidates.map(item => item.file),
-        }, null, 2)}`);
-        const mergedDefinitionCandidates = Array.from(new Map(
-          [...(inspection.candidates || []), ...definitionCandidates].map(item => [item.file, item])
-        ).values());
-        inspection = inspectCandidates(project, mergedDefinitionCandidates, {
-          searches: [...inspectionPlan.searches, ...definitionSearches],
-        }, textCache, body);
-        const definitionOwnershipFiles = uniq([
-          ...inspection.candidates.filter(item => !item.referenceOnly).map(item => item.file),
-          ...unresolvedDefinitionCandidates(inspection).map(item => item.file),
-        ]);
-        ownership = traceCandidateOwners(project, definitionOwnershipFiles, textCache);
-        inspection = enrichDefinitionOwners(project, inspection, ownership, textCache);
-        onLog(`本地调用：inspectCandidates(project, ${JSON.stringify(mergedDefinitionCandidates.map(item => item.file))})`);
-        onLog(`本地输出：${JSON.stringify(compactInspectionForModel(inspection), null, 2)}`);
-        continue;
-      }
-    } catch (error) {
-      definitionResolution = {
-        status: 'unresolved',
-        relations: [],
-        searches: [],
-        removed: [],
-        error: error?.message || String(error),
-      };
-      onLog(`DOM Agent 定义关系分析失败：${definitionResolution.error}`);
-    }
-    break;
-  }
-
-  // 原始选区关系校验：扩区是为了找文件，但最终文件必须与「用户最初选中的那块」有渲染/引用关系。
-  // 剔除那些只命中了扩区大区域、却与原始选区锚点毫无关系的渲染候选。
-  const originAnchors = focusAnchorsFromState(body?.agentState || null);
-  let originVerification = {
-    status: originAnchors.length ? 'pending' : 'not-required',
-    anchors: originAnchors,
-  };
-  if (originAnchors.length) {
-    const renderCandidates = inspection.candidates.filter(isRenderCandidate);
-    const validRenderFiles = new Set(
-      renderCandidates
-        .filter(candidate => validateOriginRelation(project, candidate.file, originAnchors, textCache).valid)
-        .map(candidate => candidate.file)
-    );
-    if (renderCandidates.length && !validRenderFiles.size) {
-      const exactPageFile = routeResult.trace?.bestPageFile || '';
-      const routeConfirmedFiles = new Set(routeConfirmedOriginFiles(
-        renderCandidates,
-        routeResult.trace,
-        routeRelations
-      ));
-      if (exactPageFile && routeConfirmedFiles.size) {
-        inspection = {
-          ...inspection,
-          candidates: inspection.candidates.filter(candidate =>
-            !isRenderCandidate(candidate) || routeConfirmedFiles.has(candidate.file)),
-        };
-        originVerification = {
-          status: 'unlocated',
-          anchors: originAnchors,
-          reason: '原始选区锚点未出现在源码中，但扩区候选已由当前精确路由入口的真实 import 链确认；保留文件定位，源码节点待后链路对齐',
-          routeConfirmedFiles: [...routeConfirmedFiles],
-        };
-        onLog(`DOM Agent 原始选区关系校验：最初选区锚点(${originAnchors.join('、')})无法在源码回验；保留由当前精确路由链确认的候选 ${[...routeConfirmedFiles].join('、')}，精确位置标记为 unlocated`);
-      } else {
-        onLog(`DOM Agent 原始选区关系校验：全部渲染候选都与最初选区锚点(${originAnchors.join('、')})无渲染/引用关系，且没有当前精确路由链佐证，判定为「扩区命中了别处、并非你选的那块」`);
-        return {
-          hits: [],
-          composite: null,
-          routeResolver: routeResult.trace,
-          apiTrace: null,
-          i18nTrace: null,
-          definitionTrace: null,
-          needMoreDom: true,
-          needsMoreEvidence: true,
-          agent: {
-            enabled: true,
-            trigger,
-            plan: executionPlan,
-            modelPlan: plan,
-            inspection: compactInspectionForModel(inspection),
-            definitionResolution,
-            originMismatch: true,
-            originVerification: {
-              status: 'mismatch',
-              anchors: originAnchors,
-            },
-            originAnchors,
-            evidence: {
-              insufficient: true,
-              reason: '扩区命中的文件与原始选区无渲染/引用关系，真正渲染该区域的组件可能在被压缩省略的部分，请直接选中该区域本身重试',
-            },
-            needMoreDom: true,
-          },
-        };
-      }
-    }
-    if (validRenderFiles.size && validRenderFiles.size < renderCandidates.length) {
-      // 只保留与原始选区相关的渲染候选；参考/子组件/定义候选保留以维持引用链。
-      inspection = {
-        ...inspection,
-        candidates: inspection.candidates.filter(candidate =>
-          !isRenderCandidate(candidate) || validRenderFiles.has(candidate.file)),
-      };
-      originVerification = {
-        status: 'verified',
-        anchors: originAnchors,
-        files: [...validRenderFiles],
-      };
-      onLog(`DOM Agent 原始选区关系校验：保留与最初选区相关的渲染候选 ${[...validRenderFiles].join('、')}`);
-    } else if (validRenderFiles.size) {
-      originVerification = {
-        status: 'verified',
-        anchors: originAnchors,
-        files: [...validRenderFiles],
-      };
-    }
-  }
-
-  const finalRenderReview = reviewRenderHypotheses(inspection);
-  const evidence = analyzeEvidenceSufficiency(plan, inspection, ownership, {
-    expansionRetry: body?.agentState?.expansionRetry === true,
-  });
-  onLog(`DOM Agent 收敛前复审：${JSON.stringify(finalRenderReview, null, 2)}`);
-  onLog(`本地调用：analyzeEvidenceSufficiency(plan, inspection, ownership)`);
-  onLog(`本地输出：${JSON.stringify(evidence, null, 2)}`);
-  if (evidence.insufficient) {
-    onLog(`DOM Agent 证据不足：${evidence.reason}`);
-    return {
-      hits: [],
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      needMoreDom: true,
-      needsMoreEvidence: true,
-      agent: {
-        enabled: true,
-        trigger,
-        plan,
-	        inspection: compactInspectionForModel(inspection),
-	        definitionResolution,
-	        definitionRelationEvidence: lastDefinitionRelationEvidence,
-	        evidence,
-	        originVerification,
-	        needMoreDom: true,
-      },
-    };
-  }
-
-  const definitionLinkedDecision = definitionLinkedRenderDecision(inspection, definitionResolution);
-  if (definitionLinkedDecision && !options.forceJudge) {
-    const renderFile = definitionLinkedDecision.files.find(file => file.role === 'render')?.file;
-    const hits = agentHits(inspection, definitionLinkedDecision, ownership);
-    const composite = buildComposite(inspection, ownership, renderFile);
-    onLog(`DOM Agent 定义关系收敛（跳过 Judge）：${definitionLinkedDecision.files.map(file => `${file.role}:${file.file}`).join('；')}`);
-    return attachFineLocation({
-      hits,
-      composite,
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      agent: {
-        enabled: true,
-        trigger,
-        plan: executionPlan,
-        modelPlan: plan,
-	        inspection: compactInspectionForModel(inspection),
-	        definitionResolution,
-	        definitionRelationEvidence: lastDefinitionRelationEvidence,
-	        evidence,
-	        originVerification,
-	        judge: definitionLinkedDecision,
-        localConverged: true,
-      },
-    }, project, executionPlan, body?.agentState || null, textCache, body);
-  }
-
-  // 本地已存在明显占优的渲染候选（稀有锚点共现）——直接收敛，不再调用 Judge。
-  // Judge 仅在下面「本地无法收敛的真歧义」时才触发。
-  const localDominant = dominantRenderCandidate(inspection);
-  if (localDominant && !options.forceJudge && !finalRenderReview.requiresModelReview) {
-    const decision = {
-      status: 'unique',
-      files: [{
-        file: localDominant.file,
-        role: 'render',
-        confidence: 95,
-        reason: '判别性稀有锚点在同一渲染源码内共现，本地唯一收敛，无需模型裁决',
-      }],
-      source: 'local-dominant',
-    };
-    const hits = agentHits(inspection, decision, ownership);
-    const composite = buildComposite(inspection, ownership, localDominant.file);
-    onLog(`DOM Agent 本地收敛（跳过 Judge）：${localDominant.file}`);
-    onLog(`DOM Agent 组合结果：${JSON.stringify(composite, null, 2)}`);
-    return attachFineLocation({
-      hits,
-      composite,
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      agent: {
-        enabled: true,
-        trigger,
-        plan: executionPlan,
-        modelPlan: plan,
-	        inspection: compactInspectionForModel(inspection),
-	        definitionResolution,
-	        definitionRelationEvidence: lastDefinitionRelationEvidence,
-	        evidence,
-	        originVerification,
-	        judge: decision,
-        localConverged: true,
-      },
-    }, project, executionPlan, body?.agentState || null, textCache, body);
-  }
-  if (localDominant && finalRenderReview.requiresModelReview) {
-    onLog(`DOM Agent 语义审查门：禁止本地直接收敛；${finalRenderReview.reviewReasons.join('；')}，进入 LLM Judge`);
-  }
-
-  // (b) 只剩唯一 eligible render 候选(其余是 definition/参考)→ 没有 render-vs-render 歧义要消，直接收敛，不劳烦 Judge。
-  const eligibleRenders = (finalRenderReview.candidates || []).filter(item => item.eligibleAsMainRender);
-  if (eligibleRenders.length === 1 && !options.forceJudge && !finalRenderReview.requiresModelReview) {
-    const renderFile = eligibleRenders[0].file;
-    // (c) 定义驱动：命中 DOM 文案/结构、或与该 render 已建立关系的 definition 文件(参考)一起带出，作为「增/改一项」落点。
-    const definitionFiles = (inspection.candidates || [])
-      .filter(item => item.file !== renderFile && item.referenceOnly
-        && ((item.domTextCoverage?.matchedTextCount || 0) > 0
-          || (item.definitionLinks || []).some(link => link.renderFile === renderFile)))
-      .map(item => item.file);
-    const decision = {
-      status: 'unique',
-      files: [
-        { file: renderFile, role: 'render', confidence: 90, reason: '本地唯一可渲染候选，无 render 歧义，无需 Judge' },
-        ...definitionFiles.map(file => ({ file, role: 'definition', confidence: 85, reason: '生成该 DOM 的数据/配置定义；「增/改一项」类需求通常改这里，而非通用渲染器' })),
-      ],
-      source: 'single-render',
-    };
-    const hits = agentHits(inspection, decision, ownership);
-    const composite = buildComposite(inspection, ownership, renderFile);
-    onLog(`DOM Agent 单一渲染候选收敛（跳过 Judge）：${renderFile}${definitionFiles.length ? `；定义落点 ${definitionFiles.join('、')}` : ''}`);
-    return attachFineLocation({
-      hits,
-      composite,
-      routeResolver: routeResult.trace,
-      apiTrace: null,
-      i18nTrace: null,
-      definitionTrace: null,
-      agent: {
-        enabled: true,
-        trigger,
-        plan: executionPlan,
-        modelPlan: plan,
-        inspection: compactInspectionForModel(inspection),
-        evidence,
-        originVerification,
-        judge: decision,
-        localConverged: true,
-      },
-    }, project, executionPlan, body?.agentState || null, textCache, body);
-  }
-
-  // Judge 路径同样接断点：本地没收敛而走到 Judge 时，让 Judge 也能看到断点桥接出来的路由关系，而非仅静态边。
-  routeRelations = await augmentRouteRelationsWithBreakpoints(
-    project,
-    routeResult.trace,
-    inspection.candidates,
-    textCache,
-    { log: onLog, invoke: breakpointInvoke }
-  );
-  let judgePrompt = buildJudgePrompt(
-    body,
-    inspection,
-    ownership,
-    routeResult.trace,
-    routeRelations,
-    sourceRelationGraph
-  );
-  onLog(`DOM Agent Judge 输入（${judgePrompt.length} 字符）:\n${judgePrompt}`);
-  let judgeResult = await invokeModel(body.adapter, judgePrompt, project.path, {
+    userPrompt: body?.prompt || body?.message || body?.userPrompt || '',
+    routeFacts,
+    domSelections: domFacts,
+  }, {
+    adapter: body.adapter,
     signal,
+    langchainModel: options.langchainModel,
+    textCache,
     onLog,
-    systemPrompt: '你是 Magnus 源码候选裁决器。只根据给定候选事实返回 JSON。',
   });
-  onLog(`DOM Agent Judge 输出（${judgeResult.rawText.length} 字符）:\n${judgeResult.rawText || '-'}`);
-  let judge = normalizeJudge(
-    parseJsonResult(judgeResult.rawText),
-    project,
-    uniq([
-      ...inspection.candidates.map(item => item.file),
-      ...ownership.map(item => item.file),
-    ])
-  );
-  let routeValidation = validateJudgeRouteDecision(judge, inspection, routeRelations);
-  judge = routeValidation.judge;
-  if (routeValidation.rejected) {
-    onLog(`DOM Agent Judge 路由关系校验：拒绝唯一结论；${routeValidation.reason}`);
-  }
-  const hits = agentHits(inspection, judge, ownership);
-  const composite = buildComposite(
-    inspection,
-    ownership,
-    judge?.status === 'unique' && judge.files[0] ? judge.files[0].file : ''
-  );
-  onLog(`DOM Agent 最终输出：${JSON.stringify({
-    status: judge?.status || inspection.status,
-    files: hits.slice(0, 6).map(hit => ({
-      file: hit.file,
-      score: hit.score,
-      role: hit.sourceRole || '',
-    })),
-  }, null, 2)}`);
-  return attachFineLocation({
-    hits,
-    composite,
-    routeResolver: routeResult.trace,
-    apiTrace: null,
-    i18nTrace: null,
-    definitionTrace: null,
-    agent: {
-      enabled: true,
-      trigger,
-      plan: executionPlan,
-      modelPlan: plan,
-	      inspection: compactInspectionForModel(inspection),
-	      definitionResolution,
-	      definitionRelationEvidence: lastDefinitionRelationEvidence,
-	      evidence,
-	      originVerification,
-	      routeRelations,
-      sourceRelationGraph,
-      judge,
-    },
-  }, project, executionPlan, body?.agentState || null, textCache, body);
+  return buildSearchResult(project, body, routeResult, decision, decision.rawText || '', textCache, {
+    stage: decision.status === 'resolved' ? 'dom-locator' : 'expand-boundary',
+    locator: decision,
+  });
 }
 
 module.exports = {
-  DEFAULT_DOM_AGENT_THRESHOLD,
-  DF_SCOPE_LIMIT,
-  compressDomMarkup,
-  analyzeEvidenceSufficiency,
-  dominantRenderCandidate,
-  buildComposite,
-  computeFineLocation,
-  computeSourceScope,
-  regionByContainerAnchors,
-  offsetToLineColumn,
-  validateOriginRelation,
-  routeConfirmedOriginFiles,
-  normalizeConfidence,
-  domAgentTrigger,
-  executeSearchPlan,
-  inspectCandidates,
-  resolveByRouteRelation,
   runAgentSearch,
-  traceCandidateOwners,
-  routeComponentRelations,
-  validateJudgeRouteDecision,
 };

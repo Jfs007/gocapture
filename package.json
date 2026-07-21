@@ -34,5 +34,11 @@
     "pinia": "^3.0.4",
     "vitepress": "^1.6.4",
     "vue-tsc": "^2.0.0"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.2.3",
+    "@langchain/mcp-adapters": "^1.1.3",
+    "langchain": "^1.5.3",
+    "zod": "^4.4.3"
   }
 }

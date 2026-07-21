@@ -25,33 +25,22 @@
         <span>名称</span>
         <input v-model="modelForm.name" class="mda-model-input" placeholder="Codex / Claude / OpenAI">
       </label>
-      <label>
-        <span>类型</span>
-        <select v-model="modelForm.type" class="mda-model-input">
-          <option value="exec">Cli</option>
-          <option value="api">API</option>
-        </select>
-      </label>
-      <label v-if="modelForm.type === 'exec'" class="is-wide">
-        <span>命令</span>
-        <input v-model="modelForm.command" class="mda-model-input" placeholder="codex exec">
-      </label>
-      <label v-if="modelForm.type === 'api'" class="is-wide">
+      <label class="is-wide">
         <span>Endpoint</span>
         <input v-model="modelForm.endpoint" class="mda-model-input" placeholder="https://api.openai.com/v1/chat/completions">
       </label>
-      <label v-if="modelForm.type === 'api' && modelForm.provider === 'deepseek'">
+      <label v-if="modelForm.provider === 'deepseek'">
         <span>Model</span>
         <select v-model="modelForm.model" class="mda-model-input">
           <option value="deepseek-v4-pro">deepseek-v4-pro</option>
           <option value="deepseek-v4-flash">deepseek-v4-flash</option>
         </select>
       </label>
-      <label v-else-if="modelForm.type === 'api'">
+      <label v-else>
         <span>Model</span>
         <input v-model="modelForm.model" class="mda-model-input" placeholder="gpt-4.1">
       </label>
-      <label v-if="modelForm.type === 'api'">
+      <label>
         <span>API Key</span>
         <input v-model="modelForm.apiKey" class="mda-model-input" type="password" placeholder="sk-...">
       </label>
@@ -95,9 +84,7 @@ const modelAssistLoading = computed(() => modelStore.status === 'running');
 const candidateLoading = computed(() => searchStore.status === 'loading');
 
 const modelTypeHint = computed(() => {
-  return modelForm.value.type === 'exec'
-    ? 'Cli 启动较慢，适合后续改代码；定位阶段会启用轻量 JSON 约束。'
-    : 'API 模型更适合快速源码定位。';
+  return '仅支持 OpenAI Chat Completions 兼容的 API 模型。';
 });
 
 function onModelEditorSelect(event) {
@@ -132,6 +119,6 @@ function onModelProviderChange(event) {
 }
 
 function formatModelType(type) {
-  return type === 'api' ? 'API' : 'Cli';
+  return 'API';
 }
 </script>

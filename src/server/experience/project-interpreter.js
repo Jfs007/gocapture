@@ -1,6 +1,6 @@
 const path = require('path');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
-const { runModelTask } = require('../model/model-adapters');
+const { runAgentLlmTask } = require('../agent-host/llm-adapter');
 const { writeProjectContext } = require('./project-context');
 const { ensureStructureDoc } = require('./project-structure');
 
@@ -246,7 +246,7 @@ async function interpretProject(project, rawAdapter, options = {}) {
   appendLog(logs, 'Project Interpreter: 开始读取 package.json、配置文件和目录结构');
   const discoveryPrompt = buildDiscoveryPrompt(project);
   appendLog(logs, `Project Interpreter 第一轮输入：${discoveryPrompt.length} 字符`);
-  const discoveryResult = await runModelTask(rawAdapter, discoveryPrompt, project.path, {
+  const discoveryResult = await runAgentLlmTask(rawAdapter, discoveryPrompt, project, {
     signal: options.signal,
     onLog: log => appendLog(logs, log),
     systemPrompt: '你是项目解释器，只返回严格 JSON。',
@@ -263,7 +263,7 @@ async function interpretProject(project, rawAdapter, options = {}) {
   appendLog(logs, `Project Interpreter 本地验证：执行 ${verification.length} 组检索`);
   const finalPrompt = buildFinalPrompt(project, discovery, verification);
   appendLog(logs, `Project Interpreter 第二轮输入：${finalPrompt.length} 字符`);
-  const finalResult = await runModelTask(rawAdapter, finalPrompt, project.path, {
+  const finalResult = await runAgentLlmTask(rawAdapter, finalPrompt, project, {
     signal: options.signal,
     onLog: log => appendLog(logs, log),
     systemPrompt: '你是项目解释器，只输出 Project.md Markdown。',

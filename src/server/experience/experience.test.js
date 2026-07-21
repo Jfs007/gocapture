@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { AIMessage, fakeModel } = require('langchain');
 const { scanProject } = require('../core/project');
 const { enhanceLocatedPrompt } = require('./prompt-enhancer');
 const { listAgentTools, executeAgentTool } = require('../agent-host/tools/registry');
@@ -19,6 +20,20 @@ async function run() {
   write(root, 'src/views/order/list.vue', '<template><md-table :columns="c" /></template>\n<script>import { MdTable, useTable } from "@/components/md-table"</script>');
   write(root, 'src/hooks/authority/index.ts', 'export function useAuthority(){ return {} }');
   const project = scanProject(root);
+  const langchainModel = fakeModel()
+    .respond(new AIMessage(JSON.stringify([
+      { role: 'component', path: 'src/components/md-table', keywords: ['md-table'], explain: '表格' },
+    ])))
+    .respond(new AIMessage('# src/components/md-table\n\n```vue\n<md-table :columns="c" />\n```\n'))
+    .respond(new AIMessage(JSON.stringify({
+      changePlan: {
+        selectionUnderstanding: 'order/list 页新增记录表格',
+        summary: '照项目 md-table 新增记录表格',
+        targets: [{ file: 'src/views/order/list.vue', anchor: 'md-table', line: 0, whatToChange: '用 md-table + useTable 新增记录表格', why: '需求' }],
+        affected: [], reusePatterns: ['复用 md-table + useTable'], risks: [], verification: [], openQuestions: [],
+      },
+      confirmedFacts: [], assumptions: [],
+    })));
 
   const logs = [];
   const result = await enhanceLocatedPrompt({
@@ -30,25 +45,7 @@ async function run() {
     modelItems: [{ file: 'src/views/order/list.vue', locateLevel: 'exact', codeSnippet: '<md-table />', directionGuess: '', prompt: 'x', confidence: 100 }],
     log: message => logs.push(message),
     toolRuntime: { listTools: listAgentTools, executeTool: executeAgentTool },
-    invoke: async (stage, prompt) => {
-      if (stage === 'recon') {
-        assert.match(prompt, /Structure\.md/); // 复用骨架进了侦察提示词
-        return JSON.stringify([
-          { role: 'component', path: 'src/components/md-table', keywords: ['md-table'], explain: '表格' },
-        ]);
-      }
-      // change-plan：侦察证据里带着 md-table，照它产计划（不用框架原语）
-      assert.match(prompt, /recon/);
-      return JSON.stringify({
-        changePlan: {
-          selectionUnderstanding: 'order/list 页新增记录表格',
-          summary: '照项目 md-table 新增记录表格',
-          targets: [{ file: 'src/views/order/list.vue', anchor: 'md-table', line: 0, whatToChange: '用 md-table + useTable 新增记录表格', why: '需求' }],
-          affected: [], reusePatterns: ['复用 md-table + useTable'], risks: [], verification: [], openQuestions: [],
-        },
-        confirmedFacts: [], assumptions: [],
-      });
-    },
+    langchainModel,
   });
 
   assert.equal(result.mode, 'recon');

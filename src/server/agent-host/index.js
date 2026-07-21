@@ -1,8 +1,13 @@
 'use strict';
 
 const { handleAgentHostRoutes } = require('./http-routes');
-const { runAgentLoop } = require('./loop/runner');
-const { runAgentLlmTask } = require('./llm-adapter');
+const { loadLangChainRuntime } = require('./langchain/runtime');
+const {
+  DEFAULT_AGENT_CONFIG_ACTION,
+  filterToolsByConfigAction,
+  normalizeConfigAction,
+} = require('./capabilities');
+const { runAgentLlmTask, runAgentTask } = require('./llm-adapter');
 const {
   executeAgentTool,
   listAgentToolProviders,
@@ -46,8 +51,16 @@ function createAgentHost(project) {
     llm: {
       run: (adapter, prompt, options) => runAgentLlmTask(adapter, prompt, project, options),
     },
-    loop: {
-      run: options => runAgentLoop(project, options),
+    agent: {
+      run: options => runAgentTask(project, options),
+    },
+    runtime: {
+      langchain: () => loadLangChainRuntime(),
+    },
+    capabilities: {
+      defaultAction: () => DEFAULT_AGENT_CONFIG_ACTION.slice(),
+      normalize: options => normalizeConfigAction(options),
+      filterTools: (tools, options) => filterToolsByConfigAction(tools, options),
     },
   };
 }
@@ -77,7 +90,15 @@ module.exports = {
   llm: {
     run: runAgentLlmTask,
   },
-  loop: {
-    run: runAgentLoop,
+  agent: {
+    run: runAgentTask,
+  },
+  runtime: {
+    langchain: loadLangChainRuntime,
+  },
+  capabilities: {
+    DEFAULT_AGENT_CONFIG_ACTION,
+    filterToolsByConfigAction,
+    normalizeConfigAction,
   },
 };

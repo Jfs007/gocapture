@@ -7,8 +7,8 @@ const { loadExperienceMetas } = require('../../experience/experience-store');
 const { registerConfiguredMcpProviders } = require('../../agent-host/mcp/bootstrap');
 const { registerConfiguredSkillProviders } = require('../../agent-host/skills/bootstrap');
 
-// 绑定项目后，把该项目的 MCP server（.mcp.json）与 Skills（.magnus/skills/*/SKILL.md）登记成工具 provider。
-// MCP 异步 fire-and-forget（server 慢/挂不阻塞项目选择，内部按 server 容错）；Skills 是本地文件、同步即可。
+// 绑定项目后只登记本地 Skills，并记录该项目可用的 MCP 配置。
+// MCP server 不再注册成 Magnus provider；每轮 LangChain Agent 运行时按当前项目加载 MCP tools。
 function registerProjectCapabilities(project, onLog) {
   if (!project || !project.path) return Promise.resolve([]);
   const log = typeof onLog === 'function' ? onLog : message => console.log(`[agent-host] ${message}`);
@@ -94,12 +94,12 @@ function createProjectContext() {
     const timeoutMs = Number(options.timeoutMs || 8000);
     const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
     if (!currentProject) return;
-    onLog(`Agent 能力检查：等待 MCP/Skills 注册完成（最多 ${timeoutMs}ms）`);
+    onLog(`Agent 能力检查：等待项目能力登记完成（最多 ${timeoutMs}ms）`);
     const result = await waitFor(capabilitiesReady, timeoutMs, 'agent-capabilities');
     if (result?.timeout) {
-      onLog('Agent 能力检查：MCP 注册仍在后台进行，本轮使用已登记工具继续');
+      onLog('Agent 能力检查：项目能力登记仍在后台进行，本轮使用已登记工具继续');
     } else {
-      onLog('Agent 能力检查：MCP/Skills 注册已完成');
+      onLog('Agent 能力检查：项目能力登记已完成；MCP 将在 LangChain Agent 运行时加载');
     }
   }
 

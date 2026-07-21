@@ -7387,11 +7387,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     key: 2,
     class: "mda-message-pre"
   };
-  const _hoisted_15$6 = {
+  const _hoisted_15$5 = {
     key: 3,
     class: "mda-message-actions"
   };
-  const _hoisted_16$6 = ["disabled"];
+  const _hoisted_16$5 = ["disabled"];
   const _hoisted_17$4 = {
     key: 4,
     class: "mda-message-actions"
@@ -7626,13 +7626,13 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
-                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$6, [
+                        message.action === "choose-project" ? (openBlock(), createElementBlock("div", _hoisted_15$5, [
                           createBaseVNode("button", {
                             class: "mda-btn mda-btn-primary",
                             type: "button",
                             disabled: sourceServiceStatus.value === "loading",
                             onClick: _cache[0] || (_cache[0] = (...args) => unref(commands).selectProject && unref(commands).selectProject(...args))
-                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$6)
+                          }, toDisplayString(sourceServiceStatus.value === "loading" ? "选择中" : "选择源码"), 9, _hoisted_16$5)
                         ])) : createCommentVNode("v-if", true),
                         message.action === "copy-prompt" ? (openBlock(), createElementBlock("div", _hoisted_17$4, [
                           createBaseVNode("button", {
@@ -8130,11 +8130,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-plan-block"
   };
   const _hoisted_14$5 = ["onClick"];
-  const _hoisted_15$5 = {
+  const _hoisted_15$4 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_16$5 = {
+  const _hoisted_16$4 = {
     key: 0,
     class: "mda-composite-anchor"
   };
@@ -8476,7 +8476,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           ),
                           target.line ? (openBlock(), createElementBlock(
                             "span",
-                            _hoisted_15$5,
+                            _hoisted_15$4,
                             ":" + toDisplayString(target.line),
                             1
                             /* TEXT */
@@ -8484,7 +8484,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         ], 8, _hoisted_14$5),
                         target.anchor ? (openBlock(), createElementBlock(
                           "span",
-                          _hoisted_16$5,
+                          _hoisted_16$4,
                           toDisplayString(target.anchor),
                           1
                           /* TEXT */
@@ -9239,7 +9239,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         return formatModelType(model.type);
       }
       function formatModelType(type) {
-        return type === "api" ? "API" : "Cli";
+        return "API";
       }
       function selectDisabledModel() {
         commands.disableModelAssist();
@@ -9265,17 +9265,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           name: "",
           provider: "custom",
           type: "api",
-          command: "",
           endpoint: "",
           apiKey: "",
           model: "",
           proxyUrl: "",
           timeoutMs: 12e4
         });
-      }
-      function createExecModel() {
-        closeMenu();
-        commands.openModelEditor();
       }
       return (_ctx, _cache) => {
         return openBlock(), createElementBlock(
@@ -9410,19 +9405,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   -1
                   /* CACHED */
                 )
-              ])]),
-              createBaseVNode("button", {
-                class: "mda-model-option",
-                type: "button",
-                onClick: createExecModel
-              }, [..._cache[5] || (_cache[5] = [
-                createBaseVNode(
-                  "span",
-                  null,
-                  "新增 Cli 模型",
-                  -1
-                  /* CACHED */
-                )
               ])])
             ])) : createCommentVNode("v-if", true)
           ],
@@ -9445,21 +9427,13 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_5$4 = ["value"];
   const _hoisted_6$4 = ["value"];
   const _hoisted_7$4 = ["value"];
-  const _hoisted_8$4 = {
-    key: 1,
-    class: "is-wide"
-  };
-  const _hoisted_9$4 = {
-    key: 2,
-    class: "is-wide"
-  };
-  const _hoisted_10$4 = { key: 3 };
-  const _hoisted_11$4 = { key: 4 };
-  const _hoisted_12$4 = { key: 5 };
-  const _hoisted_13$4 = { class: "is-wide" };
-  const _hoisted_14$4 = { class: "mda-model-hint" };
-  const _hoisted_15$4 = { class: "mda-model-actions" };
-  const _hoisted_16$4 = ["disabled"];
+  const _hoisted_8$4 = { class: "is-wide" };
+  const _hoisted_9$4 = { key: 1 };
+  const _hoisted_10$4 = { key: 2 };
+  const _hoisted_11$4 = { class: "is-wide" };
+  const _hoisted_12$4 = { class: "mda-model-hint" };
+  const _hoisted_13$4 = { class: "mda-model-actions" };
+  const _hoisted_14$4 = ["disabled"];
   const _sfc_main$7 = {
     __name: "ModelEditorPanel",
     setup(__props) {
@@ -9479,7 +9453,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const modelAssistLoading = computed(() => modelStore.status === "running");
       const candidateLoading = computed(() => searchStore.status === "loading");
       const modelTypeHint = computed(() => {
-        return modelForm.value.type === "exec" ? "Cli 启动较慢，适合后续改代码；定位阶段会启用轻量 JSON 约束。" : "API 模型更适合快速源码定位。";
+        return "仅支持 OpenAI Chat Completions 兼容的 API 模型。";
       });
       function onModelEditorSelect(event) {
         const id = event.target.value || "";
@@ -9509,12 +9483,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         });
       }
       function formatModelType(type) {
-        return type === "api" ? "API" : "Cli";
+        return "API";
       }
       return (_ctx, _cache) => {
         return modelEditorOpen.value ? (openBlock(), createElementBlock("div", _hoisted_1$e, [
           createBaseVNode("div", _hoisted_2$4, [
-            _cache[12] || (_cache[12] = createBaseVNode(
+            _cache[10] || (_cache[10] = createBaseVNode(
               "strong",
               null,
               "模型适配器",
@@ -9529,7 +9503,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           ]),
           createBaseVNode("div", _hoisted_3$4, [
             modelConfigs.value.length ? (openBlock(), createElementBlock("label", _hoisted_4$4, [
-              _cache[14] || (_cache[14] = createBaseVNode(
+              _cache[12] || (_cache[12] = createBaseVNode(
                 "span",
                 null,
                 "当前模型",
@@ -9541,7 +9515,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 class: "mda-model-input",
                 onChange: onModelEditorSelect
               }, [
-                _cache[13] || (_cache[13] = createBaseVNode(
+                _cache[11] || (_cache[11] = createBaseVNode(
                   "option",
                   { value: "" },
                   "新增模型",
@@ -9563,7 +9537,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ], 40, _hoisted_5$4)
             ])) : createCommentVNode("v-if", true),
             createBaseVNode("label", null, [
-              _cache[16] || (_cache[16] = createBaseVNode(
+              _cache[14] || (_cache[14] = createBaseVNode(
                 "span",
                 null,
                 "供应商",
@@ -9574,7 +9548,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 value: modelForm.value.provider || "custom",
                 class: "mda-model-input",
                 onChange: onModelProviderChange
-              }, [..._cache[15] || (_cache[15] = [
+              }, [..._cache[13] || (_cache[13] = [
                 createBaseVNode(
                   "option",
                   { value: "custom" },
@@ -9592,7 +9566,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ])], 40, _hoisted_7$4)
             ]),
             createBaseVNode("label", null, [
-              _cache[17] || (_cache[17] = createBaseVNode(
+              _cache[15] || (_cache[15] = createBaseVNode(
                 "span",
                 null,
                 "名称",
@@ -9613,66 +9587,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 [vModelText, modelForm.value.name]
               ])
             ]),
-            createBaseVNode("label", null, [
-              _cache[19] || (_cache[19] = createBaseVNode(
-                "span",
-                null,
-                "类型",
-                -1
-                /* CACHED */
-              )),
-              withDirectives(createBaseVNode(
-                "select",
-                {
-                  "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => modelForm.value.type = $event),
-                  class: "mda-model-input"
-                },
-                [..._cache[18] || (_cache[18] = [
-                  createBaseVNode(
-                    "option",
-                    { value: "exec" },
-                    "Cli",
-                    -1
-                    /* CACHED */
-                  ),
-                  createBaseVNode(
-                    "option",
-                    { value: "api" },
-                    "API",
-                    -1
-                    /* CACHED */
-                  )
-                ])],
-                512
-                /* NEED_PATCH */
-              ), [
-                [vModelSelect, modelForm.value.type]
-              ])
-            ]),
-            modelForm.value.type === "exec" ? (openBlock(), createElementBlock("label", _hoisted_8$4, [
-              _cache[20] || (_cache[20] = createBaseVNode(
-                "span",
-                null,
-                "命令",
-                -1
-                /* CACHED */
-              )),
-              withDirectives(createBaseVNode(
-                "input",
-                {
-                  "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => modelForm.value.command = $event),
-                  class: "mda-model-input",
-                  placeholder: "codex exec"
-                },
-                null,
-                512
-                /* NEED_PATCH */
-              ), [
-                [vModelText, modelForm.value.command]
-              ])
-            ])) : createCommentVNode("v-if", true),
-            modelForm.value.type === "api" ? (openBlock(), createElementBlock("label", _hoisted_9$4, [
-              _cache[21] || (_cache[21] = createBaseVNode(
+            createBaseVNode("label", _hoisted_8$4, [
+              _cache[16] || (_cache[16] = createBaseVNode(
                 "span",
                 null,
                 "Endpoint",
@@ -9682,7 +9598,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               withDirectives(createBaseVNode(
                 "input",
                 {
-                  "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => modelForm.value.endpoint = $event),
+                  "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => modelForm.value.endpoint = $event),
                   class: "mda-model-input",
                   placeholder: "https://api.openai.com/v1/chat/completions"
                 },
@@ -9692,9 +9608,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ), [
                 [vModelText, modelForm.value.endpoint]
               ])
-            ])) : createCommentVNode("v-if", true),
-            modelForm.value.type === "api" && modelForm.value.provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_10$4, [
-              _cache[23] || (_cache[23] = createBaseVNode(
+            ]),
+            modelForm.value.provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_9$4, [
+              _cache[18] || (_cache[18] = createBaseVNode(
                 "span",
                 null,
                 "Model",
@@ -9704,10 +9620,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               withDirectives(createBaseVNode(
                 "select",
                 {
-                  "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => modelForm.value.model = $event),
+                  "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => modelForm.value.model = $event),
                   class: "mda-model-input"
                 },
-                [..._cache[22] || (_cache[22] = [
+                [..._cache[17] || (_cache[17] = [
                   createBaseVNode(
                     "option",
                     { value: "deepseek-v4-pro" },
@@ -9728,8 +9644,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ), [
                 [vModelSelect, modelForm.value.model]
               ])
-            ])) : modelForm.value.type === "api" ? (openBlock(), createElementBlock("label", _hoisted_11$4, [
-              _cache[24] || (_cache[24] = createBaseVNode(
+            ])) : (openBlock(), createElementBlock("label", _hoisted_10$4, [
+              _cache[19] || (_cache[19] = createBaseVNode(
                 "span",
                 null,
                 "Model",
@@ -9739,7 +9655,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               withDirectives(createBaseVNode(
                 "input",
                 {
-                  "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => modelForm.value.model = $event),
+                  "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => modelForm.value.model = $event),
                   class: "mda-model-input",
                   placeholder: "gpt-4.1"
                 },
@@ -9749,9 +9665,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ), [
                 [vModelText, modelForm.value.model]
               ])
-            ])) : createCommentVNode("v-if", true),
-            modelForm.value.type === "api" ? (openBlock(), createElementBlock("label", _hoisted_12$4, [
-              _cache[25] || (_cache[25] = createBaseVNode(
+            ])),
+            createBaseVNode("label", null, [
+              _cache[20] || (_cache[20] = createBaseVNode(
                 "span",
                 null,
                 "API Key",
@@ -9761,7 +9677,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               withDirectives(createBaseVNode(
                 "input",
                 {
-                  "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => modelForm.value.apiKey = $event),
+                  "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => modelForm.value.apiKey = $event),
                   class: "mda-model-input",
                   type: "password",
                   placeholder: "sk-..."
@@ -9772,9 +9688,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ), [
                 [vModelText, modelForm.value.apiKey]
               ])
-            ])) : createCommentVNode("v-if", true),
-            createBaseVNode("label", _hoisted_13$4, [
-              _cache[26] || (_cache[26] = createBaseVNode(
+            ]),
+            createBaseVNode("label", _hoisted_11$4, [
+              _cache[21] || (_cache[21] = createBaseVNode(
                 "span",
                 null,
                 "代理地址",
@@ -9784,7 +9700,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               withDirectives(createBaseVNode(
                 "input",
                 {
-                  "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => modelForm.value.proxyUrl = $event),
+                  "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => modelForm.value.proxyUrl = $event),
                   class: "mda-model-input",
                   placeholder: "http://127.0.0.1:7890，可留空"
                 },
@@ -9796,7 +9712,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               ])
             ]),
             createBaseVNode("label", null, [
-              _cache[27] || (_cache[27] = createBaseVNode(
+              _cache[22] || (_cache[22] = createBaseVNode(
                 "span",
                 null,
                 "超时 ms",
@@ -9806,7 +9722,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               withDirectives(createBaseVNode(
                 "input",
                 {
-                  "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => modelForm.value.timeoutMs = $event),
+                  "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => modelForm.value.timeoutMs = $event),
                   class: "mda-model-input",
                   type: "number",
                   min: "5000",
@@ -9827,23 +9743,23 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           ]),
           createBaseVNode(
             "p",
-            _hoisted_14$4,
+            _hoisted_12$4,
             toDisplayString(modelTypeHint.value),
             1
             /* TEXT */
           ),
-          createBaseVNode("div", _hoisted_15$4, [
+          createBaseVNode("div", _hoisted_13$4, [
             selectedModel.value ? (openBlock(), createElementBlock("button", {
               key: 0,
               class: "mda-mini-btn",
               type: "button",
               disabled: candidateLoading.value || modelAssistLoading.value,
-              onClick: _cache[10] || (_cache[10] = (...args) => unref(commands).removeSelectedModel && unref(commands).removeSelectedModel(...args))
-            }, "删除模型", 8, _hoisted_16$4)) : createCommentVNode("v-if", true),
+              onClick: _cache[8] || (_cache[8] = (...args) => unref(commands).removeSelectedModel && unref(commands).removeSelectedModel(...args))
+            }, "删除模型", 8, _hoisted_14$4)) : createCommentVNode("v-if", true),
             createBaseVNode("button", {
               class: "mda-btn mda-btn-primary",
               type: "button",
-              onClick: _cache[11] || (_cache[11] = (...args) => unref(commands).saveModelForm && unref(commands).saveModelForm(...args))
+              onClick: _cache[9] || (_cache[9] = (...args) => unref(commands).saveModelForm && unref(commands).saveModelForm(...args))
             }, "保存模型")
           ])
         ])) : createCommentVNode("v-if", true);
@@ -9885,7 +9801,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260720.130141.781";
+      const buildVersion = "20260722.040210.675";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -13469,8 +13385,7 @@ ${source}` : "",
       id: "",
       name: "",
       provider: "custom",
-      type: "exec",
-      command: "codex exec",
+      type: "api",
       endpoint: "",
       apiKey: "",
       model: "",
@@ -13484,7 +13399,6 @@ ${source}` : "",
         name: "DeepSeek",
         provider: "deepseek",
         type: "api",
-        command: "",
         endpoint: "https://api.deepseek.com/chat/completions",
         model: "deepseek-v4-pro"
       });
@@ -13493,16 +13407,13 @@ ${source}` : "",
   }
   function normalizeModel(raw) {
     const item = raw || {};
-    const type = item.type === "api" ? "api" : "exec";
     const provider = item.provider === "deepseek" ? "deepseek" : "custom";
-    const defaultName = provider === "deepseek" ? "DeepSeek" : type === "api" ? "API 模型" : "Cli 模型";
-    const normalizedName = item.name === "Exec 模型" ? "Cli 模型" : item.name;
+    const defaultName = provider === "deepseek" ? "DeepSeek" : "API 模型";
     return {
       id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: normalizedName || defaultName,
+      name: item.name || defaultName,
       provider,
-      type,
-      command: item.command || "",
+      type: "api",
       endpoint: item.endpoint || (provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : ""),
       apiKey: item.apiKey || "",
       model: item.model || (provider === "deepseek" ? "deepseek-v4-pro" : ""),

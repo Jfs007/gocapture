@@ -110,8 +110,7 @@ function defaultModelForm() {
     id: '',
     name: '',
     provider: 'custom',
-    type: 'exec',
-    command: 'codex exec',
+    type: 'api',
     endpoint: '',
     apiKey: '',
     model: '',
@@ -127,7 +126,6 @@ function providerModelForm(provider) {
       name: 'DeepSeek',
       provider: 'deepseek',
       type: 'api',
-      command: '',
       endpoint: 'https://api.deepseek.com/chat/completions',
       model: 'deepseek-v4-pro'
     };
@@ -137,18 +135,15 @@ function providerModelForm(provider) {
 
 function normalizeModel(raw) {
   const item = raw || {};
-  const type = item.type === 'api' ? 'api' : 'exec';
   const provider = item.provider === 'deepseek' ? 'deepseek' : 'custom';
   const defaultName = provider === 'deepseek'
     ? 'DeepSeek'
-    : (type === 'api' ? 'API 模型' : 'Cli 模型');
-  const normalizedName = item.name === 'Exec 模型' ? 'Cli 模型' : item.name;
+    : 'API 模型';
   return {
     id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    name: normalizedName || defaultName,
+    name: item.name || defaultName,
     provider,
-    type,
-    command: item.command || '',
+    type: 'api',
     endpoint: item.endpoint || (provider === 'deepseek' ? 'https://api.deepseek.com/chat/completions' : ''),
     apiKey: item.apiKey || '',
     model: item.model || (provider === 'deepseek' ? 'deepseek-v4-pro' : ''),

@@ -6,24 +6,34 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { registerConfiguredMcpProviders } = require('./bootstrap');
-const { listAgentTools, listAgentToolProviders, executeAgentTool } = require('../tools/registry');
+const { getMcpStatus, registerConfiguredMcpProviders } = require('./bootstrap');
+const { loadMcpLangChainTools } = require('../langchain/mcp-runtime');
+const { listAgentTools, listAgentToolProviders } = require('../tools/registry');
 
-// 测试用的最小 MCP stdio server（内联，不在源码树里留 fixture 文件）。
 const MOCK_SERVER = `'use strict';
 let buffer = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', c => {
-  buffer += c; let i;
-  while ((i = buffer.indexOf('\\n')) >= 0) { const line = buffer.slice(0,i).trim(); buffer = buffer.slice(i+1); if (line) handle(line); }
+  buffer += c;
+  let i;
+  while ((i = buffer.indexOf('\\n')) >= 0) {
+    const line = buffer.slice(0, i).trim();
+    buffer = buffer.slice(i + 1);
+    if (line) handle(line);
+  }
 });
 const send = p => process.stdout.write(JSON.stringify(p) + '\\n');
-function handle(line){ let m; try { m = JSON.parse(line); } catch { return; }
-  if (m.method === 'initialize') return send({ jsonrpc:'2.0', id:m.id, result:{ protocolVersion:'2024-11-05', capabilities:{tools:{}}, serverInfo:{name:'mock',version:'0.0.1'} } });
+function handle(line) {
+  let m;
+  try { m = JSON.parse(line); } catch { return; }
+  if (m.method === 'initialize') return send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'mock', version: '0.0.1' } } });
   if (m.method === 'notifications/initialized') return;
-  if (m.method === 'tools/list') return send({ jsonrpc:'2.0', id:m.id, result:{ tools:[{ name:'echo', description:'回显文本', inputSchema:{ type:'object', properties:{ text:{type:'string'} }, required:['text'] } }] } });
-  if (m.method === 'tools/call') { const a = m.params?.arguments || {}; return send({ jsonrpc:'2.0', id:m.id, result:{ content:[{ type:'text', text:'echo:' + (a.text ?? '') }] } }); }
-  if (m.id !== undefined) send({ jsonrpc:'2.0', id:m.id, error:{ code:-32601, message:'method not found' } });
+  if (m.method === 'tools/list') return send({ jsonrpc: '2.0', id: m.id, result: { tools: [{ name: 'echo', description: '回显文本', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }] } });
+  if (m.method === 'tools/call') {
+    const a = m.params?.arguments || {};
+    return send({ jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: 'echo:' + (a.text ?? '') }] } });
+  }
+  if (m.id !== undefined) send({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'method not found' } });
 }
 `;
 
@@ -37,32 +47,28 @@ function makeMockProject() {
   return dir;
 }
 
-test('MCP stdio 闭环：.mcp.json → 登记 provider → 工具可见(mcp__server__tool) → 统一入口调用', async () => {
+test('MCP 配置登记只更新状态，不注册成 Magnus provider', async () => {
   const projectDir = makeMockProject();
   const registered = await registerConfiguredMcpProviders(projectDir, {});
-  try {
-    assert.equal(registered.length, 1);
-    assert.equal(registered[0].name, 'mock');
-    assert.equal(registered[0].toolCount, 1);
-    assert.ok(listAgentToolProviders().some(p => p.id === 'mcp.mock' && p.source === 'mcp'));
-
-    const echo = listAgentTools().find(tool => tool.name === 'mcp__mock__echo');
-    assert.ok(echo, '应出现 mcp__mock__echo');
-
-    const output = await executeAgentTool({ path: projectDir }, { tool: 'mcp__mock__echo', input: { text: 'hi' } });
-    assert.equal(output.providerId, 'mcp.mock');
-    assert.equal(output.result?.content?.[0]?.text, 'echo:hi');
-  } finally {
-    registered.forEach(item => item.client && item.client.close());
-  }
+  assert.equal(registered.length, 1);
+  assert.equal(registered[0].name, 'mock');
+  assert.equal(registered[0].runtimeLoaded, false);
+  assert.ok(getMcpStatus().servers.some(server => server.name === 'mock' && server.status === 'configured'));
+  assert.ok(!listAgentToolProviders().some(provider => provider.id === 'mcp.mock'));
+  assert.ok(!listAgentTools().some(tool => tool.name === 'mcp__mock__echo'));
 });
 
-test('MCP 重绑清理：新配置里没有的 server → 旧 provider 注销、子进程关闭', async () => {
-  const withMock = makeMockProject();
-  await registerConfiguredMcpProviders(withMock, {});
-  assert.ok(listAgentToolProviders().some(p => p.id === 'mcp.mock'), '绑定含 mock 的项目后应有 mcp.mock');
-
-  const noMcp = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-mcp-empty-'));
-  await registerConfiguredMcpProviders(noMcp, {});
-  assert.ok(!listAgentToolProviders().some(p => p.id === 'mcp.mock'), '换到无 MCP 的项目后 mcp.mock 应被注销');
+test('MCP tools 由 LangChain runtime 加载并可直接调用', async () => {
+  const projectDir = makeMockProject();
+  const runtime = await loadMcpLangChainTools({ path: projectDir });
+  try {
+    assert.equal(runtime.available, true);
+    const echo = runtime.tools.find(tool => tool.name === 'mcp__mock__echo');
+    assert.ok(echo, '应出现 mcp__mock__echo');
+    const output = await echo.invoke({ text: 'hi' });
+    assert.match(typeof output === 'string' ? output : JSON.stringify(output), /echo:hi/);
+    assert.ok(getMcpStatus().servers.some(server => server.name === 'mock' && server.status === 'ready' && server.toolCount === 1));
+  } finally {
+    await runtime.close();
+  }
 });

@@ -1,6 +1,5 @@
 'use strict';
 
-const { searchProjectWithMeta } = require('../../search/keyword');
 const { runAgentSearch } = require('../../search/agent-search');
 
 function resolveRequestProject(projectContext, body) {
@@ -25,9 +24,10 @@ async function handleSearchRoutes({
     const body = await readBody(req);
     const project = resolveRequestProject(projectContext, body);
     if (!body.adapter) {
-      // 未配置定位模型：DOM Agent 需要模型，降级为纯关键词检索（不抛错）。
-      const result = searchProjectWithMeta(project, body);
-      sendJson(res, 200, { success: true, ...result, agent: { enabled: false } });
+      sendJson(res, 400, {
+        success: false,
+        error: 'DOM Agent requires an API model adapter.',
+      });
       return true;
     }
     const result = await runAgentSearch(project, body);

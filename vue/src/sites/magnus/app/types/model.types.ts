@@ -3,7 +3,7 @@ export type ModelRunStatus = 'idle' | 'running' | 'stopped' | 'success' | 'error
 export interface ModelConfig {
   id?: string;
   name?: string;
-  type?: 'exec' | 'api';
+  type?: 'api';
   provider?: string;
   [key: string]: unknown;
 }

@@ -10,6 +10,7 @@ const { runDiscoveryOperation } = require('./discovery-executor');
 const { loadStructureDoc } = require('./project-structure');
 const { loadComponentExperiences, saveComponentExperiences } = require('./component-experience');
 const { extractUsageDoc, rankUsageFiles, scoreUsagePath } = require('./usage-doc');
+const { runAgentLlmTask } = require('../agent-host/llm-adapter');
 
 function buildReconPrompt(requirement, structureDoc) {
   return [
@@ -190,13 +191,25 @@ function usableUsageMarkdown(value, candidate) {
   return text.endsWith('\n') ? text : `${text}\n`;
 }
 
-async function buildUsageSnippet({ candidate, usageDoc, invoke, log }) {
+async function invokeReconModel(project, agentAdapter, stage, prompt, log, signal, langchainModel) {
+  if (!agentAdapter && !langchainModel) throw new Error('runRecon requires agentAdapter or langchainModel.');
+  const result = await runAgentLlmTask(agentAdapter, prompt, project, {
+    langchainModel,
+    signal,
+    stage,
+    systemPrompt: '你是 Magnus 项目实现侦察 agent。严格按提示词返回，不执行代码修改。',
+    onLog: message => log(message),
+  });
+  return result.rawText;
+}
+
+async function buildUsageSnippet({ project, agentAdapter, langchainModel, candidate, usageDoc, log, signal }) {
   if (!usageDoc) return '';
   const prompt = buildUsageDocPrompt(candidate, usageDoc);
   log(`侦察用法裁剪输入：${prompt.length} 字符；公共件=${candidate.path}；示例=${usageDoc.usageFile || '-'}`);
   log(`侦察用法裁剪提示词(recon-usage):\n${prompt}`);
   try {
-    const raw = await invoke('recon-usage', prompt);
+    const raw = await invokeReconModel(project, agentAdapter, 'recon-usage', prompt, log, signal, langchainModel);
     log(`侦察用法裁剪模型返回(recon-usage):\n${raw || '-'}`);
     const markdown = usableUsageMarkdown(raw, candidate);
     if (markdown) return markdown;
@@ -208,14 +221,14 @@ async function buildUsageSnippet({ candidate, usageDoc, invoke, log }) {
 }
 
 async function runRecon(project, options = {}) {
-  const { requirement = '', invoke, textCache = new Map(), log = () => {} } = options;
-  if (typeof invoke !== 'function') throw new Error('runRecon requires an invoke(stage, prompt) function.');
+  const { requirement = '', agentAdapter, langchainModel, textCache = new Map(), log = () => {}, signal } = options;
+  if (!agentAdapter && !langchainModel) throw new Error('runRecon requires agentAdapter or langchainModel.');
 
   const structureDoc = loadStructureDoc(project);
   const prompt = buildReconPrompt(requirement, structureDoc);
   log(`实现侦察输入：${prompt.length} 字符（Structure.md ${structureDoc.length} 字符）`);
   log(`实现侦察提示词(recon):\n${prompt}`);
-  const raw = await invoke('recon', prompt);
+  const raw = await invokeReconModel(project, agentAdapter, 'recon', prompt, log, signal, langchainModel);
   log(`实现侦察模型返回(recon):\n${raw || '-'}`);
 
   const rawCandidates = parseReconPlan(raw);
@@ -260,7 +273,7 @@ async function runRecon(project, options = {}) {
       terms,
       textCache,
     });
-    const snippet = await buildUsageSnippet({ candidate, usageDoc, invoke, log })
+    const snippet = await buildUsageSnippet({ project, agentAdapter, langchainModel, candidate, usageDoc, log, signal })
       || extractUsage(project, usagePath, terms, textCache);
     if (!snippet) continue;
     reuse.push({ role: candidate.role, path: candidate.path, keywords: candidate.keywords, files: users.length, usage: { path: usagePath, snippet } });

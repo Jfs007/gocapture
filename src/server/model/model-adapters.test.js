@@ -55,12 +55,12 @@ test('model locate prompt only contains candidate hits, concise selection and re
     }],
   });
 
-  assert.match(prompt, /返回严格 JSON：\{"items":\[\{"file":"src\/\.\.\.","sourceType":"code\|selection","source":"源码片段或选区摘要"\}\]\}/);
-  assert.match(prompt, /hit:/);
-  assert.match(prompt, /selection:/);
-  assert.match(prompt, /requirement: @选区1 增加批量添加操作/);
-  assert.match(prompt, /"count": 6/);
-  assert.match(prompt, /这是一个超过十个字符\.\.\./);
+  assert.match(prompt, /返回严格 JSON：\{"items":\[\{"file":"候选文件路径","confidence":0,"reason":"","codeSnippet":"","locateLevel":"exact\|direction"\}\]\}/);
+  assert.match(prompt, /候选文件:/);
+  assert.match(prompt, /选区摘要:/);
+  assert.match(prompt, /需求: @选区1 增加批量添加操作/);
+  assert.match(prompt, /src\/page\.vue/);
+  assert.match(prompt, /这是一个超过十个字符的属性文案/);
   assert.doesNotMatch(prompt, /data-v-1234abcd/);
   assert.doesNotMatch(prompt, /aria-describedby/);
   assert.doesNotMatch(prompt, /selection\/code anchor/);

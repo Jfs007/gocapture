@@ -56,13 +56,6 @@
       >
         <span>新增 API 模型</span>
       </button>
-      <button
-        class="mda-model-option"
-        type="button"
-        @click="createExecModel"
-      >
-        <span>新增 Cli 模型</span>
-      </button>
     </div>
   </div>
 </template>
@@ -128,7 +121,7 @@ function modelOptionMeta(model) {
 }
 
 function formatModelType(type) {
-  return type === 'api' ? 'API' : 'Cli';
+  return 'API';
 }
 
 function selectDisabledModel() {
@@ -159,17 +152,11 @@ function createCustomApiModel() {
     name: '',
     provider: 'custom',
     type: 'api',
-    command: '',
     endpoint: '',
     apiKey: '',
     model: '',
     proxyUrl: '',
     timeoutMs: 120000
   });
-}
-
-function createExecModel() {
-  closeMenu();
-  commands.openModelEditor();
 }
 </script>

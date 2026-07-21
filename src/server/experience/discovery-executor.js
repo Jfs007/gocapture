@@ -23,16 +23,8 @@ function normalizePath(value) {
   return normalized;
 }
 
-// 容错：模型常把单个路径写成 scope.path（而非 schema 的 roots/files）。既然给了 path 就用它限定范围，
-// 别退化成"没范围→扫全项目"。path 指向文件时按 files 用、指向目录时按 roots 用（两处都纳入，互不影响）。
-function scopePathHints(request) {
-  const value = normalizePath(request?.scope?.path);
-  if (!value) return [];
-  return [value];
-}
-
 function requestRoots(request) {
-  return [...(request?.scope?.roots || []), ...scopePathHints(request)]
+  return (request?.scope?.roots || [])
     .map(normalizePath)
     .filter(Boolean);
 }
@@ -582,14 +574,6 @@ function normalizePlan(plan) {
     .slice(0, MAX_REQUESTS)
     .map((request, index) => {
       const scope = { ...(request.scope || {}) };
-      const legacyPath = normalizePath(request.path);
-      if (legacyPath) {
-        if (request.operation === 'read_file') {
-          scope.files = uniq([...(scope.files || []), legacyPath]);
-        } else {
-          scope.roots = uniq([...(scope.roots || []), legacyPath]);
-        }
-      }
       const normalized = {
         ...request,
         scope,
@@ -619,7 +603,7 @@ function discoveryPlanIssues(rawPlan) {
     const hasFiles = requestFiles(request).length > 0;
     const hasRoots = requestRoots(request).length > 0;
     if (request.operation === 'read_file' && !hasFiles) {
-      issues.push(`${request.id}: read_file 缺少 scope.files`);
+      issues.push(`${request.id}: read_file 缺少 files`);
     }
     if (['search_text', 'find_symbol', 'find_endpoint', 'find_files', 'find_related_examples'].includes(request.operation)
       && !request.terms.length) {
@@ -631,7 +615,7 @@ function discoveryPlanIssues(rawPlan) {
       issues.push(`${request.id}: ${request.operation} 缺少 target`);
     }
     if (!hasFiles && !hasRoots && request.operation !== 'find_imports' && request.operation !== 'find_importers') {
-      issues.push(`${request.id}: 缺少检索 scope`);
+      issues.push(`${request.id}: 缺少检索范围`);
     }
   }
   return uniq(issues);
