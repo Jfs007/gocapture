@@ -14,12 +14,16 @@ function loadLangChainRuntime() {
   const zod = tryRequire('zod');
   const createAgent = langchain?.createAgent;
   const createMiddleware = langchain?.createMiddleware;
+  const contextEditingMiddleware = langchain?.contextEditingMiddleware;
+  const ClearToolUsesEdit = langchain?.ClearToolUsesEdit;
   const tool = coreTools?.tool || langchain?.tool;
   const z = zod?.z || zod;
   return {
     available: typeof createAgent === 'function' && typeof tool === 'function' && !!z,
     createAgent,
     createMiddleware,
+    contextEditingMiddleware,
+    ClearToolUsesEdit,
     tool,
     z,
     missing: [

@@ -11,6 +11,7 @@ import {
   AlbumsOutline,
   ArrowBackOutline,
   BookOutline,
+  CopyOutline,
   CogOutline,
   ConstructOutline,
   FolderOpenOutline,
@@ -20,7 +21,7 @@ import {
 } from '@vicons/ionicons5';
 
 const props = withDefaults(defineProps<{
-  name: 'albums' | 'back' | 'book' | 'cog' | 'construct' | 'folder' | 'images' | 'refresh' | 'search';
+  name: 'albums' | 'back' | 'book' | 'copy' | 'cog' | 'construct' | 'folder' | 'images' | 'refresh' | 'search';
   size?: number;
   depth?: 1 | 2 | 3 | 4 | 5;
 }>(), {
@@ -32,6 +33,7 @@ const icons = {
   albums: AlbumsOutline,
   back: ArrowBackOutline,
   book: BookOutline,
+  copy: CopyOutline,
   cog: CogOutline,
   construct: ConstructOutline,
   folder: FolderOpenOutline,

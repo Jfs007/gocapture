@@ -561,9 +561,13 @@ function runDiscoveryOperation(project, rawRequest, textCache = new Map()) {
   const plan = normalizePlan({ requests: [rawRequest] });
   const request = plan.requests[0];
   if (!request) return { operation: rawRequest?.operation || 'unknown', stats: null, matches: [] };
+  const stats = discoveryRequestStats(project, request, textCache);
+  const resultLimit = requestLimit(request);
   return {
     operation: request.operation,
-    stats: discoveryRequestStats(project, request, textCache),
+    stats,
+    resultLimit,
+    truncated: Number(stats?.matchedFiles || 0) > resultLimit,
     matches: executeRequest(project, request, textCache),
   };
 }

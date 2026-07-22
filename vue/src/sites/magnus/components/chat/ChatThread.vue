@@ -20,22 +20,57 @@
             <i class="mda-message-work-caret" :class="{ 'is-open': isLogExpanded(message.id, message.logExpanded) }" />
           </button>
           <div v-else class="mda-message-work-label">{{ messageWorkLabel(message) }}</div>
+          <button
+            v-if="hasLogs(message)"
+            class="mda-message-log-copy"
+            type="button"
+            title="复制全部日志"
+            aria-label="复制全部日志"
+            @click="copyAllLogs(message.logs)"
+          >
+            <MagnusIcon name="copy" :size="15" />
+          </button>
         </div>
         <div v-if="hasLogs(message) && isLogExpanded(message.id, message.logExpanded)" class="mda-message-logs">
-          <div
-            v-for="(log, logIndex) in message.logs"
-            :key="logIndex"
-            class="mda-message-log-item"
-            :class="{ 'is-candidate-log': isCandidateLog(log) }"
-          >
-            <template v-if="isCandidateLog(log)">
-              <span class="mda-log-file-label">{{ candidatePrefix(log) }}</span>
-              <button class="mda-log-file-link" type="button" @click="commands.openSourceFile(candidateFile(log))">
-                {{ candidateFile(log) }}
-              </button>
-            </template>
-            <pre v-else-if="isMultilineLog(log)" class="mda-message-log-pre">{{ log }}</pre>
-            <template v-else>{{ log }}</template>
+          <div class="mda-log-chain" role="list" aria-label="Agent 调用链">
+            <div
+              v-for="(node, logIndex) in logChain(message.logs)"
+              :key="node.id"
+              class="mda-log-node"
+              :class="`is-${node.kind}`"
+              role="listitem"
+            >
+              <span class="mda-log-node-marker" aria-hidden="true" />
+              <div class="mda-log-node-body">
+                <button
+                  v-if="node.expandable"
+                  class="mda-log-node-head is-expandable"
+                  type="button"
+                  :aria-expanded="String(isNodeExpanded(message.id, logIndex, node.kind))"
+                  @click="toggleNode(message.id, logIndex, node.kind)"
+                >
+                  <span class="mda-log-node-actor">{{ node.actor }}</span>
+                  <span class="mda-log-node-title">{{ node.title }}</span>
+                  <i class="mda-message-work-caret" :class="{ 'is-open': isNodeExpanded(message.id, logIndex, node.kind) }" />
+                </button>
+                <div v-else class="mda-log-node-head">
+                  <span class="mda-log-node-actor">{{ node.actor }}</span>
+                  <span class="mda-log-node-title">{{ node.title }}</span>
+                </div>
+                <template v-if="isCandidateLog(node.raw)">
+                  <div class="mda-message-log-item is-candidate-log">
+                    <span class="mda-log-file-label">{{ candidatePrefix(node.raw) }}</span>
+                    <button class="mda-log-file-link" type="button" @click="commands.openSourceFile(candidateFile(node.raw))">
+                      {{ candidateFile(node.raw) }}
+                    </button>
+                  </div>
+                </template>
+                <pre
+                  v-else-if="node.expandable && isNodeExpanded(message.id, logIndex, node.kind)"
+                  class="mda-message-log-pre"
+                >{{ node.raw }}</pre>
+              </div>
+            </div>
           </div>
         </div>
         <div class="mda-message-content" :class="{ 'has-work': showMessageWork(message) }">
@@ -65,6 +100,8 @@ import { useMagnusCommands } from '../../app/runtime/commands';
 import { useChatStore } from '../../stores/chat.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useSearchStore } from '../../stores/search.store';
+import { buildLogChain, serializeLogs } from '../../app/presenters/log-chain';
+import MagnusIcon from '../common/MagnusIcon.vue';
 
 const commands = useMagnusCommands();
 const chatStore = useChatStore();
@@ -76,6 +113,7 @@ const sourceServiceError = computed(() => projectStore.serviceError);
 const candidateError = computed(() => searchStore.error);
 const nowTick = ref(Date.now());
 const logOpenState = ref({});
+const logNodeOpenState = ref({});
 let clockTimer = 0;
 
 watch(messages, nextMessages => {
@@ -127,6 +165,37 @@ function toggleLog(id, fallback) {
   };
 }
 
+function logChain(logs) {
+  return buildLogChain(logs || []);
+}
+
+function nodeKey(messageId, index) {
+  return `${messageId}:${index}`;
+}
+
+function nodeDefaultExpanded(kind) {
+  return kind === 'decision' || kind === 'error';
+}
+
+function isNodeExpanded(messageId, index, kind) {
+  const key = nodeKey(messageId, index);
+  return Object.prototype.hasOwnProperty.call(logNodeOpenState.value, key)
+    ? logNodeOpenState.value[key]
+    : nodeDefaultExpanded(kind);
+}
+
+function toggleNode(messageId, index, kind) {
+  const key = nodeKey(messageId, index);
+  logNodeOpenState.value = {
+    ...logNodeOpenState.value,
+    [key]: !isNodeExpanded(messageId, index, kind)
+  };
+}
+
+function copyAllLogs(logs) {
+  commands.copyText(serializeLogs(logs || []));
+}
+
 function formatDuration(ms) {
   const totalSeconds = Math.max(0, Math.round(Number(ms || 0) / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -148,10 +217,6 @@ function messageWorkLabel(message) {
 
 function isCandidateLog(log) {
   return /^候选\s+\d+:\s+/.test(log) || /^文件:\s+/.test(log);
-}
-
-function isMultilineLog(log) {
-  return typeof log === 'string' && /\n/.test(log);
 }
 
 function candidatePrefix(log) {

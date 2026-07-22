@@ -19,6 +19,7 @@ const DOM_LOCATOR_TOOLS = [
   'search_text',
   'find_files',
   'find_symbol',
+  'inspect_symbol_occurrences',
   'read_file',
   'read_closed_blocks',
   'find_imports',
@@ -49,35 +50,45 @@ function readProjectStructure(project) {
 function buildDomLocatorObjective(input = {}) {
   const hasKnowledgeTool = Boolean(input.hasKnowledgeTool);
   const hasSeed = Boolean(input.anchorSeed && input.anchorSeed.candidates.length);
-  const rule1 = hasKnowledgeTool
-    ? '1. 第一步必须先调用 consult_project_knowledge 获取定向线索（UI 框架、class 跳过策略、DOM 签名→源码写法、anchor 规划、搜索范围、Experience 线索）；随后再结合用户需求、DOM 结构、页面事实与项目结构选择后续工具调用。'
+  const rule1 = hasKnowledgeTool && !hasSeed
+    ? '1. 当前没有可用锚点候选，先调用 consult_project_knowledge 获取定向线索，再结合用户需求、DOM 结构、页面事实与项目结构选择后续工具调用。'
+    : hasKnowledgeTool
+      ? '1. 当前已有带真实命中片段的锚点候选，直接从候选验证开始。consult_project_knowledge 是可选工具，只有现有证据无法提出有效验证方向且确实缺少项目知识时才调用，不得把它当固定第一步。'
     : '1. 先理解用户需求、DOM 结构、页面事实和项目结构，再选择当前最可能有效的工具调用。';
   const rule2 = hasKnowledgeTool
     ? '2. 工具结果只是事实，不是结论。命中次数、路径邻近、文件后缀或单个文案都不能直接证明渲染归属；consult_project_knowledge 返回的框架/anchor/Experience 线索同样只是先验，必须用检索或读取工具实测确认后方可写入结论。'
     : '2. 工具结果只是事实，不是结论。命中次数、路径邻近、文件后缀或单个文案都不能直接证明渲染归属。';
+  const existingCandidateRule = hasSeed
+    ? '9. 选择下一步工具前，先检查锚点交集候选中是否已有文件命中 missingFacts。若存在，必须优先读取这些已有候选；不得跳过它们重新发起全局搜索。只有已有候选和其局部关系都不能验证缺失事实时，才扩大搜索范围。'
+    : '9. 选择下一步工具前，先检查当前工具观察中是否已有文件命中 missingFacts。若存在，必须优先读取这些已有候选；不得跳过它们重新发起全局搜索。只有已有候选和其局部关系都不能验证缺失事实时，才扩大搜索范围。';
   return [
-    '定位当前 DOM 选区对应的真实源码，并解释多个文件如何共同生成该 DOM。',
+    '根据用户需求定位当前 DOM 选区对应的真实源码。调查范围和结束位置必须由用户需求决定。',
     '',
     '调查方式：',
     rule1,
     rule2,
-    '3. 每轮根据新证据修正假设。可以更换检索词、读取候选局部、追踪符号或文件引用。',
-    '4. 一个 DOM 区域可能由外框、动态子组件、公共组件、配置或数据源共同生成。保留能够解释不同 DOM 子区域的互补文件。',
-    '5. 如果候选只解释部分 DOM，继续寻找剩余部分及文件之间的真实关系，不要强行挑一个最高分文件。',
-    '6. 如果遇到动态组件、配置映射、状态中转或其他间接关系，使用工具读取实际源码证据；不要凭框架惯例补全。',
-    '7. 只有重要 DOM 区域均被解释、必要文件关系已由源码证据闭合时，才提交 resolved。',
-    '8. 如果现有 DOM 无法提出有价值的下一步验证，提交 need-more-context 并申请扩区。只要仍有可验证假设，就继续调用工具。',
-    '9. 不编造文件、符号、代码、关系或行号。',
-    '10. 不得重复完全相同的工具调用。读取截断文件时，使用 read_file.around 指定符号、文案或行区间继续下钻。',
-    '11. 已解释用户关注的 DOM 区域和必要文件关系后立即结束；不要追查与定位目标无关的数据或业务逻辑。',
-    '12. 调查结束必须调用 finish_dom_location；不要用普通文本结束。',
+    '3. 调用调查工具前，先把用户需求转化为明确、可验证的完成判据；完成判据只能来自用户需求，不得擅自扩大任务范围。',
+    '4. 每轮根据新证据修正假设，并重新判断：当前证据是否已满足完成判据；尚未确认的信息是否会影响当前任务结论；继续调查是否可能改变目标文件、目标代码范围或最终判断。',
+    '5. 如果完成判据已经满足，且剩余未知信息不会影响当前任务，必须立即提交 resolved。',
+    '6. 只调查满足完成判据所必需的事实。不得默认追求完整的 DOM 来源、文件关系、内部实现、数据流或调用链；只有当前完成判据依赖这些信息时才继续调查。',
+    '7. 每次读取候选后，必须先在推理中形成候选审查：coverage=complete|partial|mismatch|unknown；candidateRole=target|container|inner|peer|source|unknown；并列出 explainedFacts、missingFacts 和 nextDirection。角色与覆盖关系只能由你根据真实证据判断，本地分数不负责该判断。',
+    '8. partial 不等于候选错误。若候选只解释内部事实，下一步验证承载缺失外层事实的候选或关系；若只解释外层事实，下一步验证承载缺失内部事实的候选或关系；若只是相似结构但关键事实不一致，才按 peer 处理；若只提供内容或配置，验证其消费者。',
+    existingCandidateRule,
+    '10. 每次继续调用工具前，必须明确唯一的 missingFact，并判断预期结果是否可能改变目标文件、目标代码范围、关系结论或最终状态；如果不能改变，不得继续调查。',
+    '11. 工具结果不能满足完成判据时，根据 missingFacts 选择范围最小的读取、检索或关系验证；不要为了增加结论细节而继续调用工具。',
+    '12. 已从源码片段发现待验证标识符、且缺失的是标识符之间的关系时，必须调用 inspect_symbol_occurrences；输入携带 file、symbols、missingFact 和 decisionImpact。不得继续用 read_file 行区间翻页寻找定义。它会一次返回这些标识符的全部出现位置，关系含义仍由你判断。',
+    '13. 如果遇到间接关系且完成判据依赖该关系，使用工具读取实际源码证据；不要凭框架惯例补全。',
+    '14. 如果现有 DOM 无法提出有价值的下一步验证，提交 need-more-context 并申请扩区。',
+    '15. 不编造文件、符号、代码、关系或行号。',
+    '16. 不得重复完全相同的工具调用。同一文件最多进行一次 read_file 行区间补读；后续应围绕已发现标识符调用 inspect_symbol_occurrences，或使用明确 terms/read_closed_blocks 读取所需事实。',
+    '17. 调查结束必须调用 finish_dom_location；不要用普通文本结束。',
     '',
     `用户需求:\n${input.userPrompt || ''}`,
     '',
     hasSeed
       ? [
         '锚点交集候选（确定性预计算：用选区静态文字锚点在源码里按稀有度加权求交集，排在越前越可能是该 DOM 的真实渲染源）：',
-        '直接 read_file 从最前的候选开始核验；一旦某候选被证实直接渲染该 DOM 区域（命中其关键 label/结构），即视为找到渲染源并尽快提交 resolved。上游挂载/装配链只在解释 DOM 归属确有必需时才追。仍是线索、非结论，需实测确认。',
+        '直接 read_file 从最前的候选开始核验。候选经真实源码证据验证并满足当前完成判据后，立即提交 resolved；只有完成判据尚未满足时才继续调查。候选仍是线索、非结论，需实测确认。',
         JSON.stringify(input.anchorSeed, null, 2),
         '',
       ].join('\n')
@@ -89,7 +100,7 @@ function buildDomLocatorObjective(input = {}) {
     '',
     `当前 DOM 选区:\n${JSON.stringify(input.domSelections || [], null, 2)}`,
     '',
-    `真实项目结构:\n${input.projectStructure || ''}`,
+    hasSeed ? '' : `真实项目结构:\n${input.projectStructure || ''}`,
   ].join('\n');
 }
 
@@ -101,7 +112,7 @@ function createFinishTool() {
     async input => JSON.stringify(input),
     {
       name: 'finish_dom_location',
-      description: 'Finish DOM source investigation. Use resolved only after source evidence explains the DOM and required cross-file relations; otherwise request more DOM context.',
+      description: 'Finish DOM source investigation. Use resolved when verified source evidence satisfies the completion criteria derived from the user request; do not require unrelated provenance or cross-file details.',
       returnDirect: true,
       schema: z.object({
         status: z.enum(['resolved', 'need-more-context', 'unresolved']),
@@ -151,6 +162,53 @@ function createFinalizationMiddleware(budget) {
   });
 }
 
+function createDomLocatorContextMiddleware() {
+  const runtime = loadLangChainRuntime();
+  if (typeof runtime.contextEditingMiddleware !== 'function' || typeof runtime.ClearToolUsesEdit !== 'function') {
+    return null;
+  }
+  return runtime.contextEditingMiddleware({
+    edits: [new runtime.ClearToolUsesEdit({
+      trigger: { tokens: 28000 },
+      keep: { messages: 6 },
+      clearToolInputs: false,
+      placeholder: '[较早工具正文已由 DOM Locator 上下文策略清理；初始候选事实和最近工具结果仍保留。如结论依赖被清理证据，请围绕已知文件与符号精确重读。]',
+    })],
+  });
+}
+
+function isExplicitLineRange(value) {
+  return /^\d+\s*[-~:]\s*\d+$/.test(String(value || '').trim());
+}
+
+function createDomLocatorToolGuard(budget) {
+  const rangedReads = new Map();
+  return (toolName, input = {}) => {
+    if (budget.forceFinish && toolName !== 'finish_dom_location') {
+      return {
+        operation: toolName,
+        blocked: true,
+        note: '调查预算已用尽：只能调用 finish_dom_location 交卷。请立刻基于已有证据与锚点交集候选提交结论，不要再检索或读取。',
+      };
+    }
+    if (toolName !== 'read_file' || !isExplicitLineRange(input.around)) return null;
+    const files = (Array.isArray(input.files) ? input.files : []).map(normalizePath).filter(Boolean);
+    const repeatedFiles = files.filter(file => rangedReads.has(file));
+    if (repeatedFiles.length) {
+      return {
+        operation: toolName,
+        blocked: true,
+        files: repeatedFiles,
+        requestedRange: String(input.around),
+        previousRanges: repeatedFiles.map(file => ({ file, range: rangedReads.get(file) })),
+        note: '同一文件已进行过行区间补读，继续翻页会重复扩大上下文。请从已有源码中选择待验证标识符，调用 inspect_symbol_occurrences 一次收集全部出现位置；若缺失事实不是标识符关系，请改用明确 terms 或 read_closed_blocks。',
+      };
+    }
+    for (const file of files) rangedReads.set(file, String(input.around));
+    return null;
+  };
+}
+
 function normalizeLocatorDecision(rawText, project) {
   const parsed = parseJsonResult(rawText) || {};
   const knownFiles = new Set((project.files || []).map(file => file.path));
@@ -194,8 +252,29 @@ function compactEventValue(value, maxChars = 12000) {
   return `${text.slice(0, maxChars)}\n...（已裁剪 ${text.length - maxChars} 字符）`;
 }
 
+function modelInputMessageSummary(messages, previewChars = 320) {
+  return (Array.isArray(messages) ? messages : []).map((message, index) => {
+    const content = String(message?.content || '');
+    const toolCalls = (Array.isArray(message?.tool_calls) ? message.tool_calls : []).map(call => ({
+      id: String(call?.id || ''),
+      tool: String(call?.function?.name || ''),
+      input: String(call?.function?.arguments || ''),
+    }));
+    return {
+      index,
+      role: String(message?.role || 'unknown'),
+      chars: content.length,
+      content: content.length <= previewChars ? content : `${content.slice(0, previewChars)}\n...（本条省略 ${content.length - previewChars} 字符；完整事实见此前对应的输入或工具结果节点）`,
+      ...(message?.tool_call_id ? { toolCallId: String(message.tool_call_id) } : {}),
+      ...(toolCalls.length ? { toolCalls } : {}),
+    };
+  });
+}
+
 const SEED_MAX_ANCHORS = 8;
 const SEED_MAX_CANDIDATES = 6;
+const SEED_MAX_MATCHES_PER_CANDIDATE = 4;
+const SEED_MATCH_SNIPPET_CHARS = 320;
 
 // 静态文字锚点判定：短、含 CJK/字母、非数据绑定 —— 框架无关，任意 UI 库都适用。
 function looksDataBoundText(text) {
@@ -230,6 +309,19 @@ function extractSeedAnchors(domSelections) {
   return anchors;
 }
 
+function compactSeedMatch(match = {}) {
+  const snippet = String(match.snippet || '').trim();
+  return {
+    text: String(match.text || ''),
+    kind: String(match.kind || 'literal'),
+    line: Number(match.line || 0),
+    occurrenceCount: Number(match.occurrenceCount || 0),
+    snippet: snippet.length > SEED_MATCH_SNIPPET_CHARS
+      ? `${snippet.slice(0, SEED_MATCH_SNIPPET_CHARS)}\n...（片段已裁剪）`
+      : snippet,
+  };
+}
+
 // 确定性预计算：用选区静态文字锚点求交集，得到按共现数排序的候选文件（0 轮 LLM）。
 // 框架无关、不依赖经验/context7 —— 这是“少轮数”的主杠杆。
 async function computeAnchorSeed(project, domSelections, textCache, onLog) {
@@ -245,6 +337,9 @@ async function computeAnchorSeed(project, domSelections, textCache, onLog) {
         file: candidate.file,
         matchedAnchorCount: candidate.matchedAnchorCount,
         informationScore: Number(candidate.informationScore) || 0,
+        matchedAnchors: (candidate.matches || [])
+          .slice(0, SEED_MAX_MATCHES_PER_CANDIDATE)
+          .map(compactSeedMatch),
       }))
       .filter(candidate => candidate.file)
       // 按稀有度加权（informationScore）重排，再按命中数：让命中"稀有/DOM 独有 label"的真答案冒到最前，
@@ -307,7 +402,7 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
     ...input,
     hasKnowledgeTool,
     anchorSeed,
-    projectStructure: readProjectStructure(project),
+    projectStructure: anchorSeed ? '' : readProjectStructure(project),
   });
   options.onLog?.(`DOM Locator Agent 输入（${objective.length} 字符）:\n${objective}`);
   let modelRound = 0;
@@ -315,16 +410,9 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
   // 逼交卷提前 3 轮开始，给硬拦留 runway；forceFinish 由中间件置位、toolGuard 读取。
   const budget = { modelCalls: 0, forceFinishAt: Math.max(2, maxTurns - 3), forceFinish: false };
   const finalizationMiddleware = createFinalizationMiddleware(budget);
-  const toolGuard = toolName => {
-    if (budget.forceFinish && toolName !== 'finish_dom_location') {
-      return {
-        operation: toolName,
-        blocked: true,
-        note: '调查预算已用尽：只能调用 finish_dom_location 交卷。请立刻基于已有证据与锚点交集候选提交结论，不要再检索或读取。',
-      };
-    }
-    return null;
-  };
+  const contextMiddleware = createDomLocatorContextMiddleware();
+  if (contextMiddleware) options.onLog?.('DOM Locator Agent 上下文策略：约 28000 tokens 后清理较早工具正文，保留最近 6 条工具结果。');
+  const toolGuard = createDomLocatorToolGuard(budget);
   const evidenceCandidates = new Map(); // file -> max matchedAnchorCount，跨轮累计，用于兜底
   const result = await runAgentTask(project, {
     adapter: options.adapter,
@@ -337,7 +425,7 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
       '根据每轮工具观察决定下一步，不使用固定流水线，不按本地分数直接选文件。',
       '必须通过 finish_dom_location 结束调查。',
     ].join('\n'),
-    middleware: finalizationMiddleware ? [finalizationMiddleware] : [],
+    middleware: [contextMiddleware, finalizationMiddleware].filter(Boolean),
     configAction: ['builtin'],
     readOnlyOnly: true,
     maxTurns,
@@ -346,10 +434,16 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
       if (event.type === 'llm.log') options.onLog?.(event.log);
       if (event.type === 'llm.input') {
         modelRound += 1;
-        options.onLog?.(`DOM Locator Agent 第 ${modelRound} 轮模型输入：messages=${(event.messages || []).length}；tools=${event.toolCount || 0}`);
+        const toolNames = (event.toolNames || []).join('、') || '-';
+        options.onLog?.(`DOM Locator Agent 第 ${modelRound} 轮模型输入：messages=${(event.messages || []).length}；tools=${event.toolCount || 0}；toolNames=${toolNames}`);
+        options.onLog?.(`DOM Locator Agent 第 ${modelRound} 轮模型输入上下文：\n${compactEventValue(modelInputMessageSummary(event.messages), 16000)}`);
       }
       if (event.type === 'llm.output') {
-        options.onLog?.(`DOM Locator Agent 第 ${modelRound} 轮模型输出：tool_calls=${(event.toolCalls || []).length}；text=${String(event.rawText || '').length} 字符`);
+        const rawText = String(event.rawText || '').trim();
+        options.onLog?.(`DOM Locator Agent 第 ${modelRound} 轮模型输出：tool_calls=${(event.toolCalls || []).length}；text=${rawText.length} 字符`);
+        if (rawText) {
+          options.onLog?.(`DOM Locator Agent 第 ${modelRound} 轮模型输出正文：\n${compactEventValue(rawText, 3000)}`);
+        }
       }
       if (event.type === 'tool.start') {
         options.onLog?.(`DOM Locator Agent 工具调用：${event.toolCall?.tool} ${compactEventValue(event.toolCall?.input || {})}`);
@@ -370,7 +464,10 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
     },
   }, {
     tools,
-    executeTool: executeAgentTool,
+    executeTool: (targetProject, toolCall, context = {}) => executeAgentTool(targetProject, toolCall, {
+      ...context,
+      searchResultPolicy: 'summary-on-truncation',
+    }),
     textCache,
     langchainTools: [createFinishTool()],
     toolGuard,
@@ -400,6 +497,8 @@ module.exports = {
   computeAnchorSeed,
   buildFallbackDecision,
   createFinalizationMiddleware,
+  createDomLocatorContextMiddleware,
+  createDomLocatorToolGuard,
   createFinishTool,
   normalizeLocatorDecision,
   readProjectStructure,

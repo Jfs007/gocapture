@@ -29,6 +29,7 @@ test('project tools expose relation-oriented read tools', () => {
   assert.ok(names.includes('search_source_evidence'));
   assert.ok(names.includes('trace_file_evidence_flow'));
   assert.ok(names.includes('read_closed_blocks'));
+  assert.ok(names.includes('inspect_symbol_occurrences'));
 });
 
 test('search_source_evidence reports measured frequencies and rejects obvious noise', async () => {
@@ -88,6 +89,41 @@ test('read_file supports explicit line-range continuation through around', async
   assert.match(output.result.matches[0].snippet, /line 100$/m);
 });
 
+test('search_text can return summary-only when a DOM investigation query exceeds its result limit', async () => {
+  const files = Object.fromEntries(
+    Array.from({ length: 5 }, (_, index) => [`src/file-${index + 1}.js`, `shared-anchor ${index + 1}`])
+  );
+  const project = fixtureProject(files);
+  const output = await executeAgentTool(project, {
+    tool: 'search_text',
+    input: { roots: ['src'], terms: ['shared-anchor'], maxResults: 3 },
+  }, {
+    searchResultPolicy: 'summary-on-truncation',
+  });
+
+  assert.equal(output.result.status, 'too-broad');
+  assert.equal(output.result.stats.matchedFiles, 5);
+  assert.equal(output.result.resultLimit, 3);
+  assert.equal(output.result.truncated, true);
+  assert.deepEqual(output.result.matches, []);
+  assert.match(output.result.note, /增加判别性关键词/);
+});
+
+test('search_text keeps partial results when summary-only policy is not enabled', async () => {
+  const files = Object.fromEntries(
+    Array.from({ length: 5 }, (_, index) => [`src/file-${index + 1}.js`, `shared-anchor ${index + 1}`])
+  );
+  const project = fixtureProject(files);
+  const output = await executeAgentTool(project, {
+    tool: 'search_text',
+    input: { roots: ['src'], terms: ['shared-anchor'], maxResults: 3 },
+  });
+
+  assert.equal(output.result.status, undefined);
+  assert.equal(output.result.truncated, true);
+  assert.equal(output.result.matches.length, 3);
+});
+
 test('trace_file_evidence_flow observes relative glob consumers', async () => {
   const project = fixtureProject({
     'src/router/modules/data-center.ts': 'export default []',
@@ -120,4 +156,33 @@ test('read_closed_blocks returns syntax-closed snippets around terms', async () 
   });
   assert.equal(output.tool, 'read_closed_blocks');
   assert.ok(output.result.blocks.some(block => block.code.includes('menuOptions')));
+});
+
+test('inspect_symbol_occurrences returns distant definition and use sites in one call', async () => {
+  const middle = Array.from({ length: 90 }, (_, index) => `  const value${index} = ${index}`).join('\n');
+  const project = fixtureProject({
+    'src/subtask.js': [
+      "import subTask from './subtask.view'",
+      'function Component(options = {}, subTaskComponent = subTask) {',
+      middle,
+      '  return combine(options, subTaskComponent)',
+      '}',
+    ].join('\n'),
+  });
+  const output = await executeAgentTool(project, {
+    tool: 'inspect_symbol_occurrences',
+    input: {
+      file: 'src/subtask.js',
+      symbols: ['subTask', 'subTaskComponent'],
+      missingFact: 'Component 是否实际使用 subTask',
+      decisionImpact: '决定两个候选文件之间的关系是否成立',
+    },
+  });
+  assert.equal(output.tool, 'inspect_symbol_occurrences');
+  assert.equal(output.result.missingFact, 'Component 是否实际使用 subTask');
+  const componentFacts = output.result.symbols.find(item => item.symbol === 'subTaskComponent');
+  assert.deepEqual(componentFacts.occurrences.map(item => item.line), [2, 93]);
+  assert.match(componentFacts.occurrences[1].snippet, /combine\(options, subTaskComponent\)/);
+  assert.equal(componentFacts.occurrences[0].localBlock.lineStart, 2);
+  assert.ok(componentFacts.occurrences[1].localBlock.lineStart <= 93);
 });

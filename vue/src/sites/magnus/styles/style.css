@@ -541,13 +541,29 @@
   font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
+.mda-model-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+}
+
 .mda-model-editor {
-  display: grid;
-  gap: 8px;
-  padding: 9px;
-  border: 1px solid #d8dee6;
-  border-radius: 8px;
-  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: hidden;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24);
+  outline: none;
 }
 
 .mda-model-editor-head,
@@ -555,12 +571,52 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+}
+
+.mda-model-editor-head {
+  flex: 0 0 auto;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eaecf0;
 }
 
 .mda-model-editor-head strong {
   color: #111827;
+  font-size: 16px;
+}
+
+.mda-model-editor-head p {
+  margin: 4px 0 0;
+  color: #667085;
   font-size: 12px;
+  line-height: 1.45;
+}
+
+.mda-model-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font: 24px/1 Arial, sans-serif;
+}
+
+.mda-model-close:hover {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.mda-model-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
 }
 
 .mda-model-grid {
@@ -601,10 +657,42 @@
 }
 
 .mda-model-hint {
-  margin: -2px 0 0;
+  margin: 12px 0 0;
   color: #667085;
   font-size: 11px;
   line-height: 1.4;
+}
+
+.mda-model-actions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  border-top: 1px solid #eaecf0;
+  background: #f9fafb;
+}
+
+.mda-model-actions .mda-model-delete {
+  margin-right: auto;
+  color: #b42318;
+}
+
+@media (max-width: 520px) {
+  .mda-model-modal {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .mda-model-editor {
+    max-height: calc(100vh - 24px);
+  }
+
+  .mda-model-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-model-grid label.is-wide {
+    grid-column: auto;
+  }
 }
 
 .mda-option-title {
@@ -1435,7 +1523,25 @@
 .mda-message-work {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: 24px;
+}
+
+.mda-message-log-copy {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.mda-message-log-copy:hover {
+  color: #101828;
 }
 
 .mda-message-work-toggle {
@@ -1470,8 +1576,109 @@
 }
 
 .mda-message-logs {
+  min-width: 0;
+}
+
+.mda-log-chain {
   display: grid;
-  gap: 6px;
+  min-width: 0;
+  padding: 4px 0 2px 5px;
+}
+
+.mda-log-node {
+  --mda-log-color: #98a2b3;
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  min-width: 0;
+  padding-bottom: 8px;
+}
+
+.mda-log-node:not(:last-child)::before {
+  position: absolute;
+  top: 12px;
+  bottom: -4px;
+  left: 5px;
+  width: 1px;
+  background: #d0d5dd;
+  content: '';
+}
+
+.mda-log-node-marker {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin-top: 8px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--mda-log-color);
+  box-shadow: 0 0 0 1px var(--mda-log-color);
+}
+
+.mda-log-node.is-llm-input,
+.mda-log-node.is-llm-output {
+  --mda-log-color: #4f7ff0;
+}
+
+.mda-log-node.is-tool-call,
+.mda-log-node.is-tool-result {
+  --mda-log-color: #32a676;
+}
+
+.mda-log-node.is-decision {
+  --mda-log-color: #8b5bd6;
+}
+
+.mda-log-node.is-error {
+  --mda-log-color: #e5484d;
+}
+
+.mda-log-node-body {
+  min-width: 0;
+}
+
+.mda-log-node-head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 25px;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 5px;
+  border: 0;
+  background: transparent;
+  color: #344054;
+  text-align: left;
+}
+
+.mda-log-node-head.is-expandable {
+  cursor: pointer;
+}
+
+.mda-log-node-head.is-expandable:hover {
+  background: #f8fafc;
+}
+
+.mda-log-node-actor {
+  flex: 0 0 auto;
+  color: var(--mda-log-color);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mda-log-node-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-log-node-head .mda-message-work-caret {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .mda-message-log-item {
@@ -1487,7 +1694,7 @@
   padding: 8px 9px;
   overflow: auto;
   border: 1px solid #e4e7ec;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #ffffff;
   color: #344054;
   font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1691,21 +1898,6 @@
 
 .mda-link-btn:hover {
   color: #101828;
-}
-
-.mda-model-editor {
-  border-color: #e4e7ec;
-  border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.1);
-}
-
-.mda-model-actions {
-  justify-content: flex-end;
-}
-
-.mda-model-actions .mda-mini-btn {
-  margin-right: auto;
 }
 
 .mda-composer-prebar {

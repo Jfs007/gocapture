@@ -39,6 +39,19 @@ function keywordIndexes(text, keyword, limit = 120) {
   return indexes;
 }
 
+function symbolIndexes(text, symbol, limit = 24) {
+  const source = String(text || '');
+  const value = String(symbol || '').trim();
+  if (!source || !value) return [];
+  if (!/^[A-Za-z_$][\w$]*$/.test(value)) return keywordIndexes(source, value, limit);
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`\\b${escaped}\\b`, 'g');
+  const indexes = [];
+  let match;
+  while ((match = pattern.exec(source)) && indexes.length < limit) indexes.push(match.index);
+  return indexes;
+}
+
 function evidenceTerms(input = {}) {
   const values = Array.isArray(input.anchors) && input.anchors.length
     ? input.anchors
@@ -192,6 +205,18 @@ function discoveryInput(input = {}, operation) {
   return output;
 }
 
+function runTextSearch(project, input, textCache, searchResultPolicy) {
+  const result = runDiscoveryOperation(project, discoveryInput(input, 'search_text'), textCache);
+  if (searchResultPolicy !== 'summary-on-truncation' || !result.truncated) return result;
+  return {
+    ...result,
+    status: 'too-broad',
+    omittedMatches: Number(result.stats?.matchedFiles || 0),
+    matches: [],
+    note: `查询命中 ${Number(result.stats?.matchedFiles || 0)} 个文件，超过本次结果上限 ${result.resultLimit}。未返回顺序任意的部分源码片段；请增加判别性关键词、限定 files/roots，或围绕已确认候选验证关系。`,
+  };
+}
+
 function readClosedBlocks(project, input = {}, textCache = new Map()) {
   const filePath = normalizeProjectFile(input.file || input.path || input.target);
   const file = projectFileByPath(project, filePath);
@@ -228,6 +253,55 @@ function readClosedBlocks(project, input = {}, textCache = new Map()) {
     terms,
     blockCount: blocks.length,
     blocks,
+  };
+}
+
+function inspectSymbolOccurrences(project, input = {}, textCache = new Map()) {
+  const filePath = normalizeProjectFile(input.file || input.path || input.target);
+  const file = projectFileByPath(project, filePath);
+  if (!file) throw new Error(`File not found: ${filePath || '-'}`);
+  const symbols = cleanStringList(input.symbols || input.terms).slice(0, 12);
+  if (!symbols.length) throw new Error('inspect_symbol_occurrences requires symbols');
+  const text = readProjectText(project, file, textCache);
+  const lines = String(text || '').split(/\r?\n/);
+  const blockIds = new Map();
+  let nextBlockId = 1;
+  const blockFor = index => {
+    const node = closedNodeAt(text, index);
+    if (!node) return null;
+    const key = `${node.start}:${node.end}`;
+    if (!blockIds.has(key)) blockIds.set(key, `block_${nextBlockId++}`);
+    return {
+      id: blockIds.get(key),
+      kind: node.kind,
+      lineStart: lineNumberAt(text, node.start),
+      lineEnd: lineNumberAt(text, Math.max(node.start, node.end - 1)),
+      charLength: Math.max(0, node.end - node.start),
+      truncatedByClosedBlockTool: String(node.rawCode || '').length > String(node.code || '').length,
+    };
+  };
+  const symbolFacts = symbols.map(symbol => ({
+    symbol,
+    occurrences: symbolIndexes(text, symbol).map(index => {
+      const line = lineNumberAt(text, index);
+      const start = Math.max(1, line - 2);
+      const end = Math.min(lines.length, line + 2);
+      return {
+        line,
+        lineStart: start,
+        lineEnd: end,
+        snippet: lines.slice(start - 1, end).join('\n'),
+        localBlock: blockFor(index),
+      };
+    }),
+  }));
+  return {
+    operation: 'inspect_symbol_occurrences',
+    file: filePath,
+    missingFact: String(input.missingFact || ''),
+    decisionImpact: String(input.decisionImpact || ''),
+    symbols: symbolFacts,
+    occurrenceCount: symbolFacts.reduce((sum, item) => sum + item.occurrences.length, 0),
   };
 }
 
@@ -284,6 +358,26 @@ const PROJECT_TOOLS = [
     call: ({ project, input, textCache }) => runDiscoveryOperation(project, discoveryInput(input, 'read_file'), textCache),
   }),
   buildTool({
+    name: 'inspect_symbol_occurrences',
+    title: 'Inspect Symbol Occurrences',
+    description: 'List every exact occurrence of already-observed symbols in one file, with line numbers, small source windows, and nearby syntax-block ranges. Use this to verify one missing relation fact without reading arbitrary file chunks. A localBlock is only a nearby syntax fact, not a guaranteed semantic owner. This tool never decides source roles or relationships.',
+    category: 'project',
+    access: 'read',
+    isReadOnly: () => true,
+    isConcurrencySafe: () => true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string' },
+        symbols: { type: 'array', items: { type: 'string' } },
+        missingFact: { type: 'string' },
+        decisionImpact: { type: 'string' },
+      },
+      required: ['file', 'symbols', 'missingFact', 'decisionImpact'],
+    },
+    call: ({ project, input, textCache }) => inspectSymbolOccurrences(project, input, textCache),
+  }),
+  buildTool({
     name: 'search_text',
     title: 'Search Text',
     description: 'Search project source files for literal text.',
@@ -301,7 +395,7 @@ const PROJECT_TOOLS = [
       },
       required: ['roots', 'terms'],
     },
-    call: ({ project, input, textCache }) => runDiscoveryOperation(project, discoveryInput(input, 'search_text'), textCache),
+    call: ({ project, input, textCache, searchResultPolicy }) => runTextSearch(project, input, textCache, searchResultPolicy),
   }),
   buildTool({
     name: 'find_files',
@@ -475,5 +569,6 @@ const projectToolProvider = createToolProvider({
 });
 
 module.exports = {
+  inspectSymbolOccurrences,
   projectToolProvider,
 };

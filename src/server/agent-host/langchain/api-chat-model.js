@@ -112,6 +112,7 @@ class ApiChatModel extends BaseChatModel {
         stage: this.stage,
         messages: apiMessages,
         toolCount: apiTools.length,
+        toolNames: apiTools.map(tool => tool.function.name),
       });
     }
     const result = await runChatCompletion(this.adapter, {
