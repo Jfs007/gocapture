@@ -142,13 +142,16 @@ test('DOM Locator asks for expansion only after the model ends investigation as 
   assert.equal(result.agent.stage, 'expand-boundary');
 });
 
-test('DOM Locator final model round exposes only the finish tool', async () => {
-  const middleware = createFinalizationMiddleware(2);
+test('DOM Locator final model round exposes only the finish tool and flips forceFinish', async () => {
+  const budget = { modelCalls: 0, forceFinishAt: 2, forceFinish: false };
+  const middleware = createFinalizationMiddleware(budget);
   const tools = [{ name: 'read_file' }, { name: 'finish_dom_location' }];
   const handler = async request => request;
   const first = await middleware.wrapModelCall({ tools, systemPrompt: 'system' }, handler);
-  const second = await middleware.wrapModelCall({ tools, systemPrompt: 'system' }, handler);
   assert.deepEqual(first.tools.map(tool => tool.name), ['read_file', 'finish_dom_location']);
+  assert.strictEqual(budget.forceFinish, false, 'not yet forcing before the budget');
+  const second = await middleware.wrapModelCall({ tools, systemPrompt: 'system' }, handler);
   assert.deepEqual(second.tools.map(tool => tool.name), ['finish_dom_location']);
   assert.match(second.systemPrompt, /调查预算上限/);
+  assert.strictEqual(budget.forceFinish, true, 'forceFinish flips so toolGuard hard-blocks non-finish tools');
 });

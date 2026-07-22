@@ -3,6 +3,9 @@ const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { runAgentLlmTask } = require('../agent-host/llm-adapter');
 const { writeProjectContext } = require('./project-context');
 const { ensureStructureDoc } = require('./project-structure');
+const { writeProjectKnowledge, readProjectKnowledge } = require('./project-knowledge');
+const { deriveUiProfiles } = require('./ui-profile-deriver');
+const { appendKnowledgeLog } = require('./knowledge-log');
 
 const MAX_CONFIG_CHARS = 12000;
 const MAX_FILE_LIST = 420;
@@ -234,6 +237,22 @@ async function interpretProject(project, rawAdapter, options = {}) {
   if (typeof options.onLog === 'function') logs.onAppend = options.onLog;
   if (project?.context?.interpreted && project?.context?.markdown) {
     appendLog(logs, 'Project Interpreter: 已存在未过期 Project.md，跳过解释器');
+    // 复用缓存时若结构化知识缺失则补写一次（context7 派生 UI 签名，失败退化为空）。
+    try {
+      if (!readProjectKnowledge(project)) {
+        const frameworkProfiles = await deriveUiProfiles(project, {
+          adapter: rawAdapter,
+          signal: options.signal,
+          onLog: log => appendLog(logs, log),
+        });
+        const knowledge = writeProjectKnowledge(project, { frameworkProfiles });
+        const summary = `project-knowledge.json（缓存补写）：${knowledge.writable ? '已写入' : '写入失败'}；frameworkProfiles=${frameworkProfiles.length}；自定义前缀=${knowledge.knowledge.customClassPrefixes.map(p => p.prefix).join('、') || '无'}${knowledge.error ? `；error=${knowledge.error}` : ''}`;
+        appendLog(logs, summary);
+        appendKnowledgeLog(project, summary);
+      }
+    } catch (error) {
+      appendLog(logs, `project-knowledge.json 补写异常：${error.message}`);
+    }
     return {
       project,
       context: project.context,
@@ -279,6 +298,20 @@ async function interpretProject(project, rawAdapter, options = {}) {
   const interpretedStack = technicalStackItems(context.markdown);
   project.stack = interpretedStack;
   project.stackText = interpretedStack.join(' / ');
+  // 结构化项目知识：context7 派生 UI 签名（失败退化为空）+ 确定性测量，供 consult_project_knowledge 消费。
+  try {
+    const frameworkProfiles = await deriveUiProfiles(project, {
+      adapter: rawAdapter,
+      signal: options.signal,
+      onLog: log => appendLog(logs, log),
+    });
+    const knowledge = writeProjectKnowledge(project, { frameworkProfiles });
+    const summary = `project-knowledge.json：${knowledge.writable ? '已写入' : '写入失败'}；框架=${knowledge.knowledge.frameworks.join('、') || '无'}；UI签名=${frameworkProfiles.length}；自定义前缀=${knowledge.knowledge.customClassPrefixes.map(p => p.prefix).join('、') || '无'}${knowledge.error ? `；error=${knowledge.error}` : ''}`;
+    appendLog(logs, summary);
+    appendKnowledgeLog(project, summary);
+  } catch (error) {
+    appendLog(logs, `project-knowledge.json 写入异常：${error.message}`);
+  }
   project.context = {
     path: path.join(context.root, 'Project.md'),
     markdown: context.markdown,

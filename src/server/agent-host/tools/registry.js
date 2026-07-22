@@ -1,10 +1,12 @@
 'use strict';
 
 const { experienceToolProvider } = require('./experience-tools');
+const { knowledgeToolProvider } = require('./knowledge-tools');
 const { projectToolProvider } = require('./project-tools');
 
 const toolProviders = [
   projectToolProvider,
+  knowledgeToolProvider,
   experienceToolProvider,
 ];
 

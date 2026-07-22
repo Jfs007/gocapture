@@ -58,6 +58,7 @@ async function runLangChainAgent(project, options = {}, deps = {}) {
     allowedTools: toolDescriptors.map(tool => tool.name),
     readOnlyOnly: options.readOnlyOnly,
     onEvent: options.onEvent,
+    toolGuard: deps.toolGuard,
   });
   if (!lcTools.available) return { ran: false, reason: `LangChain tools unavailable: ${lcTools.missing.join(', ')}` };
   const mcpTools = configAction.has('mcp')
@@ -99,6 +100,16 @@ async function runLangChainAgent(project, options = {}, deps = {}) {
     return {
       ran: true,
       result: normalizeLangChainResult(result),
+    };
+  } catch (error) {
+    const isRecursion = error?.name === 'GraphRecursionError' || /recursion limit/i.test(error?.message || '');
+    if (!isRecursion) throw error;
+    // 撞递归上限不再裸抛：返回空结果 + 标记，由上层用已收集证据做 best-effort 兜底。
+    if (typeof options.onEvent === 'function') options.onEvent({ type: 'agent.recursion_limit', error: error.message });
+    return {
+      ran: true,
+      recursionLimitHit: true,
+      result: { content: '', messageCount: 0, messages: [] },
     };
   } finally {
     await mcpTools.close();

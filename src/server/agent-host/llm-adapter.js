@@ -26,12 +26,14 @@ async function runAgentTask(project, options = {}, deps = {}) {
     executeTool: deps.executeTool || (async () => null),
     textCache: deps.textCache || new Map(),
     langchainTools: Array.isArray(deps.langchainTools) ? deps.langchainTools : [],
+    toolGuard: deps.toolGuard,
   });
   if (!result.ran) throw new Error(result.reason);
   return {
     adapter: { id: options.adapter?.id || '', name: options.adapter?.name || 'API 模型', type: 'api' },
     rawText: result.result?.content || '',
     result: result.result,
+    recursionLimitHit: Boolean(result.recursionLimitHit),
     logs: [],
   };
 }
@@ -46,6 +48,7 @@ async function runAgentLlmTask(adapter, prompt, project, options = {}) {
     signal: options.signal,
     temperature: options.temperature,
     configAction: options.configAction || [],
+    maxTurns: options.maxTurns,
     onLog: options.onLog,
   });
 }

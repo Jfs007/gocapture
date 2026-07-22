@@ -104,7 +104,7 @@ function compactToolResultForModel(result, maxChars = 18000) {
   };
 }
 
-function createLangChainTools({ tools, project, executeTool, textCache, allowedTools, readOnlyOnly, onEvent }) {
+function createLangChainTools({ tools, project, executeTool, textCache, allowedTools, readOnlyOnly, onEvent, toolGuard }) {
   const runtime = loadLangChainRuntime();
   if (!runtime.available) return { available: false, missing: runtime.missing, tools: [] };
   const completedCalls = new Map();
@@ -112,6 +112,15 @@ function createLangChainTools({ tools, project, executeTool, textCache, allowedT
     async input => {
       const toolCall = { tool: descriptor.name, input: input && typeof input === 'object' ? input : {} };
       if (typeof onEvent === 'function') onEvent({ type: 'tool.start', toolCall });
+      // 执行层硬拦：收尾阶段等场景下，非放行工具直接返回引导，不真正执行（模型广告层拦不住弱模型）。
+      if (typeof toolGuard === 'function') {
+        const blocked = toolGuard(descriptor.name, toolCall.input);
+        if (blocked) {
+          const observation = { tool: descriptor.name, providerId: 'magnus-tool-guard', ok: true, result: blocked };
+          if (typeof onEvent === 'function') onEvent({ type: 'tool.result', observation });
+          return JSON.stringify(blocked);
+        }
+      }
       const callKey = JSON.stringify(stableValue(toolCall));
       if (completedCalls.has(callKey)) {
         const duplicateResult = {
