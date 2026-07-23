@@ -11,6 +11,7 @@ const {
   createFinalizationMiddleware,
   composeToolGuards,
   createForceFinishGuard,
+  createRangedReadGuard,
 } = require('../../agent-host/agent-finalization');
 const {
   buildPlanningInput,
@@ -102,6 +103,10 @@ async function runPlanningAgent(project, options = {}) {
       note: '规划预算已用尽：不要再调查，立即基于已有证据提交结构化修改计划。',
     }),
     completeFileGuard,
+    // 同一文件已读过后还按行号翻页 → 拦，避免像日志里那样把 6 轮预算全耗在一个文件的翻页上。
+    createRangedReadGuard({
+      note: '该文件已读取过，继续按行号翻页只会重复扩大上下文。请基于已读源码直接形成结构化计划，或用 inspect_symbol_occurrences / read_closed_blocks 定向读取真正缺失的片段。',
+    }),
   );
   const result = await runAgentTask(project, {
     adapter,

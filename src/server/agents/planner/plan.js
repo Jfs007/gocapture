@@ -129,15 +129,21 @@ function firstMeaningfulLine(snippet) {
 // 规划预算触发 / 模型未产出结构化计划时的兜底：从已定位证据合成最小可执行计划，绝不硬失败。
 function buildFallbackPlan(input) {
   const sources = Array.isArray(input.locatedSources) ? input.locatedSources : [];
-  const primary = sources.find(source => /render/.test(String(source.role || '')))
+  const byRole = pattern => sources.find(source => pattern.test(String(source.role || '')));
+  // 落点优先级：definition/data-source（"增/改一项"改这里，通用渲染器一般不动）→ render → 最高置信。
+  const primary = byRole(/data-source|definition/)
+    || byRole(/render/)
     || sources.slice().sort((a, b) => (Number(b.confidence) || 0) - (Number(a.confidence) || 0))[0];
+  const isDefinitionDriven = primary && /data-source|definition/.test(String(primary.role || ''));
   const targets = primary ? [{
     file: primary.file,
     // 优先用 DOM Locator 定位到的精确锚点/行号；没有才退回代码片段首行。
     anchor: primary.anchor || firstMeaningfulLine(primary.codeSnippet) || String(primary.role || ''),
     line: Number(primary.line) || 0,
     whatToChange: `${input.requirement || '按需求在此处实施改动'}（规划预算触发的兜底方案，改动细节需人工确认）`,
-    why: 'DOM Locator 已定位为该选区的直接渲染源',
+    why: isDefinitionDriven
+      ? 'DOM Locator 定位为生成该选区的定义/数据源；「增/改一项」类需求通常改这里，而非通用渲染器'
+      : 'DOM Locator 已定位为该选区的直接渲染源',
   }] : [];
   return normalizePlanningResult({
     status: 'needs_confirmation',

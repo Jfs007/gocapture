@@ -10,8 +10,8 @@ const {
   createFinalizationMiddleware: createSharedFinalizationMiddleware,
   composeToolGuards,
   createForceFinishGuard,
+  createRangedReadGuard,
 } = require('../../agent-host/agent-finalization');
-const { normalizePath } = require('./paths');
 
 function isFinishTool(toolName) {
   return toolName === 'finish_dom_location';
@@ -44,32 +44,6 @@ function createDomLocatorContextMiddleware() {
       placeholder: '[较早工具正文已由 DOM Locator 上下文策略清理；初始候选事实和最近工具结果仍保留。如结论依赖被清理证据，请围绕已知文件与符号精确重读。]',
     })],
   });
-}
-
-function isExplicitLineRange(value) {
-  return /^\d+\s*[-~:]\s*\d+$/.test(String(value || '').trim());
-}
-
-// read_file 行区间翻页拦截：同一文件重复补读会重复扩大上下文，引导改用 inspect_symbol_occurrences。
-function createRangedReadGuard() {
-  const rangedReads = new Map();
-  return (toolName, input = {}) => {
-    if (toolName !== 'read_file' || !isExplicitLineRange(input.around)) return null;
-    const files = (Array.isArray(input.files) ? input.files : []).map(normalizePath).filter(Boolean);
-    const repeatedFiles = files.filter(file => rangedReads.has(file));
-    if (repeatedFiles.length) {
-      return {
-        operation: toolName,
-        blocked: true,
-        files: repeatedFiles,
-        requestedRange: String(input.around),
-        previousRanges: repeatedFiles.map(file => ({ file, range: rangedReads.get(file) })),
-        note: '同一文件已进行过行区间补读，继续翻页会重复扩大上下文。请从已有源码中选择待验证标识符，调用 inspect_symbol_occurrences 一次收集全部出现位置；若缺失事实不是标识符关系，请改用明确 terms 或 read_closed_blocks。',
-      };
-    }
-    for (const file of files) rangedReads.set(file, String(input.around));
-    return null;
-  };
 }
 
 function createDomLocatorToolGuard(budget) {

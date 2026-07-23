@@ -152,7 +152,8 @@ test('DOM Locator stops repeated line-range pagination and redirects to symbol e
     around: '200-350',
   });
   assert.equal(blocked.blocked, true);
-  assert.deepEqual(blocked.previousRanges, [{ file: 'src/task/index.js', range: '80-200' }]);
+  assert.deepEqual(blocked.files, ['src/task/index.js']);
+  assert.equal(blocked.requestedRange, '200-350');
   assert.match(blocked.note, /inspect_symbol_occurrences/);
 
   assert.equal(guard('inspect_symbol_occurrences', {

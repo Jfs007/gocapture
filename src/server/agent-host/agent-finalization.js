@@ -57,9 +57,45 @@ function createForceFinishGuard(budget, { isFinishTool = () => false, note } = {
   };
 }
 
+function normalizeGuardPath(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^\/+/, '');
+}
+
+// 纯行号(120) 或 行区间(120-180 / 120~180 / 120:180) —— 都属于"按位置翻页"，区别于按符号/文案的定向读取。
+function isPagingAround(value) {
+  return /^\d+(\s*[-~:]\s*\d+)?$/.test(String(value || '').trim());
+}
+
+// 重复翻页拦截：同一文件已被 read_file 读过后，再用行号/行区间翻页只会重复扩上下文而不推进。
+// 拦下并引导改用 inspect_symbol_occurrences / read_closed_blocks，或直接收敛。按符号/文案的
+// 定向 around 不拦（那是精确重读，不是翻页）。locator/planning 共用。
+function createRangedReadGuard({ note } = {}) {
+  const readFiles = new Set();
+  return (toolName, input = {}) => {
+    if (toolName !== 'read_file') return null;
+    const files = (Array.isArray(input.files) ? input.files : (input.file ? [input.file] : []))
+      .map(normalizeGuardPath).filter(Boolean);
+    if (isPagingAround(input.around)) {
+      const repeated = files.filter(file => readFiles.has(file));
+      if (repeated.length) {
+        return {
+          operation: toolName,
+          blocked: true,
+          files: repeated,
+          requestedRange: String(input.around),
+          note: note || '同一文件已读取过，继续按行号翻页只会重复扩大上下文而不推进。请从已读源码中挑待验证的标识符/文案，用 inspect_symbol_occurrences 或 read_closed_blocks 定向读取；若信息已够，直接收敛输出结论/计划。',
+        };
+      }
+    }
+    for (const file of files) readFiles.add(file);
+    return null;
+  };
+}
+
 module.exports = {
   createBudget,
   createFinalizationMiddleware,
   composeToolGuards,
   createForceFinishGuard,
+  createRangedReadGuard,
 };
