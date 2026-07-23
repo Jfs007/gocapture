@@ -4,6 +4,7 @@ const {
   PORT,
 } = require('./core/config');
 const { createBridge } = require('./bridge');
+const { createConnectAgentService } = require('./connect-agent');
 const { handleAgentHostRoutes } = require('./agent-host/http-routes');
 const { readBody } = require('./http/body');
 const {
@@ -12,6 +13,7 @@ const {
   writeStreamEvent,
 } = require('./http/response');
 const { handleBridgeRoutes } = require('./modules/bridge/routes');
+const { handleConnectAgentRoutes } = require('./modules/connect-agent/routes');
 const { handleModelRoutes } = require('./modules/model/routes');
 const { handleProjectRoutes } = require('./modules/project/routes');
 const { createProjectContext } = require('./modules/project/project-context');
@@ -22,6 +24,7 @@ const { handleUiRequest } = require('./ui/serve-ui');
 
 function createSourceServer() {
   const bridge = createBridge();
+  const connectAgent = createConnectAgentService();
   const projectContext = createProjectContext();
 
   async function handle(req, res) {
@@ -65,6 +68,20 @@ function createSourceServer() {
         bridge,
         readBody,
         sendJson,
+      })) {
+        return;
+      }
+
+      if (await handleConnectAgentRoutes({
+        req,
+        res,
+        url,
+        connectAgent,
+        projectContext,
+        readBody,
+        sendJson,
+        sendStreamHeaders,
+        writeStreamEvent,
       })) {
         return;
       }
@@ -129,6 +146,7 @@ function createSourceServer() {
   }
 
   const server = http.createServer(handle);
+  server.on('close', () => connectAgent.close());
   server.on('upgrade', (req, socket) => {
     if (!bridge.handleUpgrade(req, socket)) {
       socket.destroy();

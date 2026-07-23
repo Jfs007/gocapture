@@ -4,6 +4,8 @@ import {
   sourceTargetsFromCandidates
 } from '../services/selection-source-context';
 import { useAppUiStore } from '../../stores/app-ui.store';
+import { useConnectAgentStore } from '../../stores/connect-agent.store';
+import { runConnectAgentTask } from '../services/connect-agent.service';
 import type { MagnusRuntimeState } from '../runtime/context';
 import type { SelectionSourceBinding } from '../types/selection.types';
 
@@ -12,6 +14,7 @@ const MAX_AUTO_EXPAND_ATTEMPTS = 5;
 export function createComposerWorkflow(state: MagnusRuntimeState) {
   const { source, route, search, selection, composer, model, prompt } = state;
   const appUiStore = useAppUiStore();
+  const connectAgentStore = useConnectAgentStore();
 
   // 原始选区 DOM 身份的快照（扩区前抓取，全程保留）。用于把「用户到底选了什么」传给变更计划 LLM——
   // 否则扩区后 selectedItems 变成整行、¥3 这类无锚点选区身份就彻底丢了，LLM 只能在区域里瞎猜。
@@ -56,6 +59,10 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
   }
 
   async function sendComposer() {
+    if (connectAgentStore.taskRunning) {
+      connectAgentStore.cancelTask();
+      return;
+    }
     if (model.modelAssistLoading.value) {
       model.stopModelAssist();
       return;
@@ -89,6 +96,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       search.searchFinishedAt.value = 0;
       search.processLogs.value = [];
       search.agentUsed.value = false;
+      connectAgentStore.resetTask();
 
       const timeoutMs = search.includeApiEvidence.value ? 30000 : 12000;
       const data = await runSearchWithOptionalRetry(timeoutMs);
@@ -202,13 +210,14 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
 
   // DOM Agent 定位收敛后启动唯一的 LangChain Planning Agent；Recon/Experience/Skills/MCP 均由 Agent 按需选用。
   async function runChangePlanForResolved(instruction: string) {
-    // 模型不可用：退回纯文本提示词，不产出结构化计划。
-    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
+    const bindings = selection.reusableSourceBindings(instruction, projectRoot());
+    if (!bindings.length) {
       prompt.generatePrompt({ userInstruction: instruction });
       return;
     }
-    const bindings = selection.reusableSourceBindings(instruction, projectRoot());
-    if (!bindings.length) {
+    if (await runConnectedAgent(instruction, bindings)) return;
+    // 模型不可用：退回纯文本提示词，不产出结构化计划。
+    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
       prompt.generatePrompt({ userInstruction: instruction });
       return;
     }
@@ -365,6 +374,11 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     search.searchFinishedAt.value = 0;
     search.modelAssistAttempted.value = true;
     selection.filesConfirmed.value = false;
+    if (await runConnectedAgent(userInstruction, bindings)) {
+      search.searchFinishedAt.value = Date.now();
+      selection.filesConfirmed.value = true;
+      return true;
+    }
     if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
       const text = modelAssistUnavailableText();
       search.candidateError.value = text;
@@ -385,6 +399,32 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       return true;
     }
     search.candidateError.value = model.modelAssistError.value || '选区源码上下文增强失败，请重试。';
+    return true;
+  }
+
+  async function runConnectedAgent(userInstruction: string, bindings: any[]) {
+    const provider = connectAgentStore.activeProvider;
+    if (!provider?.connected) return false;
+    const controller = new AbortController();
+    connectAgentStore.beginTask(controller);
+    selection.filesConfirmed.value = true;
+    search.appendProcessLog(`Connect Agent 分流：DOM Locator 已完成，跳过 Magnus Planning Agent，交给 ${provider.name}`);
+    try {
+      const result = await runConnectAgentTask(provider.id, {
+        projectRoot: projectRoot(),
+        pageUrl: state.currentPageHref.value,
+        userInstruction,
+        selectionBindings: bindings
+      }, {
+        controller,
+        onEvent: event => connectAgentStore.applyTaskEvent(event)
+      });
+      connectAgentStore.completeTask(result);
+      appUiStore.setToast(`${provider.name} 已完成开发任务`);
+    } catch (error) {
+      connectAgentStore.failTask(error);
+      appUiStore.setToast((error as Error)?.message || `${provider.name} 开发任务失败`);
+    }
     return true;
   }
 

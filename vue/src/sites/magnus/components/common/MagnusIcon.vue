@@ -8,6 +8,7 @@
 import { computed } from 'vue';
 import { Icon } from '@vicons/utils';
 import {
+  AddOutline,
   AlbumsOutline,
   ArrowBackOutline,
   BookOutline,
@@ -21,7 +22,7 @@ import {
 } from '@vicons/ionicons5';
 
 const props = withDefaults(defineProps<{
-  name: 'albums' | 'back' | 'book' | 'copy' | 'cog' | 'construct' | 'folder' | 'images' | 'refresh' | 'search';
+  name: 'add' | 'albums' | 'back' | 'book' | 'copy' | 'cog' | 'construct' | 'folder' | 'images' | 'refresh' | 'search';
   size?: number;
   depth?: 1 | 2 | 3 | 4 | 5;
 }>(), {
@@ -30,6 +31,7 @@ const props = withDefaults(defineProps<{
 });
 
 const icons = {
+  add: AddOutline,
   albums: AlbumsOutline,
   back: ArrowBackOutline,
   book: BookOutline,

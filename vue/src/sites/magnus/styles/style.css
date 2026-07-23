@@ -2266,6 +2266,131 @@
   flex: 0 0 auto;
 }
 
+.mda-add-menu {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.mda-add-trigger {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f4f7;
+  color: #344054;
+  cursor: pointer;
+}
+
+.mda-add-trigger:hover,
+.mda-add-trigger[aria-expanded="true"] {
+  background: #e7ebf0;
+  color: #101828;
+}
+
+.mda-add-panel {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.mda-add-panel-title {
+  padding: 0 6px 8px;
+  color: #98a2b3;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.mda-add-section-title {
+  padding: 8px 6px 5px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-connect-agent-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #101828;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-connect-agent-row:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+
+.mda-connect-agent-row:disabled {
+  cursor: wait;
+}
+
+.mda-connect-agent-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: #101828;
+  color: #ffffff;
+  font: 700 15px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-connect-agent-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mda-connect-agent-copy strong {
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.mda-connect-agent-copy span {
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-connect-agent-action {
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-connect-agent-action.is-connected {
+  color: #067647;
+}
+
+.mda-connect-agent-action.is-unavailable,
+.mda-connect-agent-action.is-login-required,
+.mda-connect-agent-action.is-error {
+  color: #b42318;
+}
+
+.mda-connect-agent-error {
+  margin: 5px 6px 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #fef3f2;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .mda-tool-icon-btn,
 .mda-send-btn {
   flex: 0 0 auto;

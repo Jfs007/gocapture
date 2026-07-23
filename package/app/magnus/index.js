@@ -8271,7 +8271,51 @@ ${unwrappedProps}
       ]);
     }
   });
-  const _hoisted_1$k = {
+  const _hoisted_1$m = {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    viewBox: "0 0 512 512"
+  };
+  const AddOutline = /* @__PURE__ */ defineComponent({
+    name: "AddOutline",
+    render: function render2(_ctx, _cache) {
+      return openBlock(), createElementBlock(
+        "svg",
+        _hoisted_1$m,
+        _cache[0] || (_cache[0] = [
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32",
+              d: "M256 112v288"
+            },
+            null,
+            -1
+            /* HOISTED */
+          ),
+          createBaseVNode(
+            "path",
+            {
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+              "stroke-width": "32",
+              d: "M400 256H112"
+            },
+            null,
+            -1
+            /* HOISTED */
+          )
+        ])
+      );
+    }
+  });
+  const _hoisted_1$l = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8281,7 +8325,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$k,
+        _hoisted_1$l,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "rect",
@@ -8333,7 +8377,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$j = {
+  const _hoisted_1$k = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8343,7 +8387,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$j,
+        _hoisted_1$k,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8377,7 +8421,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$i = {
+  const _hoisted_1$j = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8387,7 +8431,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$i,
+        _hoisted_1$j,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8421,7 +8465,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$h = {
+  const _hoisted_1$i = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8431,7 +8475,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$h,
+        _hoisted_1$i,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8447,7 +8491,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$g = {
+  const _hoisted_1$h = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8457,7 +8501,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$g,
+        _hoisted_1$h,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8519,7 +8563,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$f = {
+  const _hoisted_1$g = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8529,7 +8573,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$f,
+        _hoisted_1$g,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "rect",
@@ -8567,7 +8611,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$e = {
+  const _hoisted_1$f = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8577,7 +8621,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$e,
+        _hoisted_1$f,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8611,7 +8655,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$d = {
+  const _hoisted_1$e = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8619,10 +8663,10 @@ ${unwrappedProps}
   const ImagesOutline = /* @__PURE__ */ defineComponent({
     name: "ImagesOutline",
     render: function render2(_ctx, _cache) {
-      return openBlock(), createElementBlock("svg", _hoisted_1$d, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
+      return openBlock(), createElementBlock("svg", _hoisted_1$e, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
     }
   });
-  const _hoisted_1$c = {
+  const _hoisted_1$d = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8632,7 +8676,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$c,
+        _hoisted_1$d,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8666,7 +8710,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$b = {
+  const _hoisted_1$c = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8676,7 +8720,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$b,
+        _hoisted_1$c,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8709,7 +8753,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _sfc_main$c = /* @__PURE__ */ defineComponent({
+  const _sfc_main$e = /* @__PURE__ */ defineComponent({
     __name: "MagnusIcon",
     props: {
       name: {},
@@ -8719,6 +8763,7 @@ ${unwrappedProps}
     setup(__props) {
       const props = __props;
       const icons = {
+        add: AddOutline,
         albums: AlbumsOutline,
         back: ArrowBackOutline,
         book: BookOutline,
@@ -8745,17 +8790,17 @@ ${unwrappedProps}
       };
     }
   });
-  const _hoisted_1$a = {
+  const _hoisted_1$b = {
     class: "mda-chat-thread",
     "aria-label": "页面改造对话"
   };
-  const _hoisted_2$9 = { class: "mda-message-avatar" };
-  const _hoisted_3$9 = { class: "mda-message-bubble" };
-  const _hoisted_4$9 = {
+  const _hoisted_2$a = { class: "mda-message-avatar" };
+  const _hoisted_3$a = { class: "mda-message-bubble" };
+  const _hoisted_4$a = {
     key: 0,
     class: "mda-message-work"
   };
-  const _hoisted_5$9 = ["aria-expanded", "onClick"];
+  const _hoisted_5$a = ["aria-expanded", "onClick"];
   const _hoisted_6$7 = { class: "mda-message-work-label" };
   const _hoisted_7$7 = {
     key: 1,
@@ -8820,7 +8865,7 @@ ${unwrappedProps}
     key: 1,
     class: "mda-warning"
   };
-  const _sfc_main$b = {
+  const _sfc_main$d = {
     __name: "ChatThread",
     setup(__props) {
       const commands = useMagnusCommands();
@@ -8924,7 +8969,7 @@ ${unwrappedProps}
         return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$a, [
+        return openBlock(), createElementBlock("section", _hoisted_1$b, [
           (openBlock(true), createElementBlock(
             Fragment,
             null,
@@ -8938,13 +8983,13 @@ ${unwrappedProps}
                 [
                   createBaseVNode(
                     "div",
-                    _hoisted_2$9,
+                    _hoisted_2$a,
                     toDisplayString(avatarText(message.role)),
                     1
                     /* TEXT */
                   ),
-                  createBaseVNode("div", _hoisted_3$9, [
-                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$9, [
+                  createBaseVNode("div", _hoisted_3$a, [
+                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$a, [
                       hasLogs(message) ? (openBlock(), createElementBlock("button", {
                         key: 0,
                         class: "mda-message-work-toggle",
@@ -8968,7 +9013,7 @@ ${unwrappedProps}
                           2
                           /* CLASS */
                         )
-                      ], 8, _hoisted_5$9)) : (openBlock(), createElementBlock(
+                      ], 8, _hoisted_5$a)) : (openBlock(), createElementBlock(
                         "div",
                         _hoisted_7$7,
                         toDisplayString(messageWorkLabel(message)),
@@ -8983,7 +9028,7 @@ ${unwrappedProps}
                         "aria-label": "复制全部日志",
                         onClick: ($event) => copyAllLogs(message.logs)
                       }, [
-                        createVNode(_sfc_main$c, {
+                        createVNode(_sfc_main$e, {
                           name: "copy",
                           size: 15
                         })
@@ -9245,6 +9290,105 @@ ${unwrappedProps}
       setSending,
       setFinalPrompt,
       clearContent
+    };
+  });
+  const useConnectAgentStore = /* @__PURE__ */ defineStore("magnus.connect-agent", () => {
+    const providers = /* @__PURE__ */ ref([]);
+    const loading = /* @__PURE__ */ ref(false);
+    const connectionError = /* @__PURE__ */ ref("");
+    const task = /* @__PURE__ */ ref(null);
+    const taskStatus = /* @__PURE__ */ ref("idle");
+    const taskLogs = /* @__PURE__ */ ref([]);
+    const taskError = /* @__PURE__ */ ref("");
+    const taskStartedAt = /* @__PURE__ */ ref(0);
+    const taskFinishedAt = /* @__PURE__ */ ref(0);
+    const taskController = /* @__PURE__ */ ref(null);
+    const activeProvider = computed(() => providers.value.find((provider) => provider.connected) || null);
+    const taskRunning = computed(() => taskStatus.value === "running");
+    function setProviders(nextProviders) {
+      providers.value = Array.isArray(nextProviders) ? nextProviders : [];
+    }
+    function upsertProvider(provider) {
+      providers.value = providers.value.filter((item) => item.id !== provider.id).concat(provider);
+    }
+    function beginTask(controller) {
+      task.value = null;
+      taskStatus.value = "running";
+      taskLogs.value = [];
+      taskError.value = "";
+      taskStartedAt.value = Date.now();
+      taskFinishedAt.value = 0;
+      taskController.value = controller;
+    }
+    function applyTaskEvent(event) {
+      var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+      if (event == null ? void 0 : event.task) task.value = __spreadValues(__spreadValues({}, task.value || {}), event.task);
+      if (((_a2 = event == null ? void 0 : event.event) == null ? void 0 : _a2.method) === "item/agentMessage/delta") {
+        task.value = __spreadProps(__spreadValues({}, task.value || {}), {
+          finalResponse: `${((_b = task.value) == null ? void 0 : _b.finalResponse) || ""}${((_d = (_c = event.event) == null ? void 0 : _c.params) == null ? void 0 : _d.delta) || ""}`
+        });
+      }
+      if (((_e = event == null ? void 0 : event.event) == null ? void 0 : _e.method) === "item/completed" && ((_h = (_g = (_f = event.event) == null ? void 0 : _f.params) == null ? void 0 : _g.item) == null ? void 0 : _h.type) === "agentMessage") {
+        const text = String(event.event.params.item.text || "");
+        if (text.length > String(((_i = task.value) == null ? void 0 : _i.finalResponse) || "").length) {
+          task.value = __spreadProps(__spreadValues({}, task.value || {}), { finalResponse: text });
+        }
+      }
+      const message = String((event == null ? void 0 : event.message) || "").trim();
+      if (message && taskLogs.value[taskLogs.value.length - 1] !== message) {
+        taskLogs.value.push(message);
+      }
+    }
+    function completeTask(result) {
+      task.value = result;
+      taskStatus.value = result.status === "completed" ? "completed" : "failed";
+      taskFinishedAt.value = Number(result.finishedAt || Date.now());
+      taskController.value = null;
+    }
+    function failTask(error) {
+      var _a2;
+      const payload = error == null ? void 0 : error.payload;
+      if (payload == null ? void 0 : payload.task) task.value = __spreadValues(__spreadValues({}, task.value || {}), payload.task);
+      taskError.value = (error == null ? void 0 : error.message) || String(error || "Codex 开发任务失败");
+      taskStatus.value = ((_a2 = task.value) == null ? void 0 : _a2.status) === "cancelled" ? "cancelled" : "failed";
+      taskFinishedAt.value = Date.now();
+      taskController.value = null;
+    }
+    function cancelTask() {
+      var _a2;
+      (_a2 = taskController.value) == null ? void 0 : _a2.abort();
+    }
+    function resetTask() {
+      if (taskRunning.value) cancelTask();
+      task.value = null;
+      taskStatus.value = "idle";
+      taskLogs.value = [];
+      taskError.value = "";
+      taskStartedAt.value = 0;
+      taskFinishedAt.value = 0;
+      taskController.value = null;
+    }
+    return {
+      providers,
+      loading,
+      connectionError,
+      task,
+      taskStatus,
+      taskLogs,
+      taskError,
+      taskStartedAt,
+      taskFinishedAt,
+      taskController,
+      activeProvider,
+      taskRunning,
+      setProviders,
+      upsertProvider,
+      beginTask,
+      applyTaskEvent,
+      completeTask,
+      failTask,
+      cancelTask,
+      resetTask
     };
   });
   const useModelStore = /* @__PURE__ */ defineStore("magnus.model", () => {
@@ -9584,20 +9728,20 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   function candidateLogText(hit) {
     return candidateLogLines(hit).join("\n");
   }
-  const _hoisted_1$9 = {
+  const _hoisted_1$a = {
     key: 0,
     class: "mda-composer-options mda-composite"
   };
-  const _hoisted_2$8 = { class: "mda-composite-row" };
-  const _hoisted_3$8 = {
+  const _hoisted_2$9 = { class: "mda-composite-row" };
+  const _hoisted_3$9 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_4$8 = {
+  const _hoisted_4$9 = {
     key: 0,
     class: "mda-composite-row"
   };
-  const _hoisted_5$8 = {
+  const _hoisted_5$9 = {
     key: 1,
     class: "mda-composite-row"
   };
@@ -9680,7 +9824,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 3,
     class: "mda-composer-options"
   };
-  const _sfc_main$a = {
+  const _sfc_main$c = {
     __name: "CandidateOptions",
     setup(__props) {
       const commands = useMagnusCommands();
@@ -9767,7 +9911,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           Fragment,
           null,
           [
-            composite.value ? (openBlock(), createElementBlock("div", _hoisted_1$9, [
+            composite.value ? (openBlock(), createElementBlock("div", _hoisted_1$a, [
               _cache[10] || (_cache[10] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -9775,7 +9919,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_2$8, [
+              createBaseVNode("div", _hoisted_2$9, [
                 _cache[4] || (_cache[4] = createBaseVNode(
                   "span",
                   { class: "mda-composite-tag mda-composite-render" },
@@ -9795,14 +9939,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   ),
                   composite.value.render.line ? (openBlock(), createElementBlock(
                     "span",
-                    _hoisted_3$8,
+                    _hoisted_3$9,
                     ":" + toDisplayString(composite.value.render.line),
                     1
                     /* TEXT */
                   )) : createCommentVNode("v-if", true)
                 ])
               ]),
-              composite.value.regionOwner ? (openBlock(), createElementBlock("div", _hoisted_4$8, [
+              composite.value.regionOwner ? (openBlock(), createElementBlock("div", _hoisted_4$9, [
                 _cache[5] || (_cache[5] = createBaseVNode(
                   "span",
                   { class: "mda-composite-tag" },
@@ -9821,7 +9965,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   1
                   /* TEXT */
                 )
-              ])) : composite.value.assembly ? (openBlock(), createElementBlock("div", _hoisted_5$8, [
+              ])) : composite.value.assembly ? (openBlock(), createElementBlock("div", _hoisted_5$9, [
                 _cache[6] || (_cache[6] = createBaseVNode(
                   "span",
                   { class: "mda-composite-tag" },
@@ -10239,6 +10383,484 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
+  const SOURCE_SERVER_URL = typeof window !== "undefined" && ((_a = window.__MAGNUS_SIDE_PANEL__) == null ? void 0 : _a.sourceServerUrl) || "http://127.0.0.1:17321";
+  const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
+  const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
+  const SOURCE_SERVER_HEALTH_URL = `${SOURCE_SERVER_URL}/health`;
+  function createSourceServerHeaders(extraHeaders) {
+    return __spreadValues({
+      "Content-Type": "application/json",
+      [MAGNUS_INTERNAL_REQUEST_HEADER]: MAGNUS_INTERNAL_REQUEST_VALUE
+    }, extraHeaders || {});
+  }
+  function sourceServerJson(_0) {
+    return __async(this, arguments, function* (pathname, options = {}) {
+      const timeoutMs = Number(options.timeoutMs || 1e4);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
+      try {
+        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
+          method: options.method || "GET",
+          headers: createSourceServerHeaders(options.headers),
+          body: options.body ? JSON.stringify(options.body) : void 0,
+          signal: controller.signal
+        });
+        const data = yield response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+          const error = new Error(data.error || `本地源码服务请求失败：${response.status}`);
+          error.payload = data;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          throw new Error(options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应`);
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+  }
+  function sourceServerNdjson(_0) {
+    return __async(this, arguments, function* (pathname, options = {}) {
+      const timeoutMs = Number(options.timeoutMs || 1e4);
+      const controller = options.controller || new AbortController();
+      let timedOut = false;
+      const timeoutId = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+      try {
+        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
+          method: options.method || "GET",
+          headers: createSourceServerHeaders(options.headers),
+          body: options.body ? JSON.stringify(options.body) : void 0,
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          const text = yield response.text().catch(() => "");
+          throw new Error(text || `本地源码服务请求失败：${response.status}`);
+        }
+        if (!response.body) return null;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let result = null;
+        while (true) {
+          const { done, value } = yield reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const event = JSON.parse(trimmed);
+            if (typeof options.onEvent === "function") options.onEvent(event);
+            if (event.type === "result") result = event.result || null;
+            if (event.type === "error") {
+              const error = new Error(event.error || "本地源码服务请求失败");
+              error.payload = event;
+              throw error;
+            }
+          }
+        }
+        const finalLine = buffer.trim();
+        if (finalLine) {
+          const event = JSON.parse(finalLine);
+          if (typeof options.onEvent === "function") options.onEvent(event);
+          if (event.type === "result") result = event.result || null;
+          if (event.type === "error") {
+            const error = new Error(event.error || "本地源码服务请求失败");
+            error.payload = event;
+            throw error;
+          }
+        }
+        return result;
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          const abortError = new Error(timedOut ? options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应` : options.abortMessage || "请求已停止");
+          abortError.name = timedOut ? "TimeoutError" : "AbortError";
+          throw abortError;
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+  }
+  function probeSourceServer(timeoutMs = 2500) {
+    return __async(this, null, function* () {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
+      try {
+        const response = yield fetch(SOURCE_SERVER_HEALTH_URL, {
+          method: "GET",
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `HTTP ${response.status}` };
+        }
+        const data = yield response.json().catch(() => ({}));
+        if ((data == null ? void 0 : data.success) === false) {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: data.error || "health success=false" };
+        }
+        return { online: true, url: SOURCE_SERVER_HEALTH_URL, message: "" };
+      } catch (error) {
+        if ((error == null ? void 0 : error.name) === "AbortError") {
+          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `health timeout (${timeoutMs}ms)` };
+        }
+        const message = error instanceof Error ? error.message : String(error || "unknown error");
+        return { online: false, url: SOURCE_SERVER_HEALTH_URL, message };
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    });
+  }
+  function normalizeSourceServerProject(raw) {
+    const files = Array.isArray(raw.files) ? raw.files : [];
+    return {
+      name: raw.name || "本地项目",
+      path: raw.path || "",
+      kind: raw.kind || "unknown",
+      source: "source-server",
+      fileCount: raw.fileCount || files.length,
+      files,
+      snippets: raw.snippets || {},
+      context: raw.context || null,
+      stack: raw.stack || [],
+      stackText: raw.stackText || "",
+      limited: !!raw.limited
+    };
+  }
+  function listConnectAgents(refresh = false) {
+    return __async(this, null, function* () {
+      const data = yield sourceServerJson(`/api/connect-agents${refresh ? "?refresh=1" : ""}`, {
+        timeoutMs: refresh ? 12e3 : 5e3,
+        timeoutMessage: "检查 Agent 连接状态超时"
+      });
+      return Array.isArray(data == null ? void 0 : data.providers) ? data.providers : [];
+    });
+  }
+  function connectAgent(providerId) {
+    return __async(this, null, function* () {
+      const data = yield sourceServerJson(`/api/connect-agents/${encodeURIComponent(providerId)}/connect`, {
+        method: "POST",
+        body: {},
+        timeoutMs: 15e3,
+        timeoutMessage: "连接 Agent 超时"
+      });
+      return data.provider;
+    });
+  }
+  function disconnectAgent(providerId) {
+    return __async(this, null, function* () {
+      const data = yield sourceServerJson(`/api/connect-agents/${encodeURIComponent(providerId)}/disconnect`, {
+        method: "POST",
+        body: {},
+        timeoutMs: 5e3,
+        timeoutMessage: "断开 Agent 连接超时"
+      });
+      return data.provider;
+    });
+  }
+  function runConnectAgentTask(providerId, input, options) {
+    return __async(this, null, function* () {
+      return yield sourceServerNdjson(
+        `/api/connect-agents/${encodeURIComponent(providerId)}/tasks/stream`,
+        {
+          method: "POST",
+          body: input,
+          controller: options.controller,
+          onEvent: options.onEvent,
+          timeoutMs: 30 * 60 * 1e3,
+          timeoutMessage: "Codex 开发任务执行超时",
+          abortMessage: "Codex 开发任务已取消"
+        }
+      );
+    });
+  }
+  const _sfc_main$b = {
+    __name: "PopoverPanel",
+    props: {
+      visible: {
+        type: Boolean,
+        default: false
+      },
+      anchorRect: {
+        type: Object,
+        default: null
+      },
+      width: {
+        type: Number,
+        default: 380
+      },
+      maxHeight: {
+        type: Number,
+        default: 360
+      },
+      placement: {
+        type: String,
+        default: "auto"
+      },
+      gap: {
+        type: Number,
+        default: 10
+      },
+      viewportPadding: {
+        type: Number,
+        default: 12
+      }
+    },
+    emits: ["mouseenter", "mouseleave"],
+    setup(__props) {
+      const props = __props;
+      const panelStyle = computed(() => {
+        const rect = props.anchorRect;
+        if (!props.visible || !rect) return {};
+        const width = Math.min(props.width, Math.max(260, window.innerWidth - props.viewportPadding * 2));
+        const left = Math.max(
+          props.viewportPadding,
+          Math.min(rect.left, window.innerWidth - width - props.viewportPadding)
+        );
+        const roomBelow = rect.bottom + props.gap + props.maxHeight <= window.innerHeight - props.viewportPadding;
+        const roomAbove = rect.top - props.gap - props.maxHeight >= props.viewportPadding;
+        const showBelow = props.placement === "bottom" ? true : props.placement === "top" ? !roomAbove && roomBelow : roomBelow;
+        const top = showBelow ? rect.bottom + props.gap : Math.max(props.viewportPadding, rect.top - props.gap - props.maxHeight);
+        return {
+          left: `${Math.round(left)}px`,
+          top: `${Math.round(top)}px`,
+          width: `${Math.round(width)}px`,
+          maxHeight: `${Math.round(props.maxHeight)}px`
+        };
+      });
+      return (_ctx, _cache) => {
+        return __props.visible && __props.anchorRect ? (openBlock(), createElementBlock(
+          "div",
+          {
+            key: 0,
+            class: "mda-popover-panel",
+            style: normalizeStyle(panelStyle.value),
+            onMouseenter: _cache[0] || (_cache[0] = ($event) => _ctx.$emit("mouseenter")),
+            onMouseleave: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("mouseleave"))
+          },
+          [
+            renderSlot(_ctx.$slots, "default")
+          ],
+          36
+          /* STYLE, NEED_HYDRATION */
+        )) : createCommentVNode("v-if", true);
+      };
+    }
+  };
+  const _hoisted_1$9 = ["aria-expanded"];
+  const _hoisted_2$8 = { class: "mda-add-panel" };
+  const _hoisted_3$8 = ["disabled"];
+  const _hoisted_4$8 = { class: "mda-connect-agent-copy" };
+  const _hoisted_5$8 = {
+    key: 0,
+    class: "mda-connect-agent-error"
+  };
+  const _sfc_main$a = /* @__PURE__ */ defineComponent({
+    __name: "ConnectAgentMenu",
+    setup(__props) {
+      const rootRef = /* @__PURE__ */ ref(null);
+      const triggerRef = /* @__PURE__ */ ref(null);
+      const visible = /* @__PURE__ */ ref(false);
+      const anchorRect = /* @__PURE__ */ ref(null);
+      const connectAgentStore = useConnectAgentStore();
+      const { providers, loading: busy, connectionError: errorText } = storeToRefs(connectAgentStore);
+      const codex = computed(() => providers.value.find((provider) => provider.id === "codex") || null);
+      const codexDescription = computed(() => {
+        var _a2, _b;
+        if (busy.value) return ((_a2 = codex.value) == null ? void 0 : _a2.state) === "connected" ? "正在断开…" : "正在检查并连接…";
+        return ((_b = codex.value) == null ? void 0 : _b.message) || "检查 Codex 环境后连接";
+      });
+      const codexAction = computed(() => {
+        var _a2, _b, _c, _d;
+        if (busy.value) return "处理中";
+        if ((_a2 = codex.value) == null ? void 0 : _a2.connected) return "断开";
+        if (((_b = codex.value) == null ? void 0 : _b.state) === "login-required") return "需登录";
+        if (((_c = codex.value) == null ? void 0 : _c.state) === "unavailable") return "未安装";
+        if (((_d = codex.value) == null ? void 0 : _d.state) === "error") return "重试";
+        return "连接";
+      });
+      onMounted(() => {
+        document.addEventListener("pointerdown", handleOutsidePointerDown, true);
+        window.addEventListener("resize", updateAnchorRect);
+        window.addEventListener("scroll", updateAnchorRect, true);
+        refreshProviders(false);
+      });
+      onBeforeUnmount(() => {
+        document.removeEventListener("pointerdown", handleOutsidePointerDown, true);
+        window.removeEventListener("resize", updateAnchorRect);
+        window.removeEventListener("scroll", updateAnchorRect, true);
+      });
+      function toggle() {
+        return __async(this, null, function* () {
+          visible.value = !visible.value;
+          if (!visible.value) return;
+          errorText.value = "";
+          yield nextTick();
+          updateAnchorRect();
+          yield refreshProviders(true);
+        });
+      }
+      function updateAnchorRect() {
+        var _a2;
+        anchorRect.value = ((_a2 = triggerRef.value) == null ? void 0 : _a2.getBoundingClientRect()) || null;
+      }
+      function refreshProviders(refresh) {
+        return __async(this, null, function* () {
+          busy.value = true;
+          try {
+            connectAgentStore.setProviders(yield listConnectAgents(refresh));
+          } catch (error) {
+            errorText.value = (error == null ? void 0 : error.message) || "无法检查 Codex 连接状态";
+          } finally {
+            busy.value = false;
+          }
+        });
+      }
+      function toggleCodexConnection() {
+        return __async(this, null, function* () {
+          var _a2;
+          if (busy.value) return;
+          busy.value = true;
+          errorText.value = "";
+          try {
+            const provider = ((_a2 = codex.value) == null ? void 0 : _a2.connected) ? yield disconnectAgent("codex") : yield connectAgent("codex");
+            connectAgentStore.upsertProvider(provider);
+          } catch (error) {
+            errorText.value = (error == null ? void 0 : error.message) || "Codex 连接失败";
+            yield refreshProviders(false);
+          } finally {
+            busy.value = false;
+          }
+        });
+      }
+      function handleOutsidePointerDown(event) {
+        var _a2;
+        const target = event.target;
+        if (!visible.value || !target) return;
+        if ((_a2 = rootRef.value) == null ? void 0 : _a2.contains(target)) return;
+        const panel = document.querySelector(".mda-add-panel");
+        if (panel == null ? void 0 : panel.contains(target)) return;
+        visible.value = false;
+      }
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock(
+          "div",
+          {
+            ref_key: "rootRef",
+            ref: rootRef,
+            class: "mda-add-menu"
+          },
+          [
+            createBaseVNode("button", {
+              ref_key: "triggerRef",
+              ref: triggerRef,
+              class: "mda-add-trigger",
+              type: "button",
+              title: "添加",
+              "aria-label": "添加",
+              "aria-expanded": visible.value,
+              onClick: toggle
+            }, [
+              createVNode(_sfc_main$e, {
+                name: "add",
+                size: 22
+              })
+            ], 8, _hoisted_1$9),
+            createVNode(_sfc_main$b, {
+              visible: visible.value,
+              "anchor-rect": anchorRect.value,
+              width: 360,
+              "max-height": 300,
+              placement: "top"
+            }, {
+              default: withCtx(() => {
+                var _a2;
+                return [
+                  createBaseVNode("div", _hoisted_2$8, [
+                    _cache[2] || (_cache[2] = createBaseVNode(
+                      "div",
+                      { class: "mda-add-panel-title" },
+                      "添加",
+                      -1
+                      /* CACHED */
+                    )),
+                    _cache[3] || (_cache[3] = createBaseVNode(
+                      "div",
+                      { class: "mda-add-section-title" },
+                      "连接",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode("button", {
+                      class: "mda-connect-agent-row",
+                      type: "button",
+                      disabled: unref(busy),
+                      onClick: toggleCodexConnection
+                    }, [
+                      _cache[1] || (_cache[1] = createBaseVNode(
+                        "span",
+                        { class: "mda-connect-agent-icon" },
+                        "C",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode("span", _hoisted_4$8, [
+                        _cache[0] || (_cache[0] = createBaseVNode(
+                          "strong",
+                          null,
+                          "Codex",
+                          -1
+                          /* CACHED */
+                        )),
+                        createBaseVNode(
+                          "span",
+                          null,
+                          toDisplayString(codexDescription.value),
+                          1
+                          /* TEXT */
+                        )
+                      ]),
+                      createBaseVNode(
+                        "span",
+                        {
+                          class: normalizeClass(["mda-connect-agent-action", `is-${((_a2 = codex.value) == null ? void 0 : _a2.state) || "checking"}`])
+                        },
+                        toDisplayString(codexAction.value),
+                        3
+                        /* TEXT, CLASS */
+                      )
+                    ], 8, _hoisted_3$8),
+                    unref(errorText) ? (openBlock(), createElementBlock(
+                      "div",
+                      _hoisted_5$8,
+                      toDisplayString(unref(errorText)),
+                      1
+                      /* TEXT */
+                    )) : createCommentVNode("v-if", true)
+                  ])
+                ];
+              }),
+              _: 1
+              /* STABLE */
+            }, 8, ["visible", "anchor-rect"])
+          ],
+          512
+          /* NEED_PATCH */
+        );
+      };
+    }
+  });
   const _hoisted_1$8 = ["value", "readonly", "placeholder"];
   const _hoisted_2$7 = ["onClick"];
   const _hoisted_3$7 = {
@@ -11252,10 +11874,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.014159.639";
+      const buildVersion = "20260724.024647.257";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
+      const connectAgentStore = useConnectAgentStore();
       const modelStore = useModelStore();
       const projectStore = useProjectStore();
       const routeStore = useRouteStore();
@@ -11273,7 +11896,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const routeResolverTrace = computed(() => routeStore.resolverTrace);
       const toastText = computed(() => appUiStore.toastText);
       const composerCanSend = computed(() => {
-        if (modelAssistLoading.value) return true;
+        if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
         if (candidateLoading.value) return false;
         if (!project.value) return false;
         if (!selectedItems.value.length) return false;
@@ -11330,7 +11953,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               "div",
               _hoisted_4$3,
               [
-                createVNode(_sfc_main$a),
+                createVNode(_sfc_main$c),
                 createVNode(_sfc_main$6),
                 createVNode(_sfc_main$8, { onInsertAsset: handleAssetInsert })
               ],
@@ -11353,6 +11976,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             ),
             createBaseVNode("div", _hoisted_6$3, [
               createBaseVNode("div", _hoisted_7$3, [
+                createVNode(_sfc_main$a),
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-inline-text-btn",
@@ -11367,13 +11991,13 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               createBaseVNode("div", _hoisted_9$3, [
                 createVNode(_sfc_main$7),
                 createBaseVNode("button", {
-                  class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value }]),
+                  class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value || unref(connectAgentStore).taskRunning }]),
                   type: "button",
-                  title: modelAssistLoading.value ? "停止模型定位" : "提交",
+                  title: modelAssistLoading.value || unref(connectAgentStore).taskRunning ? "停止当前任务" : "提交",
                   disabled: !composerCanSend.value,
                   onClick: _cache[2] || (_cache[2] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
                 }, [
-                  modelAssistLoading.value ? (openBlock(), createElementBlock("span", _hoisted_11$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_12$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_13$3))
+                  modelAssistLoading.value || unref(connectAgentStore).taskRunning ? (openBlock(), createElementBlock("span", _hoisted_11$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_12$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_13$3))
                 ], 10, _hoisted_10$3)
               ])
             ])
@@ -11426,161 +12050,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const SOURCE_SERVER_URL = typeof window !== "undefined" && ((_a = window.__MAGNUS_SIDE_PANEL__) == null ? void 0 : _a.sourceServerUrl) || "http://127.0.0.1:17321";
-  const MAGNUS_INTERNAL_REQUEST_HEADER = "X-Magnus-Internal";
-  const MAGNUS_INTERNAL_REQUEST_VALUE = "source-server";
-  const SOURCE_SERVER_HEALTH_URL = `${SOURCE_SERVER_URL}/health`;
-  function createSourceServerHeaders(extraHeaders) {
-    return __spreadValues({
-      "Content-Type": "application/json",
-      [MAGNUS_INTERNAL_REQUEST_HEADER]: MAGNUS_INTERNAL_REQUEST_VALUE
-    }, extraHeaders || {});
-  }
-  function sourceServerJson(_0) {
-    return __async(this, arguments, function* (pathname, options = {}) {
-      const timeoutMs = Number(options.timeoutMs || 1e4);
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-      try {
-        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
-          method: options.method || "GET",
-          headers: createSourceServerHeaders(options.headers),
-          body: options.body ? JSON.stringify(options.body) : void 0,
-          signal: controller.signal
-        });
-        const data = yield response.json().catch(() => ({}));
-        if (!response.ok || data.success === false) {
-          const error = new Error(data.error || `本地源码服务请求失败：${response.status}`);
-          error.payload = data;
-          throw error;
-        }
-        return data;
-      } catch (error) {
-        if (error && error.name === "AbortError") {
-          throw new Error(options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应`);
-        }
-        throw error;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    });
-  }
-  function sourceServerNdjson(_0) {
-    return __async(this, arguments, function* (pathname, options = {}) {
-      const timeoutMs = Number(options.timeoutMs || 1e4);
-      const controller = options.controller || new AbortController();
-      let timedOut = false;
-      const timeoutId = window.setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, timeoutMs);
-      try {
-        const response = yield fetch(`${SOURCE_SERVER_URL}${pathname}`, {
-          method: options.method || "GET",
-          headers: createSourceServerHeaders(options.headers),
-          body: options.body ? JSON.stringify(options.body) : void 0,
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          const text = yield response.text().catch(() => "");
-          throw new Error(text || `本地源码服务请求失败：${response.status}`);
-        }
-        if (!response.body) return null;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let result = null;
-        while (true) {
-          const { done, value } = yield reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            const event = JSON.parse(trimmed);
-            if (typeof options.onEvent === "function") options.onEvent(event);
-            if (event.type === "result") result = event.result || null;
-            if (event.type === "error") {
-              const error = new Error(event.error || "本地源码服务请求失败");
-              error.payload = event;
-              throw error;
-            }
-          }
-        }
-        const finalLine = buffer.trim();
-        if (finalLine) {
-          const event = JSON.parse(finalLine);
-          if (typeof options.onEvent === "function") options.onEvent(event);
-          if (event.type === "result") result = event.result || null;
-          if (event.type === "error") {
-            const error = new Error(event.error || "本地源码服务请求失败");
-            error.payload = event;
-            throw error;
-          }
-        }
-        return result;
-      } catch (error) {
-        if (error && error.name === "AbortError") {
-          const abortError = new Error(timedOut ? options.timeoutMessage || `本地源码服务 ${timeoutMs / 1e3} 秒未响应` : options.abortMessage || "请求已停止");
-          abortError.name = timedOut ? "TimeoutError" : "AbortError";
-          throw abortError;
-        }
-        throw error;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    });
-  }
-  function probeSourceServer(timeoutMs = 2500) {
-    return __async(this, null, function* () {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-      try {
-        const response = yield fetch(SOURCE_SERVER_HEALTH_URL, {
-          method: "GET",
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `HTTP ${response.status}` };
-        }
-        const data = yield response.json().catch(() => ({}));
-        if ((data == null ? void 0 : data.success) === false) {
-          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: data.error || "health success=false" };
-        }
-        return { online: true, url: SOURCE_SERVER_HEALTH_URL, message: "" };
-      } catch (error) {
-        if ((error == null ? void 0 : error.name) === "AbortError") {
-          return { online: false, url: SOURCE_SERVER_HEALTH_URL, message: `health timeout (${timeoutMs}ms)` };
-        }
-        const message = error instanceof Error ? error.message : String(error || "unknown error");
-        return { online: false, url: SOURCE_SERVER_HEALTH_URL, message };
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    });
-  }
-  function normalizeSourceServerProject(raw) {
-    const files = Array.isArray(raw.files) ? raw.files : [];
-    return {
-      name: raw.name || "本地项目",
-      path: raw.path || "",
-      kind: raw.kind || "unknown",
-      source: "source-server",
-      fileCount: raw.fileCount || files.length,
-      files,
-      snippets: raw.snippets || {},
-      context: raw.context || null,
-      stack: raw.stack || [],
-      stackText: raw.stackText || "",
-      limited: !!raw.limited
-    };
-  }
   function useMcpStatus() {
     const servers = /* @__PURE__ */ ref([]);
     const logs = /* @__PURE__ */ ref([]);
@@ -14368,6 +14837,7 @@ ${source}` : "",
     const projectStore = useProjectStore();
     const searchStore = useSearchStore();
     const selectionStore = useSelectionStore();
+    const connectAgentStore = useConnectAgentStore();
     const prompt = useSearchPrompt();
     const { finalPrompt: promptText } = storeToRefs(composerStore);
     const {
@@ -14557,6 +15027,28 @@ ${result.rawText}` : ""
           durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
           durationActive: false,
           logExpanded: true
+        });
+      }
+      if (connectAgentStore.taskStatus !== "idle") {
+        const currentTask = connectAgentStore.task;
+        const running = connectAgentStore.taskStatus === "running";
+        messages.push({
+          id: "connect-agent-task",
+          role: "agent",
+          title: "Codex 开发任务",
+          text: running ? "源码定位已完成，Codex 正在项目中执行修改和验证。" : connectAgentStore.taskStatus === "completed" ? "Codex 已完成项目修改。" : connectAgentStore.taskError || "Codex 开发任务未完成。",
+          pre: !running ? (currentTask == null ? void 0 : currentTask.finalResponse) || "" : "",
+          logs: [
+            ...connectAgentStore.taskLogs || [],
+            (currentTask == null ? void 0 : currentTask.taskId) ? `taskId: ${currentTask.taskId}` : "",
+            (currentTask == null ? void 0 : currentTask.threadId) ? `threadId: ${currentTask.threadId}` : "",
+            (currentTask == null ? void 0 : currentTask.turnId) ? `turnId: ${currentTask.turnId}` : "",
+            ...((currentTask == null ? void 0 : currentTask.changedFiles) || []).map((file) => `修改文件: ${file}`)
+          ].filter(Boolean),
+          durationStartedAt: connectAgentStore.taskStartedAt,
+          durationFinishedAt: connectAgentStore.taskFinishedAt,
+          durationActive: running,
+          logExpanded: running
         });
       }
       if (!candidateLoading.value && needsMoreEvidence.value) {
@@ -14750,6 +15242,7 @@ ${result.rawText}` : ""
   function createComposerWorkflow(state) {
     const { source, route, search, selection, composer, model, prompt } = state;
     const appUiStore = useAppUiStore();
+    const connectAgentStore = useConnectAgentStore();
     let lastOriginSelections = [];
     function ancestorContainerAnchors(el) {
       const out = [];
@@ -14794,6 +15287,10 @@ ${result.rawText}` : ""
     }
     function sendComposer() {
       return __async(this, null, function* () {
+        if (connectAgentStore.taskRunning) {
+          connectAgentStore.cancelTask();
+          return;
+        }
         if (model.modelAssistLoading.value) {
           model.stopModelAssist();
           return;
@@ -14828,6 +15325,7 @@ ${result.rawText}` : ""
           search.searchFinishedAt.value = 0;
           search.processLogs.value = [];
           search.agentUsed.value = false;
+          connectAgentStore.resetTask();
           const timeoutMs = search.includeApiEvidence.value ? 3e4 : 12e3;
           const data = yield runSearchWithOptionalRetry(timeoutMs);
           search.candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
@@ -14926,12 +15424,13 @@ ${result.rawText}` : ""
     function runChangePlanForResolved(instruction) {
       return __async(this, null, function* () {
         var _a2;
-        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
+        const bindings = selection.reusableSourceBindings(instruction, projectRoot());
+        if (!bindings.length) {
           prompt.generatePrompt({ userInstruction: instruction });
           return;
         }
-        const bindings = selection.reusableSourceBindings(instruction, projectRoot());
-        if (!bindings.length) {
+        if (yield runConnectedAgent(instruction, bindings)) return;
+        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
           prompt.generatePrompt({ userInstruction: instruction });
           return;
         }
@@ -15086,6 +15585,11 @@ ${result.rawText}` : ""
         search.searchFinishedAt.value = 0;
         search.modelAssistAttempted.value = true;
         selection.filesConfirmed.value = false;
+        if (yield runConnectedAgent(userInstruction, bindings)) {
+          search.searchFinishedAt.value = Date.now();
+          selection.filesConfirmed.value = true;
+          return true;
+        }
         if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
           const text = modelAssistUnavailableText();
           search.candidateError.value = text;
@@ -15106,6 +15610,33 @@ ${result.rawText}` : ""
           return true;
         }
         search.candidateError.value = model.modelAssistError.value || "选区源码上下文增强失败，请重试。";
+        return true;
+      });
+    }
+    function runConnectedAgent(userInstruction, bindings) {
+      return __async(this, null, function* () {
+        const provider = connectAgentStore.activeProvider;
+        if (!(provider == null ? void 0 : provider.connected)) return false;
+        const controller = new AbortController();
+        connectAgentStore.beginTask(controller);
+        selection.filesConfirmed.value = true;
+        search.appendProcessLog(`Connect Agent 分流：DOM Locator 已完成，跳过 Magnus Planning Agent，交给 ${provider.name}`);
+        try {
+          const result = yield runConnectAgentTask(provider.id, {
+            projectRoot: projectRoot(),
+            pageUrl: state.currentPageHref.value,
+            userInstruction,
+            selectionBindings: bindings
+          }, {
+            controller,
+            onEvent: (event) => connectAgentStore.applyTaskEvent(event)
+          });
+          connectAgentStore.completeTask(result);
+          appUiStore.setToast(`${provider.name} 已完成开发任务`);
+        } catch (error) {
+          connectAgentStore.failTask(error);
+          appUiStore.setToast((error == null ? void 0 : error.message) || `${provider.name} 开发任务失败`);
+        }
         return true;
       });
     }
@@ -15734,7 +16265,7 @@ ${result.rawText}` : ""
                     ]
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$e, {
                       name: "refresh",
                       size: 19
                     })
@@ -15766,7 +16297,7 @@ ${result.rawText}` : ""
                     ]
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$e, {
                       name: "cog",
                       size: 20
                     })
@@ -15886,7 +16417,7 @@ ${result.rawText}` : ""
                 544
                 /* NEED_HYDRATION, NEED_PATCH */
               ),
-              createVNode(_sfc_main$b),
+              createVNode(_sfc_main$d),
               createVNode(_sfc_main$5)
             ]),
             projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_19$1, [
@@ -16232,7 +16763,7 @@ ${result.rawText}` : ""
                   type: "button",
                   onClick: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("back"))
                 }, [
-                  createVNode(_sfc_main$c, {
+                  createVNode(_sfc_main$e, {
                     name: "back",
                     size: 16
                   }),
@@ -16245,7 +16776,7 @@ ${result.rawText}` : ""
                   ))
                 ]),
                 createBaseVNode("label", _hoisted_4, [
-                  createVNode(_sfc_main$c, {
+                  createVNode(_sfc_main$e, {
                     name: "search",
                     size: 17
                   }),
@@ -16276,7 +16807,7 @@ ${result.rawText}` : ""
                     onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "assets")
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$e, {
                       name: "images",
                       size: 17
                     }),
@@ -16297,7 +16828,7 @@ ${result.rawText}` : ""
                     onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "experiences")
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$e, {
                       name: "book",
                       size: 17
                     }),
@@ -16318,7 +16849,7 @@ ${result.rawText}` : ""
                     onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "project")
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$e, {
                       name: "folder",
                       size: 17
                     }),
@@ -16346,7 +16877,7 @@ ${result.rawText}` : ""
                     onClick: _cache[5] || (_cache[5] = ($event) => tab.value = "tools")
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$e, {
                       name: "construct",
                       size: 17
                     }),
@@ -19384,6 +19915,131 @@ ${result.rawText}` : ""
 
 .mda-toolbar-right {
   flex: 0 0 auto;
+}
+
+.mda-add-menu {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.mda-add-trigger {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f4f7;
+  color: #344054;
+  cursor: pointer;
+}
+
+.mda-add-trigger:hover,
+.mda-add-trigger[aria-expanded="true"] {
+  background: #e7ebf0;
+  color: #101828;
+}
+
+.mda-add-panel {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.mda-add-panel-title {
+  padding: 0 6px 8px;
+  color: #98a2b3;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.mda-add-section-title {
+  padding: 8px 6px 5px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-connect-agent-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #101828;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-connect-agent-row:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+
+.mda-connect-agent-row:disabled {
+  cursor: wait;
+}
+
+.mda-connect-agent-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: #101828;
+  color: #ffffff;
+  font: 700 15px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-connect-agent-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mda-connect-agent-copy strong {
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.mda-connect-agent-copy span {
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-connect-agent-action {
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-connect-agent-action.is-connected {
+  color: #067647;
+}
+
+.mda-connect-agent-action.is-unavailable,
+.mda-connect-agent-action.is-login-required,
+.mda-connect-agent-action.is-error {
+  color: #b42318;
+}
+
+.mda-connect-agent-error {
+  margin: 5px 6px 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #fef3f2;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .mda-tool-icon-btn,

@@ -18,6 +18,7 @@
       <ComposerInput ref="composerInputRef" />
       <div class="mda-composer-toolbar">
         <div class="mda-toolbar-left">
+          <ConnectAgentMenu />
           <button v-if="selectedItems.length" class="mda-inline-text-btn" type="button" @click="commands.clearSelections">清空选区</button>
           <span class="mda-build-version" :title="`构建版本 ${buildVersion}`">build {{ buildVersion }}</span>
         </div>
@@ -26,12 +27,12 @@
           <button
             class="mda-send-btn"
             type="button"
-            :class="{ 'is-stopping': modelAssistLoading }"
-            :title="modelAssistLoading ? '停止模型定位' : '提交'"
+            :class="{ 'is-stopping': modelAssistLoading || connectAgentStore.taskRunning }"
+            :title="modelAssistLoading || connectAgentStore.taskRunning ? '停止当前任务' : '提交'"
             :disabled="!composerCanSend"
             @click="commands.sendRequest"
           >
-            <span v-if="modelAssistLoading" class="mda-stop-icon" />
+            <span v-if="modelAssistLoading || connectAgentStore.taskRunning" class="mda-stop-icon" />
             <span v-else-if="candidateLoading">检索</span>
             <span v-else class="mda-send-arrow" />
           </button>
@@ -65,12 +66,14 @@ import { computed, ref } from 'vue';
 import { useMagnusCommands } from '../../app/runtime/commands';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useComposerStore } from '../../stores/composer.store';
+import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { useModelStore } from '../../stores/model.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useRouteStore } from '../../stores/route.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 import CandidateOptions from './CandidateOptions.vue';
+import ConnectAgentMenu from './ConnectAgentMenu.vue';
 import ComposerInput from './ComposerInput.vue';
 import ComposerPrebar from './ComposerPrebar.vue';
 import ModelMenu from './ModelMenu.vue';
@@ -82,6 +85,7 @@ const buildVersion = typeof __MAGNUS_BUILD_VERSION__ !== 'undefined' ? __MAGNUS_
 const commands = useMagnusCommands();
 const appUiStore = useAppUiStore();
 const composerStore = useComposerStore();
+const connectAgentStore = useConnectAgentStore();
 const modelStore = useModelStore();
 const projectStore = useProjectStore();
 const routeStore = useRouteStore();
@@ -99,7 +103,7 @@ const modelAssistLoading = computed(() => modelStore.status === 'running');
 const routeResolverTrace = computed(() => routeStore.resolverTrace);
 const toastText = computed(() => appUiStore.toastText);
 const composerCanSend = computed(() => {
-  if (modelAssistLoading.value) return true;
+  if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
   if (candidateLoading.value) return false;
   if (!project.value) return false;
   if (!selectedItems.value.length) return false;

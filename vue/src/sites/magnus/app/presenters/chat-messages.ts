@@ -5,6 +5,7 @@ import { useModelStore } from '../../stores/model.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
+import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { useSearchPrompt } from '../prompt/search-prompt';
 
 export function useChatMessages() {
@@ -13,6 +14,7 @@ export function useChatMessages() {
   const projectStore = useProjectStore();
   const searchStore = useSearchStore();
   const selectionStore = useSelectionStore();
+  const connectAgentStore = useConnectAgentStore();
   const prompt = useSearchPrompt();
   const { finalPrompt: promptText } = storeToRefs(composerStore);
   const {
@@ -220,6 +222,33 @@ export function useChatMessages() {
         durationFinishedAt: modelAssistFinishedAt?.value || 0,
         durationActive: false,
         logExpanded: true
+      });
+    }
+
+    if (connectAgentStore.taskStatus !== 'idle') {
+      const currentTask = connectAgentStore.task;
+      const running = connectAgentStore.taskStatus === 'running';
+      messages.push({
+        id: 'connect-agent-task',
+        role: 'agent',
+        title: 'Codex 开发任务',
+        text: running
+          ? '源码定位已完成，Codex 正在项目中执行修改和验证。'
+          : connectAgentStore.taskStatus === 'completed'
+            ? 'Codex 已完成项目修改。'
+            : connectAgentStore.taskError || 'Codex 开发任务未完成。',
+        pre: !running ? currentTask?.finalResponse || '' : '',
+        logs: [
+          ...(connectAgentStore.taskLogs || []),
+          currentTask?.taskId ? `taskId: ${currentTask.taskId}` : '',
+          currentTask?.threadId ? `threadId: ${currentTask.threadId}` : '',
+          currentTask?.turnId ? `turnId: ${currentTask.turnId}` : '',
+          ...(currentTask?.changedFiles || []).map(file => `修改文件: ${file}`)
+        ].filter(Boolean),
+        durationStartedAt: connectAgentStore.taskStartedAt,
+        durationFinishedAt: connectAgentStore.taskFinishedAt,
+        durationActive: running,
+        logExpanded: running
       });
     }
 
