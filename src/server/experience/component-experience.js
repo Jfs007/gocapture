@@ -45,6 +45,27 @@ function loadComponentExperiences(project) {
   return records;
 }
 
+function validateComponentExperience(project, record) {
+  const projectFiles = new Set((project?.files || []).map(file => String(file.path || '')));
+  const evidenceFiles = Array.from(new Set([
+    record?.usagePath,
+    ...(Array.isArray(record?.usageFiles) ? record.usageFiles : []),
+  ].filter(Boolean).map(String)));
+  const existingEvidenceFiles = evidenceFiles.filter(file => projectFiles.has(file));
+  return {
+    valid: Boolean(record?.componentPath && String(record?.doc || '').trim() && existingEvidenceFiles.length),
+    evidenceFiles,
+    existingEvidenceFiles,
+  };
+}
+
+function componentExperienceCatalog(project) {
+  return loadComponentExperiences(project).map(record => ({
+    ...record,
+    validation: validateComponentExperience(project, record),
+  }));
+}
+
 function renderDoc(record) {
   if (/^#\s+/m.test(String(record.doc || '').trim())) {
     return record.doc.endsWith('\n') ? record.doc : `${record.doc}\n`;
@@ -91,7 +112,34 @@ function saveComponentExperiences(project, items) {
   return loadComponentExperiences(project);
 }
 
+function updateComponentExperience(project, input = {}) {
+  const componentPath = String(input.componentPath || '').trim();
+  const existing = loadComponentExperiences(project)
+    .find(record => record.componentPath === componentPath);
+  if (!componentPath || !existing) throw new Error('Experience not found.');
+  const usageFiles = Array.isArray(input.usageFiles)
+    ? input.usageFiles.map(String).filter(Boolean)
+    : existing.usageFiles;
+  const next = {
+    ...existing,
+    name: String(input.name ?? existing.name).trim() || existing.name,
+    role: String(input.role ?? existing.role),
+    keywords: Array.isArray(input.keywords) ? input.keywords.map(String).filter(Boolean) : existing.keywords,
+    usagePath: usageFiles[0] || existing.usagePath,
+    usageFiles,
+    doc: typeof input.doc === 'string' ? input.doc.trim() : existing.doc.trim(),
+    files: usageFiles.length,
+  };
+  if (!next.doc) throw new Error('Experience documentation cannot be empty.');
+  saveComponentExperiences(project, [next]);
+  return componentExperienceCatalog(project)
+    .find(record => record.componentPath === componentPath);
+}
+
 module.exports = {
+  componentExperienceCatalog,
   loadComponentExperiences,
   saveComponentExperiences,
+  updateComponentExperience,
+  validateComponentExperience,
 };

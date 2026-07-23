@@ -14,6 +14,7 @@ async function runAgentTask(project, options = {}, deps = {}) {
     configAction: options.configAction || [],
     maxTurns: options.maxTurns,
     middleware: options.middleware,
+    responseFormat: options.responseFormat,
     readOnlyOnly: options.readOnlyOnly,
     threadId: options.threadId,
     onEvent: options.onEvent || (event => {
@@ -33,6 +34,7 @@ async function runAgentTask(project, options = {}, deps = {}) {
     adapter: { id: options.adapter?.id || '', name: options.adapter?.name || 'API 模型', type: 'api' },
     rawText: result.result?.content || '',
     result: result.result,
+    structuredResponse: result.result?.structuredResponse || null,
     recursionLimitHit: Boolean(result.recursionLimitHit),
     logs: [],
   };
@@ -49,6 +51,7 @@ async function runAgentLlmTask(adapter, prompt, project, options = {}) {
     temperature: options.temperature,
     configAction: options.configAction || [],
     maxTurns: options.maxTurns,
+    responseFormat: options.responseFormat,
     onLog: options.onLog,
   });
 }

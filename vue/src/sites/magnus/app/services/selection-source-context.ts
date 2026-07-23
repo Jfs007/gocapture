@@ -10,6 +10,7 @@ export function sourceTargetsFromCandidates(candidates: any[]): SelectionSourceT
     .filter(hit => hit?.file)
     .map(hit => ({
       file: String(hit.file),
+      role: String(hit.role || hit.sourceRole || 'related'),
       // unlocated：本地未能把选区定位到具体源码，绝不用漂移的粗片段（会误导 LLM 到别的列）——
       // 留空，让变更计划 LLM 依据原始选区身份 + 完整文件自己定位。
       codeSnippet: hit.scopeAlignment === 'unlocated'
@@ -47,6 +48,7 @@ export function candidateHitsFromBindings(bindings: BoundSelectionContext[]) {
     snippet: target.codeSnippet || '',
     modelCodeSnippet: target.codeSnippet || '',
     modelDirectionGuess: target.directionGuess || '',
+    role: target.role || 'related',
     modelLocateLevel: target.locateLevel || 'exact',
     scopeAlignment: target.scopeAlignment || '',
     modelSnippetVerified: true,

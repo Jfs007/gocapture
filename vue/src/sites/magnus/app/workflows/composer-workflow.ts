@@ -117,16 +117,16 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       //（那是没有 agent 之前用来从候选里挑文件、读源码发给模型的流程，现已完全冗余）。
       if (data.agent?.enabled && search.candidateHits.value.length) {
         const instruction = composer.promptIntent.value.trim();
-        const topHit = search.candidateHits.value[0];
-        const resolvedConfidently = search.candidateHits.value.length === 1 || !!topHit?.preciseEvidence;
-        if (resolvedConfidently) {
+        const resolvedComposite = data.agent?.status === 'resolved' && !!data.composite?.render;
+        if (resolvedComposite) {
           // DOM Agent 已定位并收敛：不再重复定位，直接进入「变更规划」——
-          // 复用经验系统(跳过重复定位)针对需求产出结构化修改计划。
+          // files 是一个已确认的协作组合，不是需要用户互斥选择的多个答案。
+          search.selectedCandidatePaths.value = search.candidateHits.value.map((hit: any) => hit.file);
           selection.filesConfirmed.value = true;
-          bindResolvedSelectionContext(instruction);
+          bindResolvedSelectionContext(instruction, data);
           await runChangePlanForResolved(instruction);
         }
-        // 多候选且不确定时：保持候选选择器让用户挑，同样不重复调用模型定位。
+        // Agent 未 resolved 时才保留候选选择器，不把协作组合降级成“多个候选待确认”。
         return search.candidateHits.value;
       }
 
@@ -200,7 +200,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     }
   }
 
-  // DOM Agent 定位收敛后的「变更规划」：跳过重复定位，走经验系统(selection-context)产出结构化修改计划。
+  // DOM Agent 定位收敛后启动唯一的 LangChain Planning Agent；Recon/Experience/Skills/MCP 均由 Agent 按需选用。
   async function runChangePlanForResolved(instruction: string) {
     // 模型不可用：退回纯文本提示词，不产出结构化计划。
     if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
@@ -311,7 +311,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     return String(source.project.value?.path || source.project.value?.root || '').trim();
   }
 
-  function bindResolvedSelectionContext(userInstruction: string) {
+  function bindResolvedSelectionContext(userInstruction: string, searchResult: any = null) {
     const ids = selection.referencedSelectionIds(userInstruction);
     if (ids.length !== 1) return;
     const selected = search.selectedCandidateHits.value.length
@@ -324,10 +324,28 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
       projectRoot: root,
       designRequirement: userInstruction,
       targets,
+      investigation: sourceInvestigationFromResult(searchResult),
       originSelections: lastOriginSelections,
       resolvedAt: Date.now()
     } satisfies SelectionSourceBinding);
     search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map(target => target.file).join('、')}`);
+  }
+
+  function sourceInvestigationFromResult(result: any) {
+    const locator = result?.agent?.locator || result?.agent || null;
+    if (!locator || locator.status !== 'resolved') return null;
+    return {
+      status: 'resolved',
+      reason: String(locator.reason || ''),
+      coveredDom: Array.isArray(locator.coveredDom) ? locator.coveredDom.map(String) : [],
+      missingEvidence: Array.isArray(locator.missingEvidence) ? locator.missingEvidence.map(String) : [],
+      relations: (Array.isArray(locator.relations) ? locator.relations : []).map((relation: any) => ({
+        from: String(relation?.from || ''),
+        to: String(relation?.to || ''),
+        type: String(relation?.type || 'related'),
+        evidence: String(relation?.evidence || '')
+      })).filter((relation: any) => relation.from && relation.to)
+    };
   }
 
   async function reuseSelectionSourceContext(userInstruction: string) {

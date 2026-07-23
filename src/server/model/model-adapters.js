@@ -2,7 +2,7 @@
 
 const {
   buildModelPrompt,
-  parseModelJson,
+  modelLocateSchema,
   runModelLocate,
 } = require('./model-locate');
 const {
@@ -11,7 +11,7 @@ const {
 
 module.exports = {
   buildModelPrompt,
-  parseModelJson,
+  modelLocateSchema,
   runModelLocate,
   runSelectionContextEnhancement,
 };

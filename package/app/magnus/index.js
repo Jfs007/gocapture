@@ -8731,9 +8731,9 @@ ${unwrappedProps}
     "aria-label": "Agent 调用链"
   };
   const _hoisted_11$6 = { class: "mda-log-node-body" };
-  const _hoisted_12$6 = ["aria-expanded", "onClick"];
-  const _hoisted_13$6 = { class: "mda-log-node-actor" };
-  const _hoisted_14$6 = { class: "mda-log-node-title" };
+  const _hoisted_12$5 = ["aria-expanded", "onClick"];
+  const _hoisted_13$5 = { class: "mda-log-node-actor" };
+  const _hoisted_14$5 = { class: "mda-log-node-title" };
   const _hoisted_15$5 = {
     key: 1,
     class: "mda-log-node-head"
@@ -8982,14 +8982,14 @@ ${unwrappedProps}
                                   }, [
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_13$6,
+                                      _hoisted_13$5,
                                       toDisplayString(node.actor),
                                       1
                                       /* TEXT */
                                     ),
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_14$6,
+                                      _hoisted_14$5,
                                       toDisplayString(node.title),
                                       1
                                       /* TEXT */
@@ -9003,7 +9003,7 @@ ${unwrappedProps}
                                       2
                                       /* CLASS */
                                     )
-                                  ], 8, _hoisted_12$6)) : (openBlock(), createElementBlock("div", _hoisted_15$5, [
+                                  ], 8, _hoisted_12$5)) : (openBlock(), createElementBlock("div", _hoisted_15$5, [
                                     createBaseVNode(
                                       "span",
                                       _hoisted_16$5,
@@ -9572,15 +9572,15 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-composer-options mda-plan"
   };
   const _hoisted_11$5 = { class: "mda-plan-body" };
-  const _hoisted_12$5 = {
+  const _hoisted_12$4 = {
     key: 0,
     class: "mda-plan-summary"
   };
-  const _hoisted_13$5 = {
+  const _hoisted_13$4 = {
     key: 1,
     class: "mda-plan-block"
   };
-  const _hoisted_14$5 = ["onClick"];
+  const _hoisted_14$4 = ["onClick"];
   const _hoisted_15$4 = {
     key: 0,
     class: "mda-composite-line"
@@ -9624,18 +9624,18 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   };
   const _hoisted_29$1 = { class: "mda-choice-check" };
   const _hoisted_30$1 = ["checked", "onChange"];
-  const _hoisted_31$1 = ["onClick"];
-  const _hoisted_32$1 = {
+  const _hoisted_31 = ["onClick"];
+  const _hoisted_32 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_33$1 = { class: "mda-choice-meta" };
-  const _hoisted_34$1 = ["onClick"];
-  const _hoisted_35$1 = {
+  const _hoisted_33 = { class: "mda-choice-meta" };
+  const _hoisted_34 = ["onClick"];
+  const _hoisted_35 = {
     key: 0,
     class: "mda-candidate-log"
   };
-  const _hoisted_36$1 = {
+  const _hoisted_36 = {
     key: 3,
     class: "mda-composer-options"
   };
@@ -9894,12 +9894,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               createBaseVNode("div", _hoisted_11$5, [
                 changePlan.value.summary ? (openBlock(), createElementBlock(
                   "div",
-                  _hoisted_12$5,
+                  _hoisted_12$4,
                   toDisplayString(changePlan.value.summary),
                   1
                   /* TEXT */
                 )) : createCommentVNode("v-if", true),
-                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$5, [
+                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$4, [
                   _cache[11] || (_cache[11] = createBaseVNode(
                     "div",
                     { class: "mda-plan-block-title" },
@@ -9932,7 +9932,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                             1
                             /* TEXT */
                           )) : createCommentVNode("v-if", true)
-                        ], 8, _hoisted_14$5),
+                        ], 8, _hoisted_14$4),
                         target.anchor ? (openBlock(), createElementBlock(
                           "span",
                           _hoisted_16$4,
@@ -10139,16 +10139,16 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                             ),
                             hit.line ? (openBlock(), createElementBlock(
                               "span",
-                              _hoisted_32$1,
+                              _hoisted_32,
                               ":" + toDisplayString(hit.line),
                               1
                               /* TEXT */
                             )) : createCommentVNode("v-if", true)
-                          ], 8, _hoisted_31$1)
+                          ], 8, _hoisted_31)
                         ]),
                         createBaseVNode(
                           "div",
-                          _hoisted_33$1,
+                          _hoisted_33,
                           toDisplayString(unref(candidateStageLabel)(hit)) + " · " + toDisplayString(hit.score),
                           1
                           /* TEXT */
@@ -10157,10 +10157,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           class: "mda-link-btn",
                           type: "button",
                           onClick: ($event) => unref(commands).toggleCandidateDetail(hit)
-                        }, toDisplayString(expandedCandidatePath.value === hit.file ? "收起" : unref(candidateDetailTitle)(hit)), 9, _hoisted_34$1),
+                        }, toDisplayString(expandedCandidatePath.value === hit.file ? "收起" : unref(candidateDetailTitle)(hit)), 9, _hoisted_34),
                         expandedCandidatePath.value === hit.file ? (openBlock(), createElementBlock(
                           "pre",
-                          _hoisted_35$1,
+                          _hoisted_35,
                           toDisplayString(unref(candidateLogText)(hit)),
                           1
                           /* TEXT */
@@ -10175,7 +10175,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 ))
               ]))
             ])) : createCommentVNode("v-if", true),
-            needsMoreEvidence.value ? (openBlock(), createElementBlock("div", _hoisted_36$1, [..._cache[16] || (_cache[16] = [
+            needsMoreEvidence.value ? (openBlock(), createElementBlock("div", _hoisted_36, [..._cache[16] || (_cache[16] = [
               createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -10709,20 +10709,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         closeMenu();
         commands.openProviderModelEditor("deepseek");
       }
-      function createCustomApiModel() {
-        closeMenu();
-        commands.openModelEditor({
-          id: "",
-          name: "",
-          provider: "custom",
-          type: "api",
-          endpoint: "",
-          apiKey: "",
-          model: "",
-          proxyUrl: "",
-          timeoutMs: 12e4
-        });
-      }
       return (_ctx, _cache) => {
         return openBlock(), createElementBlock(
           "div",
@@ -10843,19 +10829,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   -1
                   /* CACHED */
                 )
-              ])]),
-              createBaseVNode("button", {
-                class: "mda-model-option",
-                type: "button",
-                onClick: createCustomApiModel
-              }, [..._cache[4] || (_cache[4] = [
-                createBaseVNode(
-                  "span",
-                  null,
-                  "新增 API 模型",
-                  -1
-                  /* CACHED */
-                )
               ])])
             ])) : createCommentVNode("v-if", true)
           ],
@@ -10874,14 +10847,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   };
   const _hoisted_5$4 = ["value"];
   const _hoisted_6$4 = ["value"];
-  const _hoisted_7$4 = ["value"];
+  const _hoisted_7$4 = { class: "is-wide" };
   const _hoisted_8$4 = { class: "is-wide" };
-  const _hoisted_9$4 = { key: 1 };
-  const _hoisted_10$4 = { key: 2 };
-  const _hoisted_11$4 = { class: "is-wide" };
-  const _hoisted_12$4 = { class: "mda-model-hint" };
-  const _hoisted_13$4 = { class: "mda-model-actions" };
-  const _hoisted_14$4 = ["disabled"];
+  const _hoisted_9$4 = { class: "mda-model-hint" };
+  const _hoisted_10$4 = { class: "mda-model-actions" };
+  const _hoisted_11$4 = ["disabled"];
   const _sfc_main$6 = {
     __name: "ModelEditorPanel",
     setup(__props) {
@@ -10909,7 +10879,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         });
       });
       const modelTypeHint = computed(() => {
-        return "仅支持 OpenAI Chat Completions 兼容的 API 模型。";
+        return "当前已安装 DeepSeek 模型适配器。";
       });
       function onModelEditorSelect(event) {
         const id = event.target.value || "";
@@ -10922,22 +10892,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         commands.setSelectedModel(id);
         commands.openModelEditor(model);
       }
-      function onModelProviderChange(event) {
-        const provider = event.target.value || "custom";
-        if (provider === "deepseek") {
-          modelForm.value = __spreadProps(__spreadValues({}, modelForm.value), {
-            provider: "deepseek",
-            type: "api",
-            endpoint: "https://api.deepseek.com/chat/completions",
-            model: modelForm.value.model || "deepseek-v4-pro",
-            name: modelForm.value.name || "DeepSeek"
-          });
-          return;
-        }
-        modelForm.value = __spreadProps(__spreadValues({}, modelForm.value), {
-          provider: "custom"
-        });
-      }
       function formatModelType(type) {
         return "API";
       }
@@ -10947,7 +10901,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             key: 0,
             class: "mda-model-modal",
             role: "presentation",
-            onClick: _cache[12] || (_cache[12] = withModifiers((...args) => unref(commands).closeModelEditor && unref(commands).closeModelEditor(...args), ["self"]))
+            onClick: _cache[11] || (_cache[11] = withModifiers((...args) => unref(commands).closeModelEditor && unref(commands).closeModelEditor(...args), ["self"]))
           }, [
             createBaseVNode(
               "section",
@@ -10959,11 +10913,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 "aria-modal": "true",
                 "aria-labelledby": "mda-model-editor-title",
                 tabindex: "-1",
-                onKeydown: _cache[11] || (_cache[11] = withKeys(withModifiers((...args) => unref(commands).closeModelEditor && unref(commands).closeModelEditor(...args), ["prevent", "stop"]), ["esc"]))
+                onKeydown: _cache[10] || (_cache[10] = withKeys(withModifiers((...args) => unref(commands).closeModelEditor && unref(commands).closeModelEditor(...args), ["prevent", "stop"]), ["esc"]))
               },
               [
                 createBaseVNode("div", _hoisted_1$5, [
-                  _cache[13] || (_cache[13] = createBaseVNode(
+                  _cache[12] || (_cache[12] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -10984,7 +10938,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 createBaseVNode("div", _hoisted_2$4, [
                   createBaseVNode("div", _hoisted_3$4, [
                     modelConfigs.value.length ? (openBlock(), createElementBlock("label", _hoisted_4$4, [
-                      _cache[15] || (_cache[15] = createBaseVNode(
+                      _cache[14] || (_cache[14] = createBaseVNode(
                         "span",
                         null,
                         "当前模型",
@@ -10996,7 +10950,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         class: "mda-model-input",
                         onChange: onModelEditorSelect
                       }, [
-                        _cache[14] || (_cache[14] = createBaseVNode(
+                        _cache[13] || (_cache[13] = createBaseVNode(
                           "option",
                           { value: "" },
                           "新增模型",
@@ -11017,37 +10971,22 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         ))
                       ], 40, _hoisted_5$4)
                     ])) : createCommentVNode("v-if", true),
+                    _cache[22] || (_cache[22] = createBaseVNode(
+                      "label",
+                      null,
+                      [
+                        createBaseVNode("span", null, "供应商"),
+                        createBaseVNode("input", {
+                          class: "mda-model-input",
+                          value: "DeepSeek",
+                          disabled: ""
+                        })
+                      ],
+                      -1
+                      /* CACHED */
+                    )),
                     createBaseVNode("label", null, [
-                      _cache[17] || (_cache[17] = createBaseVNode(
-                        "span",
-                        null,
-                        "供应商",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode("select", {
-                        value: modelForm.value.provider || "custom",
-                        class: "mda-model-input",
-                        onChange: onModelProviderChange
-                      }, [..._cache[16] || (_cache[16] = [
-                        createBaseVNode(
-                          "option",
-                          { value: "custom" },
-                          "自定义",
-                          -1
-                          /* CACHED */
-                        ),
-                        createBaseVNode(
-                          "option",
-                          { value: "deepseek" },
-                          "DeepSeek",
-                          -1
-                          /* CACHED */
-                        )
-                      ])], 40, _hoisted_7$4)
-                    ]),
-                    createBaseVNode("label", null, [
-                      _cache[18] || (_cache[18] = createBaseVNode(
+                      _cache[15] || (_cache[15] = createBaseVNode(
                         "span",
                         null,
                         "名称",
@@ -11068,8 +11007,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         [vModelText, modelForm.value.name]
                       ])
                     ]),
-                    createBaseVNode("label", _hoisted_8$4, [
-                      _cache[19] || (_cache[19] = createBaseVNode(
+                    createBaseVNode("label", _hoisted_7$4, [
+                      _cache[16] || (_cache[16] = createBaseVNode(
                         "span",
                         null,
                         "Endpoint",
@@ -11090,8 +11029,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         [vModelText, modelForm.value.endpoint]
                       ])
                     ]),
-                    modelForm.value.provider === "deepseek" ? (openBlock(), createElementBlock("label", _hoisted_9$4, [
-                      _cache[21] || (_cache[21] = createBaseVNode(
+                    createBaseVNode("label", null, [
+                      _cache[18] || (_cache[18] = createBaseVNode(
                         "span",
                         null,
                         "Model",
@@ -11104,7 +11043,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => modelForm.value.model = $event),
                           class: "mda-model-input"
                         },
-                        [..._cache[20] || (_cache[20] = [
+                        [..._cache[17] || (_cache[17] = [
                           createBaseVNode(
                             "option",
                             { value: "deepseek-v4-pro" },
@@ -11125,30 +11064,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       ), [
                         [vModelSelect, modelForm.value.model]
                       ])
-                    ])) : (openBlock(), createElementBlock("label", _hoisted_10$4, [
-                      _cache[22] || (_cache[22] = createBaseVNode(
-                        "span",
-                        null,
-                        "Model",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "input",
-                        {
-                          "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => modelForm.value.model = $event),
-                          class: "mda-model-input",
-                          placeholder: "gpt-4.1"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelText, modelForm.value.model]
-                      ])
-                    ])),
+                    ]),
                     createBaseVNode("label", null, [
-                      _cache[23] || (_cache[23] = createBaseVNode(
+                      _cache[19] || (_cache[19] = createBaseVNode(
                         "span",
                         null,
                         "API Key",
@@ -11158,7 +11076,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => modelForm.value.apiKey = $event),
+                          "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => modelForm.value.apiKey = $event),
                           class: "mda-model-input",
                           type: "password",
                           placeholder: "sk-..."
@@ -11170,8 +11088,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         [vModelText, modelForm.value.apiKey]
                       ])
                     ]),
-                    createBaseVNode("label", _hoisted_11$4, [
-                      _cache[24] || (_cache[24] = createBaseVNode(
+                    createBaseVNode("label", _hoisted_8$4, [
+                      _cache[20] || (_cache[20] = createBaseVNode(
                         "span",
                         null,
                         "代理地址",
@@ -11181,7 +11099,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => modelForm.value.proxyUrl = $event),
+                          "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => modelForm.value.proxyUrl = $event),
                           class: "mda-model-input",
                           placeholder: "http://127.0.0.1:7890，可留空"
                         },
@@ -11193,7 +11111,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       ])
                     ]),
                     createBaseVNode("label", null, [
-                      _cache[25] || (_cache[25] = createBaseVNode(
+                      _cache[21] || (_cache[21] = createBaseVNode(
                         "span",
                         null,
                         "超时 ms",
@@ -11203,7 +11121,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => modelForm.value.timeoutMs = $event),
+                          "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => modelForm.value.timeoutMs = $event),
                           class: "mda-model-input",
                           type: "number",
                           min: "5000",
@@ -11224,29 +11142,29 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   ]),
                   createBaseVNode(
                     "p",
-                    _hoisted_12$4,
+                    _hoisted_9$4,
                     toDisplayString(modelTypeHint.value),
                     1
                     /* TEXT */
                   )
                 ]),
-                createBaseVNode("div", _hoisted_13$4, [
+                createBaseVNode("div", _hoisted_10$4, [
                   selectedModel.value ? (openBlock(), createElementBlock("button", {
                     key: 0,
                     class: "mda-mini-btn mda-model-delete",
                     type: "button",
                     disabled: candidateLoading.value || modelAssistLoading.value,
-                    onClick: _cache[8] || (_cache[8] = (...args) => unref(commands).removeSelectedModel && unref(commands).removeSelectedModel(...args))
-                  }, "删除模型", 8, _hoisted_14$4)) : createCommentVNode("v-if", true),
+                    onClick: _cache[7] || (_cache[7] = (...args) => unref(commands).removeSelectedModel && unref(commands).removeSelectedModel(...args))
+                  }, "删除模型", 8, _hoisted_11$4)) : createCommentVNode("v-if", true),
                   createBaseVNode("button", {
                     class: "mda-mini-btn",
                     type: "button",
-                    onClick: _cache[9] || (_cache[9] = (...args) => unref(commands).closeModelEditor && unref(commands).closeModelEditor(...args))
+                    onClick: _cache[8] || (_cache[8] = (...args) => unref(commands).closeModelEditor && unref(commands).closeModelEditor(...args))
                   }, "取消"),
                   createBaseVNode("button", {
                     class: "mda-btn mda-btn-primary",
                     type: "button",
-                    onClick: _cache[10] || (_cache[10] = (...args) => unref(commands).saveModelForm && unref(commands).saveModelForm(...args))
+                    onClick: _cache[9] || (_cache[9] = (...args) => unref(commands).saveModelForm && unref(commands).saveModelForm(...args))
                   }, "保存模型")
                 ])
               ],
@@ -11293,7 +11211,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260722.190917.059";
+      const buildVersion = "20260723.034110.319";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -13971,40 +13889,30 @@ ${source}` : "",
   function defaultModelForm() {
     return {
       id: "",
-      name: "",
-      provider: "custom",
+      name: "DeepSeek",
+      provider: "deepseek",
       type: "api",
-      endpoint: "",
+      endpoint: "https://api.deepseek.com/chat/completions",
       apiKey: "",
-      model: "",
+      model: "deepseek-v4-pro",
       proxyUrl: "",
       timeoutMs: 12e4
     };
   }
   function providerModelForm(provider) {
-    if (provider === "deepseek") {
-      return __spreadProps(__spreadValues({}, defaultModelForm()), {
-        name: "DeepSeek",
-        provider: "deepseek",
-        type: "api",
-        endpoint: "https://api.deepseek.com/chat/completions",
-        model: "deepseek-v4-pro"
-      });
-    }
     return defaultModelForm();
   }
   function normalizeModel(raw) {
     const item = raw || {};
-    const provider = item.provider === "deepseek" ? "deepseek" : "custom";
-    const defaultName = provider === "deepseek" ? "DeepSeek" : "API 模型";
+    if (item.provider !== "deepseek") return null;
     return {
       id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: item.name || defaultName,
-      provider,
+      name: item.name || "DeepSeek",
+      provider: "deepseek",
       type: "api",
-      endpoint: item.endpoint || (provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : ""),
+      endpoint: item.endpoint || "https://api.deepseek.com/chat/completions",
       apiKey: item.apiKey || "",
-      model: item.model || (provider === "deepseek" ? "deepseek-v4-pro" : ""),
+      model: item.model || "deepseek-v4-pro",
       proxyUrl: item.proxyUrl || "",
       timeoutMs: Number(item.timeoutMs || 12e4)
     };
@@ -14027,7 +13935,7 @@ ${source}` : "",
       definitionTrace
     } = storeToRefs(searchStore);
     const { searchPayload } = prompt;
-    if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel);
+    if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel).filter(Boolean);
     if (!modelStore.selectedModelId) modelStore.selectedModelId = loadText(MODEL_SELECTED_KEY, "");
     modelStore.useModelAssist = !!modelStore.selectedModelId;
     const {
@@ -14073,7 +13981,7 @@ ${source}` : "",
     function hydratePersistedModels() {
       return __async(this, null, function* () {
         const state = yield loadPersistedModelState();
-        const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel);
+        const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel).filter(Boolean);
         const validSelectedId = nextModels.some((item) => item.id === state.selectedId) ? state.selectedId : "";
         modelConfigs.value = nextModels;
         selectedModelId.value = validSelectedId;
@@ -14088,7 +13996,7 @@ ${source}` : "",
       modelEditorOpen.value = true;
     }
     function openProviderModelEditor(provider) {
-      modelForm.value = providerModelForm(provider);
+      modelForm.value = providerModelForm();
       modelEditorOpen.value = true;
     }
     function closeModelEditor() {
@@ -14096,6 +14004,10 @@ ${source}` : "",
     }
     function saveModelForm() {
       const normalized = normalizeModel(modelForm.value);
+      if (!normalized) {
+        appUiStore.setToast("当前模型供应商尚未安装适配器");
+        return;
+      }
       const index = modelConfigs.value.findIndex((item) => item.id === normalized.id);
       if (index === -1) modelConfigs.value.push(normalized);
       else modelConfigs.value.splice(index, 1, normalized);
@@ -14308,13 +14220,14 @@ ${source}` : "",
               pagePath: ((_a2 = routeResolverTrace.value) == null ? void 0 : _a2.pagePath) || "",
               routeResolver: routeResolverTrace.value,
               selectionBindings: selectionBindings.map((item) => {
-                var _a3, _b2, _c2, _d2;
+                var _a3, _b2, _c2, _d2, _e2;
                 return {
                   uid: item.uid,
                   designRequirement: ((_a3 = item.binding) == null ? void 0 : _a3.designRequirement) || "",
                   projectRoot: ((_b2 = item.binding) == null ? void 0 : _b2.projectRoot) || "",
                   targets: Array.isArray((_c2 = item.binding) == null ? void 0 : _c2.targets) ? item.binding.targets : [],
-                  originSelections: Array.isArray((_d2 = item.binding) == null ? void 0 : _d2.originSelections) ? item.binding.originSelections : []
+                  investigation: ((_d2 = item.binding) == null ? void 0 : _d2.investigation) || null,
+                  originSelections: Array.isArray((_e2 = item.binding) == null ? void 0 : _e2.originSelections) ? item.binding.originSelections : []
                 };
               }),
               candidateHits: candidateHits.value.slice(0, 4),
@@ -14734,6 +14647,7 @@ ${result.rawText}` : ""
       var _a2, _b;
       return {
         file: String(hit.file),
+        role: String(hit.role || hit.sourceRole || "related"),
         // unlocated：本地未能把选区定位到具体源码，绝不用漂移的粗片段（会误导 LLM 到别的列）——
         // 留空，让变更计划 LLM 依据原始选区身份 + 完整文件自己定位。
         codeSnippet: hit.scopeAlignment === "unlocated" ? "" : String(
@@ -14764,6 +14678,7 @@ ${result.rawText}` : ""
       snippet: target.codeSnippet || "",
       modelCodeSnippet: target.codeSnippet || "",
       modelDirectionGuess: target.directionGuess || "",
+      role: target.role || "related",
       modelLocateLevel: target.locateLevel || "exact",
       scopeAlignment: target.scopeAlignment || "",
       modelSnippetVerified: true,
@@ -14856,7 +14771,7 @@ ${result.rawText}` : ""
     }
     function searchCandidateFiles() {
       return __async(this, null, function* () {
-        var _a2, _b, _c;
+        var _a2, _b, _c, _d, _e;
         search.candidateLoading.value = true;
         search.candidateError.value = "";
         search.serverNeedsMoreEvidence.value = false;
@@ -14895,18 +14810,18 @@ ${result.rawText}` : ""
           }
           if (((_b = data.agent) == null ? void 0 : _b.enabled) && search.candidateHits.value.length) {
             const instruction = composer.promptIntent.value.trim();
-            const topHit = search.candidateHits.value[0];
-            const resolvedConfidently = search.candidateHits.value.length === 1 || !!(topHit == null ? void 0 : topHit.preciseEvidence);
-            if (resolvedConfidently) {
+            const resolvedComposite = ((_c = data.agent) == null ? void 0 : _c.status) === "resolved" && !!((_d = data.composite) == null ? void 0 : _d.render);
+            if (resolvedComposite) {
+              search.selectedCandidatePaths.value = search.candidateHits.value.map((hit) => hit.file);
               selection.filesConfirmed.value = true;
-              bindResolvedSelectionContext(instruction);
+              bindResolvedSelectionContext(instruction, data);
               yield runChangePlanForResolved(instruction);
             }
             return search.candidateHits.value;
           }
           if (shouldAutoRunModelAssist(search.candidateHits.value)) {
             const modelHandled = yield runModelAssistForCandidates(composer.promptIntent.value.trim());
-            if (modelHandled) return ((_c = model.modelAssistResult.value) == null ? void 0 : _c.stopped) ? [] : search.candidateHits.value;
+            if (modelHandled) return ((_e = model.modelAssistResult.value) == null ? void 0 : _e.stopped) ? [] : search.candidateHits.value;
           }
           return search.candidateHits.value;
         } catch (error) {
@@ -15078,7 +14993,7 @@ ${result.rawText}` : ""
       var _a2, _b;
       return String(((_a2 = source.project.value) == null ? void 0 : _a2.path) || ((_b = source.project.value) == null ? void 0 : _b.root) || "").trim();
     }
-    function bindResolvedSelectionContext(userInstruction) {
+    function bindResolvedSelectionContext(userInstruction, searchResult = null) {
       const ids = selection.referencedSelectionIds(userInstruction);
       if (ids.length !== 1) return;
       const selected = search.selectedCandidateHits.value.length ? search.selectedCandidateHits.value : search.candidateHits.value.slice(0, 1);
@@ -15089,10 +15004,28 @@ ${result.rawText}` : ""
         projectRoot: root,
         designRequirement: userInstruction,
         targets,
+        investigation: sourceInvestigationFromResult(searchResult),
         originSelections: lastOriginSelections,
         resolvedAt: Date.now()
       });
       search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map((target) => target.file).join("、")}`);
+    }
+    function sourceInvestigationFromResult(result) {
+      var _a2;
+      const locator = ((_a2 = result == null ? void 0 : result.agent) == null ? void 0 : _a2.locator) || (result == null ? void 0 : result.agent) || null;
+      if (!locator || locator.status !== "resolved") return null;
+      return {
+        status: "resolved",
+        reason: String(locator.reason || ""),
+        coveredDom: Array.isArray(locator.coveredDom) ? locator.coveredDom.map(String) : [],
+        missingEvidence: Array.isArray(locator.missingEvidence) ? locator.missingEvidence.map(String) : [],
+        relations: (Array.isArray(locator.relations) ? locator.relations : []).map((relation) => ({
+          from: String((relation == null ? void 0 : relation.from) || ""),
+          to: String((relation == null ? void 0 : relation.to) || ""),
+          type: String((relation == null ? void 0 : relation.type) || "related"),
+          evidence: String((relation == null ? void 0 : relation.evidence) || "")
+        })).filter((relation) => relation.from && relation.to)
+      };
     }
     function reuseSelectionSourceContext(userInstruction) {
       return __async(this, null, function* () {
@@ -16020,16 +15953,6 @@ ${result.rawText}` : ""
         return save("/api/experience", payload, "项目经验已保存");
       });
     }
-    function saveSession(payload) {
-      return __async(this, null, function* () {
-        return save("/api/memory/session", payload, "任务会话已保存");
-      });
-    }
-    function removeSession(id) {
-      return __async(this, null, function* () {
-        return save("/api/memory/session/remove", { id }, "任务会话已清除");
-      });
-    }
     function save(pathname, payload, successMessage) {
       return __async(this, null, function* () {
         var _a2;
@@ -16070,9 +15993,7 @@ ${result.rawText}` : ""
       openPanel,
       closePanel,
       load,
-      saveExperience,
-      saveSession,
-      removeSession
+      saveExperience
     };
   });
   const _hoisted_1$1 = {
@@ -16111,67 +16032,43 @@ ${result.rawText}` : ""
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_12 = { class: "mda-memory-field" };
-  const _hoisted_13 = ["value"];
-  const _hoisted_14 = {
-    key: 0,
-    class: "mda-memory-form"
-  };
-  const _hoisted_15 = { class: "mda-memory-field" };
-  const _hoisted_16 = { class: "mda-memory-field" };
-  const _hoisted_17 = { class: "mda-memory-field" };
-  const _hoisted_18 = { class: "mda-memory-field" };
-  const _hoisted_19 = { class: "mda-memory-field" };
-  const _hoisted_20 = { class: "mda-memory-field" };
-  const _hoisted_21 = { class: "mda-memory-actions" };
-  const _hoisted_22 = ["disabled"];
-  const _hoisted_23 = ["disabled"];
-  const _hoisted_24 = {
-    key: 0,
-    class: "mda-memory-empty"
-  };
-  const _hoisted_25 = {
+  const _hoisted_12 = {
     key: 1,
     class: "mda-settings-assets"
   };
-  const _hoisted_26 = {
+  const _hoisted_13 = {
     key: 1,
     class: "mda-settings-asset-thumb is-empty"
   };
-  const _hoisted_27 = { class: "mda-settings-asset-main" };
+  const _hoisted_14 = { class: "mda-settings-asset-main" };
+  const _hoisted_15 = {
+    key: 0,
+    class: "mda-memory-empty"
+  };
+  const _hoisted_16 = { class: "mda-memory-field" };
+  const _hoisted_17 = ["value"];
+  const _hoisted_18 = {
+    key: 0,
+    class: "mda-memory-form"
+  };
+  const _hoisted_19 = { class: "mda-memory-field" };
+  const _hoisted_20 = { class: "mda-memory-field" };
+  const _hoisted_21 = ["value"];
+  const _hoisted_22 = { class: "mda-memory-field" };
+  const _hoisted_23 = { class: "mda-memory-field" };
+  const _hoisted_24 = { class: "mda-memory-field" };
+  const _hoisted_25 = { class: "mda-memory-field" };
+  const _hoisted_26 = { class: "mda-memory-actions" };
+  const _hoisted_27 = ["disabled"];
   const _hoisted_28 = {
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_29 = { class: "mda-memory-field" };
-  const _hoisted_30 = ["value"];
-  const _hoisted_31 = {
-    key: 0,
-    class: "mda-memory-form"
-  };
-  const _hoisted_32 = { class: "mda-memory-field" };
-  const _hoisted_33 = { class: "mda-memory-row" };
-  const _hoisted_34 = { class: "mda-memory-field" };
-  const _hoisted_35 = { class: "mda-memory-field" };
-  const _hoisted_36 = { class: "mda-memory-field" };
-  const _hoisted_37 = { class: "mda-memory-field" };
-  const _hoisted_38 = { class: "mda-memory-field" };
-  const _hoisted_39 = { class: "mda-memory-field" };
-  const _hoisted_40 = { class: "mda-memory-advanced" };
-  const _hoisted_41 = { class: "mda-memory-field" };
-  const _hoisted_42 = { class: "mda-memory-field" };
-  const _hoisted_43 = { class: "mda-memory-field" };
-  const _hoisted_44 = { class: "mda-memory-actions" };
-  const _hoisted_45 = ["disabled"];
-  const _hoisted_46 = {
-    key: 0,
-    class: "mda-memory-empty"
-  };
-  const _hoisted_47 = {
+  const _hoisted_29 = {
     key: 1,
     class: "mda-memory-form"
   };
-  const _hoisted_48 = { class: "mda-memory-project-doc" };
+  const _hoisted_30 = { class: "mda-memory-project-doc" };
   const _sfc_main$2 = /* @__PURE__ */ defineComponent({
     __name: "MemorySettingsPanel",
     props: {
@@ -16183,32 +16080,14 @@ ${result.rawText}` : ""
       const memory = useMemoryStore();
       const appUi = useAppUiStore();
       const selectionStore = useSelectionStore();
-      const tab = /* @__PURE__ */ ref("sessions");
-      const sessionId = /* @__PURE__ */ ref("");
+      const tab = /* @__PURE__ */ ref("experiences");
       const experienceId = /* @__PURE__ */ ref("");
-      const sessionDraft = /* @__PURE__ */ reactive({
-        requirements: "",
-        targetFiles: "",
-        confirmedExperienceIds: "",
-        confirmedFacts: "",
-        assumptions: "",
-        lastEnhancedPrompt: ""
-      });
       const experienceDraft = /* @__PURE__ */ reactive({
         name: "",
-        status: "needs-verification",
-        confidence: "medium",
-        triggerTags: "",
-        applicableWhen: "",
-        notApplicableWhen: "",
-        context: "",
-        recipes: "[]",
-        sourceContracts: "[]",
-        verificationChecklist: "[]"
-      });
-      const sessions = computed(() => {
-        var _a2;
-        return ((_a2 = memory.snapshot) == null ? void 0 : _a2.taskSessions) || [];
+        role: "",
+        keywords: "",
+        usageFiles: "",
+        doc: ""
       });
       const experiences = computed(() => {
         var _a2;
@@ -16219,11 +16098,7 @@ ${result.rawText}` : ""
       const resourceProviders = computed(() => memory.resourceProviders || []);
       const resources = computed(() => memory.resources || []);
       const selectionAssets = computed(() => selectionStore.promptAssets || []);
-      const activeSession = computed(() => sessions.value.find((item) => item.id === sessionId.value) || null);
-      const activeExperience = computed(() => experiences.value.find((item) => {
-        var _a2;
-        return ((_a2 = item.meta) == null ? void 0 : _a2.id) === experienceId.value;
-      }) || null);
+      const activeExperience = computed(() => experiences.value.find((item) => item.componentPath === experienceId.value) || null);
       const projectLabel = computed(() => {
         var _a2, _b;
         return ((_b = (_a2 = memory.snapshot) == null ? void 0 : _a2.project) == null ? void 0 : _b.name) || "当前源码项目";
@@ -16231,45 +16106,22 @@ ${result.rawText}` : ""
       const isPage = computed(() => props.mode === "page");
       const visible = computed(() => isPage.value || memory.open);
       const activeTitle = computed(() => {
-        if (tab.value === "sessions") return "任务记忆";
         if (tab.value === "assets") return "选区资产";
         if (tab.value === "experiences") return "Experience";
         if (tab.value === "tools") return "Tools / Resources";
         return "项目摘要";
       });
-      watch(sessions, (value) => {
-        var _a2;
-        if (!value.some((item) => item.id === sessionId.value)) sessionId.value = ((_a2 = value[0]) == null ? void 0 : _a2.id) || "";
-      }, { immediate: true });
       watch(experiences, (value) => {
-        var _a2, _b;
-        if (!value.some((item) => {
-          var _a3;
-          return ((_a3 = item.meta) == null ? void 0 : _a3.id) === experienceId.value;
-        })) experienceId.value = ((_b = (_a2 = value[0]) == null ? void 0 : _a2.meta) == null ? void 0 : _b.id) || "";
-      }, { immediate: true });
-      watch(activeSession, (session) => {
-        if (!session) return;
-        sessionDraft.requirements = toLines(session.requirements);
-        sessionDraft.targetFiles = toLines(session.targetFiles);
-        sessionDraft.confirmedExperienceIds = toLines(session.confirmedExperienceIds);
-        sessionDraft.confirmedFacts = toLines(session.confirmedFacts);
-        sessionDraft.assumptions = toLines(session.assumptions);
-        sessionDraft.lastEnhancedPrompt = session.lastEnhancedPrompt || "";
+        var _a2;
+        if (!value.some((item) => item.componentPath === experienceId.value)) experienceId.value = ((_a2 = value[0]) == null ? void 0 : _a2.componentPath) || "";
       }, { immediate: true });
       watch(activeExperience, (experience) => {
-        var _a2, _b, _c, _d, _e, _f;
         if (!experience) return;
-        experienceDraft.name = ((_a2 = experience.meta) == null ? void 0 : _a2.name) || "";
-        experienceDraft.status = ((_b = experience.meta) == null ? void 0 : _b.status) || "needs-verification";
-        experienceDraft.confidence = ((_c = experience.meta) == null ? void 0 : _c.confidence) || "medium";
-        experienceDraft.triggerTags = toLines((_d = experience.meta) == null ? void 0 : _d.triggerTags);
-        experienceDraft.applicableWhen = toLines((_e = experience.meta) == null ? void 0 : _e.applicableWhen);
-        experienceDraft.notApplicableWhen = toLines((_f = experience.meta) == null ? void 0 : _f.notApplicableWhen);
-        experienceDraft.context = experience.context || "";
-        experienceDraft.recipes = formatJson(experience.recipes);
-        experienceDraft.sourceContracts = formatJson(experience.sourceContracts);
-        experienceDraft.verificationChecklist = formatJson(experience.verificationChecklist);
+        experienceDraft.name = experience.name || "";
+        experienceDraft.role = experience.role || "";
+        experienceDraft.keywords = toLines(experience.keywords);
+        experienceDraft.usageFiles = toLines(experience.usageFiles);
+        experienceDraft.doc = experience.doc || "";
       }, { immediate: true });
       function toLines(value) {
         return Array.isArray(value) ? value.join("\n") : "";
@@ -16277,61 +16129,19 @@ ${result.rawText}` : ""
       function fromLines(value) {
         return value.split("\n").map((item) => item.trim()).filter(Boolean);
       }
-      function formatJson(value) {
-        return JSON.stringify(Array.isArray(value) ? value : [], null, 2);
-      }
-      function parseJsonArray(value, label) {
-        const parsed = JSON.parse(value || "[]");
-        if (!Array.isArray(parsed)) throw new Error(`${label} 必须是 JSON 数组`);
-        return parsed;
-      }
-      function saveSession() {
-        return __async(this, null, function* () {
-          if (!activeSession.value) return;
-          const ok = yield memory.saveSession({
-            id: activeSession.value.id,
-            requirements: fromLines(sessionDraft.requirements),
-            targetFiles: fromLines(sessionDraft.targetFiles),
-            confirmedExperienceIds: fromLines(sessionDraft.confirmedExperienceIds),
-            confirmedFacts: fromLines(sessionDraft.confirmedFacts),
-            assumptions: fromLines(sessionDraft.assumptions),
-            lastEnhancedPrompt: sessionDraft.lastEnhancedPrompt
-          });
-          if (ok) appUi.setToast("任务会话已保存");
-        });
-      }
-      function removeSession() {
-        return __async(this, null, function* () {
-          if (!activeSession.value) return;
-          const ok = yield memory.removeSession(activeSession.value.id);
-          if (ok) appUi.setToast("任务会话已清除");
-        });
-      }
       function saveExperience() {
         return __async(this, null, function* () {
           if (!activeExperience.value) return;
-          try {
-            const ok = yield memory.saveExperience({
-              id: activeExperience.value.meta.id,
-              name: experienceDraft.name,
-              status: experienceDraft.status,
-              confidence: experienceDraft.confidence,
-              triggerTags: fromLines(experienceDraft.triggerTags),
-              applicableWhen: fromLines(experienceDraft.applicableWhen),
-              notApplicableWhen: fromLines(experienceDraft.notApplicableWhen),
-              context: experienceDraft.context,
-              recipes: parseJsonArray(experienceDraft.recipes, "Recipes"),
-              sourceContracts: parseJsonArray(experienceDraft.sourceContracts, "Source contracts"),
-              verificationChecklist: parseJsonArray(experienceDraft.verificationChecklist, "Checklist")
-            });
-            if (ok) appUi.setToast("Experience 已保存");
-          } catch (cause) {
-            memory.error = (cause == null ? void 0 : cause.message) || "结构化约束格式错误";
-          }
+          const ok = yield memory.saveExperience({
+            componentPath: activeExperience.value.componentPath,
+            name: experienceDraft.name,
+            role: experienceDraft.role,
+            keywords: fromLines(experienceDraft.keywords),
+            usageFiles: fromLines(experienceDraft.usageFiles),
+            doc: experienceDraft.doc
+          });
+          if (ok) appUi.setToast("Experience 已保存");
         });
-      }
-      function formatTime(value) {
-        return value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
       }
       function assetThumbStyle(asset) {
         return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
@@ -16350,7 +16160,7 @@ ${result.rawText}` : ""
           [
             !isPage.value ? (openBlock(), createElementBlock("header", _hoisted_1$1, [
               createBaseVNode("div", null, [
-                _cache[31] || (_cache[31] = createBaseVNode(
+                _cache[17] || (_cache[17] = createBaseVNode(
                   "strong",
                   null,
                   "记忆设置",
@@ -16385,7 +16195,7 @@ ${result.rawText}` : ""
                     name: "back",
                     size: 16
                   }),
-                  _cache[32] || (_cache[32] = createBaseVNode(
+                  _cache[18] || (_cache[18] = createBaseVNode(
                     "span",
                     null,
                     "返回 Magnus",
@@ -16398,7 +16208,7 @@ ${result.rawText}` : ""
                     name: "search",
                     size: 17
                   }),
-                  _cache[33] || (_cache[33] = createBaseVNode(
+                  _cache[19] || (_cache[19] = createBaseVNode(
                     "input",
                     {
                       type: "text",
@@ -16410,7 +16220,7 @@ ${result.rawText}` : ""
                     /* CACHED */
                   ))
                 ]),
-                _cache[39] || (_cache[39] = createBaseVNode(
+                _cache[24] || (_cache[24] = createBaseVNode(
                   "div",
                   { class: "mda-settings-group-label" },
                   "项目",
@@ -16420,37 +16230,16 @@ ${result.rawText}` : ""
                 createBaseVNode(
                   "button",
                   {
-                    class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "sessions" }]),
-                    type: "button",
-                    onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "sessions")
-                  },
-                  [
-                    createVNode(_sfc_main$c, {
-                      name: "albums",
-                      size: 17
-                    }),
-                    _cache[34] || (_cache[34] = createTextVNode(
-                      "任务记忆 ",
-                      -1
-                      /* CACHED */
-                    ))
-                  ],
-                  2
-                  /* CLASS */
-                ),
-                createBaseVNode(
-                  "button",
-                  {
                     class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "assets" }]),
                     type: "button",
-                    onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "assets")
+                    onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "assets")
                   },
                   [
                     createVNode(_sfc_main$c, {
                       name: "images",
                       size: 17
                     }),
-                    _cache[35] || (_cache[35] = createTextVNode(
+                    _cache[20] || (_cache[20] = createTextVNode(
                       "选区资产 ",
                       -1
                       /* CACHED */
@@ -16464,14 +16253,14 @@ ${result.rawText}` : ""
                   {
                     class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "experiences" }]),
                     type: "button",
-                    onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "experiences")
+                    onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "experiences")
                   },
                   [
                     createVNode(_sfc_main$c, {
                       name: "book",
                       size: 17
                     }),
-                    _cache[36] || (_cache[36] = createTextVNode(
+                    _cache[21] || (_cache[21] = createTextVNode(
                       "Experience ",
                       -1
                       /* CACHED */
@@ -16485,14 +16274,14 @@ ${result.rawText}` : ""
                   {
                     class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "project" }]),
                     type: "button",
-                    onClick: _cache[5] || (_cache[5] = ($event) => tab.value = "project")
+                    onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "project")
                   },
                   [
                     createVNode(_sfc_main$c, {
                       name: "folder",
                       size: 17
                     }),
-                    _cache[37] || (_cache[37] = createTextVNode(
+                    _cache[22] || (_cache[22] = createTextVNode(
                       "项目摘要 ",
                       -1
                       /* CACHED */
@@ -16501,7 +16290,7 @@ ${result.rawText}` : ""
                   2
                   /* CLASS */
                 ),
-                _cache[40] || (_cache[40] = createBaseVNode(
+                _cache[25] || (_cache[25] = createBaseVNode(
                   "div",
                   { class: "mda-settings-group-label" },
                   "扩展",
@@ -16513,14 +16302,14 @@ ${result.rawText}` : ""
                   {
                     class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "tools" }]),
                     type: "button",
-                    onClick: _cache[6] || (_cache[6] = ($event) => tab.value = "tools")
+                    onClick: _cache[5] || (_cache[5] = ($event) => tab.value = "tools")
                   },
                   [
                     createVNode(_sfc_main$c, {
                       name: "construct",
                       size: 17
                     }),
-                    _cache[38] || (_cache[38] = createTextVNode(
+                    _cache[23] || (_cache[23] = createTextVNode(
                       "Tools / Resources ",
                       -1
                       /* CACHED */
@@ -16533,7 +16322,7 @@ ${result.rawText}` : ""
               createBaseVNode("main", _hoisted_5, [
                 isPage.value ? (openBlock(), createElementBlock("header", _hoisted_6, [
                   createBaseVNode("div", null, [
-                    _cache[41] || (_cache[41] = createBaseVNode(
+                    _cache[26] || (_cache[26] = createBaseVNode(
                       "span",
                       null,
                       "Magnus 设置",
@@ -16558,7 +16347,7 @@ ${result.rawText}` : ""
                   createBaseVNode("button", {
                     class: "mda-settings-primary",
                     type: "button",
-                    onClick: _cache[7] || (_cache[7] = ($event) => _ctx.$emit("select-project"))
+                    onClick: _cache[6] || (_cache[6] = ($event) => _ctx.$emit("select-project"))
                   }, "选择源码")
                 ])) : createCommentVNode("v-if", true),
                 !isPage.value ? (openBlock(), createElementBlock("nav", _hoisted_7, [
@@ -16566,19 +16355,8 @@ ${result.rawText}` : ""
                     "button",
                     {
                       type: "button",
-                      class: normalizeClass({ "is-active": tab.value === "sessions" }),
-                      onClick: _cache[8] || (_cache[8] = ($event) => tab.value = "sessions")
-                    },
-                    "任务会话",
-                    2
-                    /* CLASS */
-                  ),
-                  createBaseVNode(
-                    "button",
-                    {
-                      type: "button",
                       class: normalizeClass({ "is-active": tab.value === "experiences" }),
-                      onClick: _cache[9] || (_cache[9] = ($event) => tab.value = "experiences")
+                      onClick: _cache[7] || (_cache[7] = ($event) => tab.value = "experiences")
                     },
                     "Experience",
                     2
@@ -16589,7 +16367,7 @@ ${result.rawText}` : ""
                     {
                       type: "button",
                       class: normalizeClass({ "is-active": tab.value === "tools" }),
-                      onClick: _cache[10] || (_cache[10] = ($event) => tab.value = "tools")
+                      onClick: _cache[8] || (_cache[8] = ($event) => tab.value = "tools")
                     },
                     "Tools",
                     2
@@ -16600,7 +16378,7 @@ ${result.rawText}` : ""
                     {
                       type: "button",
                       class: normalizeClass({ "is-active": tab.value === "project" }),
-                      onClick: _cache[11] || (_cache[11] = ($event) => tab.value = "project")
+                      onClick: _cache[9] || (_cache[9] = ($event) => tab.value = "project")
                     },
                     "项目摘要",
                     2
@@ -16617,7 +16395,7 @@ ${result.rawText}` : ""
                   ),
                   createBaseVNode("button", {
                     type: "button",
-                    onClick: _cache[12] || (_cache[12] = //@ts-ignore
+                    onClick: _cache[10] || (_cache[10] = //@ts-ignore
                     (...args) => unref(memory).load && unref(memory).load(...args))
                   }, "重试")
                 ])) : (openBlock(), createElementBlock("section", _hoisted_10, [
@@ -16631,217 +16409,11 @@ ${result.rawText}` : ""
                     3
                     /* TEXT, CLASS */
                   )) : createCommentVNode("v-if", true),
-                  tab.value === "sessions" ? (openBlock(), createElementBlock(
+                  tab.value === "assets" ? (openBlock(), createElementBlock(
                     Fragment,
                     { key: 1 },
                     [
-                      !sessions.value.length ? (openBlock(), createElementBlock("div", _hoisted_11, "当前项目暂无活跃任务会话。")) : (openBlock(), createElementBlock(
-                        Fragment,
-                        { key: 1 },
-                        [
-                          createBaseVNode("label", _hoisted_12, [
-                            _cache[42] || (_cache[42] = createBaseVNode(
-                              "span",
-                              null,
-                              "页面会话",
-                              -1
-                              /* CACHED */
-                            )),
-                            withDirectives(createBaseVNode(
-                              "select",
-                              {
-                                "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => sessionId.value = $event)
-                              },
-                              [
-                                (openBlock(true), createElementBlock(
-                                  Fragment,
-                                  null,
-                                  renderList(sessions.value, (session) => {
-                                    return openBlock(), createElementBlock("option", {
-                                      key: session.id,
-                                      value: session.id
-                                    }, toDisplayString(session.pageKey) + " · " + toDisplayString(formatTime(session.updatedAt)), 9, _hoisted_13);
-                                  }),
-                                  128
-                                  /* KEYED_FRAGMENT */
-                                ))
-                              ],
-                              512
-                              /* NEED_PATCH */
-                            ), [
-                              [vModelSelect, sessionId.value]
-                            ])
-                          ]),
-                          activeSession.value ? (openBlock(), createElementBlock("div", _hoisted_14, [
-                            createBaseVNode("label", _hoisted_15, [
-                              _cache[43] || (_cache[43] = createBaseVNode(
-                                "span",
-                                null,
-                                [
-                                  createTextVNode("累计需求 "),
-                                  createBaseVNode("small", null, "每行一条")
-                                ],
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => sessionDraft.requirements = $event),
-                                  rows: "5"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, sessionDraft.requirements]
-                              ])
-                            ]),
-                            createBaseVNode("label", _hoisted_16, [
-                              _cache[44] || (_cache[44] = createBaseVNode(
-                                "span",
-                                null,
-                                [
-                                  createTextVNode("目标文件 "),
-                                  createBaseVNode("small", null, "每行一个")
-                                ],
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => sessionDraft.targetFiles = $event),
-                                  rows: "3"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, sessionDraft.targetFiles]
-                              ])
-                            ]),
-                            createBaseVNode("label", _hoisted_17, [
-                              _cache[45] || (_cache[45] = createBaseVNode(
-                                "span",
-                                null,
-                                [
-                                  createTextVNode("已确认 Experience "),
-                                  createBaseVNode("small", null, "每行一个 Experience ID")
-                                ],
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => sessionDraft.confirmedExperienceIds = $event),
-                                  rows: "3"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, sessionDraft.confirmedExperienceIds]
-                              ])
-                            ]),
-                            createBaseVNode("label", _hoisted_18, [
-                              _cache[46] || (_cache[46] = createBaseVNode(
-                                "span",
-                                null,
-                                [
-                                  createTextVNode("已确认事实 "),
-                                  createBaseVNode("small", null, "每行一条")
-                                ],
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => sessionDraft.confirmedFacts = $event),
-                                  rows: "4"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, sessionDraft.confirmedFacts]
-                              ])
-                            ]),
-                            createBaseVNode("label", _hoisted_19, [
-                              _cache[47] || (_cache[47] = createBaseVNode(
-                                "span",
-                                null,
-                                [
-                                  createTextVNode("待确认假设 "),
-                                  createBaseVNode("small", null, "每行一条")
-                                ],
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => sessionDraft.assumptions = $event),
-                                  rows: "4"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, sessionDraft.assumptions]
-                              ])
-                            ]),
-                            createBaseVNode("label", _hoisted_20, [
-                              _cache[48] || (_cache[48] = createBaseVNode(
-                                "span",
-                                null,
-                                "上一版增强提示词",
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => sessionDraft.lastEnhancedPrompt = $event),
-                                  rows: "10",
-                                  class: "is-code"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, sessionDraft.lastEnhancedPrompt]
-                              ])
-                            ]),
-                            createBaseVNode("div", _hoisted_21, [
-                              createBaseVNode("button", {
-                                class: "is-danger",
-                                type: "button",
-                                disabled: unref(memory).saving,
-                                onClick: removeSession
-                              }, "清除此会话", 8, _hoisted_22),
-                              createBaseVNode("button", {
-                                class: "is-primary",
-                                type: "button",
-                                disabled: unref(memory).saving,
-                                onClick: saveSession
-                              }, toDisplayString(unref(memory).saving ? "保存中..." : "保存会话"), 9, _hoisted_23)
-                            ])
-                          ])) : createCommentVNode("v-if", true)
-                        ],
-                        64
-                        /* STABLE_FRAGMENT */
-                      ))
-                    ],
-                    64
-                    /* STABLE_FRAGMENT */
-                  )) : tab.value === "assets" ? (openBlock(), createElementBlock(
-                    Fragment,
-                    { key: 2 },
-                    [
-                      !selectionAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_24, "当前页面暂无选区资产。")) : (openBlock(), createElementBlock("div", _hoisted_25, [
+                      !selectionAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_11, "当前页面暂无选区资产。")) : (openBlock(), createElementBlock("div", _hoisted_12, [
                         (openBlock(true), createElementBlock(
                           Fragment,
                           null,
@@ -16862,12 +16434,12 @@ ${result.rawText}` : ""
                                 /* STYLE */
                               )) : (openBlock(), createElementBlock(
                                 "div",
-                                _hoisted_26,
+                                _hoisted_13,
                                 toDisplayString(asset.index),
                                 1
                                 /* TEXT */
                               )),
-                              createBaseVNode("div", _hoisted_27, [
+                              createBaseVNode("div", _hoisted_14, [
                                 createBaseVNode(
                                   "strong",
                                   null,
@@ -16901,14 +16473,14 @@ ${result.rawText}` : ""
                     /* STABLE_FRAGMENT */
                   )) : tab.value === "experiences" ? (openBlock(), createElementBlock(
                     Fragment,
-                    { key: 3 },
+                    { key: 2 },
                     [
-                      !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_28, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
+                      !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_15, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
                         Fragment,
                         { key: 1 },
                         [
-                          createBaseVNode("label", _hoisted_29, [
-                            _cache[49] || (_cache[49] = createBaseVNode(
+                          createBaseVNode("label", _hoisted_16, [
+                            _cache[27] || (_cache[27] = createBaseVNode(
                               "span",
                               null,
                               "Experience",
@@ -16918,17 +16490,18 @@ ${result.rawText}` : ""
                             withDirectives(createBaseVNode(
                               "select",
                               {
-                                "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => experienceId.value = $event)
+                                "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => experienceId.value = $event)
                               },
                               [
                                 (openBlock(true), createElementBlock(
                                   Fragment,
                                   null,
                                   renderList(experiences.value, (experience) => {
+                                    var _a3;
                                     return openBlock(), createElementBlock("option", {
-                                      key: experience.meta.id,
-                                      value: experience.meta.id
-                                    }, toDisplayString(experience.meta.name) + " · " + toDisplayString(experience.meta.status), 9, _hoisted_30);
+                                      key: experience.componentPath,
+                                      value: experience.componentPath
+                                    }, toDisplayString(experience.name) + " · " + toDisplayString(((_a3 = experience.validation) == null ? void 0 : _a3.valid) ? "有效" : "已失效"), 9, _hoisted_17);
                                   }),
                                   128
                                   /* KEYED_FRAGMENT */
@@ -16940,9 +16513,9 @@ ${result.rawText}` : ""
                               [vModelSelect, experienceId.value]
                             ])
                           ]),
-                          activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_31, [
-                            createBaseVNode("label", _hoisted_32, [
-                              _cache[50] || (_cache[50] = createBaseVNode(
+                          activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_18, [
+                            createBaseVNode("label", _hoisted_19, [
+                              _cache[28] || (_cache[28] = createBaseVNode(
                                 "span",
                                 null,
                                 "名称",
@@ -16952,7 +16525,7 @@ ${result.rawText}` : ""
                               withDirectives(createBaseVNode(
                                 "input",
                                 {
-                                  "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => experienceDraft.name = $event),
+                                  "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => experienceDraft.name = $event),
                                   type: "text"
                                 },
                                 null,
@@ -16962,98 +16535,47 @@ ${result.rawText}` : ""
                                 [vModelText, experienceDraft.name]
                               ])
                             ]),
-                            createBaseVNode("div", _hoisted_33, [
-                              createBaseVNode("label", _hoisted_34, [
-                                _cache[52] || (_cache[52] = createBaseVNode(
-                                  "span",
-                                  null,
-                                  "状态",
-                                  -1
-                                  /* CACHED */
-                                )),
-                                withDirectives(createBaseVNode(
-                                  "select",
-                                  {
-                                    "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => experienceDraft.status = $event)
-                                  },
-                                  [..._cache[51] || (_cache[51] = [
-                                    createBaseVNode(
-                                      "option",
-                                      { value: "active" },
-                                      "active",
-                                      -1
-                                      /* CACHED */
-                                    ),
-                                    createBaseVNode(
-                                      "option",
-                                      { value: "needs-verification" },
-                                      "needs-verification",
-                                      -1
-                                      /* CACHED */
-                                    ),
-                                    createBaseVNode(
-                                      "option",
-                                      { value: "stale" },
-                                      "stale",
-                                      -1
-                                      /* CACHED */
-                                    )
-                                  ])],
-                                  512
-                                  /* NEED_PATCH */
-                                ), [
-                                  [vModelSelect, experienceDraft.status]
-                                ])
-                              ]),
-                              createBaseVNode("label", _hoisted_35, [
-                                _cache[54] || (_cache[54] = createBaseVNode(
-                                  "span",
-                                  null,
-                                  "置信度",
-                                  -1
-                                  /* CACHED */
-                                )),
-                                withDirectives(createBaseVNode(
-                                  "select",
-                                  {
-                                    "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => experienceDraft.confidence = $event)
-                                  },
-                                  [..._cache[53] || (_cache[53] = [
-                                    createBaseVNode(
-                                      "option",
-                                      { value: "high" },
-                                      "high",
-                                      -1
-                                      /* CACHED */
-                                    ),
-                                    createBaseVNode(
-                                      "option",
-                                      { value: "medium" },
-                                      "medium",
-                                      -1
-                                      /* CACHED */
-                                    ),
-                                    createBaseVNode(
-                                      "option",
-                                      { value: "low" },
-                                      "low",
-                                      -1
-                                      /* CACHED */
-                                    )
-                                  ])],
-                                  512
-                                  /* NEED_PATCH */
-                                ), [
-                                  [vModelSelect, experienceDraft.confidence]
-                                ])
+                            createBaseVNode("label", _hoisted_20, [
+                              _cache[29] || (_cache[29] = createBaseVNode(
+                                "span",
+                                null,
+                                "公共能力路径",
+                                -1
+                                /* CACHED */
+                              )),
+                              createBaseVNode("input", {
+                                value: activeExperience.value.componentPath,
+                                type: "text",
+                                disabled: ""
+                              }, null, 8, _hoisted_21)
+                            ]),
+                            createBaseVNode("label", _hoisted_22, [
+                              _cache[30] || (_cache[30] = createBaseVNode(
+                                "span",
+                                null,
+                                "角色",
+                                -1
+                                /* CACHED */
+                              )),
+                              withDirectives(createBaseVNode(
+                                "input",
+                                {
+                                  "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => experienceDraft.role = $event),
+                                  type: "text"
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [vModelText, experienceDraft.role]
                               ])
                             ]),
-                            createBaseVNode("label", _hoisted_36, [
-                              _cache[55] || (_cache[55] = createBaseVNode(
+                            createBaseVNode("label", _hoisted_23, [
+                              _cache[31] || (_cache[31] = createBaseVNode(
                                 "span",
                                 null,
                                 [
-                                  createTextVNode("触发标签 "),
+                                  createTextVNode("检索关键词 "),
                                   createBaseVNode("small", null, "每行一个")
                                 ],
                                 -1
@@ -17062,23 +16584,23 @@ ${result.rawText}` : ""
                               withDirectives(createBaseVNode(
                                 "textarea",
                                 {
-                                  "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => experienceDraft.triggerTags = $event),
-                                  rows: "3"
+                                  "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => experienceDraft.keywords = $event),
+                                  rows: "4"
                                 },
                                 null,
                                 512
                                 /* NEED_PATCH */
                               ), [
-                                [vModelText, experienceDraft.triggerTags]
+                                [vModelText, experienceDraft.keywords]
                               ])
                             ]),
-                            createBaseVNode("label", _hoisted_37, [
-                              _cache[56] || (_cache[56] = createBaseVNode(
+                            createBaseVNode("label", _hoisted_24, [
+                              _cache[32] || (_cache[32] = createBaseVNode(
                                 "span",
                                 null,
                                 [
-                                  createTextVNode("适用条件 "),
-                                  createBaseVNode("small", null, "每行一条")
+                                  createTextVNode("证据文件 "),
+                                  createBaseVNode("small", null, "每行一个；文件不存在时经验自动失效")
                                 ],
                                 -1
                                 /* CACHED */
@@ -17086,46 +16608,23 @@ ${result.rawText}` : ""
                               withDirectives(createBaseVNode(
                                 "textarea",
                                 {
-                                  "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => experienceDraft.applicableWhen = $event),
-                                  rows: "4"
+                                  "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => experienceDraft.usageFiles = $event),
+                                  rows: "5",
+                                  class: "is-code"
                                 },
                                 null,
                                 512
                                 /* NEED_PATCH */
                               ), [
-                                [vModelText, experienceDraft.applicableWhen]
+                                [vModelText, experienceDraft.usageFiles]
                               ])
                             ]),
-                            createBaseVNode("label", _hoisted_38, [
-                              _cache[57] || (_cache[57] = createBaseVNode(
+                            createBaseVNode("label", _hoisted_25, [
+                              _cache[33] || (_cache[33] = createBaseVNode(
                                 "span",
                                 null,
                                 [
-                                  createTextVNode("不适用条件 "),
-                                  createBaseVNode("small", null, "每行一条")
-                                ],
-                                -1
-                                /* CACHED */
-                              )),
-                              withDirectives(createBaseVNode(
-                                "textarea",
-                                {
-                                  "onUpdate:modelValue": _cache[26] || (_cache[26] = ($event) => experienceDraft.notApplicableWhen = $event),
-                                  rows: "4"
-                                },
-                                null,
-                                512
-                                /* NEED_PATCH */
-                              ), [
-                                [vModelText, experienceDraft.notApplicableWhen]
-                              ])
-                            ]),
-                            createBaseVNode("label", _hoisted_39, [
-                              _cache[58] || (_cache[58] = createBaseVNode(
-                                "span",
-                                null,
-                                [
-                                  createTextVNode("Experience 正文 "),
+                                  createTextVNode("Experience 文档 "),
                                   createBaseVNode("small", null, "Markdown")
                                 ],
                                 -1
@@ -17134,99 +16633,24 @@ ${result.rawText}` : ""
                               withDirectives(createBaseVNode(
                                 "textarea",
                                 {
-                                  "onUpdate:modelValue": _cache[27] || (_cache[27] = ($event) => experienceDraft.context = $event),
-                                  rows: "14",
+                                  "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => experienceDraft.doc = $event),
+                                  rows: "18",
                                   class: "is-code"
                                 },
                                 null,
                                 512
                                 /* NEED_PATCH */
                               ), [
-                                [vModelText, experienceDraft.context]
+                                [vModelText, experienceDraft.doc]
                               ])
                             ]),
-                            createBaseVNode("details", _hoisted_40, [
-                              _cache[62] || (_cache[62] = createBaseVNode(
-                                "summary",
-                                null,
-                                "结构化约束",
-                                -1
-                                /* CACHED */
-                              )),
-                              createBaseVNode("label", _hoisted_41, [
-                                _cache[59] || (_cache[59] = createBaseVNode(
-                                  "span",
-                                  null,
-                                  "Recipes JSON",
-                                  -1
-                                  /* CACHED */
-                                )),
-                                withDirectives(createBaseVNode(
-                                  "textarea",
-                                  {
-                                    "onUpdate:modelValue": _cache[28] || (_cache[28] = ($event) => experienceDraft.recipes = $event),
-                                    rows: "8",
-                                    class: "is-code"
-                                  },
-                                  null,
-                                  512
-                                  /* NEED_PATCH */
-                                ), [
-                                  [vModelText, experienceDraft.recipes]
-                                ])
-                              ]),
-                              createBaseVNode("label", _hoisted_42, [
-                                _cache[60] || (_cache[60] = createBaseVNode(
-                                  "span",
-                                  null,
-                                  "Source contracts JSON",
-                                  -1
-                                  /* CACHED */
-                                )),
-                                withDirectives(createBaseVNode(
-                                  "textarea",
-                                  {
-                                    "onUpdate:modelValue": _cache[29] || (_cache[29] = ($event) => experienceDraft.sourceContracts = $event),
-                                    rows: "8",
-                                    class: "is-code"
-                                  },
-                                  null,
-                                  512
-                                  /* NEED_PATCH */
-                                ), [
-                                  [vModelText, experienceDraft.sourceContracts]
-                                ])
-                              ]),
-                              createBaseVNode("label", _hoisted_43, [
-                                _cache[61] || (_cache[61] = createBaseVNode(
-                                  "span",
-                                  null,
-                                  "Checklist JSON",
-                                  -1
-                                  /* CACHED */
-                                )),
-                                withDirectives(createBaseVNode(
-                                  "textarea",
-                                  {
-                                    "onUpdate:modelValue": _cache[30] || (_cache[30] = ($event) => experienceDraft.verificationChecklist = $event),
-                                    rows: "8",
-                                    class: "is-code"
-                                  },
-                                  null,
-                                  512
-                                  /* NEED_PATCH */
-                                ), [
-                                  [vModelText, experienceDraft.verificationChecklist]
-                                ])
-                              ])
-                            ]),
-                            createBaseVNode("div", _hoisted_44, [
+                            createBaseVNode("div", _hoisted_26, [
                               createBaseVNode("button", {
                                 class: "is-primary",
                                 type: "button",
                                 disabled: unref(memory).saving,
                                 onClick: saveExperience
-                              }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_45)
+                              }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_27)
                             ])
                           ])) : createCommentVNode("v-if", true)
                         ],
@@ -17238,10 +16662,10 @@ ${result.rawText}` : ""
                     /* STABLE_FRAGMENT */
                   )) : tab.value === "tools" ? (openBlock(), createElementBlock(
                     Fragment,
-                    { key: 4 },
+                    { key: 3 },
                     [
-                      !toolProviders.value.length && !resourceProviders.value.length && !tools.value.length && !resources.value.length ? (openBlock(), createElementBlock("div", _hoisted_46, "当前没有可用 Tool 或 Resource。")) : (openBlock(), createElementBlock("div", _hoisted_47, [
-                        _cache[63] || (_cache[63] = createBaseVNode(
+                      !toolProviders.value.length && !resourceProviders.value.length && !tools.value.length && !resources.value.length ? (openBlock(), createElementBlock("div", _hoisted_28, "当前没有可用 Tool 或 Resource。")) : (openBlock(), createElementBlock("div", _hoisted_29, [
+                        _cache[34] || (_cache[34] = createBaseVNode(
                           "div",
                           { class: "mda-memory-section-title" },
                           "Tool Providers",
@@ -17284,7 +16708,7 @@ ${result.rawText}` : ""
                           128
                           /* KEYED_FRAGMENT */
                         )),
-                        _cache[64] || (_cache[64] = createBaseVNode(
+                        _cache[35] || (_cache[35] = createBaseVNode(
                           "div",
                           { class: "mda-memory-section-title" },
                           "Tools",
@@ -17327,7 +16751,7 @@ ${result.rawText}` : ""
                           128
                           /* KEYED_FRAGMENT */
                         )),
-                        _cache[65] || (_cache[65] = createBaseVNode(
+                        _cache[36] || (_cache[36] = createBaseVNode(
                           "div",
                           { class: "mda-memory-section-title" },
                           "Resource Providers",
@@ -17370,7 +16794,7 @@ ${result.rawText}` : ""
                           128
                           /* KEYED_FRAGMENT */
                         )),
-                        _cache[66] || (_cache[66] = createBaseVNode(
+                        _cache[37] || (_cache[37] = createBaseVNode(
                           "div",
                           { class: "mda-memory-section-title" },
                           "Resources",
@@ -17419,9 +16843,9 @@ ${result.rawText}` : ""
                     /* STABLE_FRAGMENT */
                   )) : (openBlock(), createElementBlock(
                     Fragment,
-                    { key: 5 },
+                    { key: 4 },
                     [
-                      _cache[67] || (_cache[67] = createBaseVNode(
+                      _cache[38] || (_cache[38] = createBaseVNode(
                         "div",
                         { class: "mda-memory-project-note" },
                         "Project.md 由源码扫描和 Experience 索引自动生成，不在这里手工修改。",
@@ -17430,7 +16854,7 @@ ${result.rawText}` : ""
                       )),
                       createBaseVNode(
                         "pre",
-                        _hoisted_48,
+                        _hoisted_30,
                         toDisplayString(((_a2 = unref(memory).snapshot) == null ? void 0 : _a2.projectDocument) || "暂无项目摘要。"),
                         1
                         /* TEXT */

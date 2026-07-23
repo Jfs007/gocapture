@@ -86,7 +86,7 @@ function directoryDescription(directory) {
   return known[name] || '项目源码目录';
 }
 
-function projectDocument(project, experienceMetas = [], interpretedMarkdown = '') {
+function projectDocument(project, interpretedMarkdown = '') {
   const interpreted = String(interpretedMarkdown || '').trim();
   if (interpreted) {
     return interpreted.endsWith('\n') ? interpreted : `${interpreted}\n`;
@@ -187,7 +187,7 @@ function ensureProjectContext(project, options = {}) {
     fingerprint,
     generatedAt: new Date().toISOString(),
   };
-  const markdown = projectDocument(project, options.experienceMetas || [], options.interpretedMarkdown || '');
+  const markdown = projectDocument(project, options.interpretedMarkdown || '');
   try {
     atomicWrite(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
     atomicWrite(docFile, markdown);
@@ -216,7 +216,7 @@ function writeProjectContext(project, markdown, options = {}) {
     generatedAt: new Date().toISOString(),
     ...(options.meta || {}),
   };
-  const content = projectDocument(project, options.experienceMetas || [], markdown);
+  const content = projectDocument(project, markdown);
   atomicWrite(path.join(root, PROJECT_META_FILE), `${JSON.stringify(meta, null, 2)}\n`);
   atomicWrite(path.join(root, PROJECT_DOC_FILE), content);
   return {
@@ -228,11 +228,6 @@ function writeProjectContext(project, markdown, options = {}) {
   };
 }
 
-function refreshProjectDocument(project, experienceMetas) {
-  const context = ensureProjectContext(project, { experienceMetas });
-  return context;
-}
-
 module.exports = {
   EXPERIENCE_DIR,
   atomicWrite,
@@ -241,7 +236,6 @@ module.exports = {
   experienceRoot,
   projectFingerprint,
   projectTechnicalStackMarkdown,
-  refreshProjectDocument,
   safeJson,
   safeRead,
   writeProjectContext,

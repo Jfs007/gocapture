@@ -3,19 +3,15 @@
 const assert = require('assert');
 const test = require('node:test');
 const { AIMessage, fakeModel } = require('langchain');
-const { tool } = require('@langchain/core/tools');
-const { z } = require('zod');
 
 const {
   loadLangChainRuntime,
   runLangChainAgent,
-  zodFromJsonSchema,
 } = require('./runtime');
 const {
   compactToolResultForModel,
   createLangChainTools,
 } = require('./tool-adapter');
-const { toolToApiFunction } = require('./api-chat-model');
 const {
   filterToolsByConfigAction,
   normalizeConfigAction,
@@ -25,19 +21,6 @@ test('langchain runtime probe is non-throwing when optional dependencies are abs
   const runtime = loadLangChainRuntime();
   assert.equal(typeof runtime.available, 'boolean');
   assert.ok(Array.isArray(runtime.missing));
-});
-
-test('zodFromJsonSchema returns null without zod runtime', () => {
-  assert.equal(zodFromJsonSchema({ type: 'object' }, null), null);
-});
-
-test('zodFromJsonSchema rejects undeclared tool inputs', () => {
-  const schema = zodFromJsonSchema({
-    type: 'object',
-    properties: { files: { type: 'array', items: { type: 'string' } } },
-    required: ['files'],
-  }, z);
-  assert.equal(schema.safeParse({ files: ['src/a.js'], lineStart: 80 }).success, false);
 });
 
 test('LangChain tool adapter executes an identical read-only call once', async () => {
@@ -76,21 +59,6 @@ test('tool observations are compacted before returning to the model', () => {
   assert.ok(JSON.stringify(result).length <= 5000);
 });
 
-test('API chat model sends real LangChain tool schemas to the provider', () => {
-  const descriptor = tool(async () => 'ok', {
-    name: 'search_source',
-    description: 'Search source.',
-    schema: z.object({
-      terms: z.array(z.string()),
-      mode: z.enum(['all', 'any']),
-    }),
-  });
-  const apiTool = toolToApiFunction(descriptor);
-  assert.ok(apiTool.function.parameters.properties.terms);
-  assert.ok(apiTool.function.parameters.properties.mode);
-  assert.deepEqual(apiTool.function.parameters.required.sort(), ['mode', 'terms']);
-});
-
 test('normalizeConfigAction accepts array and object forms', () => {
   assert.deepEqual([...normalizeConfigAction({ configAction: ['builtin', 'mcp'] })], ['builtin', 'mcp']);
   assert.deepEqual([...normalizeConfigAction({ configAction: { builtin: true, mcp: false, skill: true } })], ['builtin', 'skill']);
@@ -99,13 +67,13 @@ test('normalizeConfigAction accepts array and object forms', () => {
 test('filterToolsByConfigAction matches source or category and leaves MCP to runtime', () => {
   const tools = [
     { name: 'read_file', source: 'builtin', category: 'project' },
-    { name: 'enhance_with_experience', source: 'builtin', category: 'experience' },
+    { name: 'recon_inspect', source: 'builtin', category: 'experience' },
     { name: 'skill__review', source: 'skill', category: 'skill' },
     { name: 'mcp__docs__query', source: 'mcp', category: 'mcp' },
   ];
   assert.deepEqual(
     filterToolsByConfigAction(tools, { configAction: ['experience', 'skill', 'mcp'] }).map(tool => tool.name),
-    ['enhance_with_experience', 'skill__review']
+    ['recon_inspect', 'skill__review']
   );
 });
 

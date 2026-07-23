@@ -1,16 +1,12 @@
 'use strict';
 
 // Structure.md：项目「复用骨架」的紧凑目录图，扫盘生成（非 LLM），像 Project.md 一样 init 时算一次、之后复用。
-// 只留可复用/基建（components 业务组件库 + hooks/api/store/utils/directives/enums/layout/router），
-// 砍掉 views/pages 这类业务功能区——那部分改动频繁、且由「功能根现场探测」按需取，不进常驻图。
-//
-// 侦察顺序：① featureRootProbe(目标文件功能根现场结构) → ② Structure.md（项目工具箱） → ③ 兜底现场搜先例。
+// 只留 Project Interpreter 确认的复用骨架。Planning Agent 需要先例时通过 Recon tools 自行调查。
 
 const path = require('path');
 const { experienceRoot, atomicWrite, safeRead } = require('./project-context');
 
 const STRUCTURE_DOC_FILE = 'Structure.md';
-const INDEX_FILES = ['index.vue', 'index.ts', 'index.tsx', 'index.jsx'];
 
 function projectPaths(project) {
   return (project?.files || []).map(file => file.path).filter(Boolean);
@@ -76,35 +72,6 @@ function buildStructureDoc(project, businessDirs = []) {
   return `${lines.join('\n')}\n`;
 }
 
-// 目标文件的「功能根」：从其所在目录向上，最近一个直接含 index.* 的祖先目录（功能入口边界）；没有则退回其所在目录。
-function featureRootPath(project, targetFile) {
-  const file = String(targetFile || '');
-  if (!file.includes('/')) return '';
-  const set = new Set(projectPaths(project));
-  const hasIndex = dir => INDEX_FILES.some(name => set.has(`${dir}/${name}`));
-  let dir = file.slice(0, file.lastIndexOf('/'));
-  const start = dir;
-  while (dir && dir !== 'src' && dir.includes('/')) {
-    if (hasIndex(dir)) return dir;
-    dir = dir.slice(0, dir.lastIndexOf('/'));
-  }
-  return start;
-}
-
-// 功能根现场探测：把功能根整层摊开（含兄弟组件——本地最相关的先例），子项 cap 放大到 40。
-function featureRootProbe(project, targetFile) {
-  const root = featureRootPath(project, targetFile);
-  if (!root) return '';
-  const paths = projectPaths(project);
-  const { dirs, files } = immediateChildren(paths, root);
-  const rendered = [
-    ...files,
-    ...dirs.map(sub => renderChild(paths, root, sub, 40)),
-  ];
-  if (!rendered.length) return '';
-  return `${root}/  ${rendered.join('  ')}`;
-}
-
 function ensureStructureDoc(project, businessDirs = []) {
   const doc = buildStructureDoc(project, businessDirs);
   try {
@@ -123,8 +90,6 @@ function loadStructureDoc(project, businessDirs = []) {
 module.exports = {
   STRUCTURE_DOC_FILE,
   buildStructureDoc,
-  featureRootPath,
-  featureRootProbe,
   ensureStructureDoc,
   loadStructureDoc,
 };

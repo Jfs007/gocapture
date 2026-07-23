@@ -4,8 +4,6 @@ const test = require('node:test');
 const assert = require('assert');
 const {
   buildStructureDoc,
-  featureRootPath,
-  featureRootProbe,
 } = require('./project-structure');
 
 // winsup 真实结构的代表性子集（仅文件；目录靠文件推断）。
@@ -63,14 +61,4 @@ test('Structure.md 只留复用骨架，排除断定为业务的目录；含业�
   for (const business of ['product-card', 'storeAuth', 'StoreTable', 'operation-data', 'PwdForm']) {
     assert.ok(!doc.includes(business), `业务内容 ${business} 不应进常驻图`);
   }
-});
-
-test('featureRootProbe：从目标文件向上定位到功能根，摊开兄弟组件（本地先例）', () => {
-  const target = 'src/views/ai-product/product-card/components/upload-config-card.vue';
-  assert.equal(featureRootPath(project, target), 'src/views/ai-product/product-card');
-  const probe = featureRootProbe(project, target);
-  console.log('\n===== 功能根现场探测 =====\n' + probe);
-  assert.match(probe, /product-card\/\s+.*api\.ts/);
-  assert.match(probe, /upload-config-card\.vue/);
-  assert.match(probe, /store-selector-drawer\.vue/, '应看到兄弟先例组件');
 });

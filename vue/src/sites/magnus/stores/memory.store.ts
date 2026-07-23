@@ -70,14 +70,6 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
     return save('/api/experience', payload, '项目经验已保存');
   }
 
-  async function saveSession(payload: any) {
-    return save('/api/memory/session', payload, '任务会话已保存');
-  }
-
-  async function removeSession(id: string) {
-    return save('/api/memory/session/remove', { id }, '任务会话已清除');
-  }
-
   async function save(pathname: string, payload: any, successMessage: string) {
     saving.value = true;
     error.value = '';
@@ -117,8 +109,6 @@ export const useMemoryStore = defineStore('magnus.memory', () => {
     openPanel,
     closePanel,
     load,
-    saveExperience,
-    saveSession,
-    removeSession
+    saveExperience
   };
 });

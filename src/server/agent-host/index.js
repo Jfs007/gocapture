@@ -21,12 +21,11 @@ const {
   registerAgentResourceProvider,
 } = require('./resources/registry');
 const {
-  listExperiences,
-  readExperiences,
-  saveGeneratedExperience,
-  updateProjectExperience,
-  verifyExperiences,
-} = require('./experiences/registry');
+  componentExperienceCatalog,
+  loadComponentExperiences,
+  saveComponentExperiences,
+  updateComponentExperience,
+} = require('../experience/component-experience');
 
 function createAgentHost(project) {
   return {
@@ -42,11 +41,11 @@ function createAgentHost(project) {
       read: uri => readAgentResource(project, uri),
     },
     experiences: {
-      list: () => listExperiences(project),
-      read: ids => readExperiences(project, ids),
-      verify: ids => verifyExperiences(project, ids),
-      saveGenerated: candidate => saveGeneratedExperience(project, candidate),
-      update: input => updateProjectExperience(project, input),
+      list: () => componentExperienceCatalog(project),
+      read: paths => loadComponentExperiences(project)
+        .filter(record => new Set(paths || []).has(record.componentPath)),
+      save: records => saveComponentExperiences(project, records),
+      update: input => updateComponentExperience(project, input),
     },
     llm: {
       run: (adapter, prompt, options) => runAgentLlmTask(adapter, prompt, project, options),
@@ -81,11 +80,10 @@ module.exports = {
     registerProvider: registerAgentResourceProvider,
   },
   experiences: {
-    list: listExperiences,
-    read: readExperiences,
-    verify: verifyExperiences,
-    saveGenerated: saveGeneratedExperience,
-    update: updateProjectExperience,
+    list: componentExperienceCatalog,
+    read: loadComponentExperiences,
+    save: saveComponentExperiences,
+    update: updateComponentExperience,
   },
   llm: {
     run: runAgentLlmTask,

@@ -108,45 +108,32 @@ async function persistModelState(models, selectedId) {
 function defaultModelForm() {
   return {
     id: '',
-    name: '',
-    provider: 'custom',
+    name: 'DeepSeek',
+    provider: 'deepseek',
     type: 'api',
-    endpoint: '',
+    endpoint: 'https://api.deepseek.com/chat/completions',
     apiKey: '',
-    model: '',
+    model: 'deepseek-v4-pro',
     proxyUrl: '',
     timeoutMs: 120000
   };
 }
 
 function providerModelForm(provider) {
-  if (provider === 'deepseek') {
-    return {
-      ...defaultModelForm(),
-      name: 'DeepSeek',
-      provider: 'deepseek',
-      type: 'api',
-      endpoint: 'https://api.deepseek.com/chat/completions',
-      model: 'deepseek-v4-pro'
-    };
-  }
   return defaultModelForm();
 }
 
 function normalizeModel(raw) {
   const item = raw || {};
-  const provider = item.provider === 'deepseek' ? 'deepseek' : 'custom';
-  const defaultName = provider === 'deepseek'
-    ? 'DeepSeek'
-    : 'API 模型';
+  if (item.provider !== 'deepseek') return null;
   return {
     id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    name: item.name || defaultName,
-    provider,
+    name: item.name || 'DeepSeek',
+    provider: 'deepseek',
     type: 'api',
-    endpoint: item.endpoint || (provider === 'deepseek' ? 'https://api.deepseek.com/chat/completions' : ''),
+    endpoint: item.endpoint || 'https://api.deepseek.com/chat/completions',
     apiKey: item.apiKey || '',
-    model: item.model || (provider === 'deepseek' ? 'deepseek-v4-pro' : ''),
+    model: item.model || 'deepseek-v4-pro',
     proxyUrl: item.proxyUrl || '',
     timeoutMs: Number(item.timeoutMs || 120000)
   };
@@ -170,7 +157,7 @@ export function useModelAdapters() {
     definitionTrace
   } = storeToRefs(searchStore);
   const { searchPayload } = prompt;
-  if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel);
+  if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel).filter(Boolean);
   if (!modelStore.selectedModelId) modelStore.selectedModelId = loadText(MODEL_SELECTED_KEY, '');
   modelStore.useModelAssist = !!modelStore.selectedModelId;
   const {
@@ -219,7 +206,7 @@ export function useModelAdapters() {
 
   async function hydratePersistedModels() {
     const state = await loadPersistedModelState();
-    const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel);
+    const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel).filter(Boolean);
     const validSelectedId = nextModels.some(item => item.id === state.selectedId) ? state.selectedId : '';
     modelConfigs.value = nextModels;
     selectedModelId.value = validSelectedId;
@@ -245,6 +232,10 @@ export function useModelAdapters() {
 
   function saveModelForm() {
     const normalized = normalizeModel(modelForm.value);
+    if (!normalized) {
+      appUiStore.setToast('当前模型供应商尚未安装适配器');
+      return;
+    }
     const index = modelConfigs.value.findIndex(item => item.id === normalized.id);
     if (index === -1) modelConfigs.value.push(normalized);
     else modelConfigs.value.splice(index, 1, normalized);
@@ -466,6 +457,7 @@ export function useModelAdapters() {
             designRequirement: item.binding?.designRequirement || '',
             projectRoot: item.binding?.projectRoot || '',
             targets: Array.isArray(item.binding?.targets) ? item.binding.targets : [],
+            investigation: item.binding?.investigation || null,
             originSelections: Array.isArray(item.binding?.originSelections) ? item.binding.originSelections : []
           })),
           candidateHits: candidateHits.value.slice(0, 4),

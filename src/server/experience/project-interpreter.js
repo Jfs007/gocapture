@@ -1,4 +1,5 @@
 const path = require('path');
+const { z } = require('zod');
 const { isTextFile, readProjectText } = require('../core/fs-utils');
 const { runAgentLlmTask } = require('../agent-host/llm-adapter');
 const { writeProjectContext } = require('./project-context');
@@ -11,6 +12,24 @@ const MAX_CONFIG_CHARS = 12000;
 const MAX_FILE_LIST = 420;
 const MAX_VERIFY_FILES = 40;
 const MAX_VERIFY_SNIPPETS = 5;
+
+const projectDiscoverySchema = z.object({
+  summary: z.string(),
+  technicalStack: z.array(z.string()),
+  uiFrameworkCandidates: z.array(z.object({
+    name: z.string(),
+    evidence: z.array(z.string()),
+    verificationKeywords: z.array(z.string()),
+  })),
+  verificationSearches: z.array(z.object({
+    id: z.string(),
+    keywords: z.array(z.string()),
+    mode: z.enum(['all', 'any']),
+    purpose: z.string(),
+  })),
+  businessFeatureDirs: z.array(z.string()),
+  uncertainty: z.array(z.string()),
+}).meta({ title: 'magnus_project_discovery', description: 'Submit inferred project facts and local verification searches.' });
 
 function appendLog(logs, text) {
   if (!Array.isArray(logs) || !text) return;
@@ -74,23 +93,6 @@ function projectFacts(project) {
   };
 }
 
-function parseJsonObject(text) {
-  const raw = String(text || '').trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start !== -1 && end > start) {
-      return JSON.parse(raw.slice(start, end + 1));
-    }
-    throw error;
-  }
-}
-
 function buildDiscoveryPrompt(project) {
   return [
     '你是 Magnus 的 Project Interpreter。',
@@ -103,26 +105,7 @@ function buildDiscoveryPrompt(project) {
     '- 如果怀疑存在 UI 框架，请输出用于本地验证的关键词，例如包名、样式文件名、入口 import 片段、可能的 class 前缀候选。',
     '- class 前缀只能作为待验证关键词，不能在第一轮当成已确认事实。',
     '- businessFeatureDirs：顶层源码目录里，那些「其下每一项装的是一个具体业务页面/功能」的目录名（相对 src、只列顶层）。判据是内容性质——装的是一次性业务功能，而非可复用组件/hook/工具/基建/状态/路由；按项目实际结构判断，不要凭目录叫什么名字来定。',
-    '- 返回严格 JSON，不输出 Markdown。',
-    '',
-    '返回格式：',
-    JSON.stringify({
-      summary: '',
-      technicalStack: [],
-      uiFrameworkCandidates: [{
-        name: '',
-        evidence: [],
-        verificationKeywords: [],
-      }],
-      verificationSearches: [{
-        id: '',
-        keywords: [],
-        mode: 'all | any',
-        purpose: '',
-      }],
-      businessFeatureDirs: [],
-      uncertainty: [],
-    }),
+    '- 按照给定结构化响应格式返回。',
     '',
     '项目事实：',
     JSON.stringify(projectFacts(project), null, 2),
@@ -268,10 +251,12 @@ async function interpretProject(project, rawAdapter, options = {}) {
   const discoveryResult = await runAgentLlmTask(rawAdapter, discoveryPrompt, project, {
     signal: options.signal,
     onLog: log => appendLog(logs, log),
-    systemPrompt: '你是项目解释器，只返回严格 JSON。',
+    systemPrompt: '你是项目解释器。按照给定结构化响应格式返回项目推测与验证计划。',
+    responseFormat: projectDiscoverySchema,
   });
   appendLog(logs, `Project Interpreter 第一轮输出：${discoveryResult.rawText.length} 字符`);
-  const discovery = parseJsonObject(discoveryResult.rawText);
+  const discovery = discoveryResult.structuredResponse;
+  if (!discovery) throw new Error('Project Interpreter 未返回结构化项目推测。');
   // 业务功能目录由 LLM 断定（非写死）；据此生成「复用骨架」Structure.md（扫盘，排除业务区）。
   const businessFeatureDirs = (Array.isArray(discovery.businessFeatureDirs) ? discovery.businessFeatureDirs : [])
     .map(item => String(item || '').trim().replace(/^src\//, '').replace(/\/+$/, ''))
@@ -289,7 +274,6 @@ async function interpretProject(project, rawAdapter, options = {}) {
   });
   appendLog(logs, `Project Interpreter 第二轮输出：${finalResult.rawText.length} 字符`);
   const context = writeProjectContext(project, finalResult.rawText, {
-    experienceMetas: options.experienceMetas || [],
     meta: {
       interpreterAdapter: discoveryResult.adapter,
       verificationCount: verification.length,

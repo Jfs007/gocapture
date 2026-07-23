@@ -9,6 +9,11 @@ const {
   executeAgentTool,
   listAgentTools,
 } = require('../../../agent-host/tools/registry');
+const {
+  createFinalizationMiddleware: createSharedFinalizationMiddleware,
+  composeToolGuards,
+  createForceFinishGuard,
+} = require('../../../agent-host/agent-finalization');
 const { parseJsonResult } = require('../anchor/dom-utils');
 
 const DOM_LOCATOR_TOOLS = [
@@ -141,24 +146,18 @@ function createFinishTool() {
 }
 
 // budget: { modelCalls, forceFinishAt, forceFinish } —— 与 toolGuard 共享，让"逼交卷"从广告层落到执行层。
+// locator 的收尾动作：只留 finish_dom_location 工具。机制复用共享 createSharedFinalizationMiddleware。
 function createFinalizationMiddleware(budget) {
-  const runtime = loadLangChainRuntime();
-  if (!runtime.available || typeof runtime.createMiddleware !== 'function') return null;
-  return runtime.createMiddleware({
+  return createSharedFinalizationMiddleware(budget, {
     name: 'DomLocatorFinalizationBudget',
-    wrapModelCall: async (request, handler) => {
-      budget.modelCalls += 1;
-      if (budget.modelCalls < budget.forceFinishAt) return handler(request);
-      budget.forceFinish = true; // toolGuard 据此硬拦非 finish 工具
-      return handler({
-        ...request,
-        tools: (request.tools || []).filter(tool => tool?.name === 'finish_dom_location'),
-        systemPrompt: [
-          request.systemPrompt || '',
-          '本轮已到调查预算上限。只能调用 finish_dom_location：证据充分则 resolved；DOM 证据不足则 need-more-context；仍缺源码关系则 unresolved。不要继续检索，不要用普通文本结束。',
-        ].filter(Boolean).join('\n'),
-      });
-    },
+    finalizeRequest: request => ({
+      ...request,
+      tools: (request.tools || []).filter(tool => tool?.name === 'finish_dom_location'),
+      systemPrompt: [
+        request.systemPrompt || '',
+        '本轮已到调查预算上限。只能调用 finish_dom_location：证据充分则 resolved；DOM 证据不足则 need-more-context；仍缺源码关系则 unresolved。不要继续检索，不要用普通文本结束。',
+      ].filter(Boolean).join('\n'),
+    }),
   });
 }
 
@@ -181,16 +180,10 @@ function isExplicitLineRange(value) {
   return /^\d+\s*[-~:]\s*\d+$/.test(String(value || '').trim());
 }
 
-function createDomLocatorToolGuard(budget) {
+// locator 的 read_file 行区间翻页拦截（防重复扩上下文，引导改用 inspect_symbol_occurrences）。
+function createRangedReadGuard() {
   const rangedReads = new Map();
   return (toolName, input = {}) => {
-    if (budget.forceFinish && toolName !== 'finish_dom_location') {
-      return {
-        operation: toolName,
-        blocked: true,
-        note: '调查预算已用尽：只能调用 finish_dom_location 交卷。请立刻基于已有证据与锚点交集候选提交结论，不要再检索或读取。',
-      };
-    }
     if (toolName !== 'read_file' || !isExplicitLineRange(input.around)) return null;
     const files = (Array.isArray(input.files) ? input.files : []).map(normalizePath).filter(Boolean);
     const repeatedFiles = files.filter(file => rangedReads.has(file));
@@ -207,6 +200,17 @@ function createDomLocatorToolGuard(budget) {
     for (const file of files) rangedReads.set(file, String(input.around));
     return null;
   };
+}
+
+// locator toolGuard：共享 force-finish 硬拦（收尾工具=finish_dom_location）+ 行区间翻页拦截。
+function createDomLocatorToolGuard(budget) {
+  return composeToolGuards(
+    createForceFinishGuard(budget, {
+      isFinishTool: toolName => toolName === 'finish_dom_location',
+      note: '调查预算已用尽：只能调用 finish_dom_location 交卷。请立刻基于已有证据与锚点交集候选提交结论，不要再检索或读取。',
+    }),
+    createRangedReadGuard(),
+  );
 }
 
 function normalizeLocatorDecision(rawText, project) {

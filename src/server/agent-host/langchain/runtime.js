@@ -1,10 +1,13 @@
 'use strict';
 
-const { ApiChatModel } = require('./api-chat-model');
+const {
+  createLangChainModel,
+  normalizeModelConfig,
+  prepareModelResponseFormat,
+} = require('../../model/providers/registry');
 const {
   createLangChainTools,
   loadLangChainRuntime,
-  zodFromJsonSchema,
 } = require('./tool-adapter');
 const { loadMcpLangChainTools } = require('./mcp-runtime');
 const { filterToolsByConfigAction, normalizeConfigAction } = require('../capabilities');
@@ -23,7 +26,49 @@ function normalizeLangChainResult(result) {
         ? message.tool_calls.map(call => ({ id: call.id || '', name: call.name || '', args: call.args || {} }))
         : [],
     })),
+    structuredResponse: result?.structuredResponse || null,
   };
+}
+
+function messageText(message) {
+  const content = message?.content;
+  if (typeof content === 'string') return content;
+  if (content == null) return '';
+  return JSON.stringify(content);
+}
+
+function createModelTelemetryMiddleware(runtime, options, modelConfig) {
+  if (typeof runtime.createMiddleware !== 'function' || typeof options.onEvent !== 'function') return null;
+  return runtime.createMiddleware({
+    name: 'MagnusModelTelemetry',
+    wrapModelCall: async (request, handler) => {
+      const messages = Array.isArray(request.messages) ? request.messages : [];
+      const tools = Array.isArray(request.tools) ? request.tools : [];
+      options.onEvent({
+        type: 'llm.input',
+        runtime: 'langchain',
+        stage: options.stage || 'langchain-agent',
+        messages,
+        toolCount: tools.length,
+        toolNames: tools.map(tool => tool?.name || '').filter(Boolean),
+      });
+      const startedAt = Date.now();
+      const response = await handler(request);
+      options.onEvent({
+        type: 'llm.output',
+        runtime: 'langchain',
+        stage: options.stage || 'langchain-agent',
+        rawText: messageText(response),
+        toolCalls: Array.isArray(response?.tool_calls) ? response.tool_calls : [],
+      });
+      options.onEvent({
+        type: 'llm.log',
+        runtime: 'langchain',
+        log: `LangChain 模型响应：provider=${modelConfig.provider}；model=${modelConfig.model}；耗时=${Date.now() - startedAt}ms`,
+      });
+      return response;
+    },
+  });
 }
 
 async function runLangChainAgent(project, options = {}, deps = {}) {
@@ -34,19 +79,18 @@ async function runLangChainAgent(project, options = {}, deps = {}) {
       reason: `LangChain runtime missing: ${runtime.missing.join(', ') || 'unknown'}`,
     };
   }
-  const model = options?.langchainModel || new ApiChatModel({
-    adapter: options.adapter,
-    project,
-    signal: options.signal,
-    stage: options.stage || 'langchain-agent',
+  const modelConfig = options.langchainModel
+    ? { provider: 'injected', model: options.langchainModel._llmType?.() || 'test-model' }
+    : normalizeModelConfig(options.adapter);
+  const model = options.langchainModel || createLangChainModel(modelConfig, {
     temperature: options.temperature,
-    onLog: log => {
-      if (typeof options.onEvent === 'function') {
-        options.onEvent({ type: 'llm.log', runtime: 'langchain', log });
-      }
-    },
-    onEvent: options.onEvent,
+    structuredOutput: Boolean(options.responseFormat),
   });
+  const responseFormat = options.responseFormat
+    ? options.langchainModel
+      ? options.responseFormat
+      : prepareModelResponseFormat(modelConfig, options.responseFormat, runtime)
+    : undefined;
   const textCache = deps.textCache || new Map();
   const configAction = normalizeConfigAction(options);
   const toolDescriptors = Array.isArray(deps.tools) ? deps.tools : [];
@@ -82,15 +126,18 @@ async function runLangChainAgent(project, options = {}, deps = {}) {
       mcpToolCount: mcpTools.available ? mcpTools.tools.length : 0,
     });
   }
+  const telemetryMiddleware = createModelTelemetryMiddleware(runtime, options, modelConfig);
   const agent = runtime.createAgent({
     model,
     tools: langchainTools,
     systemPrompt: options.systemPrompt,
-    middleware: options.middleware || [],
+    middleware: [telemetryMiddleware, ...(options.middleware || [])].filter(Boolean),
+    ...(responseFormat ? { responseFormat } : {}),
   });
   const invokeConfig = {
     ...(options.threadId ? { configurable: { thread_id: options.threadId } } : {}),
     ...(options.maxTurns ? { recursionLimit: Math.max(2, Number(options.maxTurns) * 2 + 2) } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   };
   try {
     const result = await agent.invoke(
@@ -117,12 +164,11 @@ async function runLangChainAgent(project, options = {}, deps = {}) {
 }
 
 module.exports = {
-  ApiChatModel,
   createLangChainTools,
+  createModelTelemetryMiddleware,
   filterToolsByConfigAction,
   loadLangChainRuntime,
   normalizeLangChainResult,
   normalizeConfigAction,
   runLangChainAgent,
-  zodFromJsonSchema,
 };

@@ -8,7 +8,6 @@
 agent-host
 ├─ llm-adapter.js
 ├─ langchain
-│  ├─ api-chat-model.js
 │  ├─ mcp-runtime.js
 │  ├─ runtime.js
 │  └─ tool-adapter.js
@@ -23,19 +22,24 @@ agent-host
 │  ├─ provider.js
 │  ├─ project-resources.js
 │  └─ registry.js
-├─ experiences
-│  └─ registry.js
 ├─ http-routes.js
 └─ index.js
+
+model/providers
+├─ model-adapter.js
+├─ deepseek-adapter.js
+└─ registry.js
 ```
 
 ## Responsibilities
 
 - `llm-adapter.js`: host-level entry for LangChain LLM and tool-capable agent runs.
-- `langchain/api-chat-model.js`: adapts Magnus API model configs into a LangChain chat model.
 - `langchain/tool-adapter.js`: wraps Magnus tools as LangChain tools.
 - `langchain/mcp-runtime.js`: loads configured MCP servers through `@langchain/mcp-adapters` and returns native LangChain tools for the current agent run.
-- `langchain/runtime.js`: creates the LangChain agent runtime from prompt + model + Magnus tools + MCP tools.
+- `langchain/runtime.js`: creates the LangChain agent runtime from prompt + an official provider model + Magnus tools + MCP tools.
+- `model/providers/model-adapter.js`: normalizes Magnus model configuration and shared transport options. It does not implement chat, tool calling, or response parsing.
+- `model/providers/deepseek-adapter.js`: creates the official `@langchain/deepseek` `ChatDeepSeek` model.
+- `model/providers/registry.js`: resolves a Magnus model configuration to its provider adapter and official LangChain model.
 - `capabilities.js`: normalizes `configAction` and filters which capability families are exposed to a run.
 - `tools/tool.js`: the minimal Tool object protocol. A tool declares schema, read/write semantics, concurrency, validation, permission hook, and `call()`.
 - `tools/provider.js`: the ToolProvider protocol. Providers own a group of tools and are the only extension unit registered into the host.
@@ -45,7 +49,6 @@ agent-host
 - `resources/provider.js`: ResourceProvider protocol.
 - `resources/project-resources.js`: builtin project resources: `Project.md`, project file inventory, and task memory.
 - `resources/registry.js`: provider registry for readable context. It must not embed prompt-specific data.
-- `experiences/`: registry facade for project experiences.
 - `http-routes.js`: HTTP exposure for host registries. `server.js` must only delegate to this module.
 - `index.js`: programmatic host facade.
 
@@ -74,8 +77,10 @@ Agent runs decide exposed capability families with `configAction`, for example `
 Default capabilities are mounted by `tools/registry.js`:
 
 - `builtin.project-crud`: `read_file`, `search_text`, `find_files`, `find_symbol`, `find_endpoint`, `find_imports`, `find_importers`, `find_related_examples`, `trace_file_evidence_flow`, `read_closed_blocks`.
-- `builtin.experience`: `enhance_with_experience`.
+- `builtin.experience`: `recon_inspect`, `experience_load`, `recon_search`, `recon_record`.
 - `builtin.project-resources`: `magnus://project/context`, `magnus://project/files`, `magnus://task/memory`.
+
+The post-location planning flow is one LangChain agent. Recon and Experience are ordinary tools selected by that agent; they must not start another model loop or become a fixed preprocessing stage.
 
 Future built-in, installed-package, or project-defined local capabilities should add a ToolProvider. MCP servers should be added through MCP config and consumed by LangChain at runtime.
 

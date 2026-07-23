@@ -1,13 +1,10 @@
 'use strict';
 
-const { bindProjectContext } = require('../experience/project-context');
 const { runAgentTask } = require('./llm-adapter');
 const {
   memorySnapshot,
-  removeTaskSessionMemory,
-  updateTaskSessionMemory,
+  updateComponentExperience,
 } = require('../experience/memory-service');
-const { listExperiences, updateProjectExperience } = require('./experiences/registry');
 const {
   listAgentResourceProviders,
   listAgentResources,
@@ -184,25 +181,8 @@ async function handleAgentHostRoutes(context) {
   if (req.method === 'POST' && url.pathname === '/api/experience') {
     const body = await readBody(req);
     const project = resolveProject(body.projectPath);
-    const experience = updateProjectExperience(project, body);
-    bindProjectContext(project, { experienceMetas: listExperiences(project) });
+    const experience = updateComponentExperience(project, body);
     sendJson(res, 200, { success: true, experience, memory: memorySnapshot(project) });
-    return true;
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/memory/session') {
-    const body = await readBody(req);
-    const project = resolveProject(body.projectPath);
-    const session = updateTaskSessionMemory(project, body.id, body);
-    sendJson(res, 200, { success: true, session, memory: memorySnapshot(project) });
-    return true;
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/memory/session/remove') {
-    const body = await readBody(req);
-    const project = resolveProject(body.projectPath);
-    const removed = removeTaskSessionMemory(project, body.id);
-    sendJson(res, 200, { success: true, removed, memory: memorySnapshot(project) });
     return true;
   }
 

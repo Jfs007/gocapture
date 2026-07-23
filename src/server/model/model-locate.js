@@ -1,7 +1,8 @@
 'use strict';
 
 const { runAgentLlmTask } = require('../agent-host/llm-adapter');
-const { normalizeAdapter } = require('./api-client');
+const { normalizeModelConfig } = require('./providers/registry');
+const { z } = require('zod');
 
 const MAX_MODEL_FILES = 6;
 
@@ -39,38 +40,15 @@ function compactSelection(selection) {
   };
 }
 
-function parseModelJson(text) {
-  const raw = String(text || '').trim();
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-  }
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced) {
-    try {
-      return JSON.parse(fenced[1].trim());
-    } catch (error) {
-    }
-  }
-  const arrayStart = raw.indexOf('[');
-  const arrayEnd = raw.lastIndexOf(']');
-  const objectStart = raw.indexOf('{');
-  const objectEnd = raw.lastIndexOf('}');
-  if (arrayStart >= 0 && arrayEnd > arrayStart && (objectStart < 0 || arrayStart < objectStart)) {
-    try {
-      return JSON.parse(raw.slice(arrayStart, arrayEnd + 1));
-    } catch (error) {
-    }
-  }
-  if (objectStart >= 0 && objectEnd > objectStart) {
-    try {
-      return JSON.parse(raw.slice(objectStart, objectEnd + 1));
-    } catch (error) {
-    }
-  }
-  return null;
-}
+const modelLocateSchema = z.object({
+  items: z.array(z.object({
+    file: z.string(),
+    confidence: z.number().min(0).max(100),
+    reason: z.string(),
+    codeSnippet: z.string(),
+    locateLevel: z.enum(['exact', 'direction']),
+  })).max(MAX_MODEL_FILES),
+});
 
 function candidateFiles(body) {
   const selected = Array.isArray(body?.selectedCandidateHits) ? body.selectedCandidateHits : [];
@@ -89,7 +67,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
     '你是 Magnus 的源码定位复核 Agent。',
     '你只基于输入里的候选文件、选区摘要和用户需求判断哪些候选可保留。',
     '不要编造新文件，不要输出不在候选列表里的文件。',
-    '返回严格 JSON：{"items":[{"file":"候选文件路径","confidence":0,"reason":"","codeSnippet":"","locateLevel":"exact|direction"}]}',
+    '按照给定结构化响应格式返回复核结果。',
     '',
     `项目: ${project?.name || ''}`,
     `技术栈: ${(project?.stack || []).join(' / ') || project?.stackText || ''}`,
@@ -140,7 +118,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
   const logs = [];
   if (typeof options.onLog === 'function') logs.onAppend = options.onLog;
   try {
-    const adapter = normalizeAdapter(body.adapter);
+    const adapter = normalizeModelConfig(body.adapter);
     appendLog(logs, `模型定位开始：${adapter.name}（api）`);
     appendLog(logs, `候选输入：${candidateFiles(body).length} 个；该入口只做模型复核，不再做本地检索/AST 裁剪。`);
     const prompt = buildModelPrompt(project, body, textCache, logs);
@@ -149,12 +127,14 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     const llmResult = await runAgentLlmTask(adapter, prompt, project, {
       signal: options.signal,
       stage: 'model-locate',
-      systemPrompt: '你是 Magnus 源码定位复核 Agent。只能返回严格 JSON。',
+      systemPrompt: '你是 Magnus 源码定位复核 Agent。按照给定结构化响应格式返回结果。',
+      responseFormat: modelLocateSchema,
       onLog: message => appendLog(logs, message),
     });
     const rawText = llmResult.rawText;
     appendLog(logs, `模型定位原始输出内容:\n${rawText || '-'}`);
-    const parsed = parseModelJson(rawText);
+    const parsed = llmResult.structuredResponse;
+    if (!parsed) throw new Error('模型定位未返回结构化结果。');
     const modelItems = validateModelItems(project, parsed, body).filter(item => item.exists);
     appendLog(logs, `模型定位接收文件：${modelItems.length} 个`);
     return {
@@ -175,6 +155,6 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
 
 module.exports = {
   buildModelPrompt,
-  parseModelJson,
+  modelLocateSchema,
   runModelLocate,
 };

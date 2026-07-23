@@ -35,10 +35,7 @@
             </label>
             <label>
               <span>供应商</span>
-              <select :value="modelForm.provider || 'custom'" class="mda-model-input" @change="onModelProviderChange">
-                <option value="custom">自定义</option>
-                <option value="deepseek">DeepSeek</option>
-              </select>
+              <input class="mda-model-input" value="DeepSeek" disabled>
             </label>
             <label>
               <span>名称</span>
@@ -48,16 +45,12 @@
               <span>Endpoint</span>
               <input v-model="modelForm.endpoint" class="mda-model-input" placeholder="https://api.openai.com/v1/chat/completions">
             </label>
-            <label v-if="modelForm.provider === 'deepseek'">
+            <label>
               <span>Model</span>
               <select v-model="modelForm.model" class="mda-model-input">
                 <option value="deepseek-v4-pro">deepseek-v4-pro</option>
                 <option value="deepseek-v4-flash">deepseek-v4-flash</option>
               </select>
-            </label>
-            <label v-else>
-              <span>Model</span>
-              <input v-model="modelForm.model" class="mda-model-input" placeholder="gpt-4.1">
             </label>
             <label>
               <span>API Key</span>
@@ -113,7 +106,7 @@ watch(modelEditorOpen, open => {
 });
 
 const modelTypeHint = computed(() => {
-  return '仅支持 OpenAI Chat Completions 兼容的 API 模型。';
+  return '当前已安装 DeepSeek 模型适配器。';
 });
 
 function onModelEditorSelect(event) {
@@ -126,25 +119,6 @@ function onModelEditorSelect(event) {
   const model = modelConfigs.value.find(item => item.id === id);
   commands.setSelectedModel(id);
   commands.openModelEditor(model);
-}
-
-function onModelProviderChange(event) {
-  const provider = event.target.value || 'custom';
-  if (provider === 'deepseek') {
-    modelForm.value = {
-      ...modelForm.value,
-      provider: 'deepseek',
-      type: 'api',
-      endpoint: 'https://api.deepseek.com/chat/completions',
-      model: modelForm.value.model || 'deepseek-v4-pro',
-      name: modelForm.value.name || 'DeepSeek'
-    };
-    return;
-  }
-  modelForm.value = {
-    ...modelForm.value,
-    provider: 'custom'
-  };
 }
 
 function formatModelType(type) {

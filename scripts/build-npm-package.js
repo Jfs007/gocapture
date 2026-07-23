@@ -147,8 +147,9 @@ function releasePackageJson(packageVersion) {
       magnus: 'bin/magnus.js',
     },
     engines: {
-      node: '>=18',
+      node: '>=20.18.1',
     },
+    dependencies: { ...rootPackage.dependencies },
     keywords: [
       'magnus',
       'chrome-extension',

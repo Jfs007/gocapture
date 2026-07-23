@@ -14,6 +14,7 @@ function loadLangChainRuntime() {
   const zod = tryRequire('zod');
   const createAgent = langchain?.createAgent;
   const createMiddleware = langchain?.createMiddleware;
+  const toolStrategy = langchain?.toolStrategy;
   const contextEditingMiddleware = langchain?.contextEditingMiddleware;
   const ClearToolUsesEdit = langchain?.ClearToolUsesEdit;
   const tool = coreTools?.tool || langchain?.tool;
@@ -22,6 +23,7 @@ function loadLangChainRuntime() {
     available: typeof createAgent === 'function' && typeof tool === 'function' && !!z,
     createAgent,
     createMiddleware,
+    toolStrategy,
     contextEditingMiddleware,
     ClearToolUsesEdit,
     tool,
@@ -32,28 +34,6 @@ function loadLangChainRuntime() {
       !z ? 'zod' : '',
     ].filter(Boolean),
   };
-}
-
-function zodFromJsonSchema(schema, z) {
-  if (!z) return null;
-  const type = schema?.type || 'object';
-  if (type === 'string') return z.string();
-  if (type === 'number' || type === 'integer') return z.number();
-  if (type === 'boolean') return z.boolean();
-  if (type === 'array') return z.array(zodFromJsonSchema(schema.items || {}, z) || z.any());
-  if (type === 'object') {
-    const shape = {};
-    const required = new Set(Array.isArray(schema.required) ? schema.required : []);
-    for (const [key, childSchema] of Object.entries(schema.properties || {})) {
-      const child = zodFromJsonSchema(childSchema, z) || z.any();
-      shape[key] = required.has(key) ? child : child.optional();
-    }
-    const objectSchema = z.object(shape);
-    return schema?.additionalProperties === true
-      ? objectSchema.passthrough()
-      : objectSchema.strict();
-  }
-  return z.any();
 }
 
 function stableValue(value) {
@@ -169,7 +149,7 @@ function createLangChainTools({ tools, project, executeTool, textCache, allowedT
     {
       name: descriptor.name,
       description: descriptor.description || descriptor.title || descriptor.name,
-      schema: zodFromJsonSchema(descriptor.inputSchema || { type: 'object', properties: {} }, runtime.z),
+      schema: descriptor.inputSchema || { type: 'object', properties: {}, additionalProperties: false },
     }
   ));
   return { available: true, missing: [], tools: langchainTools };
@@ -179,5 +159,4 @@ module.exports = {
   compactToolResultForModel,
   createLangChainTools,
   loadLangChainRuntime,
-  zodFromJsonSchema,
 };

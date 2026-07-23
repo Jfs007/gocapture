@@ -55,7 +55,7 @@ test('model locate prompt only contains candidate hits, concise selection and re
     }],
   });
 
-  assert.match(prompt, /返回严格 JSON：\{"items":\[\{"file":"候选文件路径","confidence":0,"reason":"","codeSnippet":"","locateLevel":"exact\|direction"\}\]\}/);
+  assert.match(prompt, /按照给定结构化响应格式返回复核结果/);
   assert.match(prompt, /候选文件:/);
   assert.match(prompt, /选区摘要:/);
   assert.match(prompt, /需求: @选区1 增加批量添加操作/);

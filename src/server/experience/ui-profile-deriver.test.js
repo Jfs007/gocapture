@@ -30,10 +30,18 @@ test('normalizeProfile keeps valid prefixes/signatures and drops empties', () =>
   assert.strictEqual(p.signatureHints.length, 1);
 });
 
-test('deriveUiProfiles parses injected agent JSON output', async () => {
+test('deriveUiProfiles consumes LangChain structured output', async () => {
   const project = fixtureProject({ dependencies: { iview: '^3.0.0' } });
   const runAgent = async () => ({
-    rawText: '好的，结果如下：\n[{"name":"iView","version":"3","classPrefixes":[{"prefix":"ivu-","action":"skip"}],"signatureHints":[{"domPattern":"label.ivu-form-item-label","sourceConstruct":"<Form-item label>","searchAs":"label=\\"X\\""}]}]',
+    rawText: '',
+    structuredResponse: {
+      profiles: [{
+        name: 'iView',
+        version: '3',
+        classPrefixes: [{ prefix: 'ivu-', action: 'skip', reason: 'documented prefix' }],
+        signatureHints: [{ domPattern: 'label.ivu-form-item-label', sourceConstruct: '<Form-item label>', searchAs: 'label="X"' }],
+      }],
+    },
   });
   const profiles = await deriveUiProfiles(project, { adapter: {}, runAgent });
   assert.strictEqual(profiles.length, 1);

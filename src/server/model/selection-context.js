@@ -1,7 +1,7 @@
 'use strict';
 
-const { enhanceLocatedPrompt, fallbackEnhancedPrompt } = require('../experience/prompt-enhancer');
-const { normalizeAdapter } = require('./api-client');
+const { runPlanningAgent } = require('../planning/planning-agent');
+const { normalizeModelConfig } = require('./providers/registry');
 
 const MAX_MODEL_FILES = 6;
 
@@ -22,6 +22,7 @@ function modelItemsFromSelectionContext(project, body) {
       seen.add(file);
       targets.push({
         file,
+        sourceRole: String(target.role || 'related'),
         exists: files.has(file),
         fileOnly: false,
         confidence: 100,
@@ -35,11 +36,13 @@ function modelItemsFromSelectionContext(project, body) {
         snippetVerified: true,
         snippetSource: 'selection-context-binding',
         directionGuess: target.directionGuess || '',
+        sourceInvestigation: binding.investigation || null,
         prompt: [
           `页面: ${body.searchPayload?.url || body.url || ''}`,
           `文件: ${file}`,
           target.codeSnippet ? `已绑定源码片段:\n${target.codeSnippet}` : '',
           target.directionGuess ? `已绑定方向: ${target.directionGuess}` : '',
+          target.role ? `DOM Agent 裁决角色: ${target.role}` : '',
           binding.designRequirement ? `原始设计需求: ${binding.designRequirement}` : '',
           body.searchPayload?.userPrompt ? `本轮新需求: ${body.searchPayload.userPrompt}` : '',
         ].filter(Boolean).join('\n'),
@@ -50,23 +53,21 @@ function modelItemsFromSelectionContext(project, body) {
   return targets.slice(0, MAX_MODEL_FILES);
 }
 
-function changePlanToolRuntime() {
-  const registry = require('../agent-host/tools/registry');
-  return { listTools: registry.listAgentTools, executeTool: registry.executeAgentTool };
-}
-
 async function runSelectionContextEnhancement(project, body, textCache = new Map(), options = {}) {
   if (!project) throw new Error('No project selected.');
   const logs = [];
   if (typeof options.onLog === 'function') logs.onAppend = options.onLog;
   try {
-    const adapter = normalizeAdapter(body.adapter);
+    const adapter = normalizeModelConfig(body.adapter);
     appendLog(logs, `选区上下文增强开始：${adapter.name}（api）`);
     appendLog(logs, '本轮复用已绑定的选区源码上下文，跳过 DOM Agent、本地源码检索和源码定位。');
     const modelItems = modelItemsFromSelectionContext(project, body);
+    const investigations = (Array.isArray(body.selectionBindings) ? body.selectionBindings : [])
+      .map(binding => binding?.investigation)
+      .filter(Boolean);
     body.originSelections = (Array.isArray(body.selectionBindings) ? body.selectionBindings : [])
       .flatMap(binding => (Array.isArray(binding?.originSelections) ? binding.originSelections : []));
-    appendLog(logs, `复用目标文件：${modelItems.length} 个；原始选区快照 ${body.originSelections.length} 个`);
+    appendLog(logs, `复用目标文件：${modelItems.length} 个；原始选区快照 ${body.originSelections.length} 个；DOM 调查结论 ${investigations.length} 份`);
     const containerAnchors = body.originSelections
       .flatMap(sel => (Array.isArray(sel?.container) ? sel.container : []))
       .map(entry => String(entry).split('=').pop())
@@ -86,34 +87,29 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
     }
     for (const item of modelItems) appendLog(logs, `复用文件：${item.file}${item.exists ? '' : '（文件不存在）'}`);
     const validItems = modelItems.filter(item => item.exists);
-    let experience = {
-      enhancedPrompt: fallbackEnhancedPrompt({
-        pageUrl: body.searchPayload?.url || body.url || '',
-        pagePath: body.pagePath || body.routeResolver?.pagePath || '',
-        userRequirement: body.searchPayload?.userPrompt || '',
-        targets: validItems,
-      }),
-      mode: 'fallback',
-      usedExperienceIds: [],
+    let planning = {
+      enhancedPrompt: '',
+      mode: 'no-source',
+      changePlan: null,
+      planning: null,
     };
     if (validItems.length) {
-      experience = await enhanceLocatedPrompt({
-        project,
+      planning = await runPlanningAgent(project, {
+        adapter,
         body,
         modelItems: validItems,
         textCache,
         log: message => appendLog(logs, message),
-        toolRuntime: changePlanToolRuntime(),
-        agentAdapter: adapter,
+        signal: options.signal,
       });
-      appendLog(logs, `选区上下文提示词增强完成：mode=${experience.mode}；Experience ${(experience.usedExperienceIds || []).length} 个`);
+      appendLog(logs, `Planning Agent 完成：mode=${planning.mode}；status=${planning.planning?.status || '-'}`);
     }
     const enhancedModelItems = validItems.map(item => ({
       ...item,
-      enhancedPrompt: experience.enhancedPrompt,
-      changePlan: experience.changePlan || null,
-      experienceMode: experience.mode,
-      usedExperienceIds: experience.usedExperienceIds || [],
+      enhancedPrompt: planning.enhancedPrompt,
+      changePlan: planning.changePlan || null,
+      experienceMode: planning.mode,
+      usedExperienceIds: [],
     }));
     return {
       adapter: { id: adapter.id, name: adapter.name, type: adapter.type },
@@ -121,9 +117,15 @@ async function runSelectionContextEnhancement(project, body, textCache = new Map
       parsed: null,
       parsedBatches: [],
       modelItems: enhancedModelItems,
-      changePlan: experience.changePlan || null,
+      changePlan: planning.changePlan || null,
+      planning: planning.planning || null,
       targetFiles: enhancedModelItems,
-      experience,
+      experience: {
+        mode: planning.mode,
+        changePlan: planning.changePlan || null,
+        enhancedPrompt: planning.enhancedPrompt,
+        planning: planning.planning || null,
+      },
       logs,
     };
   } catch (error) {

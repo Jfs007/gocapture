@@ -49,13 +49,6 @@
         <span>DeepSeek</span>
         <em>API</em>
       </button>
-      <button
-        class="mda-model-option"
-        type="button"
-        @click="createCustomApiModel"
-      >
-        <span>新增 API 模型</span>
-      </button>
     </div>
   </div>
 </template>
@@ -145,18 +138,4 @@ function createDeepSeekModel() {
   commands.openProviderModelEditor('deepseek');
 }
 
-function createCustomApiModel() {
-  closeMenu();
-  commands.openModelEditor({
-    id: '',
-    name: '',
-    provider: 'custom',
-    type: 'api',
-    endpoint: '',
-    apiKey: '',
-    model: '',
-    proxyUrl: '',
-    timeoutMs: 120000
-  });
-}
 </script>

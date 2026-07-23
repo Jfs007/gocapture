@@ -3,7 +3,6 @@
 const { scanProject } = require('../../core/project');
 const { bindProjectContext } = require('../../experience/project-context');
 const { interpretProject } = require('../../experience/project-interpreter');
-const { loadExperienceMetas } = require('../../experience/experience-store');
 const { registerConfiguredMcpProviders } = require('../../agent-host/mcp/bootstrap');
 const { registerConfiguredSkillProviders } = require('../../agent-host/skills/bootstrap');
 
@@ -50,15 +49,13 @@ function createProjectContext() {
 
   async function bind(selectedPath, options = {}) {
     const project = scanProject(selectedPath);
-    const experienceMetas = loadExperienceMetas(project);
-    const withContext = bindProjectContext(project, { experienceMetas });
+    const withContext = bindProjectContext(project);
     if (!options.adapter) {
       currentProject = withContext;
       capabilitiesReady = registerProjectCapabilities(currentProject, options.onLog);
       return currentProject;
     }
     const interpreted = await interpretProject(withContext, options.adapter, {
-      experienceMetas,
       signal: options.signal,
       onLog: options.onLog,
     });
@@ -81,9 +78,7 @@ function createProjectContext() {
     if (!requested) return requireCurrent();
     if (currentProject?.path === requested) return currentProject;
     const project = scanProject(requested);
-    return bindProjectContext(project, {
-      experienceMetas: loadExperienceMetas(project),
-    });
+    return bindProjectContext(project);
   }
 
   function summary() {

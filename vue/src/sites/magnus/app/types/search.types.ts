@@ -54,7 +54,12 @@ export interface ChangePlan {
   reusePatterns?: string[];
   risks?: string[];
   verification?: string[];
-  openQuestions?: string[];
+  openQuestions?: Array<string | {
+    id?: string;
+    question?: string;
+    reason?: string;
+    options?: string[];
+  }>;
 }
 
 export interface SearchResult {

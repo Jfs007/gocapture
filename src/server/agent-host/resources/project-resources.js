@@ -2,7 +2,6 @@
 
 const path = require('path');
 const { experienceRoot, safeRead } = require('../../experience/project-context');
-const { projectTaskSessions } = require('../../experience/task-session');
 const { createResourceProvider } = require('./provider');
 
 const RESOURCE_DEFINITIONS = [
@@ -20,14 +19,6 @@ const RESOURCE_DEFINITIONS = [
     description: 'Indexed source file inventory for the currently bound project.',
     mimeType: 'application/json',
     category: 'project',
-    readable: true,
-  },
-  {
-    uri: 'magnus://task/memory',
-    name: 'Task Memory',
-    description: 'In-memory active task sessions for the current project.',
-    mimeType: 'application/json',
-    category: 'memory',
     readable: true,
   },
 ];
@@ -61,13 +52,6 @@ function readProjectResource(project, uri) {
       })), null, 2),
     };
   }
-  if (value === 'magnus://task/memory') {
-    return {
-      uri: value,
-      mimeType: 'application/json',
-      content: JSON.stringify(projectTaskSessions(project), null, 2),
-    };
-  }
   return null;
 }
 
@@ -75,7 +59,7 @@ const projectResourceProvider = createResourceProvider({
   id: 'builtin.project-resources',
   title: 'Project Resources',
   source: 'builtin',
-  description: 'Default project context, source inventory, and task memory resources.',
+  description: 'Default project context and source inventory resources.',
   listResources: listProjectResources,
   readResource: readProjectResource,
 });
