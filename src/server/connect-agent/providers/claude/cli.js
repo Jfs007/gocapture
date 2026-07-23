@@ -4,8 +4,6 @@
 // 与 Codex 不同：Claude Code 没有"一个长驻 app-server 多路 thread"的模式，而是每个任务
 // headless 跑一次 `claude -p --output-format stream-json`，用 --resume <session_id> 续接会话。
 const { execFile, spawn } = require('child_process');
-const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -61,18 +59,21 @@ function normalizeVersion(versionOutput) {
   return match ? match[1] : String(versionOutput || '').trim();
 }
 
-// Claude Code 的登录凭据可能在环境变量、也可能在 ~/.claude/.credentials.json 或系统钥匙串。
-// 无法 100% 判定时倾向"认为已登录"（真正没登录会在任务运行时报明确错误），避免误判成 login-required 卡死。
-function detectClaudeAuth() {
-  if (String(process.env.ANTHROPIC_API_KEY || '').trim()) return { authenticated: true, source: 'ANTHROPIC_API_KEY' };
-  if (String(process.env.CLAUDE_CODE_OAUTH_TOKEN || '').trim()) return { authenticated: true, source: 'CLAUDE_CODE_OAUTH_TOKEN' };
-  const credentialsPath = path.join(os.homedir(), '.claude', '.credentials.json');
+// 真实登录检测：claude auth status 输出 JSON（loggedIn/email/subscriptionType）。API-key 模式则看环境变量。
+async function detectClaudeAuth(executable) {
+  const probe = await execFileResult(executable, ['auth', 'status']);
   try {
-    if (fs.existsSync(credentialsPath)) return { authenticated: true, source: credentialsPath };
+    const info = JSON.parse(probe.stdout || '{}');
+    if (info.loggedIn) {
+      const who = [info.email, info.subscriptionType].filter(Boolean).join(' · ');
+      return { authenticated: true, message: `已登录${who ? `：${who}` : ''}`, detail: info.authMethod || '' };
+    }
   } catch (error) {
   }
-  // 判定不出 → 乐观放行，交由运行期报错。
-  return { authenticated: true, source: 'assumed', assumed: true };
+  if (String(process.env.ANTHROPIC_API_KEY || '').trim()) {
+    return { authenticated: true, message: '使用 ANTHROPIC_API_KEY', detail: 'env' };
+  }
+  return { authenticated: false, message: '未登录（可用订阅登录或 API Key 授权）', detail: probe.stderr || '' };
 }
 
 async function inspectClaudeCli() {
@@ -87,16 +88,14 @@ async function inspectClaudeCli() {
       detail: resolved.error || '',
     };
   }
-  const auth = detectClaudeAuth();
+  const auth = await detectClaudeAuth(resolved.executable);
   return {
     installed: true,
     authenticated: auth.authenticated,
     executable: resolved.executable === 'claude' ? 'claude' : path.resolve(resolved.executable),
     version: normalizeVersion(resolved.versionOutput),
-    message: auth.assumed
-      ? 'Claude Code 已安装（未显式检测到登录凭据，将在任务运行时校验）'
-      : 'Claude Code 已就绪',
-    detail: auth.source,
+    message: auth.authenticated ? `Claude Code ${auth.message}` : `Claude Code ${auth.message}`,
+    detail: auth.detail,
   };
 }
 

@@ -11088,14 +11088,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   });
-  const _export_sfc = (sfc, props) => {
-    const target = sfc.__vccOpts || sfc;
-    for (const [key, val] of props) {
-      target[key] = val;
-    }
-    return target;
-  };
-  const ConnectAgentMenu = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["__scopeId", "data-v-f15cba78"]]);
   const _hoisted_1$8 = ["value", "readonly", "placeholder"];
   const _hoisted_2$7 = ["onClick"];
   const _hoisted_3$7 = {
@@ -12109,7 +12101,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.040721.959";
+      const buildVersion = "20260724.041502.451";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -12211,7 +12203,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             ),
             createBaseVNode("div", _hoisted_6$3, [
               createBaseVNode("div", _hoisted_7$3, [
-                createVNode(ConnectAgentMenu),
+                createVNode(_sfc_main$a),
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-inline-text-btn",
@@ -20276,6 +20268,88 @@ ${result.rawText}` : ""
   color: #b42318;
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* Claude Code 授权表单 */
+.mda-cca-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin: 4px 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.03);
+}
+.mda-cca-tabs {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+}
+.mda-cca-tab {
+  flex: 1;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.6);
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mda-cca-tab.is-active {
+  background: #fff;
+  color: var(--primary-color, #0091ff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  font-weight: 600;
+}
+.mda-cca-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.mda-cca-input:focus {
+  border-color: var(--primary-color, #0091ff);
+}
+.mda-cca-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.5);
+}
+.mda-cca-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.mda-cca-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.mda-cca-btn.is-primary {
+  background: var(--primary-color, #0091ff);
+  color: #fff;
+}
+.mda-cca-btn.is-ghost {
+  background: transparent;
+  color: rgba(15, 23, 42, 0.55);
+}
+.mda-cca-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .mda-tool-icon-btn,

@@ -76,7 +76,8 @@ class ClaudeCodeClient {
       state: this.isConnected() ? 'connected' : this.state,
       connected: this.isConnected(),
       installed: !!this.cli?.installed,
-      authenticated: !!this.cli?.authenticated,
+      // 已登录(OAuth) 或 已在本工具登记授权(apikey/订阅令牌) 都算已授权。
+      authenticated: !!this.cli?.authenticated || !!this.auth.mode,
       version: this.cli?.version || '',
       executable: this.cli?.executable || '',
       message: this.statusMessage(),
