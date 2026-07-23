@@ -14,7 +14,7 @@ const {
   composeToolGuards,
   createForceFinishGuard,
 } = require('../../../agent-host/agent-finalization');
-const { parseJsonResult } = require('../anchor/dom-utils');
+const { parseJsonResult } = require('../../../utils/parse-json');
 
 const DOM_LOCATOR_TOOLS = [
   // 定向工具：返回框架/anchor/搜索范围/Experience 线索。未实现前不在 registry 中，

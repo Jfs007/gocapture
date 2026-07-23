@@ -5,7 +5,7 @@ const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const {
   domContextDebugSummary,
   plannerDomInput,
-} = require('./dom-agent/anchor/dom-utils');
+} = require('../dom');
 const { runDomLocatorAgent } = require('./dom-agent/agents/dom-locator-agent');
 
 function projectFile(project, filePath) {
