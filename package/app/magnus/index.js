@@ -7021,6 +7021,76 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       el.value = newValue;
     }
   };
+  const vModelCheckbox = {
+    // #4096 array checkboxes need to be deep traversed
+    deep: true,
+    created(el, _, vnode) {
+      el[assignKey] = getModelAssigner(vnode);
+      addEventListener(el, "change", () => {
+        const modelValue = el._modelValue;
+        const elementValue = getValue(el);
+        const checked = el.checked;
+        const assign2 = el[assignKey];
+        if (isArray(modelValue)) {
+          const index = looseIndexOf(modelValue, elementValue);
+          const found = index !== -1;
+          if (checked && !found) {
+            assign2(modelValue.concat(elementValue));
+          } else if (!checked && found) {
+            const filtered = [...modelValue];
+            filtered.splice(index, 1);
+            assign2(filtered);
+          }
+        } else if (isSet(modelValue)) {
+          const cloned = new Set(modelValue);
+          if (checked) {
+            cloned.add(elementValue);
+          } else {
+            cloned.delete(elementValue);
+          }
+          assign2(cloned);
+        } else {
+          assign2(getCheckboxValue(el, checked));
+        }
+      });
+    },
+    // set initial checked on mount to wait for true-value/false-value
+    mounted: setChecked,
+    beforeUpdate(el, binding, vnode) {
+      el[assignKey] = getModelAssigner(vnode);
+      setChecked(el, binding, vnode);
+    }
+  };
+  function setChecked(el, { value, oldValue }, vnode) {
+    el._modelValue = value;
+    let checked;
+    if (isArray(value)) {
+      checked = looseIndexOf(value, vnode.props.value) > -1;
+    } else if (isSet(value)) {
+      checked = value.has(vnode.props.value);
+    } else {
+      if (value === oldValue) return;
+      checked = looseEqual(value, getCheckboxValue(el, true));
+    }
+    if (el.checked !== checked) {
+      el.checked = checked;
+    }
+  }
+  const vModelRadio = {
+    created(el, { value }, vnode) {
+      el.checked = looseEqual(value, vnode.props.value);
+      el[assignKey] = getModelAssigner(vnode);
+      addEventListener(el, "change", () => {
+        el[assignKey](getValue(el));
+      });
+    },
+    beforeUpdate(el, { value, oldValue }, vnode) {
+      el[assignKey] = getModelAssigner(vnode);
+      if (value !== oldValue) {
+        el.checked = looseEqual(value, vnode.props.value);
+      }
+    }
+  };
   const vModelSelect = {
     // <select multiple> value need to be deep traversed
     deep: true,
@@ -7085,6 +7155,49 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
   }
   function getValue(el) {
     return "_value" in el ? el._value : el.value;
+  }
+  function getCheckboxValue(el, checked) {
+    const key = checked ? "_trueValue" : "_falseValue";
+    return key in el ? el[key] : checked;
+  }
+  const vModelDynamic = {
+    created(el, binding, vnode) {
+      callModelHook(el, binding, vnode, null, "created");
+    },
+    mounted(el, binding, vnode) {
+      callModelHook(el, binding, vnode, null, "mounted");
+    },
+    beforeUpdate(el, binding, vnode, prevVNode) {
+      callModelHook(el, binding, vnode, prevVNode, "beforeUpdate");
+    },
+    updated(el, binding, vnode, prevVNode) {
+      callModelHook(el, binding, vnode, prevVNode, "updated");
+    }
+  };
+  function resolveDynamicModel(tagName, type) {
+    switch (tagName) {
+      case "SELECT":
+        return vModelSelect;
+      case "TEXTAREA":
+        return vModelText;
+      default:
+        switch (type) {
+          case "checkbox":
+            return vModelCheckbox;
+          case "radio":
+            return vModelRadio;
+          default:
+            return vModelText;
+        }
+    }
+  }
+  function callModelHook(el, binding, vnode, prevVNode, hook) {
+    const modelToUse = resolveDynamicModel(
+      el.tagName,
+      vnode.props && vnode.props.type
+    );
+    const fn = modelToUse[hook];
+    fn && fn(el, binding, vnode, prevVNode);
   }
   const systemModifiers = ["ctrl", "shift", "alt", "meta"];
   const modifierGuards = {
@@ -8802,21 +8915,21 @@ ${unwrappedProps}
   };
   const _hoisted_5$a = ["aria-expanded", "onClick"];
   const _hoisted_6$8 = { class: "mda-message-work-label" };
-  const _hoisted_7$7 = {
+  const _hoisted_7$8 = {
     key: 1,
     class: "mda-message-work-label"
   };
-  const _hoisted_8$6 = ["onClick"];
-  const _hoisted_9$6 = {
+  const _hoisted_8$7 = ["onClick"];
+  const _hoisted_9$7 = {
     key: 1,
     class: "mda-message-logs"
   };
-  const _hoisted_10$6 = {
+  const _hoisted_10$7 = {
     class: "mda-log-chain",
     role: "list",
     "aria-label": "Agent 调用链"
   };
-  const _hoisted_11$6 = { class: "mda-log-node-body" };
+  const _hoisted_11$7 = { class: "mda-log-node-body" };
   const _hoisted_12$5 = ["aria-expanded", "onClick"];
   const _hoisted_13$5 = { class: "mda-log-node-actor" };
   const _hoisted_14$5 = { class: "mda-log-node-title" };
@@ -9015,7 +9128,7 @@ ${unwrappedProps}
                         )
                       ], 8, _hoisted_5$a)) : (openBlock(), createElementBlock(
                         "div",
-                        _hoisted_7$7,
+                        _hoisted_7$8,
                         toDisplayString(messageWorkLabel(message)),
                         1
                         /* TEXT */
@@ -9032,10 +9145,10 @@ ${unwrappedProps}
                           name: "copy",
                           size: 15
                         })
-                      ], 8, _hoisted_8$6)) : createCommentVNode("v-if", true)
+                      ], 8, _hoisted_8$7)) : createCommentVNode("v-if", true)
                     ])) : createCommentVNode("v-if", true),
-                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_9$6, [
-                      createBaseVNode("div", _hoisted_10$6, [
+                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_9$7, [
+                      createBaseVNode("div", _hoisted_10$7, [
                         (openBlock(true), createElementBlock(
                           Fragment,
                           null,
@@ -9058,7 +9171,7 @@ ${unwrappedProps}
                                   -1
                                   /* CACHED */
                                 )),
-                                createBaseVNode("div", _hoisted_11$6, [
+                                createBaseVNode("div", _hoisted_11$7, [
                                   node.expandable ? (openBlock(), createElementBlock("button", {
                                     key: 0,
                                     class: "mda-log-node-head is-expandable",
@@ -9746,17 +9859,17 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-composite-row"
   };
   const _hoisted_6$7 = ["onClick"];
-  const _hoisted_7$6 = ["onClick"];
-  const _hoisted_8$5 = {
+  const _hoisted_7$7 = ["onClick"];
+  const _hoisted_8$6 = {
     key: 0,
     class: "mda-composite-anchor"
   };
-  const _hoisted_9$5 = ["onClick"];
-  const _hoisted_10$5 = {
+  const _hoisted_9$6 = ["onClick"];
+  const _hoisted_10$6 = {
     key: 1,
     class: "mda-composer-options mda-plan"
   };
-  const _hoisted_11$5 = { class: "mda-plan-body" };
+  const _hoisted_11$6 = { class: "mda-plan-body" };
   const _hoisted_12$4 = {
     key: 0,
     class: "mda-plan-summary"
@@ -10029,10 +10142,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(child.file)
-                    }, toDisplayString(child.file), 9, _hoisted_7$6),
+                    }, toDisplayString(child.file), 9, _hoisted_7$7),
                     child.anchor ? (openBlock(), createElementBlock(
                       "span",
-                      _hoisted_8$5,
+                      _hoisted_8$6,
                       toDisplayString(child.anchor),
                       1
                       /* TEXT */
@@ -10061,14 +10174,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(bridge.file)
-                    }, toDisplayString(bridge.file), 9, _hoisted_9$5)
+                    }, toDisplayString(bridge.file), 9, _hoisted_9$6)
                   ]);
                 }),
                 128
                 /* KEYED_FRAGMENT */
               ))
             ])) : createCommentVNode("v-if", true),
-            hasChangePlanContent.value ? (openBlock(), createElementBlock("div", _hoisted_10$5, [
+            hasChangePlanContent.value ? (openBlock(), createElementBlock("div", _hoisted_10$6, [
               _cache[14] || (_cache[14] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -10076,7 +10189,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_11$5, [
+              createBaseVNode("div", _hoisted_11$6, [
                 changePlan.value.summary ? (openBlock(), createElementBlock(
                   "div",
                   _hoisted_12$4,
@@ -10547,11 +10660,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       return Array.isArray(data == null ? void 0 : data.providers) ? data.providers : [];
     });
   }
-  function connectAgent(providerId) {
+  function connectAgent(providerId, auth) {
     return __async(this, null, function* () {
       const data = yield sourceServerJson(`/api/connect-agents/${encodeURIComponent(providerId)}/connect`, {
         method: "POST",
-        body: {},
+        body: auth ? { auth } : {},
         timeoutMs: 15e3,
         timeoutMessage: "连接 Agent 超时"
       });
@@ -10665,6 +10778,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_5$8 = { class: "mda-connect-agent-copy" };
   const _hoisted_6$6 = {
     key: 0,
+    class: "mda-connect-agent-auth"
+  };
+  const _hoisted_7$6 = { class: "mda-connect-agent-auth-tabs" };
+  const _hoisted_8$5 = ["type", "placeholder", "onKeydown"];
+  const _hoisted_9$5 = { class: "mda-connect-agent-auth-actions" };
+  const _hoisted_10$5 = ["disabled", "onClick"];
+  const _hoisted_11$5 = {
+    key: 0,
     class: "mda-connect-agent-error"
   };
   const _sfc_main$a = /* @__PURE__ */ defineComponent({
@@ -10675,6 +10796,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const visible = /* @__PURE__ */ ref(false);
       const anchorRect = /* @__PURE__ */ ref(null);
       const pendingId = /* @__PURE__ */ ref("");
+      const authFormId = /* @__PURE__ */ ref("");
+      const authMode = /* @__PURE__ */ ref("subscription");
+      const authInput = /* @__PURE__ */ ref("");
       const connectAgentStore = useConnectAgentStore();
       const { providers, loading: busy, connectionError: errorText } = storeToRefs(connectAgentStore);
       const PROVIDER_ICONS = { codex: "C", claude: "✦" };
@@ -10731,13 +10855,45 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         });
       }
       function toggleConnection(provider) {
+        if (busy.value || pendingId.value) return;
+        if (provider.connected) {
+          void runToggle(provider);
+          return;
+        }
+        if (provider.authModes && provider.authModes.length) {
+          openAuth(provider);
+          return;
+        }
+        void runToggle(provider);
+      }
+      function openAuth(provider) {
+        if (authFormId.value === provider.id) {
+          authFormId.value = "";
+          return;
+        }
+        authFormId.value = provider.id;
+        authMode.value = provider.authMode || "subscription";
+        authInput.value = "";
+        errorText.value = "";
+      }
+      function cancelAuth() {
+        authFormId.value = "";
+        authInput.value = "";
+      }
+      function submitAuth(provider) {
+        const value = authInput.value.trim();
+        const auth = authMode.value === "apikey" ? { mode: "apikey", apiKey: value } : { mode: "subscription", oauthToken: value };
+        void runToggle(provider, auth);
+      }
+      function runToggle(provider, auth) {
         return __async(this, null, function* () {
-          if (busy.value || pendingId.value) return;
+          if (pendingId.value) return;
           pendingId.value = provider.id;
           errorText.value = "";
           try {
-            const next = provider.connected ? yield disconnectAgent(provider.id) : yield connectAgent(provider.id);
+            const next = provider.connected ? yield disconnectAgent(provider.id) : yield connectAgent(provider.id, auth);
             connectAgentStore.upsertProvider(next);
+            authFormId.value = "";
           } catch (error) {
             errorText.value = (error == null ? void 0 : error.message) || `${provider.name} 连接失败`;
             yield refreshProviders(false);
@@ -10788,14 +10944,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             }, {
               default: withCtx(() => [
                 createBaseVNode("div", _hoisted_2$8, [
-                  _cache[0] || (_cache[0] = createBaseVNode(
+                  _cache[3] || (_cache[3] = createBaseVNode(
                     "div",
                     { class: "mda-add-panel-title" },
                     "添加",
                     -1
                     /* CACHED */
                   )),
-                  _cache[1] || (_cache[1] = createBaseVNode(
+                  _cache[4] || (_cache[4] = createBaseVNode(
                     "div",
                     { class: "mda-add-section-title" },
                     "连接",
@@ -10806,53 +10962,104 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     Fragment,
                     null,
                     renderList(unref(providers), (provider) => {
-                      return openBlock(), createElementBlock("button", {
+                      return openBlock(), createElementBlock("div", {
                         key: provider.id,
-                        class: "mda-connect-agent-row",
-                        type: "button",
-                        disabled: unref(busy) || pendingId.value === provider.id,
-                        onClick: ($event) => toggleConnection(provider)
+                        class: "mda-connect-agent-item"
                       }, [
-                        createBaseVNode(
-                          "span",
-                          _hoisted_4$8,
-                          toDisplayString(providerIcon(provider.id)),
-                          1
-                          /* TEXT */
-                        ),
-                        createBaseVNode("span", _hoisted_5$8, [
+                        createBaseVNode("button", {
+                          class: "mda-connect-agent-row",
+                          type: "button",
+                          disabled: unref(busy) || pendingId.value === provider.id,
+                          onClick: ($event) => toggleConnection(provider)
+                        }, [
                           createBaseVNode(
-                            "strong",
-                            null,
-                            toDisplayString(provider.name),
+                            "span",
+                            _hoisted_4$8,
+                            toDisplayString(providerIcon(provider.id)),
                             1
                             /* TEXT */
                           ),
+                          createBaseVNode("span", _hoisted_5$8, [
+                            createBaseVNode(
+                              "strong",
+                              null,
+                              toDisplayString(provider.name),
+                              1
+                              /* TEXT */
+                            ),
+                            createBaseVNode(
+                              "span",
+                              null,
+                              toDisplayString(providerDescription(provider)),
+                              1
+                              /* TEXT */
+                            )
+                          ]),
                           createBaseVNode(
                             "span",
-                            null,
-                            toDisplayString(providerDescription(provider)),
-                            1
-                            /* TEXT */
+                            {
+                              class: normalizeClass(["mda-connect-agent-action", `is-${provider.state || "checking"}`])
+                            },
+                            toDisplayString(providerAction(provider)),
+                            3
+                            /* TEXT, CLASS */
                           )
-                        ]),
-                        createBaseVNode(
-                          "span",
-                          {
-                            class: normalizeClass(["mda-connect-agent-action", `is-${provider.state || "checking"}`])
-                          },
-                          toDisplayString(providerAction(provider)),
-                          3
-                          /* TEXT, CLASS */
-                        )
-                      ], 8, _hoisted_3$8);
+                        ], 8, _hoisted_3$8),
+                        authFormId.value === provider.id ? (openBlock(), createElementBlock("div", _hoisted_6$6, [
+                          createBaseVNode("div", _hoisted_7$6, [
+                            createBaseVNode(
+                              "button",
+                              {
+                                type: "button",
+                                class: normalizeClass({ "is-active": authMode.value === "subscription" }),
+                                onClick: _cache[0] || (_cache[0] = ($event) => authMode.value = "subscription")
+                              },
+                              "订阅登录",
+                              2
+                              /* CLASS */
+                            ),
+                            createBaseVNode(
+                              "button",
+                              {
+                                type: "button",
+                                class: normalizeClass({ "is-active": authMode.value === "apikey" }),
+                                onClick: _cache[1] || (_cache[1] = ($event) => authMode.value = "apikey")
+                              },
+                              "API Key",
+                              2
+                              /* CLASS */
+                            )
+                          ]),
+                          withDirectives(createBaseVNode("input", {
+                            "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => authInput.value = $event),
+                            class: "mda-connect-agent-auth-input",
+                            type: authMode.value === "apikey" ? "password" : "text",
+                            placeholder: authMode.value === "apikey" ? "粘贴 Anthropic API Key（sk-ant-…）" : "留空则用已登录会话；或粘贴 `claude setup-token` 生成的令牌",
+                            onKeydown: withKeys(($event) => submitAuth(provider), ["enter"])
+                          }, null, 40, _hoisted_8$5), [
+                            [vModelDynamic, authInput.value]
+                          ]),
+                          createBaseVNode("div", _hoisted_9$5, [
+                            createBaseVNode("button", {
+                              type: "button",
+                              class: "is-ghost",
+                              onClick: cancelAuth
+                            }, "取消"),
+                            createBaseVNode("button", {
+                              type: "button",
+                              disabled: pendingId.value === provider.id,
+                              onClick: ($event) => submitAuth(provider)
+                            }, " 授权并连接 ", 8, _hoisted_10$5)
+                          ])
+                        ])) : createCommentVNode("v-if", true)
+                      ]);
                     }),
                     128
                     /* KEYED_FRAGMENT */
                   )),
                   unref(errorText) ? (openBlock(), createElementBlock(
                     "div",
-                    _hoisted_6$6,
+                    _hoisted_11$5,
                     toDisplayString(unref(errorText)),
                     1
                     /* TEXT */
@@ -10869,6 +11076,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   });
+  const _export_sfc = (sfc, props) => {
+    const target = sfc.__vccOpts || sfc;
+    for (const [key, val] of props) {
+      target[key] = val;
+    }
+    return target;
+  };
+  const ConnectAgentMenu = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["__scopeId", "data-v-bbb81e14"]]);
   const _hoisted_1$8 = ["value", "readonly", "placeholder"];
   const _hoisted_2$7 = ["onClick"];
   const _hoisted_3$7 = {
@@ -11882,7 +12097,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.032001.778";
+      const buildVersion = "20260724.040111.593";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -11984,7 +12199,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             ),
             createBaseVNode("div", _hoisted_6$3, [
               createBaseVNode("div", _hoisted_7$3, [
-                createVNode(_sfc_main$a),
+                createVNode(ConnectAgentMenu),
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-inline-text-btn",

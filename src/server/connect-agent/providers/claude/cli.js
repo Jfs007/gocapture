@@ -100,32 +100,16 @@ async function inspectClaudeCli() {
   };
 }
 
-// 子进程认证环境：解决 server 起的 claude 与你终端认证不一致导致的 403。
-// - MAGNUS_CLAUDE_API_KEY 设了 → 用它作 ANTHROPIC_API_KEY（显式 API-key 模式）。
-// - 否则若 MAGNUS_CLAUDE_USE_LOGIN 为真 → 清掉环境里残留的 key，强制用已登录的订阅会话
-//   （最常见的 403 就是残留 key 劫持了订阅登录）。
-// - 默认原样透传，不改变既有行为。
-function buildClaudeEnv() {
-  const env = { ...process.env };
-  const apiKey = String(process.env.MAGNUS_CLAUDE_API_KEY || '').trim();
-  if (apiKey) {
-    env.ANTHROPIC_API_KEY = apiKey;
-  } else if (String(process.env.MAGNUS_CLAUDE_USE_LOGIN || '').trim()) {
-    delete env.ANTHROPIC_API_KEY;
-    delete env.ANTHROPIC_AUTH_TOKEN;
-  }
-  return env;
-}
-
 // headless 拉起一次 Claude Code：stream-json 事件从 stdout 逐行输出；prompt 通过 stdin 传入（避免超长参数）。
 // permissionMode 默认放开权限以便自动改文件（对应 Codex 的 approvalPolicy:never + workspace-write）。
-function spawnClaudeTask(executable, { cwd, resumeSessionId, permissionMode = 'bypassPermissions', model } = {}) {
+// env 由 client 根据用户授权(订阅/apikey)构建后传入。
+function spawnClaudeTask(executable, { cwd, resumeSessionId, permissionMode = 'bypassPermissions', model, env } = {}) {
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', permissionMode];
   if (model) args.push('--model', model);
   if (resumeSessionId) args.push('--resume', resumeSessionId);
   return spawn(executable, args, {
     cwd,
-    env: buildClaudeEnv(),
+    env: env || process.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });

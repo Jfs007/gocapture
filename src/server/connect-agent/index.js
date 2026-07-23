@@ -26,8 +26,8 @@ function createConnectAgentService() {
     async inspect(providerId) {
       return requireProvider(providerId).inspect();
     },
-    async connect(providerId) {
-      return requireProvider(providerId).connect();
+    async connect(providerId, options = {}) {
+      return requireProvider(providerId).connect(options);
     },
     disconnect(providerId) {
       return requireProvider(providerId).disconnect();

@@ -1,0 +1,58 @@
+
+.mda-connect-agent-auth[data-v-bbb81e14] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  margin: 2px 0 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+}
+.mda-connect-agent-auth-tabs[data-v-bbb81e14] {
+  display: flex;
+  gap: 6px;
+}
+.mda-connect-agent-auth-tabs button[data-v-bbb81e14] {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mda-connect-agent-auth-tabs button.is-active[data-v-bbb81e14] {
+  border-color: rgba(0, 145, 255, 0.8);
+  color: rgba(0, 145, 255, 1);
+  background: rgba(0, 145, 255, 0.08);
+}
+.mda-connect-agent-auth-input[data-v-bbb81e14] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.mda-connect-agent-auth-actions[data-v-bbb81e14] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.mda-connect-agent-auth-actions button[data-v-bbb81e14] {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 145, 255, 1);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mda-connect-agent-auth-actions button.is-ghost[data-v-bbb81e14] {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.55);
+}
+.mda-connect-agent-auth-actions button[data-v-bbb81e14]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

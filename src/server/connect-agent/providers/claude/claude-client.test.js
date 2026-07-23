@@ -5,6 +5,9 @@ const test = require('node:test');
 const { Readable } = require('stream');
 const { EventEmitter } = require('events');
 const { ClaudeCodeClient, updateTaskFromEvent } = require('./claude-client');
+const { authToEnv } = require('./auth-store');
+
+const NO_AUTH = { loadAuth: () => ({ mode: '', apiKey: '', oauthToken: '' }), saveAuth: () => true };
 
 function fakeChild(lines) {
   const stdout = new Readable({ read() {} });
@@ -36,6 +39,7 @@ test('ClaudeCodeClient.runTask maps stream-json → events, tracks session + cha
   const calls = [];
   const client = new ClaudeCodeClient({
     inspectCli: READY_CLI,
+    ...NO_AUTH,
     spawnTask: (exe, opts) => { calls.push(opts); return fakeChild(STREAM); },
   });
   await client.connect();
@@ -61,6 +65,7 @@ test('ClaudeCodeClient resumes the session for a later task in the same project'
   const calls = [];
   const client = new ClaudeCodeClient({
     inspectCli: READY_CLI,
+    ...NO_AUTH,
     spawnTask: (exe, opts) => { calls.push(opts); return fakeChild(STREAM); },
   });
   await client.connect();
@@ -74,6 +79,7 @@ test('ClaudeCodeClient resumes the session for a later task in the same project'
 test('ClaudeCodeClient rejects a task whose result is an error', async () => {
   const client = new ClaudeCodeClient({
     inspectCli: READY_CLI,
+    ...NO_AUTH,
     spawnTask: () => fakeChild([
       { type: 'system', subtype: 'init', session_id: 's' },
       { type: 'result', subtype: 'error_during_execution', session_id: 's', is_error: true, result: '炸了' },
@@ -87,11 +93,35 @@ test('ClaudeCodeClient rejects a task whose result is an error', async () => {
 });
 
 test('status() reports the connection contract shape', () => {
-  const client = new ClaudeCodeClient({ inspectCli: READY_CLI });
+  const client = new ClaudeCodeClient({ inspectCli: READY_CLI, ...NO_AUTH });
   const status = client.status();
   assert.strictEqual(status.id, 'claude');
   assert.strictEqual(status.category, 'connection');
   assert.ok('connected' in status && 'installed' in status && 'activeTaskCount' in status);
+  assert.deepStrictEqual(status.authModes, ['subscription', 'apikey']);
+});
+
+test('authToEnv maps apikey / subscription correctly', () => {
+  const key = authToEnv({ mode: 'apikey', apiKey: 'sk-ant-x' }, { FOO: '1' });
+  assert.strictEqual(key.ANTHROPIC_API_KEY, 'sk-ant-x');
+  // 订阅：清掉残留 key，避免被劫持成 403；有令牌则用 OAuth token
+  const sub = authToEnv({ mode: 'subscription', oauthToken: 'tok' }, { ANTHROPIC_API_KEY: 'stale', FOO: '1' });
+  assert.strictEqual(sub.ANTHROPIC_API_KEY, undefined);
+  assert.strictEqual(sub.CLAUDE_CODE_OAUTH_TOKEN, 'tok');
+});
+
+test('connect({auth}) persists auth and status reflects it', async () => {
+  let saved = null;
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    loadAuth: () => ({ mode: '', apiKey: '', oauthToken: '' }),
+    saveAuth: (auth) => { saved = auth; return true; },
+  });
+  await client.connect({ auth: { mode: 'apikey', apiKey: 'sk-ant-abc' } });
+  assert.strictEqual(saved.mode, 'apikey');
+  assert.strictEqual(saved.apiKey, 'sk-ant-abc');
+  assert.strictEqual(client.status().authMode, 'apikey');
+  assert.strictEqual(client.status().authConfigured, true);
 });
 
 test('updateTaskFromEvent tracks file edits and final text', () => {

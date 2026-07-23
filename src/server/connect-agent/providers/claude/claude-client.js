@@ -8,6 +8,7 @@
 const readline = require('readline');
 const crypto = require('crypto');
 const { inspectClaudeCli, spawnClaudeTask } = require('./cli');
+const { normalizeAuth, loadClaudeAuth, saveClaudeAuth, authToEnv } = require('./auth-store');
 
 const TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const FILE_EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'create_file', 'str_replace_editor']);
@@ -23,6 +24,9 @@ class ClaudeCodeClient {
     this.state = 'disconnected';
     this.lastError = '';
     this.cli = null;
+    // 用户授权（订阅 / apikey）：构造时从盘上恢复；连接时可携带新授权覆盖并落盘。
+    this.auth = options.auth ? normalizeAuth(options.auth) : (options.loadAuth || loadClaudeAuth)();
+    this.saveAuth = options.saveAuth || saveClaudeAuth;
   }
 
   async inspect() {
@@ -30,9 +34,14 @@ class ClaudeCodeClient {
     return this.status();
   }
 
-  async connect() {
+  async connect(options = {}) {
     this.state = 'checking';
     this.lastError = '';
+    // 连接时可携带授权（订阅/apikey）→ 覆盖并落盘。
+    if (options && options.auth) {
+      this.auth = normalizeAuth(options.auth);
+      this.saveAuth(this.auth);
+    }
     const cli = await this.inspectCli();
     this.cli = cli;
     if (!cli.installed) {
@@ -73,6 +82,10 @@ class ClaudeCodeClient {
       message: this.statusMessage(),
       error: this.lastError,
       activeTaskCount: this.tasks.size,
+      // 授权元数据：前端据此展示"订阅/apikey"授权入口与当前状态（不回传密钥本身）。
+      authModes: ['subscription', 'apikey'],
+      authMode: this.auth.mode || '',
+      authConfigured: !!this.auth.mode,
     };
   }
 
@@ -114,6 +127,7 @@ class ClaudeCodeClient {
       resumeSessionId,
       permissionMode: this.permissionMode,
       model: this.model,
+      env: authToEnv(this.auth),
     });
     const entry = { child, task };
     this.tasks.set(taskId, entry);

@@ -50,12 +50,12 @@ async function handleConnectAgentRoutes({
   const match = url.pathname.match(/^\/api\/connect-agents\/([^/]+)\/(check|connect|disconnect)$/);
   if (!match || req.method !== 'POST') return false;
 
-  await readBody(req);
+  const body = await readBody(req);
   const [, providerId, action] = match;
   const provider = action === 'check'
     ? await connectAgent.inspect(providerId)
     : action === 'connect'
-      ? await connectAgent.connect(providerId)
+      ? await connectAgent.connect(providerId, body || {})
       : connectAgent.disconnect(providerId);
   sendJson(res, 200, { success: true, provider });
   return true;

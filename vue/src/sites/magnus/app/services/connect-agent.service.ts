@@ -22,6 +22,15 @@ export interface ConnectAgentProvider {
   message: string;
   error: string;
   activeTaskCount?: number;
+  authModes?: string[];
+  authMode?: string;
+  authConfigured?: boolean;
+}
+
+export interface ConnectAgentAuth {
+  mode: 'subscription' | 'apikey';
+  apiKey?: string;
+  oauthToken?: string;
 }
 
 export interface ConnectAgentTask {
@@ -44,10 +53,13 @@ export async function listConnectAgents(refresh = false): Promise<ConnectAgentPr
   return Array.isArray(data?.providers) ? data.providers : [];
 }
 
-export async function connectAgent(providerId: string): Promise<ConnectAgentProvider> {
+export async function connectAgent(
+  providerId: string,
+  auth?: ConnectAgentAuth
+): Promise<ConnectAgentProvider> {
   const data = await sourceServerJson(`/api/connect-agents/${encodeURIComponent(providerId)}/connect`, {
     method: 'POST',
-    body: {},
+    body: auth ? { auth } : {},
     timeoutMs: 15000,
     timeoutMessage: '连接 Agent 超时'
   });
