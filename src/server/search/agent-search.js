@@ -6,7 +6,7 @@ const {
   domContextDebugSummary,
   plannerDomInput,
 } = require('../dom');
-const { runDomLocatorAgent } = require('./dom-agent/agents/dom-locator-agent');
+const { runDomLocatorAgent } = require('../agents/locator');
 
 function projectFile(project, filePath) {
   const normalized = String(filePath || '').replace(/\\/g, '/').replace(/^\.?\//, '');

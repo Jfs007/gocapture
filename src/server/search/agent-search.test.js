@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { fakeModel } = require('langchain');
 const { runAgentSearch } = require('./agent-search');
-const { createFinalizationMiddleware } = require('./dom-agent/agents/dom-locator-agent');
+const { createFinalizationMiddleware } = require('../agents/locator');
 
 function fixtureProject(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-dom-agent-'));

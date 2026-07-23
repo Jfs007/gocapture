@@ -13,7 +13,7 @@ const {
   buildFallbackDecision,
   createDomLocatorContextMiddleware,
   createDomLocatorToolGuard,
-} = require('./dom-locator-agent');
+} = require('./index');
 
 function fixtureProject(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-dom-seed-'));
