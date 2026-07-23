@@ -11882,7 +11882,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.031345.934";
+      const buildVersion = "20260724.032001.778";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -14895,7 +14895,7 @@ ${source}` : "",
       return "本地源码服务用于选择源码路径和扫描文件";
     });
     const chatMessages = computed(() => {
-      var _a2;
+      var _a2, _b;
       const messages = [];
       if (!project.value) {
         messages.push({
@@ -15040,11 +15040,12 @@ ${result.rawText}` : ""
       if (connectAgentStore.taskStatus !== "idle") {
         const currentTask = connectAgentStore.task;
         const running = connectAgentStore.taskStatus === "running";
+        const agentName = ((_b = connectAgentStore.activeProvider) == null ? void 0 : _b.name) || "开发助手";
         messages.push({
           id: "connect-agent-task",
           role: "agent",
-          title: "Codex 开发任务",
-          text: running ? "源码定位已完成，Codex 正在项目中执行修改和验证。" : connectAgentStore.taskStatus === "completed" ? "Codex 已完成项目修改。" : connectAgentStore.taskError || "Codex 开发任务未完成。",
+          title: `${agentName} 开发任务`,
+          text: running ? `源码定位已完成，${agentName} 正在项目中执行修改和验证。` : connectAgentStore.taskStatus === "completed" ? `${agentName} 已完成项目修改。` : connectAgentStore.taskError || `${agentName} 开发任务未完成。`,
           pre: !running ? (currentTask == null ? void 0 : currentTask.finalResponse) || "" : "",
           logs: [
             ...connectAgentStore.taskLogs || [],

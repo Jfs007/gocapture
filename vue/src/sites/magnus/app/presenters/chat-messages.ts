@@ -228,15 +228,16 @@ export function useChatMessages() {
     if (connectAgentStore.taskStatus !== 'idle') {
       const currentTask = connectAgentStore.task;
       const running = connectAgentStore.taskStatus === 'running';
+      const agentName = connectAgentStore.activeProvider?.name || '开发助手';
       messages.push({
         id: 'connect-agent-task',
         role: 'agent',
-        title: 'Codex 开发任务',
+        title: `${agentName} 开发任务`,
         text: running
-          ? '源码定位已完成，Codex 正在项目中执行修改和验证。'
+          ? `源码定位已完成，${agentName} 正在项目中执行修改和验证。`
           : connectAgentStore.taskStatus === 'completed'
-            ? 'Codex 已完成项目修改。'
-            : connectAgentStore.taskError || 'Codex 开发任务未完成。',
+            ? `${agentName} 已完成项目修改。`
+            : connectAgentStore.taskError || `${agentName} 开发任务未完成。`,
         pre: !running ? currentTask?.finalResponse || '' : '',
         logs: [
           ...(connectAgentStore.taskLogs || []),
