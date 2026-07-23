@@ -7,7 +7,11 @@ const { EventEmitter } = require('events');
 const { ClaudeCodeClient, updateTaskFromEvent } = require('./claude-client');
 const { authToEnv } = require('./auth-store');
 
-const NO_AUTH = { loadAuth: () => ({ mode: '', apiKey: '', oauthToken: '' }), saveAuth: () => true };
+const NO_AUTH = {
+  loadAuth: () => ({ mode: '', apiKey: '', oauthToken: '' }),
+  saveAuth: () => true,
+  spawnProbe: (...args) => okProbe(...args), // 延后引用，避开 const 的 TDZ
+};
 
 function fakeChild(lines) {
   const stdout = new Readable({ read() {} });
@@ -23,6 +27,24 @@ function fakeChild(lines) {
   });
   return child;
 }
+
+function resultProbe(result, is_error = false) {
+  return () => {
+    const stdout = new Readable({ read() {} });
+    const child = new EventEmitter();
+    child.stdout = stdout;
+    child.stderr = new EventEmitter();
+    child.killed = false;
+    child.kill = () => { child.killed = true; };
+    setImmediate(() => {
+      stdout.push(`${JSON.stringify({ type: 'result', subtype: 'success', is_error, result })}\n`);
+      stdout.push(null);
+      setImmediate(() => child.emit('exit', 0));
+    });
+    return child;
+  };
+}
+const okProbe = resultProbe('OK');
 
 const READY_CLI = async () => ({ installed: true, authenticated: true, version: '1.0.0', executable: 'claude', message: 'ok' });
 
@@ -101,6 +123,17 @@ test('status() reports the connection contract shape', () => {
   assert.deepStrictEqual(status.authModes, ['subscription', 'apikey']);
 });
 
+test('connect() validates auth via a real probe and rejects on 403-like failure', async () => {
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    ...NO_AUTH,
+    // 探针回一条"鉴权失败当文本"的结果（Claude 的真实行为）
+    spawnProbe: resultProbe('Failed to authenticate. API Error: 403 Request not allowed'),
+  });
+  await assert.rejects(() => client.connect(), /403|授权/);
+  assert.strictEqual(client.status().connected, false);
+});
+
 test('authToEnv maps apikey / subscription correctly', () => {
   const key = authToEnv({ mode: 'apikey', apiKey: 'sk-ant-x' }, { FOO: '1' });
   assert.strictEqual(key.ANTHROPIC_API_KEY, 'sk-ant-x');
@@ -116,6 +149,7 @@ test('connect({auth}) persists auth and status reflects it', async () => {
     inspectCli: READY_CLI,
     loadAuth: () => ({ mode: '', apiKey: '', oauthToken: '' }),
     saveAuth: (auth) => { saved = auth; return true; },
+    spawnProbe: okProbe,
   });
   await client.connect({ auth: { mode: 'apikey', apiKey: 'sk-ant-abc' } });
   assert.strictEqual(saved.mode, 'apikey');

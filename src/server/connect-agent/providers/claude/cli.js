@@ -99,6 +99,16 @@ async function inspectClaudeCli() {
   };
 }
 
+// 授权探针：发一次极小的真实请求，用于验证当前授权(订阅/apikey)能否真正通过 API。
+// --output-format json 只回一个最终 JSON，便于判定成功/鉴权失败。
+function spawnClaudeProbe(executable, { env } = {}) {
+  return spawn(executable, ['-p', 'reply with the single word: OK', '--output-format', 'json'], {
+    env: env || process.env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+}
+
 // headless 拉起一次 Claude Code：stream-json 事件从 stdout 逐行输出；prompt 通过 stdin 传入（避免超长参数）。
 // permissionMode 默认放开权限以便自动改文件（对应 Codex 的 approvalPolicy:never + workspace-write）。
 // env 由 client 根据用户授权(订阅/apikey)构建后传入。
@@ -120,4 +130,5 @@ module.exports = {
   resolveClaudeExecutable,
   detectClaudeAuth,
   spawnClaudeTask,
+  spawnClaudeProbe,
 };

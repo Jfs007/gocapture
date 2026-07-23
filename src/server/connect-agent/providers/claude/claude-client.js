@@ -7,8 +7,12 @@
 // （这正是 Codex 那套目前缺的“跨请求上下文”，这里一开始就做对）。
 const readline = require('readline');
 const crypto = require('crypto');
-const { inspectClaudeCli, spawnClaudeTask } = require('./cli');
+const { inspectClaudeCli, spawnClaudeTask, spawnClaudeProbe } = require('./cli');
 const { normalizeAuth, loadClaudeAuth, saveClaudeAuth, authToEnv } = require('./auth-store');
+
+const PROBE_TIMEOUT_MS = 60 * 1000;
+// Claude 常把鉴权失败当"文本回复"打出来(subtype 仍 success)，故除退出码/is_error 外，也按文本特征判鉴权失败。
+const AUTH_FAIL_RE = /API Error:\s*40[13]|Failed to authenticate|not allowed|Invalid API key|unauthor/i;
 
 const TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const FILE_EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'create_file', 'str_replace_editor']);
@@ -17,6 +21,7 @@ class ClaudeCodeClient {
   constructor(options = {}) {
     this.inspectCli = options.inspectCli || inspectClaudeCli;
     this.spawnTask = options.spawnTask || spawnClaudeTask;
+    this.spawnProbe = options.spawnProbe || spawnClaudeProbe;
     this.permissionMode = options.permissionMode || process.env.MAGNUS_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
     this.model = options.model || process.env.MAGNUS_CLAUDE_MODEL || '';
     this.tasks = new Map();   // taskId -> { child, task }
@@ -48,9 +53,50 @@ class ClaudeCodeClient {
       this.state = 'unavailable';
       throw new Error(cli.message);
     }
-    // 与 Codex 不同：Claude 的登录可能在钥匙串，检测不可靠 → 不因 authenticated=false 硬拦，交由运行期报错。
+    // 真实验证：用当前授权发一次极小请求，确认能通过 API（auth status 只查本地凭据，过不了会 403）。
+    const probe = await this.probeAuth();
+    if (!probe.ok) {
+      this.state = 'error';
+      this.lastError = probe.message;
+      throw new Error(probe.message);
+    }
     this.state = 'connected';
     return this.status();
+  }
+
+  probeAuth() {
+    return new Promise(resolve => {
+      let out = '';
+      let err = '';
+      let child;
+      try {
+        child = this.spawnProbe(this.cli?.executable || 'claude', { env: authToEnv(this.auth) });
+      } catch (error) {
+        resolve({ ok: false, message: `授权验证失败：${error.message}` });
+        return;
+      }
+      const timer = setTimeout(() => {
+        if (!child.killed) child.kill('SIGTERM');
+        resolve({ ok: false, message: '授权验证超时（60s），请检查网络或登录状态。' });
+      }, PROBE_TIMEOUT_MS);
+      child.stdout?.on('data', chunk => { out += chunk; });
+      child.stderr?.on('data', chunk => { err += chunk; });
+      child.on('error', error => { clearTimeout(timer); resolve({ ok: false, message: `授权验证失败：${error.message}` }); });
+      child.on('exit', code => {
+        clearTimeout(timer);
+        let info = null;
+        try { info = JSON.parse(String(out).trim().split('\n').filter(Boolean).pop() || ''); } catch (error) {}
+        const text = String(info?.result || out || err || '');
+        if (info && info.type === 'result' && !info.is_error && !AUTH_FAIL_RE.test(text)) {
+          resolve({ ok: true, message: '' });
+          return;
+        }
+        const hint = AUTH_FAIL_RE.test(text)
+          ? '当前授权无法通过 Anthropic API（如 403）。请改用有效的 API Key，或重新登录订阅（claude auth login）。'
+          : `授权验证失败${code != null ? `（退出码 ${code}）` : ''}`;
+        resolve({ ok: false, message: `${hint}${text ? `：${text.slice(0, 200)}` : ''}` });
+      });
+    });
   }
 
   disconnect() {
