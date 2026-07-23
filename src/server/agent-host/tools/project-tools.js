@@ -339,7 +339,7 @@ const PROJECT_TOOLS = [
   buildTool({
     name: 'read_file',
     title: 'Read File',
-    description: 'Read source files. Use terms for literal/symbol focus, or around for one symbol/literal or a line range such as "81-160". Do not repeat the same call to read later lines.',
+    description: 'Read source files. Use terms for literal/symbol focus, or around for one symbol/literal or a line range such as "81-160". Do not repeat the same call to read later lines. 同一文件最多做一次 around 行区间补读；要定位标识符/关系改用 inspect_symbol_occurrences，要读整块结构用 read_closed_blocks，不要靠行区间翻页。',
     category: 'project',
     access: 'read',
     isReadOnly: () => true,
@@ -360,7 +360,7 @@ const PROJECT_TOOLS = [
   buildTool({
     name: 'inspect_symbol_occurrences',
     title: 'Inspect Symbol Occurrences',
-    description: 'List every exact occurrence of already-observed symbols in one file, with line numbers, small source windows, and nearby syntax-block ranges. Use this to verify one missing relation fact without reading arbitrary file chunks. A localBlock is only a nearby syntax fact, not a guaranteed semantic owner. This tool never decides source roles or relationships.',
+    description: 'List every exact occurrence of already-observed symbols in one file, with line numbers, small source windows, and nearby syntax-block ranges. Use this to verify one missing relation fact without reading arbitrary file chunks. A localBlock is only a nearby syntax fact, not a guaranteed semantic owner. This tool never decides source roles or relationships. 当缺失的是已发现标识符之间的关系时，优先用本工具而不是 read_file 行区间翻页；输入带 file、symbols、missingFact、decisionImpact，一次返回全部出现位置。',
     category: 'project',
     access: 'read',
     isReadOnly: () => true,

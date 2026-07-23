@@ -117,8 +117,9 @@ test('objective requires semantic partial-coverage review and existing-candidate
   assert.ok(objective.includes('partial 不等于候选错误'));
   assert.ok(objective.includes('必须优先读取这些已有候选'));
   assert.ok(objective.includes('不得跳过它们重新发起全局搜索'));
-  assert.ok(objective.includes('inspect_symbol_occurrences'));
-  assert.ok(objective.includes('missingFact 和 decisionImpact'));
+  // inspect_symbol_occurrences / read_file 翻页的 how-to 已搬进各自工具 description，objective 不再重述
+  assert.ok(!objective.includes('必须调用 inspect_symbol_occurrences'));
+  assert.ok(!objective.includes('最多进行一次 read_file 行区间补读'));
   assert.ok(objective.includes('<legend>执行信息</legend>'));
 });
 

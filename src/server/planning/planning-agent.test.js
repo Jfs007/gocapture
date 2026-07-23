@@ -66,14 +66,17 @@ test('buildFallbackPlan synthesizes a minimal plan from located sources (never h
     requirement: '执行人 label加粗',
     locatedSources: [
       { file: 'src/b-components/task-manage/index.vue', role: 'container', confidence: 100, codeSnippet: '<legend>执行信息</legend>' },
-      { file: 'src/b-components/task-manage/common@2x/subtask.vue', role: 'main-render', confidence: 100, codeSnippet: '<Form-item label="执行人" required>' },
+      { file: 'src/b-components/task-manage/common@2x/subtask.vue', role: 'main-render', confidence: 100, line: 23, anchor: '<Form-item label="执行人" required>', codeSnippet: '<Modal title="执行费用">...' },
     ],
   });
   assert.strictEqual(plan.status, 'needs_confirmation');
   assert.strictEqual(plan.targets.length, 1);
   // 选 render 角色的文件作为目标
   assert.strictEqual(plan.targets[0].file, 'src/b-components/task-manage/common@2x/subtask.vue');
-  assert.strictEqual(plan.targets[0].whatToChange, '执行人 label加粗');
+  // 用 DOM Locator 的精确锚点/行号，而不是代码片段首行的 <Modal>
+  assert.strictEqual(plan.targets[0].anchor, '<Form-item label="执行人" required>');
+  assert.strictEqual(plan.targets[0].line, 23);
+  assert.ok(plan.targets[0].whatToChange.includes('执行人 label加粗'));
   assert.ok(plan.summary.includes('执行人 label加粗'));
   assert.ok(plan.risks.some(r => r.includes('人工确认')));
 });

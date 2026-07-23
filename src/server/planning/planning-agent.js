@@ -22,6 +22,9 @@ const {
 const MAX_SOURCE_CHARS_PER_FILE = 30000;
 const MAX_SOURCE_CHARS_TOTAL = 60000;
 const PLANNING_EXPERIENCE_TOOLS = new Set(['recon_inspect', 'recon_search']);
+// responseFormat(toolStrategy) 的合成"交计划"工具名 = change-plan.js schema 的 meta.title。
+// 它是 planning 的收尾机制，绝不能被门控隐藏或被收尾清掉，否则模型无法输出计划。
+const STRUCTURED_OUTPUT_TOOL = 'magnus_change_plan';
 
 // "研究/广度"类工具：找相似实现、跨文件检索、项目知识。默认(local)关闭，避免琐碎改动过度研究；
 // 仅当需求明确需要跨文件一致性(project-wide)时才放开。读取已定位文件的精确工具(read_file/
@@ -37,6 +40,7 @@ const PLANNING_RESEARCH_TOOLS = new Set([
 // escalation = { expanded }。skills（在 builtinToolNames 内、非研究工具）始终常开。
 function isToolGated(name, { escalation, researchTools, builtinToolNames }) {
   if (name === 'expand_scope') return false; // 升级入口，始终可用
+  if (name === STRUCTURED_OUTPUT_TOOL) return false; // 结构化收尾工具，始终可用（否则模型没法交计划）
   if (escalation.expanded) return false; // 升级后全部放开
   if (researchTools.has(name)) return true; // 研究/检索类，默认隐藏
   if (!builtinToolNames.has(name)) return true; // 非内建 = MCP/动态工具，默认隐藏
@@ -73,7 +77,7 @@ function createScopeGateMiddleware(escalation, { researchTools, builtinToolNames
         return new ToolMessage({
           content: JSON.stringify({
             blocked: true,
-            note: `工具 ${name} 属于扩大范围能力，需先调用 expand_scope(need, reason) 申请（project-search / docs）。局部改动请直接基于已定位源码产出计划。`,
+            note: `工具 ${name} 属于扩大范围能力，需先调用 expand_scope(reason) 申请。局部改动请直接基于已定位源码产出计划。`,
           }),
           tool_call_id: request.toolCall?.id || '',
         });
@@ -149,6 +153,9 @@ function buildPlanningInput(body, modelItems) {
       locateLevel: item.locateLevel || '',
       codeSnippet: item.codeSnippet || item.rawCodeSnippet || '',
       confidence: Number(item.confidence || 0),
+      // 带上 DOM Locator 定位到的精确锚点/行号，兜底计划据此指到真正的目标，而非文件首行。
+      anchor: item.anchor || item.locateAnchor || '',
+      line: Number(item.line || item.locateLine || 0),
     })),
     investigations,
   };
@@ -189,9 +196,10 @@ function buildFallbackPlan(input) {
     || sources.slice().sort((a, b) => (Number(b.confidence) || 0) - (Number(a.confidence) || 0))[0];
   const targets = primary ? [{
     file: primary.file,
-    anchor: firstMeaningfulLine(primary.codeSnippet) || String(primary.role || ''),
-    line: 0,
-    whatToChange: input.requirement || '按需求在此处实施改动',
+    // 优先用 DOM Locator 定位到的精确锚点/行号；没有才退回代码片段首行。
+    anchor: primary.anchor || firstMeaningfulLine(primary.codeSnippet) || String(primary.role || ''),
+    line: Number(primary.line) || 0,
+    whatToChange: `${input.requirement || '按需求在此处实施改动'}（规划预算触发的兜底方案，改动细节需人工确认）`,
     why: 'DOM Locator 已定位为该选区的直接渲染源',
   }] : [];
   return normalizePlanningResult({
@@ -235,18 +243,24 @@ async function runPlanningAgent(project, options = {}) {
     log(`Planning Agent 预读源码：${source.file}；${source.sourceContent.complete ? '完整' : '截断'}；${source.sourceContent.characters} 字符`);
   }
   const maxTurns = 6;
-  // 收尾三件套（与 locator 共用）：到点强制收尾 + 执行层硬拦。planning 收尾动作=清空工具，逼模型直接吐结构化计划。
+  // 收尾三件套（与 locator 共用）：到点强制收尾。planning 收尾动作=只留"交计划"的结构化工具，
+  // 逼模型直接吐结构化计划。绝不能连结构化工具一起清掉（那会导致 0 字符输出→垃圾兜底）。
   const budget = createBudget(maxTurns, { forceFinishOffset: 2 });
   const finalizationMiddleware = createFinalizationMiddleware(budget, {
     name: 'PlanningFinalizationBudget',
-    finalizeRequest: request => ({
-      ...request,
-      tools: [],
-      systemPrompt: [
-        request.systemPrompt || '',
-        '本轮已到规划预算上限。不要再调用任何工具，基于现有已定位证据与已获取事实立即提交结构化修改计划。',
-      ].filter(Boolean).join('\n'),
-    }),
+    finalizeRequest: request => {
+      const allTools = Array.isArray(request.tools) ? request.tools : [];
+      const structured = allTools.filter(tool => String(tool?.name || '') === STRUCTURED_OUTPUT_TOOL);
+      return {
+        ...request,
+        // 找得到结构化工具就只留它；找不到（框架另行注入）就别乱删，避免破坏结构化输出。
+        tools: structured.length ? structured : allTools,
+        systemPrompt: [
+          request.systemPrompt || '',
+          '本轮已到规划预算上限。不要再调查，基于现有已定位证据与已获取事实立即提交结构化修改计划。',
+        ].filter(Boolean).join('\n'),
+      };
+    },
   });
   const completeFileGuard = (name, toolInput) => {
     if (name !== 'read_file') return null;
