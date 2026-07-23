@@ -102,14 +102,19 @@ async function runPlanningAgent(project, options = {}) {
       };
     },
   });
+  // "该文件已完整给出、别再读"要覆盖所有读取工具——否则模型被 read_file 挡下后会改用
+  // read_closed_blocks / inspect_symbol_occurrences 对同一个已完整文件继续下钻，每次都白烧一轮。
+  const READ_TOOLS = new Set(['read_file', 'read_closed_blocks', 'inspect_symbol_occurrences']);
   const completeFileGuard = (name, toolInput) => {
-    if (name !== 'read_file') return null;
-    const requested = (Array.isArray(toolInput?.files) ? toolInput.files : []).map(String);
+    if (!READ_TOOLS.has(name)) return null;
+    const requested = (Array.isArray(toolInput?.files)
+      ? toolInput.files
+      : (toolInput?.file ? [toolInput.file] : [])).map(String);
     if (!requested.length || !requested.every(file => hydrated.completeFiles.has(file))) return null;
     return {
-      operation: 'read_file',
+      operation: name,
       skipped: true,
-      reason: '请求文件的完整源码已包含在 Planning Agent 首轮输入中，请直接形成计划或调查真正缺失的事实。',
+      reason: '该文件的完整源码已包含在 Planning Agent 首轮输入中；不要再读它，直接基于已给源码形成结构化计划。',
       files: requested,
     };
   };
