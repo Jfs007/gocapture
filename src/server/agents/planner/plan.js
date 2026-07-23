@@ -126,31 +126,59 @@ function firstMeaningfulLine(snippet) {
   return '';
 }
 
-// 规划预算触发 / 模型未产出结构化计划时的兜底：从已定位证据合成最小可执行计划，绝不硬失败。
+// 规划预算触发 / 模型未产出结构化计划时的兜底：从已定位证据合成最小可执行「骨架」，绝不硬失败。
+// 定义驱动 + 有同级模板时，产出「定义里加一项 + 照模板新建同级实现」的双线索骨架，而不是回显需求。
 function buildFallbackPlan(input) {
   const sources = Array.isArray(input.locatedSources) ? input.locatedSources : [];
+  const references = Array.isArray(input.referenceExamples) ? input.referenceExamples : [];
   const byRole = pattern => sources.find(source => pattern.test(String(source.role || '')));
   // 落点优先级：definition/data-source（"增/改一项"改这里，通用渲染器一般不动）→ render → 最高置信。
   const primary = byRole(/data-source|definition/)
     || byRole(/render/)
     || sources.slice().sort((a, b) => (Number(b.confidence) || 0) - (Number(a.confidence) || 0))[0];
   const isDefinitionDriven = primary && /data-source|definition/.test(String(primary.role || ''));
+  const sibling = references[0]; // 同级复用模板（Fix：hydrate 从 definition 引用解析而来）
+
   const targets = primary ? [{
     file: primary.file,
     // 优先用 DOM Locator 定位到的精确锚点/行号；没有才退回代码片段首行。
     anchor: primary.anchor || firstMeaningfulLine(primary.codeSnippet) || String(primary.role || ''),
     line: Number(primary.line) || 0,
-    whatToChange: `${input.requirement || '按需求在此处实施改动'}（规划预算触发的兜底方案，改动细节需人工确认）`,
+    whatToChange: isDefinitionDriven
+      ? `在此定义中新增一项以满足需求：${input.requirement || ''}（参照同文件已有同级项的写法；兜底骨架，条目具体值需人工确认）`
+      : `${input.requirement || '按需求在此处实施改动'}（兜底骨架，改动细节需人工确认）`,
     why: isDefinitionDriven
       ? 'DOM Locator 定位为生成该选区的定义/数据源；「增/改一项」类需求通常改这里，而非通用渲染器'
       : 'DOM Locator 已定位为该选区的直接渲染源',
   }] : [];
+
+  // 定义驱动「加一项」通常还要照同级模板新建一个实现文件；把它作为复用线索 + 待确认项带出，而非硬编成 target。
+  const reusePatterns = isDefinitionDriven && sibling
+    ? [`照 ${sibling.file} 的结构/风格新建同级实现（其表格列、筛选、mock 数据的写法可复用）`]
+    : [];
+  const affected = isDefinitionDriven && sibling
+    ? [{ file: sibling.file, reason: '新增同级项时的复用模板' }]
+    : [];
+  const questions = isDefinitionDriven && sibling
+    ? [{
+        id: 'new_sibling_impl',
+        question: '新增的同级项要照哪个已有实现新建、放在哪个目录、叫什么名字？',
+        reason: `在 ${primary.file} 定义里加一条后，通常还需照 ${sibling.file} 新建一个同级实现文件，其命名/路径需你确认`,
+        options: [],
+      }]
+    : [];
+
   return normalizePlanningResult({
     status: 'needs_confirmation',
-    understanding: `规划预算触发，基于 DOM Locator 已定位证据给出的兜底计划。需求：${input.requirement || ''}`,
-    summary: primary ? `在 ${primary.file} 实施：${input.requirement || ''}` : (input.requirement || '需人工补充修改计划'),
+    understanding: `规划未产出结构化计划，基于 DOM Locator 已定位证据${sibling ? `与同级模板 ${sibling.file}` : ''}给出的兜底骨架。需求：${input.requirement || ''}`,
+    summary: primary
+      ? `在 ${primary.file} 新增一项${isDefinitionDriven && sibling ? `，并照 ${sibling.file} 新建同级实现` : ''}：${input.requirement || ''}`
+      : (input.requirement || '需人工补充修改计划'),
     targets,
-    risks: ['规划未在预算内完成完整调查，本计划为基于定位证据的最小方案，改动细节需人工确认。'],
+    reusePatterns,
+    affected,
+    questions,
+    risks: ['规划未在预算内完成完整调查，本计划为基于定位证据的最小骨架，条目具体值/新建文件命名需人工确认。'],
     confirmedFacts: sources.map(source => `已定位：${source.file}（${source.role || 'related'}）`),
   });
 }

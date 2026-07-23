@@ -87,6 +87,27 @@ test('buildFallbackPlan degrades to requirement-only plan when no located source
   assert.ok(plan.summary.length > 0);
 });
 
+test('buildFallbackPlan emits an add-sibling skeleton for definition-driven change with a reference example', () => {
+  const plan = buildFallbackPlan({
+    requirement: '给经营数据下加一个腾讯经营数据菜单',
+    locatedSources: [
+      { file: 'src/router/modules/data-center.ts', role: 'definition', confidence: 100, line: 14, anchor: "title: '经营数据'" },
+      { file: 'src/layout/menu/index.vue', role: 'main-render', confidence: 98 },
+    ],
+    referenceExamples: [
+      { file: 'src/views/data-center/operation-data/dy-shop-data/index.vue', role: 'reference-example' },
+    ],
+  });
+  assert.strictEqual(plan.status, 'needs_confirmation');
+  // 落点是 definition 文件，不是通用渲染器
+  assert.strictEqual(plan.targets[0].file, 'src/router/modules/data-center.ts');
+  // 兄弟模板作为复用线索 + 待确认项带出，而不是把需求原文塞进 whatToChange
+  assert.ok(plan.reusePatterns.some(pattern => pattern.includes('dy-shop-data')));
+  assert.ok(plan.affected.some(item => item.file.includes('dy-shop-data')));
+  assert.ok(plan.questions.length >= 1);
+  assert.ok(plan.summary.includes('新建同级实现'));
+});
+
 function write(root, file, content) {
   const absolute = path.join(root, file);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
