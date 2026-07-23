@@ -3,34 +3,43 @@
 const { z } = require('zod');
 
 const changeTargetSchema = z.object({
-  file: z.string(),
-  anchor: z.string(),
-  line: z.number(),
-  whatToChange: z.string(),
-  why: z.string(),
+  file: z.string().describe('要改动的文件路径；只能是项目里真实存在、或本计划明确要新建的文件，不得编造。'),
+  anchor: z.string().describe('改动位置的锚点：一段可在文件中定位的符号/文案/代码片段；优先用已定位到的精确锚点。'),
+  line: z.number().describe('改动大致行号；未知填 0。'),
+  whatToChange: z.string().describe('具体改什么：动作 + 对象 + 关键内容，能据此下手，不要只回显需求原文。'),
+  why: z.string().describe('为什么改这里：与选区/需求的关系。'),
 });
 
 const confirmationSchema = z.object({
-  id: z.string(),
-  question: z.string(),
-  reason: z.string(),
-  options: z.array(z.string()),
+  id: z.string().describe('该问题的稳定标识。'),
+  question: z.string().describe('需要用户拍板的产品/实现决策。'),
+  reason: z.string().describe('为什么必须由用户决定（缺它会改变改动方式/范围）。'),
+  options: z.array(z.string()).describe('可选答案；没有明确选项时留空。'),
 });
 
 const planningResultSchema = z.object({
-  status: z.enum(['ready', 'needs_confirmation']),
-  understanding: z.string(),
-  summary: z.string(),
-  targets: z.array(changeTargetSchema),
-  affected: z.array(z.object({ file: z.string(), reason: z.string() })),
-  reusePatterns: z.array(z.string()),
-  risks: z.array(z.string()),
-  verification: z.array(z.string()),
-  questions: z.array(confirmationSchema),
-  confirmedFacts: z.array(z.string()),
-  assumptions: z.array(z.string()),
-  usedCapabilities: z.array(z.string()),
-}).meta({ title: 'magnus_change_plan', description: 'Submit the final Magnus change plan.' });
+  status: z.enum(['ready', 'needs_confirmation'])
+    .describe('需用户拍板产品行为时=needs_confirmation（并在 questions 列出）；否则=ready。'),
+  understanding: z.string().describe('对需求与已定位证据的理解，一两句。'),
+  summary: z.string().describe('本次改动的一句话概述。'),
+  targets: z.array(changeTargetSchema)
+    .describe('核心改动点清单：逐个文件说明改什么、为什么。'),
+  affected: z.array(z.object({
+    file: z.string().describe('受影响或可复用的相关文件（非直接改动目标）。'),
+    reason: z.string().describe('它为何相关：连带影响或作为复用模板。'),
+  })).describe('相关但非直接改动的文件。'),
+  reusePatterns: z.array(z.string()).describe('可复用的项目现有写法/实现（优先复用，不要另立约定）。'),
+  risks: z.array(z.string()).describe('实施风险与注意点。'),
+  verification: z.array(z.string()).describe('改完如何验证达成需求。'),
+  questions: z.array(confirmationSchema)
+    .describe('仅在需用户决策时给出；status=ready 时应为空。'),
+  confirmedFacts: z.array(z.string()).describe('已由真实源码/证据确认的事实。'),
+  assumptions: z.array(z.string()).describe('计划所依赖、但未经证实的假设。'),
+  usedCapabilities: z.array(z.string()).describe('规划中实际用到的工具/能力。'),
+}).meta({
+  title: 'magnus_change_plan',
+  description: '提交最终 Magnus 修改计划：改哪些文件、改什么、为什么，以及复用/相关/风险/验证/待确认。只写真实存在或明确要新建的文件，不编造文件、接口、组件、字段或项目约定。',
+});
 
 function normalizeText(value) {
   return value == null ? '' : String(value).trim();

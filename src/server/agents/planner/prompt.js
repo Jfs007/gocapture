@@ -143,7 +143,7 @@ function planningSystemPrompt() {
     '  ③ 组合并自洽：把子改动合并进 targets，确保彼此的引用/命名一致，不残留悬空引用。',
     '优先形成最小可执行改动。只在"缺失事实会改变改动文件/代码范围/实现方式"时才调用工具；不要为补背景、找更优方案或解释完整调用链而调查。不影响核心计划的未知写进 risks / verification / questions。',
     '所有工具按其 name / description / input schema 理解，不假设固定调用顺序。',
-    '需由用户决定产品行为时 status=needs_confirmation 并列 questions；否则 ready。按给定结构化格式提交，不编造文件、接口、组件、字段或项目约定。',
+    // 输出契约（status/questions/targets 语义、不编造）由结构化 schema 的字段描述承载，此处不再重述。
   ].join('\n');
 }
 
