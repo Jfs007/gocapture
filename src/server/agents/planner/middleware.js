@@ -5,6 +5,24 @@
 // - 经验窗口：仅首轮可用 Recon/Experience tools，之后只消费首轮经验事实。
 const { createMiddleware, tool, ToolMessage } = require('langchain');
 const { z } = require('zod');
+const { loadLangChainRuntime } = require('../../agent-host/langchain/runtime');
+
+// 上下文裁剪：约 22000 tokens 后清理较早读取的源码正文，保留最近工具结果与首轮已定位/预读证据。
+// 没有它，planner 每轮 read_file 正文无限累积，请求体越来越大 → 越来越慢（locator 早有对应策略）。
+function createPlanningContextMiddleware() {
+  const runtime = loadLangChainRuntime();
+  if (typeof runtime.contextEditingMiddleware !== 'function' || typeof runtime.ClearToolUsesEdit !== 'function') {
+    return null;
+  }
+  return runtime.contextEditingMiddleware({
+    edits: [new runtime.ClearToolUsesEdit({
+      trigger: { tokens: 22000 },
+      keep: { messages: 6 },
+      clearToolInputs: false,
+      placeholder: '[较早读取的源码正文已由 Planning 上下文策略清理；首轮已定位/预读证据与最近工具结果仍保留。需要时按文件+符号定向重读。]',
+    })],
+  });
+}
 
 const PLANNING_EXPERIENCE_TOOLS = new Set(['recon_inspect', 'recon_search']);
 // responseFormat(toolStrategy) 的合成"交计划"工具名 = plan.js schema 的 meta.title。
@@ -97,4 +115,5 @@ module.exports = {
   createExpandScopeTool,
   createScopeGateMiddleware,
   createPlanningExperienceWindowMiddleware,
+  createPlanningContextMiddleware,
 };

@@ -27,6 +27,7 @@ const {
   createExpandScopeTool,
   createScopeGateMiddleware,
   createPlanningExperienceWindowMiddleware,
+  createPlanningContextMiddleware,
 } = require('./middleware');
 const {
   changePlanToText,
@@ -120,7 +121,7 @@ async function runPlanningAgent(project, options = {}) {
     maxTurns,
     responseFormat: planningResultSchema,
     readOnlyOnly: true,
-    middleware: [createPlanningExperienceWindowMiddleware(log), scopeGateMiddleware, finalizationMiddleware].filter(Boolean),
+    middleware: [createPlanningContextMiddleware(), createPlanningExperienceWindowMiddleware(log), scopeGateMiddleware, finalizationMiddleware].filter(Boolean),
     threadId: body.planningThreadId || body.taskId || undefined,
     onEvent: event => {
       if (event.type === 'llm.input') {

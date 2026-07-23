@@ -71,19 +71,31 @@ function hydratePlanningSources(project, input, textCache = new Map()) {
   const budget = { remaining: MAX_SOURCE_CHARS_TOTAL };
   const completeFiles = new Set();
 
+  // 有明确 definition 落点时，通用渲染器/装配等"非改动目标"只是识别证据，给小预览即可——
+  // 别把 8KB 渲染器全量挂进上下文（每轮都背着它，是"慢/内容多"的主因）。
+  const hasDefinition = input.locatedSources.some(source => /data-source|definition/.test(String(source.role || '')));
+  const EVIDENCE_PREVIEW_CHARS = 1200;
+  const isEvidenceOnly = source =>
+    hasDefinition && !/data-source|definition|reference-example/.test(String(source.role || ''));
+
   const hydrate = source => {
     const file = files.get(source.file);
     if (!file || budget.remaining <= 0) return '';
     const text = readProjectText(project, file, textCache);
     if (!text) return '';
-    const limit = Math.min(MAX_SOURCE_CHARS_PER_FILE, budget.remaining);
+    const cap = isEvidenceOnly(source) ? EVIDENCE_PREVIEW_CHARS : MAX_SOURCE_CHARS_PER_FILE;
+    const limit = Math.min(cap, budget.remaining);
     const excerpt = text.slice(0, limit);
     const complete = excerpt.length === text.length;
     source.sourceContent = {
       complete,
       characters: excerpt.length,
       content: numberedSource(excerpt),
-      ...(complete ? {} : { note: '文件超过首轮证据预算，需要更多内容时再调用 read_file 精确读取。' }),
+      ...(complete ? {} : {
+        note: isEvidenceOnly(source)
+          ? '该文件是渲染/装配证据、非改动目标，仅给前段用于识别；确需其完整实现再定向读取。'
+          : '文件超过首轮证据预算，需要更多内容时再调用 read_file 精确读取。',
+      }),
     };
     if (complete) completeFiles.add(source.file);
     budget.remaining -= excerpt.length;
