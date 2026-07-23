@@ -52,10 +52,16 @@ async function runPlanningAgent(project, options = {}) {
   const input = hydrated.input;
 
   // ① 拆解阶段（前置结构化节点）：把需求拆成子改动 + 已定位文件角色卡，供组合阶段直接用。失败则无拆解继续。
-  const decomposition = await decomposePlan(project, { input, adapter, langchainModel, log, signal });
+  // 只在"可能有多个子改动"时才拆解（≥2 个已定位文件）；单文件改动直接组合，省掉一次 LLM 往返。
+  const shouldDecompose = (input.locatedSources || []).length >= 2;
+  const decomposition = shouldDecompose
+    ? await decomposePlan(project, { input, adapter, langchainModel, log, signal })
+    : null;
   if (decomposition) {
     input.decomposition = decomposition;
     log(`Planning Agent 拆解：${decomposition.subtasks.length} 个子改动；文件角色 ${decomposition.fileRoles.length} 条`);
+  } else if (!shouldDecompose) {
+    log('Planning Agent 跳过拆解：单一改动落点，直接组合计划（省一次 LLM 往返）');
   }
 
   // 范围门控：绑定全部工具（含研究/MCP），但默认只露"精读已定位文件 + skills"；模型 expand_scope 后一次性放开其余。

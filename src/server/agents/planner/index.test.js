@@ -215,21 +215,12 @@ test('Planning Agent can finish directly without invoking Recon or source tools'
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'planning-'));
   write(root, 'src/form.js', 'const priceField = "价格";');
   const project = scanProject(root);
-  // FIFO：先回拆解节点(magnus_plan_decomposition)，再回最终计划(magnus_change_plan)。
-  const model = fakeModel()
-    .respondWithTools([{
-      id: 'decomp',
-      name: 'magnus_plan_decomposition',
-      args: {
-        subtasks: [{ summary: '调整所选字段样式', likelyFile: 'src/form.js', needsNewImpl: false }],
-        fileRoles: [{ file: 'src/form.js', whatItDoes: '定义 priceField', howToExtend: '改其展示样式' }],
-      },
-    }])
-    .respondWithTools([{
-      id: 'final_plan',
-      name: 'magnus_change_plan',
-      args: structuredArgs(),
-    }]);
+  // 单一改动落点（1 个已定位文件）→ 跳过拆解，只需回一个最终计划。
+  const model = fakeModel().respondWithTools([{
+    id: 'final_plan',
+    name: 'magnus_change_plan',
+    args: structuredArgs(),
+  }]);
   const logs = [];
   const result = await runPlanningAgent(project, {
     langchainModel: model,
@@ -252,5 +243,37 @@ test('Planning Agent can finish directly without invoking Recon or source tools'
   assert.equal(result.planning.status, 'ready');
   assert.equal(result.changePlan.targets[0].file, 'src/form.js');
   assert.ok(!logs.some(line => line.includes('Planning Agent Tool →')));
+  assert.ok(logs.some(line => line.includes('跳过拆解')), '单文件应跳过拆解');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('Planning Agent runs the decompose node when there are multiple located files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'planning-decomp-'));
+  write(root, 'src/router/dc.ts', 'export default [{ children: [] }]');
+  write(root, 'src/layout/menu.vue', '<template><n-menu /></template>');
+  const project = scanProject(root);
+  // FIFO：≥2 个已定位文件 → 先跑拆解(magnus_plan_decomposition)，再回最终计划(magnus_change_plan)。
+  const model = fakeModel()
+    .respondWithTools([{
+      id: 'decomp',
+      name: 'magnus_plan_decomposition',
+      args: {
+        subtasks: [{ summary: '在定义里加一项', likelyFile: 'src/router/dc.ts', needsNewImpl: false }],
+        fileRoles: [{ file: 'src/router/dc.ts', whatItDoes: '菜单定义', howToExtend: 'children 加一条' }],
+      },
+    }])
+    .respondWithTools([{ id: 'final_plan', name: 'magnus_change_plan', args: structuredArgs() }]);
+  const logs = [];
+  const result = await runPlanningAgent(project, {
+    langchainModel: model,
+    body: { searchPayload: { userPrompt: '加一项菜单' } },
+    modelItems: [
+      { file: 'src/router/dc.ts', sourceRole: 'definition', codeSnippet: 'children', confidence: 100 },
+      { file: 'src/layout/menu.vue', sourceRole: 'main-render', codeSnippet: 'n-menu', confidence: 98 },
+    ],
+    log: line => logs.push(line),
+  });
+  assert.equal(result.mode, 'langchain-planning-agent');
+  assert.ok(logs.some(line => line.includes('Planning Agent 拆解：')), '多文件应跑拆解节点');
   fs.rmSync(root, { recursive: true, force: true });
 });

@@ -18,26 +18,28 @@ function createFinishTool() {
       description: 'Finish DOM source investigation. Use resolved when verified source evidence satisfies the completion criteria derived from the user request; do not require unrelated provenance or cross-file details.',
       returnDirect: true,
       schema: z.object({
-        status: z.enum(['resolved', 'need-more-context', 'unresolved']),
+        status: z.enum(['resolved', 'need-more-context', 'unresolved'])
+          .describe('resolved=已有真实源码证据解释选区 DOM 的渲染/驱动；need-more-context=现有 DOM 提不出有效下一步、需扩区；unresolved=查过仍无法确认。'),
         files: z.array(z.object({
-          file: z.string(),
-          role: z.enum(['render', 'main-render', 'co-render', 'child', 'assembly', 'definition', 'data-source', 'related']),
-          confidence: z.number().min(0).max(100),
-          line: z.number().optional(),
-          anchor: z.string().optional(),
-          reason: z.string(),
+          file: z.string().describe('项目里真实存在的文件路径，不得编造。'),
+          role: z.enum(['render', 'main-render', 'co-render', 'child', 'assembly', 'definition', 'data-source', 'related'])
+            .describe('该文件对选区 DOM 的角色：main-render/render=直接渲染；co-render/child=协同/子渲染；definition/data-source=生成该 DOM 的定义或数据源；assembly=装配；related=相关。'),
+          confidence: z.number().min(0).max(100).describe('0-100 的置信度。'),
+          line: z.number().optional().describe('渲染/定义所在大致行号。'),
+          anchor: z.string().optional().describe('可在文件中定位的锚点：符号/文案/代码片段。'),
+          reason: z.string().describe('判定该文件与角色的真实源码依据。'),
           snippet: z.string().optional(),
-        })).max(12),
+        })).max(12).describe('解释选区 DOM 的源码文件；只列真实经证据确认的，不凑数。'),
         relations: z.array(z.object({
           from: z.string(),
           to: z.string(),
-          type: z.string(),
-          evidence: z.string(),
-        })).max(16),
-        coveredDom: z.array(z.string()).max(16),
-        missingEvidence: z.array(z.string()).max(12),
-        needMoreDom: z.boolean(),
-        reason: z.string(),
+          type: z.string().describe('关系类型，如 data-flow / imports / renders。'),
+          evidence: z.string().describe('该关系的真实源码依据。'),
+        })).max(16).describe('文件间已由证据确认的关系（如定义→渲染的数据流）。'),
+        coveredDom: z.array(z.string()).max(16).describe('已被上述文件解释的选区 DOM 要点。'),
+        missingEvidence: z.array(z.string()).max(12).describe('仍缺、但不影响当前结论的证据。'),
+        needMoreDom: z.boolean().describe('是否需要用户扩大 DOM 选区才能继续。'),
+        reason: z.string().describe('整体结论的一句话说明。'),
       }),
     }
   );
