@@ -7705,13 +7705,43 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     return index >= 0 ? value.slice(index + 1).trim() : value.trim();
   }
   function toolTitle(value, fallback) {
+    const explicit = value.match(/(?:工具调用：|工具结果：|本地调用：|本地输出：|Agent Tool [→✓✗])\s*([^\s({]+)/);
+    if (explicit == null ? void 0 : explicit[1]) return explicit[1];
     const body = textAfterColon(firstLine(value));
     const match = body.match(/^([^\s({]+)/);
     return (match == null ? void 0 : match[1]) || fallback;
   }
+  function parseToolInput(value) {
+    const start = value.indexOf("{");
+    if (start < 0) return null;
+    try {
+      return JSON.parse(value.slice(start));
+    } catch (e) {
+      return null;
+    }
+  }
+  function compactList(value, limit = 2) {
+    if (!Array.isArray(value)) return "";
+    const items = value.map((item) => typeof item === "object" && item ? String(item.text || item.file || item.path || "") : String(item || "")).filter(Boolean);
+    if (!items.length) return "";
+    return `${items.slice(0, limit).join("、")}${items.length > limit ? ` 等 ${items.length} 项` : ""}`;
+  }
+  function toolCallTitle(raw) {
+    const name = toolTitle(raw, "工具");
+    const input = parseToolInput(raw);
+    if (!input) return `调用 ${name}`;
+    const target = compactList(input.files) || String(input.file || input.path || input.target || "") || compactList(input.roots);
+    const focus = String(input.around || "") || compactList(input.terms) || compactList(input.symbols) || compactList(input.anchors);
+    const details = [target, focus].filter(Boolean);
+    return `调用 ${name}${details.length ? ` · ${details.join(" · ")}` : ""}`;
+  }
   function modelRound(value) {
     const match = value.match(ROUND_PATTERN);
     return match ? Number(match[1]) : null;
+  }
+  function modelSummary(head, label) {
+    const details = textAfterColon(head);
+    return details && details !== head ? `${label} · ${details.replace(/；/g, " · ")}` : label;
   }
   function classify(raw) {
     const head = firstLine(raw);
@@ -7721,19 +7751,30 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     if (/最终裁决|最终输出|最终结果|源码上下文已绑定|选区源码上下文已绑定/.test(head)) {
       return { kind: "decision", actor: "结果", title: head.split("：")[0] || "最终结果" };
     }
-    if (/工具调用：|^本地调用：/.test(head)) {
-      return { kind: "tool-call", actor: "本地工具", title: `调用 ${toolTitle(head, "工具")}` };
+    if (/工具调用：|^本地调用：|Agent Tool →/.test(head)) {
+      return { kind: "tool-call", actor: "本地工具", title: toolCallTitle(raw) };
     }
-    if (/工具结果：|^本地输出：/.test(head)) {
+    if (/工具结果：|^本地输出：|Agent Tool ✓/.test(head)) {
       return { kind: "tool-result", actor: "本地工具", title: `${toolTitle(head, "工具")} 返回` };
+    }
+    if (/Agent Tool ✗/.test(head)) {
+      return { kind: "error", actor: "错误", title: head };
     }
     if (/模型输入|模型输入上下文|API 模型请求|Agent 输入（|模型阶段：/.test(head)) {
       const round = modelRound(head);
-      return { kind: "llm-input", actor: "LLM", title: round ? `第 ${round} 轮输入` : "模型输入" };
+      const context = /输入上下文/.test(head);
+      const label = round ? `第 ${round} 轮${context ? "输入上下文" : "输入"}` : context ? "模型输入上下文" : "模型输入";
+      return { kind: "llm-input", actor: "LLM", title: context ? label : modelSummary(head, label) };
+    }
+    if (/LangChain 模型响应/.test(head)) {
+      const round = modelRound(head);
+      return { kind: "llm-output", actor: "LLM", title: modelSummary(head, round ? `第 ${round} 轮模型耗时` : "模型耗时") };
     }
     if (/模型输出|API 模型响应|模型返回|Agent 输出（/.test(head)) {
       const round = modelRound(head);
-      return { kind: "llm-output", actor: "LLM", title: round ? `第 ${round} 轮输出` : "模型输出" };
+      const body = /输出正文/.test(head);
+      const label = round ? `第 ${round} 轮${body ? "输出正文" : "输出"}` : body ? "模型输出正文" : "模型输出";
+      return { kind: "llm-output", actor: "LLM", title: body ? label : modelSummary(head, label) };
     }
     return { kind: "process", actor: "流程", title: head || "流程记录" };
   }
@@ -8841,7 +8882,7 @@ ${unwrappedProps}
         return `${messageId}:${index}`;
       }
       function nodeDefaultExpanded(kind) {
-        return kind === "decision" || kind === "error";
+        return kind === "llm-output" || kind === "tool-call" || kind === "decision" || kind === "error";
       }
       function isNodeExpanded(messageId, index, kind) {
         const key = nodeKey(messageId, index);
@@ -11211,7 +11252,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260723.133915.604";
+      const buildVersion = "20260723.181412.997";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();

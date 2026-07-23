@@ -67,12 +67,12 @@ function buildDomLocatorObjective(input = {}) {
     ? '8. 选择下一步工具前，先检查锚点交集候选中是否已有文件命中 missingFacts。若存在，必须优先读取这些已有候选；不得跳过它们重新发起全局搜索。只有已有候选和其局部关系都不能验证缺失事实时，才扩大搜索范围。'
     : '8. 选择下一步工具前，先检查当前工具观察中是否已有文件命中 missingFacts。若存在，必须优先读取这些已有候选；不得跳过它们重新发起全局搜索。只有已有候选和其局部关系都不能验证缺失事实时，才扩大搜索范围。';
   return [
-    '根据用户需求定位当前 DOM 选区对应的真实源码。调查范围和结束位置必须由用户需求决定。',
+    '你的唯一任务：定位「当前选区 DOM 由哪些真实源码渲染/驱动」。调查范围与结束位置由「选区 DOM」本身决定，而不是用户想对它做的改动。',
     '',
     '调查方式：',
     rule1,
     rule2,
-    '3. 调用调查工具前，先把用户需求转化为明确、可验证的完成判据；完成判据只能来自用户需求，不得擅自扩大任务范围。',
+    '3. 完成判据只有一条：选区 DOM（其可见文字、结构、业务 class、链接）由哪个文件渲染、由哪个定义/数据源驱动，且已被真实源码证据证实。只做定位，忽略用户想对它做的任何改动；禁止为「如何实现某改动」去调查、规划或设想新建文件，也不得据此扩大任务范围。',
     '4. 每次继续调查前，先明确唯一的 missingFact 并判断其结果是否可能改变目标文件、代码范围或最终结论；不会改变就停止调查。只查完成判据必需的事实、用范围最小的方式验证，不得默认追求完整的 DOM 来源、文件关系、内部实现或调用链。',
     '5. 如果完成判据已经满足，且剩余未知信息不会影响当前任务，必须立即提交 resolved。',
     '6. 每次读取候选后，必须先在推理中形成候选审查：coverage=complete|partial|mismatch|unknown；candidateRole=target|container|inner|peer|source|unknown；并列出 explainedFacts、missingFacts 和 nextDirection。角色与覆盖关系只能由你根据真实证据判断，本地分数不负责该判断。',
@@ -83,7 +83,7 @@ function buildDomLocatorObjective(input = {}) {
     '11. 不编造文件、符号、代码、关系或行号。',
     '12. 调查结束必须调用 finish_dom_location；不要用普通文本结束。',
     '',
-    `用户需求:\n${input.userPrompt || ''}`,
+    '（本阶段只定位选区 DOM 的渲染/驱动源码，不规划、不实现任何改动。）',
     '',
     hasSeed
       ? [
@@ -420,8 +420,9 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
     stage: 'dom-locator',
     systemPrompt: [
       '你是 Magnus DOM Source Locator。',
-      '你负责理解和推理；本地工具只负责返回真实项目事实。',
-      '根据每轮工具观察决定下一步，不使用固定流水线，不按本地分数直接选文件。',
+      '你的唯一职责：定位「当前选区 DOM 由哪些真实源码渲染/驱动」，输出渲染器与其定义/数据来源文件。',
+      '只做定位：忽略用户想对该 DOM 做的任何改动，不规划、不实现、不设想新建文件。',
+      '你负责理解和推理；本地工具只负责返回真实项目事实。根据每轮工具观察决定下一步，不使用固定流水线，不按本地分数直接选文件。',
       '必须通过 finish_dom_location 结束调查。',
     ].join('\n'),
     middleware: [contextMiddleware, finalizationMiddleware].filter(Boolean),
@@ -430,7 +431,9 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
     maxTurns,
     signal: options.signal,
     onEvent: event => {
-      if (event.type === 'llm.log') options.onLog?.(event.log);
+      if (event.type === 'llm.log') {
+        options.onLog?.(`DOM Locator Agent 第 ${Math.max(1, modelRound)} 轮 ${event.log}`);
+      }
       if (event.type === 'llm.input') {
         modelRound += 1;
         const toolNames = (event.toolNames || []).join('、') || '-';

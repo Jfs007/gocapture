@@ -174,7 +174,7 @@ function nodeKey(messageId, index) {
 }
 
 function nodeDefaultExpanded(kind) {
-  return kind === 'decision' || kind === 'error';
+  return kind === 'llm-output' || kind === 'tool-call' || kind === 'decision' || kind === 'error';
 }
 
 function isNodeExpanded(messageId, index, kind) {

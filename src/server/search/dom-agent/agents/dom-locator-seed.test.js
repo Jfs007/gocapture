@@ -86,18 +86,22 @@ test('objective injects the anchor-seed block with a verify-first directive', ()
   assert.ok(!objective.includes('真实项目结构:'));
 });
 
-test('objective makes the user request define completion and forbids scope expansion', () => {
+test('objective scopes the task to locating the selected DOM source, not to the user requirement', () => {
   const objective = buildDomLocatorObjective({
-    userPrompt: '定位选区源码',
+    userPrompt: '在经营数据下加一个腾讯经营数据菜单，表格字段 A|B|C，接口先模拟，支持筛选',
     anchorSeed: { anchors: [], candidates: [] },
   });
-  assert.ok(objective.includes('完成判据只能来自用户需求'));
-  assert.ok(objective.includes('不得擅自扩大任务范围'));
+  // 任务范围由选区 DOM 决定，不由需求决定
+  assert.ok(objective.includes('选区 DOM'));
+  assert.ok(objective.includes('只做定位，忽略用户想对它做的任何改动'));
+  assert.ok(objective.includes('禁止为「如何实现某改动」去调查、规划或设想新建文件'));
   assert.ok(objective.includes('剩余未知信息不会影响当前任务'));
   assert.ok(objective.includes('必须立即提交 resolved'));
   assert.ok(objective.includes('不得默认追求完整的 DOM 来源'));
+  // 需求正文(表格字段/模拟/筛选)不得泄漏进 locator，避免把它带偏成功能规划
+  assert.ok(!objective.includes('表格字段 A|B|C'));
+  assert.ok(!objective.includes('完成判据只能来自用户需求'));
   assert.ok(!objective.includes('只有重要 DOM 区域均被解释'));
-  assert.ok(!objective.includes('解释多个文件如何共同生成该 DOM'));
 });
 
 test('objective requires semantic partial-coverage review and existing-candidate-first investigation', () => {
