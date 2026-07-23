@@ -5,7 +5,7 @@ const { runDiscoveryOperation } = require('../../experience/discovery-executor')
 const {
   closedNodeAt,
   traceFileEvidenceFlow,
-} = require('../../search/dom-agent/graph/syntax-evidence-flow');
+} = require('./evidence/syntax-evidence-flow');
 const { createToolProvider } = require('./provider');
 const { buildTool } = require('./tool');
 

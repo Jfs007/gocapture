@@ -3,7 +3,7 @@
 const path = require('path');
 const { readProjectText } = require('../../../core/fs-utils');
 const { escapeRegExp, posixPath, uniq } = require('../../../utils');
-const { buildFileMap, importedFiles } = require('../../import-trace');
+const { buildFileMap, importedFiles } = require('../../../search/import-trace');
 
 const MAX_CONSUMERS = 8;
 const MAX_CHAINS_PER_CONSUMER = 3;
