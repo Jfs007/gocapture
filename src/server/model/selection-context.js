@@ -1,6 +1,6 @@
 'use strict';
 
-const { runPlanningAgent } = require('../planning/planning-agent');
+const { runPlanningAgent } = require('../agents/planner');
 const { normalizeModelConfig } = require('./providers/registry');
 
 const MAX_MODEL_FILES = 6;

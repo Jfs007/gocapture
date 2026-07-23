@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const test = require('node:test');
 const { fakeModel } = require('langchain');
-const { scanProject } = require('../core/project');
+const { scanProject } = require('../../core/project');
 const {
   buildFallbackPlan,
   buildPlanningInput,
@@ -16,7 +16,7 @@ const {
   hydratePlanningSources,
   isToolGated,
   runPlanningAgent,
-} = require('./planning-agent');
+} = require('./index');
 
 const RESEARCH_TOOLS = new Set([
   'search_text', 'search_source_evidence', 'find_files', 'find_symbol',
