@@ -23,18 +23,20 @@
         <div class="mda-add-panel-title">添加</div>
         <div class="mda-add-section-title">连接</div>
         <button
+          v-for="provider in providers"
+          :key="provider.id"
           class="mda-connect-agent-row"
           type="button"
-          :disabled="busy"
-          @click="toggleCodexConnection"
+          :disabled="busy || pendingId === provider.id"
+          @click="toggleConnection(provider)"
         >
-          <span class="mda-connect-agent-icon">C</span>
+          <span class="mda-connect-agent-icon">{{ providerIcon(provider.id) }}</span>
           <span class="mda-connect-agent-copy">
-            <strong>Codex</strong>
-            <span>{{ codexDescription }}</span>
+            <strong>{{ provider.name }}</strong>
+            <span>{{ providerDescription(provider) }}</span>
           </span>
-          <span class="mda-connect-agent-action" :class="`is-${codex?.state || 'checking'}`">
-            {{ codexAction }}
+          <span class="mda-connect-agent-action" :class="`is-${provider.state || 'checking'}`">
+            {{ providerAction(provider) }}
           </span>
         </button>
         <div v-if="errorText" class="mda-connect-agent-error">
@@ -46,12 +48,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import {
   connectAgent,
   disconnectAgent,
   listConnectAgents,
+  type ConnectAgentProvider,
 } from '../../app/services/connect-agent.service';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import MagnusIcon from '../common/MagnusIcon.vue';
@@ -61,22 +64,26 @@ const rootRef = ref<HTMLElement | null>(null);
 const triggerRef = ref<HTMLElement | null>(null);
 const visible = ref(false);
 const anchorRect = ref<DOMRect | null>(null);
+const pendingId = ref('');
 const connectAgentStore = useConnectAgentStore();
 const { providers, loading: busy, connectionError: errorText } = storeToRefs(connectAgentStore);
 
-const codex = computed(() => providers.value.find(provider => provider.id === 'codex') || null);
-const codexDescription = computed(() => {
-  if (busy.value) return codex.value?.state === 'connected' ? '正在断开…' : '正在检查并连接…';
-  return codex.value?.message || '检查 Codex 环境后连接';
-});
-const codexAction = computed(() => {
-  if (busy.value) return '处理中';
-  if (codex.value?.connected) return '断开';
-  if (codex.value?.state === 'login-required') return '需登录';
-  if (codex.value?.state === 'unavailable') return '未安装';
-  if (codex.value?.state === 'error') return '重试';
+const PROVIDER_ICONS: Record<string, string> = { codex: 'C', claude: '✦' };
+function providerIcon(id: string) {
+  return PROVIDER_ICONS[id] || (id ? id[0].toUpperCase() : '·');
+}
+function providerDescription(provider: ConnectAgentProvider) {
+  if (pendingId.value === provider.id) return provider.connected ? '正在断开…' : '正在检查并连接…';
+  return provider.message || `检查 ${provider.name} 环境后连接`;
+}
+function providerAction(provider: ConnectAgentProvider) {
+  if (pendingId.value === provider.id) return '处理中';
+  if (provider.connected) return '断开';
+  if (provider.state === 'login-required') return '需登录';
+  if (provider.state === 'unavailable') return '未安装';
+  if (provider.state === 'error') return '重试';
   return '连接';
-});
+}
 
 onMounted(() => {
   document.addEventListener('pointerdown', handleOutsidePointerDown, true);
@@ -109,26 +116,26 @@ async function refreshProviders(refresh: boolean) {
   try {
     connectAgentStore.setProviders(await listConnectAgents(refresh));
   } catch (error: any) {
-    errorText.value = error?.message || '无法检查 Codex 连接状态';
+    errorText.value = error?.message || '无法检查连接状态';
   } finally {
     busy.value = false;
   }
 }
 
-async function toggleCodexConnection() {
-  if (busy.value) return;
-  busy.value = true;
+async function toggleConnection(provider: ConnectAgentProvider) {
+  if (busy.value || pendingId.value) return;
+  pendingId.value = provider.id;
   errorText.value = '';
   try {
-    const provider = codex.value?.connected
-      ? await disconnectAgent('codex')
-      : await connectAgent('codex');
-    connectAgentStore.upsertProvider(provider);
+    const next = provider.connected
+      ? await disconnectAgent(provider.id)
+      : await connectAgent(provider.id);
+    connectAgentStore.upsertProvider(next);
   } catch (error: any) {
-    errorText.value = error?.message || 'Codex 连接失败';
+    errorText.value = error?.message || `${provider.name} 连接失败`;
     await refreshProviders(false);
   } finally {
-    busy.value = false;
+    pendingId.value = '';
   }
 }
 

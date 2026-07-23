@@ -154,7 +154,8 @@ class ClaudeCodeClient {
         if (!event) return;
         const description = updateTaskFromEvent(task, event, FILE_EDIT_TOOLS);
         if (task.sessionId && cwd) this.sessions.set(cwd, task.sessionId);
-        onEvent({ type: 'agent-event', task: taskIdentity(task), event, message: description });
+        // 用 publicTask（含 finalResponse）：前端通用 store 靠 event.task.finalResponse 增量显示回复。
+        onEvent({ type: 'agent-event', task: publicTask(task), event, message: description });
         if (event.type === 'result') {
           task.status = event.subtype === 'success' ? 'completed' : String(event.subtype || 'failed');
           task.finishedAt = Date.now();
@@ -273,16 +274,6 @@ function publicTask(task) {
     finalResponse: task.finalResponse,
     changedFiles: [...task.changedFiles],
     error: task.error || '',
-  };
-}
-
-function taskIdentity(task) {
-  return {
-    taskId: task.taskId,
-    threadId: task.sessionId,
-    sessionId: task.sessionId,
-    status: task.status,
-    startedAt: task.startedAt,
   };
 }
 

@@ -8801,7 +8801,7 @@ ${unwrappedProps}
     class: "mda-message-work"
   };
   const _hoisted_5$a = ["aria-expanded", "onClick"];
-  const _hoisted_6$7 = { class: "mda-message-work-label" };
+  const _hoisted_6$8 = { class: "mda-message-work-label" };
   const _hoisted_7$7 = {
     key: 1,
     class: "mda-message-work-label"
@@ -8999,7 +8999,7 @@ ${unwrappedProps}
                       }, [
                         createBaseVNode(
                           "span",
-                          _hoisted_6$7,
+                          _hoisted_6$8,
                           toDisplayString(messageWorkLabel(message)),
                           1
                           /* TEXT */
@@ -9745,7 +9745,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 1,
     class: "mda-composite-row"
   };
-  const _hoisted_6$6 = ["onClick"];
+  const _hoisted_6$7 = ["onClick"];
   const _hoisted_7$6 = ["onClick"];
   const _hoisted_8$5 = {
     key: 0,
@@ -10004,7 +10004,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(co.file)
-                    }, toDisplayString(co.file), 9, _hoisted_6$6)
+                    }, toDisplayString(co.file), 9, _hoisted_6$7)
                   ]);
                 }),
                 128
@@ -10660,9 +10660,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   };
   const _hoisted_1$9 = ["aria-expanded"];
   const _hoisted_2$8 = { class: "mda-add-panel" };
-  const _hoisted_3$8 = ["disabled"];
-  const _hoisted_4$8 = { class: "mda-connect-agent-copy" };
-  const _hoisted_5$8 = {
+  const _hoisted_3$8 = ["disabled", "onClick"];
+  const _hoisted_4$8 = { class: "mda-connect-agent-icon" };
+  const _hoisted_5$8 = { class: "mda-connect-agent-copy" };
+  const _hoisted_6$6 = {
     key: 0,
     class: "mda-connect-agent-error"
   };
@@ -10673,23 +10674,25 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const triggerRef = /* @__PURE__ */ ref(null);
       const visible = /* @__PURE__ */ ref(false);
       const anchorRect = /* @__PURE__ */ ref(null);
+      const pendingId = /* @__PURE__ */ ref("");
       const connectAgentStore = useConnectAgentStore();
       const { providers, loading: busy, connectionError: errorText } = storeToRefs(connectAgentStore);
-      const codex = computed(() => providers.value.find((provider) => provider.id === "codex") || null);
-      const codexDescription = computed(() => {
-        var _a2, _b;
-        if (busy.value) return ((_a2 = codex.value) == null ? void 0 : _a2.state) === "connected" ? "正在断开…" : "正在检查并连接…";
-        return ((_b = codex.value) == null ? void 0 : _b.message) || "检查 Codex 环境后连接";
-      });
-      const codexAction = computed(() => {
-        var _a2, _b, _c, _d;
-        if (busy.value) return "处理中";
-        if ((_a2 = codex.value) == null ? void 0 : _a2.connected) return "断开";
-        if (((_b = codex.value) == null ? void 0 : _b.state) === "login-required") return "需登录";
-        if (((_c = codex.value) == null ? void 0 : _c.state) === "unavailable") return "未安装";
-        if (((_d = codex.value) == null ? void 0 : _d.state) === "error") return "重试";
+      const PROVIDER_ICONS = { codex: "C", claude: "✦" };
+      function providerIcon(id) {
+        return PROVIDER_ICONS[id] || (id ? id[0].toUpperCase() : "·");
+      }
+      function providerDescription(provider) {
+        if (pendingId.value === provider.id) return provider.connected ? "正在断开…" : "正在检查并连接…";
+        return provider.message || `检查 ${provider.name} 环境后连接`;
+      }
+      function providerAction(provider) {
+        if (pendingId.value === provider.id) return "处理中";
+        if (provider.connected) return "断开";
+        if (provider.state === "login-required") return "需登录";
+        if (provider.state === "unavailable") return "未安装";
+        if (provider.state === "error") return "重试";
         return "连接";
-      });
+      }
       onMounted(() => {
         document.addEventListener("pointerdown", handleOutsidePointerDown, true);
         window.addEventListener("resize", updateAnchorRect);
@@ -10721,26 +10724,25 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           try {
             connectAgentStore.setProviders(yield listConnectAgents(refresh));
           } catch (error) {
-            errorText.value = (error == null ? void 0 : error.message) || "无法检查 Codex 连接状态";
+            errorText.value = (error == null ? void 0 : error.message) || "无法检查连接状态";
           } finally {
             busy.value = false;
           }
         });
       }
-      function toggleCodexConnection() {
+      function toggleConnection(provider) {
         return __async(this, null, function* () {
-          var _a2;
-          if (busy.value) return;
-          busy.value = true;
+          if (busy.value || pendingId.value) return;
+          pendingId.value = provider.id;
           errorText.value = "";
           try {
-            const provider = ((_a2 = codex.value) == null ? void 0 : _a2.connected) ? yield disconnectAgent("codex") : yield connectAgent("codex");
-            connectAgentStore.upsertProvider(provider);
+            const next = provider.connected ? yield disconnectAgent(provider.id) : yield connectAgent(provider.id);
+            connectAgentStore.upsertProvider(next);
           } catch (error) {
-            errorText.value = (error == null ? void 0 : error.message) || "Codex 连接失败";
+            errorText.value = (error == null ? void 0 : error.message) || `${provider.name} 连接失败`;
             yield refreshProviders(false);
           } finally {
-            busy.value = false;
+            pendingId.value = "";
           }
         });
       }
@@ -10784,73 +10786,79 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               "max-height": 300,
               placement: "top"
             }, {
-              default: withCtx(() => {
-                var _a2;
-                return [
-                  createBaseVNode("div", _hoisted_2$8, [
-                    _cache[2] || (_cache[2] = createBaseVNode(
-                      "div",
-                      { class: "mda-add-panel-title" },
-                      "添加",
-                      -1
-                      /* CACHED */
-                    )),
-                    _cache[3] || (_cache[3] = createBaseVNode(
-                      "div",
-                      { class: "mda-add-section-title" },
-                      "连接",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode("button", {
-                      class: "mda-connect-agent-row",
-                      type: "button",
-                      disabled: unref(busy),
-                      onClick: toggleCodexConnection
-                    }, [
-                      _cache[1] || (_cache[1] = createBaseVNode(
-                        "span",
-                        { class: "mda-connect-agent-icon" },
-                        "C",
-                        -1
-                        /* CACHED */
-                      )),
-                      createBaseVNode("span", _hoisted_4$8, [
-                        _cache[0] || (_cache[0] = createBaseVNode(
-                          "strong",
-                          null,
-                          "Codex",
-                          -1
-                          /* CACHED */
-                        )),
+              default: withCtx(() => [
+                createBaseVNode("div", _hoisted_2$8, [
+                  _cache[0] || (_cache[0] = createBaseVNode(
+                    "div",
+                    { class: "mda-add-panel-title" },
+                    "添加",
+                    -1
+                    /* CACHED */
+                  )),
+                  _cache[1] || (_cache[1] = createBaseVNode(
+                    "div",
+                    { class: "mda-add-section-title" },
+                    "连接",
+                    -1
+                    /* CACHED */
+                  )),
+                  (openBlock(true), createElementBlock(
+                    Fragment,
+                    null,
+                    renderList(unref(providers), (provider) => {
+                      return openBlock(), createElementBlock("button", {
+                        key: provider.id,
+                        class: "mda-connect-agent-row",
+                        type: "button",
+                        disabled: unref(busy) || pendingId.value === provider.id,
+                        onClick: ($event) => toggleConnection(provider)
+                      }, [
                         createBaseVNode(
                           "span",
-                          null,
-                          toDisplayString(codexDescription.value),
+                          _hoisted_4$8,
+                          toDisplayString(providerIcon(provider.id)),
                           1
                           /* TEXT */
+                        ),
+                        createBaseVNode("span", _hoisted_5$8, [
+                          createBaseVNode(
+                            "strong",
+                            null,
+                            toDisplayString(provider.name),
+                            1
+                            /* TEXT */
+                          ),
+                          createBaseVNode(
+                            "span",
+                            null,
+                            toDisplayString(providerDescription(provider)),
+                            1
+                            /* TEXT */
+                          )
+                        ]),
+                        createBaseVNode(
+                          "span",
+                          {
+                            class: normalizeClass(["mda-connect-agent-action", `is-${provider.state || "checking"}`])
+                          },
+                          toDisplayString(providerAction(provider)),
+                          3
+                          /* TEXT, CLASS */
                         )
-                      ]),
-                      createBaseVNode(
-                        "span",
-                        {
-                          class: normalizeClass(["mda-connect-agent-action", `is-${((_a2 = codex.value) == null ? void 0 : _a2.state) || "checking"}`])
-                        },
-                        toDisplayString(codexAction.value),
-                        3
-                        /* TEXT, CLASS */
-                      )
-                    ], 8, _hoisted_3$8),
-                    unref(errorText) ? (openBlock(), createElementBlock(
-                      "div",
-                      _hoisted_5$8,
-                      toDisplayString(unref(errorText)),
-                      1
-                      /* TEXT */
-                    )) : createCommentVNode("v-if", true)
-                  ])
-                ];
-              }),
+                      ], 8, _hoisted_3$8);
+                    }),
+                    128
+                    /* KEYED_FRAGMENT */
+                  )),
+                  unref(errorText) ? (openBlock(), createElementBlock(
+                    "div",
+                    _hoisted_6$6,
+                    toDisplayString(unref(errorText)),
+                    1
+                    /* TEXT */
+                  )) : createCommentVNode("v-if", true)
+                ])
+              ]),
               _: 1
               /* STABLE */
             }, 8, ["visible", "anchor-rect"])
@@ -11874,7 +11882,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.024647.257";
+      const buildVersion = "20260724.031345.934";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
