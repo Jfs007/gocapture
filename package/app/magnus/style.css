@@ -1,58 +1,81 @@
 
-.mda-connect-agent-auth[data-v-bbb81e14] {
+.mda-cca-auth[data-v-f15cba78] {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 10px 10px;
-  margin: 2px 0 6px;
+  padding: 10px;
+  margin: 4px 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.03);
+}
+.mda-cca-tabs[data-v-f15cba78] {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(15, 23, 42, 0.06);
 }
-.mda-connect-agent-auth-tabs[data-v-bbb81e14] {
-  display: flex;
-  gap: 6px;
-}
-.mda-connect-agent-auth-tabs button[data-v-bbb81e14] {
+.mda-cca-tab[data-v-f15cba78] {
   flex: 1;
-  padding: 5px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 5px 10px;
+  border: none;
   border-radius: 6px;
   background: transparent;
+  color: rgba(15, 23, 42, 0.6);
   font-size: 12px;
+  line-height: 1.4;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.mda-connect-agent-auth-tabs button.is-active[data-v-bbb81e14] {
-  border-color: rgba(0, 145, 255, 0.8);
-  color: rgba(0, 145, 255, 1);
-  background: rgba(0, 145, 255, 0.08);
+.mda-cca-tab.is-active[data-v-f15cba78] {
+  background: #fff;
+  color: var(--primary-color, #0091ff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  font-weight: 600;
 }
-.mda-connect-agent-auth-input[data-v-bbb81e14] {
+.mda-cca-input[data-v-f15cba78] {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.14);
-  border-radius: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
   font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
 }
-.mda-connect-agent-auth-actions[data-v-bbb81e14] {
+.mda-cca-input[data-v-f15cba78]:focus {
+  border-color: var(--primary-color, #0091ff);
+}
+.mda-cca-hint[data-v-f15cba78] {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.5);
+}
+.mda-cca-actions[data-v-f15cba78] {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 }
-.mda-connect-agent-auth-actions button[data-v-bbb81e14] {
-  padding: 5px 12px;
+.mda-cca-btn[data-v-f15cba78] {
+  padding: 6px 14px;
   border: none;
-  border-radius: 6px;
-  background: rgba(0, 145, 255, 1);
-  color: #fff;
+  border-radius: 8px;
   font-size: 12px;
   cursor: pointer;
+  transition: opacity 0.15s;
 }
-.mda-connect-agent-auth-actions button.is-ghost[data-v-bbb81e14] {
+.mda-cca-btn.is-primary[data-v-f15cba78] {
+  background: var(--primary-color, #0091ff);
+  color: #fff;
+}
+.mda-cca-btn.is-ghost[data-v-f15cba78] {
   background: transparent;
-  color: rgba(0, 0, 0, 0.55);
+  color: rgba(15, 23, 42, 0.55);
 }
-.mda-connect-agent-auth-actions button[data-v-bbb81e14]:disabled {
+.mda-cca-btn[data-v-f15cba78]:disabled {
   opacity: 0.5;
   cursor: default;
 }

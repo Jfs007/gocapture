@@ -10776,13 +10776,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_3$8 = ["disabled", "onClick"];
   const _hoisted_4$8 = { class: "mda-connect-agent-icon" };
   const _hoisted_5$8 = { class: "mda-connect-agent-copy" };
-  const _hoisted_6$6 = {
-    key: 0,
-    class: "mda-connect-agent-auth"
-  };
-  const _hoisted_7$6 = { class: "mda-connect-agent-auth-tabs" };
-  const _hoisted_8$5 = ["type", "placeholder", "onKeydown"];
-  const _hoisted_9$5 = { class: "mda-connect-agent-auth-actions" };
+  const _hoisted_6$6 = { class: "mda-cca-tabs" };
+  const _hoisted_7$6 = ["type", "placeholder", "onKeydown"];
+  const _hoisted_8$5 = { class: "mda-cca-hint" };
+  const _hoisted_9$5 = { class: "mda-cca-actions" };
   const _hoisted_10$5 = ["disabled", "onClick"];
   const _hoisted_11$5 = {
     key: 0,
@@ -10944,14 +10941,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             }, {
               default: withCtx(() => [
                 createBaseVNode("div", _hoisted_2$8, [
-                  _cache[3] || (_cache[3] = createBaseVNode(
+                  _cache[5] || (_cache[5] = createBaseVNode(
                     "div",
                     { class: "mda-add-panel-title" },
                     "添加",
                     -1
                     /* CACHED */
                   )),
-                  _cache[4] || (_cache[4] = createBaseVNode(
+                  _cache[6] || (_cache[6] = createBaseVNode(
                     "div",
                     { class: "mda-add-section-title" },
                     "连接",
@@ -11005,14 +11002,19 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                             /* TEXT, CLASS */
                           )
                         ], 8, _hoisted_3$8),
-                        authFormId.value === provider.id ? (openBlock(), createElementBlock("div", _hoisted_6$6, [
-                          createBaseVNode("div", _hoisted_7$6, [
+                        authFormId.value === provider.id ? (openBlock(), createElementBlock("div", {
+                          key: 0,
+                          class: "mda-cca-auth",
+                          onClick: _cache[4] || (_cache[4] = withModifiers(() => {
+                          }, ["stop"]))
+                        }, [
+                          createBaseVNode("div", _hoisted_6$6, [
                             createBaseVNode(
                               "button",
                               {
                                 type: "button",
-                                class: normalizeClass({ "is-active": authMode.value === "subscription" }),
-                                onClick: _cache[0] || (_cache[0] = ($event) => authMode.value = "subscription")
+                                class: normalizeClass(["mda-cca-tab", { "is-active": authMode.value === "subscription" }]),
+                                onClick: _cache[0] || (_cache[0] = withModifiers(($event) => authMode.value = "subscription", ["stop"]))
                               },
                               "订阅登录",
                               2
@@ -11022,8 +11024,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                               "button",
                               {
                                 type: "button",
-                                class: normalizeClass({ "is-active": authMode.value === "apikey" }),
-                                onClick: _cache[1] || (_cache[1] = ($event) => authMode.value = "apikey")
+                                class: normalizeClass(["mda-cca-tab", { "is-active": authMode.value === "apikey" }]),
+                                onClick: _cache[1] || (_cache[1] = withModifiers(($event) => authMode.value = "apikey", ["stop"]))
                               },
                               "API Key",
                               2
@@ -11032,24 +11034,34 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           ]),
                           withDirectives(createBaseVNode("input", {
                             "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => authInput.value = $event),
-                            class: "mda-connect-agent-auth-input",
+                            class: "mda-cca-input",
                             type: authMode.value === "apikey" ? "password" : "text",
-                            placeholder: authMode.value === "apikey" ? "粘贴 Anthropic API Key（sk-ant-…）" : "留空则用已登录会话；或粘贴 `claude setup-token` 生成的令牌",
-                            onKeydown: withKeys(($event) => submitAuth(provider), ["enter"])
-                          }, null, 40, _hoisted_8$5), [
+                            placeholder: authMode.value === "apikey" ? "sk-ant-…" : "订阅令牌（可留空）",
+                            onKeydown: withKeys(withModifiers(($event) => submitAuth(provider), ["stop"]), ["enter"]),
+                            onClick: _cache[3] || (_cache[3] = withModifiers(() => {
+                            }, ["stop"]))
+                          }, null, 40, _hoisted_7$6), [
                             [vModelDynamic, authInput.value]
                           ]),
+                          createBaseVNode(
+                            "p",
+                            _hoisted_8$5,
+                            toDisplayString(authMode.value === "apikey" ? "粘贴 Anthropic API Key。" : "留空则用你已在终端登录的 Claude；或粘贴 `claude setup-token` 生成的令牌。"),
+                            1
+                            /* TEXT */
+                          ),
                           createBaseVNode("div", _hoisted_9$5, [
                             createBaseVNode("button", {
                               type: "button",
-                              class: "is-ghost",
-                              onClick: cancelAuth
+                              class: "mda-cca-btn is-ghost",
+                              onClick: withModifiers(cancelAuth, ["stop"])
                             }, "取消"),
                             createBaseVNode("button", {
                               type: "button",
+                              class: "mda-cca-btn is-primary",
                               disabled: pendingId.value === provider.id,
-                              onClick: ($event) => submitAuth(provider)
-                            }, " 授权并连接 ", 8, _hoisted_10$5)
+                              onClick: withModifiers(($event) => submitAuth(provider), ["stop"])
+                            }, toDisplayString(pendingId.value === provider.id ? "连接中…" : "授权并连接"), 9, _hoisted_10$5)
                           ])
                         ])) : createCommentVNode("v-if", true)
                       ]);
@@ -11083,7 +11095,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     }
     return target;
   };
-  const ConnectAgentMenu = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["__scopeId", "data-v-bbb81e14"]]);
+  const ConnectAgentMenu = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["__scopeId", "data-v-f15cba78"]]);
   const _hoisted_1$8 = ["value", "readonly", "placeholder"];
   const _hoisted_2$7 = ["onClick"];
   const _hoisted_3$7 = {
@@ -12097,7 +12109,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.040111.593";
+      const buildVersion = "20260724.040721.959";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();

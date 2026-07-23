@@ -39,33 +39,42 @@
             </span>
           </button>
 
-          <div v-if="authFormId === provider.id" class="mda-connect-agent-auth">
-            <div class="mda-connect-agent-auth-tabs">
+          <div v-if="authFormId === provider.id" class="mda-cca-auth" @click.stop>
+            <div class="mda-cca-tabs">
               <button
                 type="button"
+                class="mda-cca-tab"
                 :class="{ 'is-active': authMode === 'subscription' }"
-                @click="authMode = 'subscription'"
+                @click.stop="authMode = 'subscription'"
               >订阅登录</button>
               <button
                 type="button"
+                class="mda-cca-tab"
                 :class="{ 'is-active': authMode === 'apikey' }"
-                @click="authMode = 'apikey'"
+                @click.stop="authMode = 'apikey'"
               >API Key</button>
             </div>
             <input
               v-model="authInput"
-              class="mda-connect-agent-auth-input"
+              class="mda-cca-input"
               :type="authMode === 'apikey' ? 'password' : 'text'"
-              :placeholder="authMode === 'apikey'
-                ? '粘贴 Anthropic API Key（sk-ant-…）'
-                : '留空则用已登录会话；或粘贴 `claude setup-token` 生成的令牌'"
-              @keydown.enter="submitAuth(provider)"
+              :placeholder="authMode === 'apikey' ? 'sk-ant-…' : '订阅令牌（可留空）'"
+              @keydown.enter.stop="submitAuth(provider)"
+              @click.stop
             />
-            <div class="mda-connect-agent-auth-actions">
-              <button type="button" class="is-ghost" @click="cancelAuth">取消</button>
-              <button type="button" :disabled="pendingId === provider.id" @click="submitAuth(provider)">
-                授权并连接
-              </button>
+            <p class="mda-cca-hint">
+              {{ authMode === 'apikey'
+                ? '粘贴 Anthropic API Key。'
+                : '留空则用你已在终端登录的 Claude；或粘贴 `claude setup-token` 生成的令牌。' }}
+            </p>
+            <div class="mda-cca-actions">
+              <button type="button" class="mda-cca-btn is-ghost" @click.stop="cancelAuth">取消</button>
+              <button
+                type="button"
+                class="mda-cca-btn is-primary"
+                :disabled="pendingId === provider.id"
+                @click.stop="submitAuth(provider)"
+              >{{ pendingId === provider.id ? '连接中…' : '授权并连接' }}</button>
             </div>
           </div>
         </div>
@@ -214,60 +223,83 @@ function handleOutsidePointerDown(event: PointerEvent) {
 </script>
 
 <style scoped>
-.mda-connect-agent-auth {
+.mda-cca-auth {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 10px 10px;
-  margin: 2px 0 6px;
+  padding: 10px;
+  margin: 4px 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.03);
+}
+.mda-cca-tabs {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(15, 23, 42, 0.06);
 }
-.mda-connect-agent-auth-tabs {
-  display: flex;
-  gap: 6px;
-}
-.mda-connect-agent-auth-tabs button {
+.mda-cca-tab {
   flex: 1;
-  padding: 5px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 5px 10px;
+  border: none;
   border-radius: 6px;
   background: transparent;
+  color: rgba(15, 23, 42, 0.6);
   font-size: 12px;
+  line-height: 1.4;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.mda-connect-agent-auth-tabs button.is-active {
-  border-color: rgba(0, 145, 255, 0.8);
-  color: rgba(0, 145, 255, 1);
-  background: rgba(0, 145, 255, 0.08);
+.mda-cca-tab.is-active {
+  background: #fff;
+  color: var(--primary-color, #0091ff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  font-weight: 600;
 }
-.mda-connect-agent-auth-input {
+.mda-cca-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.14);
-  border-radius: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
   font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
 }
-.mda-connect-agent-auth-actions {
+.mda-cca-input:focus {
+  border-color: var(--primary-color, #0091ff);
+}
+.mda-cca-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.5);
+}
+.mda-cca-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 }
-.mda-connect-agent-auth-actions button {
-  padding: 5px 12px;
+.mda-cca-btn {
+  padding: 6px 14px;
   border: none;
-  border-radius: 6px;
-  background: rgba(0, 145, 255, 1);
-  color: #fff;
+  border-radius: 8px;
   font-size: 12px;
   cursor: pointer;
+  transition: opacity 0.15s;
 }
-.mda-connect-agent-auth-actions button.is-ghost {
+.mda-cca-btn.is-primary {
+  background: var(--primary-color, #0091ff);
+  color: #fff;
+}
+.mda-cca-btn.is-ghost {
   background: transparent;
-  color: rgba(0, 0, 0, 0.55);
+  color: rgba(15, 23, 42, 0.55);
 }
-.mda-connect-agent-auth-actions button:disabled {
+.mda-cca-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
