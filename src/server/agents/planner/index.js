@@ -19,6 +19,7 @@ const {
   planningSystemPrompt,
   planningObjective,
 } = require('./prompt');
+const { decomposePlan } = require('./decompose');
 const {
   PLANNING_EXPERIENCE_TOOLS,
   PLANNING_RESEARCH_TOOLS,
@@ -49,6 +50,14 @@ async function runPlanningAgent(project, options = {}) {
   } = options;
   const hydrated = hydratePlanningSources(project, buildPlanningInput(body, modelItems), textCache);
   const input = hydrated.input;
+
+  // ① 拆解阶段（前置结构化节点）：把需求拆成子改动 + 已定位文件角色卡，供组合阶段直接用。失败则无拆解继续。
+  const decomposition = await decomposePlan(project, { input, adapter, langchainModel, log, signal });
+  if (decomposition) {
+    input.decomposition = decomposition;
+    log(`Planning Agent 拆解：${decomposition.subtasks.length} 个子改动；文件角色 ${decomposition.fileRoles.length} 条`);
+  }
+
   // 范围门控：绑定全部工具（含研究/MCP），但默认只露"精读已定位文件 + skills"；模型 expand_scope 后一次性放开其余。
   const escalation = { expanded: false };
   const tools = filterToolsByConfigAction(listAgentTools(), {

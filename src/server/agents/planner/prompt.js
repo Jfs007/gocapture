@@ -150,8 +150,11 @@ function planningSystemPrompt() {
 function planningObjective(input) {
   return [
     '根据以下已定位证据完成修改计划。需要更多真实依据时自行调用可用工具；证据足够后立即结束。',
+    input && input.decomposition
+      ? '已为你预拆解需求（decomposition.subtasks）并标注了各已定位文件的作用（decomposition.fileRoles）；据此逐子改动组合出 targets，不要重复拆解、也不要重新调查这些文件的作用。'
+      : '',
     JSON.stringify(input, null, 2),
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 module.exports = {

@@ -17,6 +17,7 @@ const {
   isToolGated,
   runPlanningAgent,
 } = require('./index');
+const { normalizeDecomposition } = require('./decompose');
 
 const RESEARCH_TOOLS = new Set([
   'search_text', 'search_source_evidence', 'find_files', 'find_symbol',
@@ -108,6 +109,26 @@ test('buildFallbackPlan emits an add-sibling skeleton for definition-driven chan
   assert.ok(plan.summary.includes('新建同级实现'));
 });
 
+test('normalizeDecomposition keeps non-empty subtasks + file roles, drops junk', () => {
+  const d = normalizeDecomposition({
+    subtasks: [
+      { summary: '加一项菜单', likelyFile: 'src/router/dc.ts', needsNewImpl: false },
+      { summary: '', likelyFile: 'x' }, // 无 summary → 丢弃
+    ],
+    fileRoles: [
+      { file: 'src/router/dc.ts', whatItDoes: '定义菜单', howToExtend: 'children 加一条' },
+      { file: '', whatItDoes: 'x' }, // 无 file → 丢弃
+    ],
+  });
+  assert.strictEqual(d.subtasks.length, 1);
+  assert.strictEqual(d.subtasks[0].summary, '加一项菜单');
+  assert.strictEqual(d.fileRoles.length, 1);
+});
+
+test('normalizeDecomposition returns null when no usable subtasks', () => {
+  assert.strictEqual(normalizeDecomposition({ subtasks: [], fileRoles: [] }), null);
+});
+
 function write(root, file, content) {
   const absolute = path.join(root, file);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
@@ -194,11 +215,21 @@ test('Planning Agent can finish directly without invoking Recon or source tools'
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'planning-'));
   write(root, 'src/form.js', 'const priceField = "价格";');
   const project = scanProject(root);
-  const model = fakeModel().respondWithTools([{
-    id: 'final_plan',
-    name: 'magnus_change_plan',
-    args: structuredArgs(),
-  }]);
+  // FIFO：先回拆解节点(magnus_plan_decomposition)，再回最终计划(magnus_change_plan)。
+  const model = fakeModel()
+    .respondWithTools([{
+      id: 'decomp',
+      name: 'magnus_plan_decomposition',
+      args: {
+        subtasks: [{ summary: '调整所选字段样式', likelyFile: 'src/form.js', needsNewImpl: false }],
+        fileRoles: [{ file: 'src/form.js', whatItDoes: '定义 priceField', howToExtend: '改其展示样式' }],
+      },
+    }])
+    .respondWithTools([{
+      id: 'final_plan',
+      name: 'magnus_change_plan',
+      args: structuredArgs(),
+    }]);
   const logs = [];
   const result = await runPlanningAgent(project, {
     langchainModel: model,
