@@ -13,6 +13,8 @@ function normalizeAuth(raw) {
     mode,
     apiKey: mode === 'apikey' ? String(raw?.apiKey || '').trim() : '',
     oauthToken: mode === 'subscription' ? String(raw?.oauthToken || raw?.token || '').trim() : '',
+    // 代理与授权模式无关，独立保留（区域受限时子进程需靠它才能连通 Anthropic）。
+    proxy: String(raw?.proxy || '').trim(),
   };
 }
 
@@ -44,6 +46,12 @@ function authToEnv(auth, baseEnv = process.env) {
     delete env.ANTHROPIC_API_KEY;
     delete env.ANTHROPIC_AUTH_TOKEN;
     if (auth.oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = auth.oauthToken;
+  }
+  // 代理：区域受限时子进程必须走它才能连通 Anthropic（否则 403 Request not allowed）。
+  if (auth?.proxy) {
+    for (const key of ['https_proxy', 'http_proxy', 'all_proxy', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
+      env[key] = auth.proxy;
+    }
   }
   return env;
 }

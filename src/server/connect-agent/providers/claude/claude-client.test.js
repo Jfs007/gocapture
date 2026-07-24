@@ -143,6 +143,22 @@ test('authToEnv maps apikey / subscription correctly', () => {
   assert.strictEqual(sub.CLAUDE_CODE_OAUTH_TOKEN, 'tok');
 });
 
+test('authToEnv injects proxy env vars when proxy is set', () => {
+  const env = authToEnv({ mode: 'subscription', oauthToken: 't', proxy: 'http://127.0.0.1:7890' }, { FOO: '1' });
+  assert.strictEqual(env.https_proxy, 'http://127.0.0.1:7890');
+  assert.strictEqual(env.HTTPS_PROXY, 'http://127.0.0.1:7890');
+  assert.strictEqual(env.all_proxy, 'http://127.0.0.1:7890');
+});
+
+test('connect() surfaces region-block (403) with a proxy hint', async () => {
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    ...NO_AUTH,
+    spawnProbe: resultProbe('Failed to authenticate. API Error: 403 Request not allowed'),
+  });
+  await assert.rejects(() => client.connect(), /请求受限|代理/);
+});
+
 test('connect({auth}) persists auth and status reflects it', async () => {
   let saved = null;
   const client = new ClaudeCodeClient({

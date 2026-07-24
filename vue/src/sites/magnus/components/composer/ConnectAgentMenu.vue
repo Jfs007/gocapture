@@ -67,6 +67,15 @@
                 ? '粘贴 Anthropic API Key。'
                 : '留空则用你已在终端登录的 Claude；或粘贴 `claude setup-token` 生成的令牌。' }}
             </p>
+            <input
+              v-if="provider.supportsProxy"
+              v-model="authProxy"
+              class="mda-cca-input"
+              type="text"
+              placeholder="代理（可选，区域受限需填，如 http://127.0.0.1:7890）"
+              @keydown.enter.stop="submitAuth(provider)"
+              @click.stop
+            />
             <div class="mda-cca-actions">
               <button type="button" class="mda-cca-btn is-ghost" @click.stop="cancelAuth">取消</button>
               <button
@@ -108,6 +117,7 @@ const pendingId = ref('');
 const authFormId = ref('');
 const authMode = ref<'subscription' | 'apikey'>('subscription');
 const authInput = ref('');
+const authProxy = ref('');
 const connectAgentStore = useConnectAgentStore();
 const { providers, loading: busy, connectionError: errorText } = storeToRefs(connectAgentStore);
 
@@ -178,6 +188,7 @@ function openAuth(provider: ConnectAgentProvider) {
   authFormId.value = provider.id;
   authMode.value = (provider.authMode as 'subscription' | 'apikey') || 'subscription';
   authInput.value = '';
+  authProxy.value = provider.proxy || '';
   errorText.value = '';
 }
 
@@ -188,9 +199,10 @@ function cancelAuth() {
 
 function submitAuth(provider: ConnectAgentProvider) {
   const value = authInput.value.trim();
+  const proxy = authProxy.value.trim();
   const auth: ConnectAgentAuth = authMode.value === 'apikey'
-    ? { mode: 'apikey', apiKey: value }
-    : { mode: 'subscription', oauthToken: value };
+    ? { mode: 'apikey', apiKey: value, proxy }
+    : { mode: 'subscription', oauthToken: value, proxy };
   void runToggle(provider, auth);
 }
 

@@ -25,12 +25,15 @@ export interface ConnectAgentProvider {
   authModes?: string[];
   authMode?: string;
   authConfigured?: boolean;
+  supportsProxy?: boolean;
+  proxy?: string;
 }
 
 export interface ConnectAgentAuth {
   mode: 'subscription' | 'apikey';
   apiKey?: string;
   oauthToken?: string;
+  proxy?: string;
 }
 
 export interface ConnectAgentTask {

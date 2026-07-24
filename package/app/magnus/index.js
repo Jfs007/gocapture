@@ -8930,7 +8930,7 @@ ${unwrappedProps}
     "aria-label": "Agent 调用链"
   };
   const _hoisted_11$7 = { class: "mda-log-node-body" };
-  const _hoisted_12$5 = ["aria-expanded", "onClick"];
+  const _hoisted_12$6 = ["aria-expanded", "onClick"];
   const _hoisted_13$5 = { class: "mda-log-node-actor" };
   const _hoisted_14$5 = { class: "mda-log-node-title" };
   const _hoisted_15$5 = {
@@ -9202,7 +9202,7 @@ ${unwrappedProps}
                                       2
                                       /* CLASS */
                                     )
-                                  ], 8, _hoisted_12$5)) : (openBlock(), createElementBlock("div", _hoisted_15$5, [
+                                  ], 8, _hoisted_12$6)) : (openBlock(), createElementBlock("div", _hoisted_15$5, [
                                     createBaseVNode(
                                       "span",
                                       _hoisted_16$5,
@@ -9870,7 +9870,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-composer-options mda-plan"
   };
   const _hoisted_11$6 = { class: "mda-plan-body" };
-  const _hoisted_12$4 = {
+  const _hoisted_12$5 = {
     key: 0,
     class: "mda-plan-summary"
   };
@@ -10192,7 +10192,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               createBaseVNode("div", _hoisted_11$6, [
                 changePlan.value.summary ? (openBlock(), createElementBlock(
                   "div",
-                  _hoisted_12$4,
+                  _hoisted_12$5,
                   toDisplayString(changePlan.value.summary),
                   1
                   /* TEXT */
@@ -10779,9 +10779,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   const _hoisted_6$6 = { class: "mda-cca-tabs" };
   const _hoisted_7$6 = ["type", "placeholder", "onKeydown"];
   const _hoisted_8$5 = { class: "mda-cca-hint" };
-  const _hoisted_9$5 = { class: "mda-cca-actions" };
-  const _hoisted_10$5 = ["disabled", "onClick"];
-  const _hoisted_11$5 = {
+  const _hoisted_9$5 = ["onKeydown"];
+  const _hoisted_10$5 = { class: "mda-cca-actions" };
+  const _hoisted_11$5 = ["disabled", "onClick"];
+  const _hoisted_12$4 = {
     key: 0,
     class: "mda-connect-agent-error"
   };
@@ -10796,6 +10797,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const authFormId = /* @__PURE__ */ ref("");
       const authMode = /* @__PURE__ */ ref("subscription");
       const authInput = /* @__PURE__ */ ref("");
+      const authProxy = /* @__PURE__ */ ref("");
       const connectAgentStore = useConnectAgentStore();
       const { providers, loading: busy, connectionError: errorText } = storeToRefs(connectAgentStore);
       const PROVIDER_ICONS = { codex: "C", claude: "✦" };
@@ -10871,6 +10873,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         authFormId.value = provider.id;
         authMode.value = provider.authMode || "subscription";
         authInput.value = "";
+        authProxy.value = provider.proxy || "";
         errorText.value = "";
       }
       function cancelAuth() {
@@ -10879,7 +10882,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       }
       function submitAuth(provider) {
         const value = authInput.value.trim();
-        const auth = authMode.value === "apikey" ? { mode: "apikey", apiKey: value } : { mode: "subscription", oauthToken: value };
+        const proxy = authProxy.value.trim();
+        const auth = authMode.value === "apikey" ? { mode: "apikey", apiKey: value, proxy } : { mode: "subscription", oauthToken: value, proxy };
         void runToggle(provider, auth);
       }
       function runToggle(provider, auth) {
@@ -10941,14 +10945,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             }, {
               default: withCtx(() => [
                 createBaseVNode("div", _hoisted_2$8, [
-                  _cache[5] || (_cache[5] = createBaseVNode(
+                  _cache[7] || (_cache[7] = createBaseVNode(
                     "div",
                     { class: "mda-add-panel-title" },
                     "添加",
                     -1
                     /* CACHED */
                   )),
-                  _cache[6] || (_cache[6] = createBaseVNode(
+                  _cache[8] || (_cache[8] = createBaseVNode(
                     "div",
                     { class: "mda-add-section-title" },
                     "连接",
@@ -11005,7 +11009,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         authFormId.value === provider.id ? (openBlock(), createElementBlock("div", {
                           key: 0,
                           class: "mda-cca-auth",
-                          onClick: _cache[4] || (_cache[4] = withModifiers(() => {
+                          onClick: _cache[6] || (_cache[6] = withModifiers(() => {
                           }, ["stop"]))
                         }, [
                           createBaseVNode("div", _hoisted_6$6, [
@@ -11050,7 +11054,19 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                             1
                             /* TEXT */
                           ),
-                          createBaseVNode("div", _hoisted_9$5, [
+                          provider.supportsProxy ? withDirectives((openBlock(), createElementBlock("input", {
+                            key: 0,
+                            "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => authProxy.value = $event),
+                            class: "mda-cca-input",
+                            type: "text",
+                            placeholder: "代理（可选，区域受限需填，如 http://127.0.0.1:7890）",
+                            onKeydown: withKeys(withModifiers(($event) => submitAuth(provider), ["stop"]), ["enter"]),
+                            onClick: _cache[5] || (_cache[5] = withModifiers(() => {
+                            }, ["stop"]))
+                          }, null, 40, _hoisted_9$5)), [
+                            [vModelText, authProxy.value]
+                          ]) : createCommentVNode("v-if", true),
+                          createBaseVNode("div", _hoisted_10$5, [
                             createBaseVNode("button", {
                               type: "button",
                               class: "mda-cca-btn is-ghost",
@@ -11061,7 +11077,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                               class: "mda-cca-btn is-primary",
                               disabled: pendingId.value === provider.id,
                               onClick: withModifiers(($event) => submitAuth(provider), ["stop"])
-                            }, toDisplayString(pendingId.value === provider.id ? "连接中…" : "授权并连接"), 9, _hoisted_10$5)
+                            }, toDisplayString(pendingId.value === provider.id ? "连接中…" : "授权并连接"), 9, _hoisted_11$5)
                           ])
                         ])) : createCommentVNode("v-if", true)
                       ]);
@@ -11071,7 +11087,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   )),
                   unref(errorText) ? (openBlock(), createElementBlock(
                     "div",
-                    _hoisted_11$5,
+                    _hoisted_12$4,
                     toDisplayString(unref(errorText)),
                     1
                     /* TEXT */
@@ -12101,7 +12117,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260724.041712.275";
+      const buildVersion = "20260724.130909.306";
       const commands = useMagnusCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();

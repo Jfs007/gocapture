@@ -11,8 +11,20 @@ const { inspectClaudeCli, spawnClaudeTask, spawnClaudeProbe } = require('./cli')
 const { normalizeAuth, loadClaudeAuth, saveClaudeAuth, authToEnv } = require('./auth-store');
 
 const PROBE_TIMEOUT_MS = 60 * 1000;
-// Claude 常把鉴权失败当"文本回复"打出来(subtype 仍 success)，故除退出码/is_error 外，也按文本特征判鉴权失败。
+// Claude 常把鉴权/网络失败当"文本回复"打出来(subtype 仍 success)，故除退出码/is_error 外，也按文本特征判失败。
 const AUTH_FAIL_RE = /API Error:\s*40[13]|Failed to authenticate|not allowed|Invalid API key|unauthor/i;
+// 区域/网络受限：Anthropic 直连被拒(403 Request not allowed)，多为所在区域需走代理。
+const REGION_BLOCK_RE = /Request not allowed|\b403\b/i;
+
+function explainProbeFailure(text) {
+  if (REGION_BLOCK_RE.test(text)) {
+    return '请求受限：该区域无法直连 Anthropic（403 Request not allowed）。请在授权里配置代理后重试。';
+  }
+  if (/Invalid API key|Failed to authenticate|unauthor|\b401\b/i.test(text)) {
+    return '授权无效：请改用有效的 API Key，或重新登录订阅（claude setup-token / claude auth login）。';
+  }
+  return '授权验证失败';
+}
 
 const TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const FILE_EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'create_file', 'str_replace_editor']);
@@ -92,7 +104,7 @@ class ClaudeCodeClient {
           return;
         }
         const hint = AUTH_FAIL_RE.test(text)
-          ? '当前授权无法通过 Anthropic API（如 403）。请改用有效的 API Key，或重新登录订阅（claude auth login）。'
+          ? explainProbeFailure(text)
           : `授权验证失败${code != null ? `（退出码 ${code}）` : ''}`;
         resolve({ ok: false, message: `${hint}${text ? `：${text.slice(0, 200)}` : ''}` });
       });
@@ -133,6 +145,8 @@ class ClaudeCodeClient {
       authModes: ['subscription', 'apikey'],
       authMode: this.auth.mode || '',
       authConfigured: !!this.auth.mode,
+      supportsProxy: true,
+      proxy: this.auth.proxy || '', // 非密钥，回传供前端预填
     };
   }
 
