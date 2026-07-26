@@ -6,6 +6,7 @@ import { registerRuntimeApi } from './api';
 import { installLocationWatcher, pageHostText, pageUrlPath, readCurrentHref } from '../infrastructure/page-location';
 import { useRouteStore } from '../../stores/route.store';
 import { useAppUiStore } from '../../stores/app-ui.store';
+import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import type { MagnusRuntimeContext } from './context';
 
 export function createMagnusRuntime(api: Record<string, any>) {
@@ -15,6 +16,7 @@ export function createMagnusRuntime(api: Record<string, any>) {
   const pageHost = computed(() => pageHostText(currentPageHref.value));
   const routeStore = useRouteStore();
   const appUiStore = useAppUiStore();
+  const connectAgentStore = useConnectAgentStore();
   let cleanupLocationWatcher: null | (() => void) = null;
 
   const runtime: MagnusRuntimeContext = {
@@ -31,10 +33,13 @@ export function createMagnusRuntime(api: Record<string, any>) {
   provideMagnusRuntime(api, state, actions);
 
   watch([source.project, currentPageHref], () => {
+    const projectRoot = source.project.value?.path || '';
     routeStore.setPage(currentPageHref.value, routePagePath.value);
     search.i18nTrace.value = null;
     search.definitionTrace.value = null;
     route.scheduleRouteResolve();
+    void connectAgentStore.refreshProviders(false, projectRoot);
+    void connectAgentStore.loadTimeline(projectRoot);
   }, { immediate: true });
 
   watch(currentPageHref, () => {
@@ -47,6 +52,9 @@ export function createMagnusRuntime(api: Record<string, any>) {
     source.restoreSavedProject();
     route.scheduleRouteResolve();
     bridge.connectSidePanelBridge();
+    const projectRoot = source.project.value?.path || '';
+    void connectAgentStore.refreshProviders(false, projectRoot);
+    void connectAgentStore.loadTimeline(projectRoot);
   });
 
   onBeforeUnmount(() => {

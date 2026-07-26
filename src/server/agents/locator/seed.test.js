@@ -13,6 +13,7 @@ const {
   buildFallbackDecision,
   createDomLocatorContextMiddleware,
   createDomLocatorToolGuard,
+  normalizeLocatorDecision,
 } = require('./index');
 
 function fixtureProject(files) {
@@ -27,12 +28,22 @@ function fixtureProject(files) {
   return { name: 'fixture', path: root, kind: 'unknown', stack: [], files: projectFiles };
 }
 
-test('extractSeedAnchors keeps static labels and drops data-bound sentences', () => {
-  const anchors = extractSeedAnchors([{ directText: '执行信息 执行人 反馈附件 暂无反馈附件 备注' }]);
+test('extractSeedAnchors preserves exact visible phrases and individual labels', () => {
+  const anchors = extractSeedAnchors([
+    { directText: '应用上架、店铺配置' },
+    { directText: '执行信息 执行人 反馈附件 备注' },
+  ]);
+  assert.ok(anchors.includes('应用上架、店铺配置'));
   assert.ok(anchors.includes('执行人'));
   assert.ok(anchors.includes('反馈附件'));
-  // 长句/占位不会进来（此选区没有，验证不误纳空白）
-  assert.ok(anchors.every(a => a.length <= 8));
+  assert.ok(anchors.every(a => a.length <= 64));
+});
+
+test('extractSeedAnchors drops only text outside the operational size boundary', () => {
+  const anchors = extractSeedAnchors([{
+    directText: '这是一段用于验证输入边界的超长可见文字'.repeat(5),
+  }]);
+  assert.deepEqual(anchors, []);
 });
 
 test('computeAnchorSeed ranks the file where labels co-occur highest', async () => {
@@ -67,81 +78,35 @@ test('computeAnchorSeed ranks a rare-anchor match above equal-count common-ancho
   assert.strictEqual(seed.candidates[0].file, 'src/subtask.vue');
 });
 
-test('objective injects the anchor-seed block with a verify-first directive', () => {
+test('objective gives one ReAct agent seed facts and requires finish-tool submission', () => {
   const objective = buildDomLocatorObjective({
-    userPrompt: 'x',
     hasKnowledgeTool: true,
     projectStructure: 'SHOULD_NOT_BE_INCLUDED',
-    anchorSeed: { anchors: ['执行人', '反馈附件'], candidates: [{ file: 'src/b-components/subtask.vue', matchedAnchorCount: 2 }] },
-  });
-  assert.ok(objective.includes('锚点交集候选'));
-  assert.ok(objective.includes('src/b-components/subtask.vue'));
-  assert.ok(objective.includes('read_file'));
-  // 有种子时路由结构性降级为一行背景，不再作为“事实块”喂进去
-  assert.ok(objective.includes('页面路由（仅背景）'));
-  assert.ok(!objective.includes('页面与路由事实'));
-  assert.ok(objective.includes('consult_project_knowledge 是可选工具'));
-  assert.ok(!objective.includes('第一步必须先调用 consult_project_knowledge'));
-  assert.ok(!objective.includes('SHOULD_NOT_BE_INCLUDED'));
-  assert.ok(!objective.includes('真实项目结构:'));
-});
-
-test('objective scopes the task to locating the selected DOM source, not to the user requirement', () => {
-  const objective = buildDomLocatorObjective({
-    userPrompt: '在经营数据下加一个腾讯经营数据菜单，表格字段 A|B|C，接口先模拟，支持筛选',
-    anchorSeed: { anchors: [], candidates: [] },
-  });
-  // 任务范围由选区 DOM 决定，不由需求决定
-  assert.ok(objective.includes('选区 DOM'));
-  assert.ok(objective.includes('只做定位，忽略用户想对它做的任何改动'));
-  assert.ok(objective.includes('禁止为「如何实现某改动」去调查、规划或设想新建文件'));
-  assert.ok(objective.includes('剩余未知信息不会影响当前任务'));
-  assert.ok(objective.includes('必须立即提交 resolved'));
-  assert.ok(objective.includes('不得默认追求完整的 DOM 来源'));
-  // 需求正文(表格字段/模拟/筛选)不得泄漏进 locator，避免把它带偏成功能规划
-  assert.ok(!objective.includes('表格字段 A|B|C'));
-  assert.ok(!objective.includes('完成判据只能来自用户需求'));
-  assert.ok(!objective.includes('只有重要 DOM 区域均被解释'));
-});
-
-test('objective requires semantic partial-coverage review and existing-candidate-first investigation', () => {
-  const objective = buildDomLocatorObjective({
-    userPrompt: '定位选区源码',
+    routeFacts: { pagePath: '/task' },
+    domSelections: [{ directText: '执行信息 执行人' }],
     anchorSeed: {
       anchors: ['执行信息', '执行人'],
       candidates: [{
-        file: 'src/task/index.vue',
-        matchedAnchorCount: 1,
-        matchedAnchors: [{ text: '执行信息', line: 12, snippet: '<legend>执行信息</legend>' }],
+        file: 'src/task/subtask.vue',
+        matchedAnchorCount: 2,
+        matchedAnchors: [{ text: '执行人', line: 12, snippet: '<label>执行人</label>' }],
       }],
     },
   });
-  assert.ok(objective.includes('coverage=complete|partial|mismatch|unknown'));
-  assert.ok(objective.includes('candidateRole=target|container|inner|peer|source|unknown'));
-  assert.ok(objective.includes('partial 不等于候选错误'));
-  assert.ok(objective.includes('必须优先读取这些已有候选'));
-  assert.ok(objective.includes('不得跳过它们重新发起全局搜索'));
-  // inspect_symbol_occurrences / read_file 翻页的 how-to 已搬进各自工具 description，objective 不再重述
-  assert.ok(!objective.includes('必须调用 inspect_symbol_occurrences'));
-  assert.ok(!objective.includes('最多进行一次 read_file 行区间补读'));
-  assert.ok(objective.includes('<legend>执行信息</legend>'));
+  assert.match(objective, /锚点交集候选/);
+  assert.match(objective, /src\/task\/subtask\.vue/);
+  assert.match(objective, /必须调用 finish_dom_location/);
+  assert.doesNotMatch(objective, /SHOULD_NOT_BE_INCLUDED/);
 });
 
-test('objective omits the seed block when there are no candidates', () => {
-  const objective = buildDomLocatorObjective({ userPrompt: 'x', anchorSeed: { anchors: [], candidates: [] } });
-  assert.ok(!objective.includes('锚点交集候选'));
-});
-
-test('DOM Locator uses LangChain context editing for old tool outputs', () => {
+test('DOM Locator retains LangChain context editing inside the same ReAct run', () => {
   const middleware = createDomLocatorContextMiddleware();
   assert.ok(middleware);
-  assert.equal(middleware.name, 'ContextEditingMiddleware');
   assert.equal(typeof middleware.wrapModelCall, 'function');
 });
 
 test('DOM Locator stops repeated line-range pagination and redirects to symbol evidence', () => {
-  const budget = { forceFinish: false };
-  const guard = createDomLocatorToolGuard(budget);
+  const guard = createDomLocatorToolGuard({ forceFinish: false });
   assert.equal(guard('read_file', {
     files: ['src/task/index.js'],
     around: '80-200',
@@ -178,11 +143,11 @@ test('buildFallbackDecision ranks evidence + seed candidates within known files'
   const anchorSeed = { candidates: [{ file: 'src/x.vue', matchedAnchorCount: 1 }, { file: 'src/not-in-project.vue', matchedAnchorCount: 9 }] };
 
   const decision = buildFallbackDecision({ anchorSeed, evidenceCandidates, project, recursionLimitHit: true });
-  assert.strictEqual(decision.status, 'need-more-context');
-  assert.strictEqual(decision.files[0].file, 'src/b-components/task-manage/common@2x/subtask.vue');
-  assert.strictEqual(decision.files[0].role, 'render');
+  assert.strictEqual(decision.status, 'unresolved');
+  assert.deepEqual(decision.files, []);
+  assert.strictEqual(decision.candidateFacts[0].file, 'src/b-components/task-manage/common@2x/subtask.vue');
   // 不存在于项目文件列表的候选被剔除（不编造文件）
-  assert.strictEqual(decision.files.some(f => f.file === 'src/not-in-project.vue'), false);
+  assert.strictEqual(decision.candidateFacts.some(f => f.file === 'src/not-in-project.vue'), false);
   assert.match(decision.reason, /递归上限/);
 });
 
@@ -190,4 +155,34 @@ test('buildFallbackDecision returns null when no known candidate', () => {
   const project = { files: [{ path: 'src/a.vue' }] };
   const decision = buildFallbackDecision({ anchorSeed: { candidates: [{ file: 'src/ghost.vue', matchedAnchorCount: 5 }] }, evidenceCandidates: new Map(), project, recursionLimitHit: false });
   assert.strictEqual(decision, null);
+});
+
+test('Locator normalizes the ReAct finish-tool payload and preserves its target snippet', () => {
+  const project = { files: [{ path: 'src/page.js' }] };
+  const decision = normalizeLocatorDecision({
+    status: 'resolved',
+    files: [{
+      file: 'src/page.js',
+      role: 'render',
+      confidence: 99,
+      reason: '真实源码证据',
+      targetSnippet: '<section>目标节点</section>',
+    }],
+    relations: [],
+    coveredDom: ['目标节点'],
+    missingEvidence: [],
+    needMoreDom: false,
+    reason: '已定位',
+  }, project);
+  assert.equal(decision.status, 'resolved');
+  assert.equal(decision.files[0].file, 'src/page.js');
+  assert.equal(decision.files[0].targetSnippet, '<section>目标节点</section>');
+});
+
+test('plain completion text is not accepted as a Locator decision', () => {
+  const decision = normalizeLocatorDecision('所有证据已完备，直接提交。', {
+    files: [{ path: 'src/page.js' }],
+  });
+  assert.equal(decision.status, 'unresolved');
+  assert.deepEqual(decision.files, []);
 });

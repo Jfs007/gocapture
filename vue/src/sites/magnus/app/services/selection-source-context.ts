@@ -11,6 +11,9 @@ export function sourceTargetsFromCandidates(candidates: any[]): SelectionSourceT
     .map(hit => ({
       file: String(hit.file),
       role: String(hit.role || hit.sourceRole || 'related'),
+      line: Number(hit.line || 0),
+      anchor: String(hit.anchor || ''),
+      targetSnippet: String(hit.targetSnippet || ''),
       // unlocated：本地未能把选区定位到具体源码，绝不用漂移的粗片段（会误导 LLM 到别的列）——
       // 留空，让变更计划 LLM 依据原始选区身份 + 完整文件自己定位。
       codeSnippet: hit.scopeAlignment === 'unlocated'
@@ -69,6 +72,9 @@ function dedupeBoundTargets(targets: Array<SelectionSourceTarget & { designRequi
     byFile.set(target.file, {
       ...old,
       codeSnippet: old.codeSnippet || target.codeSnippet || '',
+      line: old.line || target.line || 0,
+      anchor: old.anchor || target.anchor || '',
+      targetSnippet: old.targetSnippet || target.targetSnippet || '',
       importChain: old.importChain?.length ? old.importChain : (target.importChain || []),
       directionGuess: old.directionGuess || target.directionGuess || '',
       reasons: Array.from(new Set([...(old.reasons || []), ...(target.reasons || [])]))

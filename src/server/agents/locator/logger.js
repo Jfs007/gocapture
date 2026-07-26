@@ -33,24 +33,25 @@ function createLocatorLogger(onLog = () => {}) {
   const evidenceCandidates = new Map(); // file -> max matchedAnchorCount，跨轮累计，用于兜底
 
   const onEvent = event => {
+    const stage = String(event.stage || 'dom-locator');
     if (event.type === 'llm.log') {
-      onLog(`DOM Locator Agent 第 ${Math.max(1, modelRound)} 轮 ${event.log}`);
+      onLog(`DOM Locator Agent [${stage}] 第 ${Math.max(1, modelRound)} 轮 ${event.log}`);
     }
     if (event.type === 'llm.input') {
       modelRound += 1;
       const toolNames = (event.toolNames || []).join('、') || '-';
-      onLog(`DOM Locator Agent 第 ${modelRound} 轮模型输入：messages=${(event.messages || []).length}；tools=${event.toolCount || 0}；toolNames=${toolNames}`);
-      onLog(`DOM Locator Agent 第 ${modelRound} 轮模型输入上下文：\n${compactEventValue(modelInputMessageSummary(event.messages), 16000)}`);
+      onLog(`DOM Locator Agent [${stage}] 第 ${modelRound} 轮模型输入：messages=${(event.messages || []).length}；tools=${event.toolCount || 0}；toolNames=${toolNames}`);
+      onLog(`DOM Locator Agent [${stage}] 第 ${modelRound} 轮模型输入上下文：\n${compactEventValue(modelInputMessageSummary(event.messages), 16000)}`);
     }
     if (event.type === 'llm.output') {
       const rawText = String(event.rawText || '').trim();
-      onLog(`DOM Locator Agent 第 ${modelRound} 轮模型输出：tool_calls=${(event.toolCalls || []).length}；text=${rawText.length} 字符`);
+      onLog(`DOM Locator Agent [${stage}] 第 ${modelRound} 轮模型输出：tool_calls=${(event.toolCalls || []).length}；text=${rawText.length} 字符`);
       if (rawText) {
-        onLog(`DOM Locator Agent 第 ${modelRound} 轮模型输出正文：\n${compactEventValue(rawText, 3000)}`);
+        onLog(`DOM Locator Agent [${stage}] 第 ${modelRound} 轮模型输出正文：\n${compactEventValue(rawText, 3000)}`);
       }
     }
     if (event.type === 'tool.start') {
-      onLog(`DOM Locator Agent 工具调用：${event.toolCall?.tool} ${compactEventValue(event.toolCall?.input || {})}`);
+      onLog(`DOM Locator Agent [${stage}] 工具调用：${event.toolCall?.tool} ${compactEventValue(event.toolCall?.input || {})}`);
     }
     if (event.type === 'tool.result') {
       if (event.observation?.tool === 'search_source_evidence') {
@@ -59,10 +60,10 @@ function createLocatorLogger(onLog = () => {}) {
           evidenceCandidates.set(candidate.file, Math.max(evidenceCandidates.get(candidate.file) || 0, Number(candidate.matchedAnchorCount) || 0));
         }
       }
-      onLog(`DOM Locator Agent 工具结果：${event.observation?.tool}\n${compactEventValue(event.observation?.result)}`);
+      onLog(`DOM Locator Agent [${stage}] 工具结果：${event.observation?.tool}\n${compactEventValue(event.observation?.result)}`);
     }
     if (event.type === 'tool.error') {
-      onLog(`DOM Locator Agent 工具失败：${event.observation?.tool}；${event.observation?.error || '-'}`);
+      onLog(`DOM Locator Agent [${stage}] 工具失败：${event.observation?.tool}；${event.observation?.error || '-'}`);
     }
   };
 

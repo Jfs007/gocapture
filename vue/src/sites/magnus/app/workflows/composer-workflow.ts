@@ -70,13 +70,37 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     if (!source.project.value) return;
     const instruction = composer.promptIntent.value.trim();
     if (!instruction) return;
+    if (!connectAgentStore.activeProvider?.connected) {
+      appUiStore.setToast('请先关联 Codex 开发 Agent');
+      return;
+    }
     if (await reuseSelectionSourceContext(instruction)) return;
     if (search.showCandidatePicker.value) {
       await runModelAssistForCandidates(instruction);
       return;
     }
     if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
+    if (!model.selectedModel.value) {
+      await runConnectedAgentFromLocalEvidence(instruction);
+      return;
+    }
     await searchCandidateFiles();
+  }
+
+  async function runConnectedAgentFromLocalEvidence(instruction: string) {
+    lastOriginSelections = captureOriginSelections();
+    search.clearCandidateState?.();
+    search.processLogs.value = [
+      'Locator 专用模型未配置：跳过 Magnus Locator Agent',
+      '先整理路由、压缩 DOM 和已捕获页面事实，再交给关联 Agent'
+    ];
+    search.searchStartedAt.value = Date.now();
+    search.searchFinishedAt.value = 0;
+    connectAgentStore.resetTask();
+    await runConnectedAgent(instruction, [], {
+      searchPayload: prompt.searchPayload()
+    });
+    search.searchFinishedAt.value = Date.now();
   }
 
   async function searchCandidateFiles() {
@@ -402,24 +426,49 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     return true;
   }
 
-  async function runConnectedAgent(userInstruction: string, bindings: any[]) {
+  async function runConnectedAgent(
+    userInstruction: string,
+    bindings: any[],
+    options: { searchPayload?: Record<string, unknown> } = {}
+  ) {
     const provider = connectAgentStore.activeProvider;
     if (!provider?.connected) return false;
     const controller = new AbortController();
     connectAgentStore.beginTask(controller);
-    selection.filesConfirmed.value = true;
-    search.appendProcessLog(`Connect Agent 分流：DOM Locator 已完成，跳过 Magnus Planning Agent，交给 ${provider.name}`);
+    selection.filesConfirmed.value = bindings.length > 0;
+    search.appendProcessLog(bindings.length
+      ? `Connect Agent 分流：DOM Locator 已完成，交给 ${provider.name}`
+      : `Connect Agent 分流：本地事实准备完成后，由 ${provider.name} 自行定位并开发`);
     try {
       const result = await runConnectAgentTask(provider.id, {
         projectRoot: projectRoot(),
         pageUrl: state.currentPageHref.value,
         userInstruction,
-        selectionBindings: bindings
+        selectionBindings: bindings,
+        searchPayload: options.searchPayload || null
       }, {
         controller,
-        onEvent: event => connectAgentStore.applyTaskEvent(event)
+        onEvent: event => {
+          connectAgentStore.applyTaskEvent(event);
+          if (event?.type === 'locator-evidence' && event.evidence?.route) {
+            route.applyRouteResolverTrace({
+              pagePath: event.evidence.route.pagePath,
+              matched: event.evidence.route.matched,
+              bestPageFile: event.evidence.route.bestPageFile,
+              hits: event.evidence.route.hits
+            });
+          }
+        }
       });
       connectAgentStore.completeTask(result);
+      selection.bindAgentMeanings({
+        meanings: result.selectionMeanings || [],
+        providerId: provider.id,
+        threadId: result.threadId,
+        projectRoot: projectRoot(),
+        designRequirement: userInstruction,
+        changedFiles: result.changedFiles || []
+      });
       appUiStore.setToast(`${provider.name} 已完成开发任务`);
     } catch (error) {
       connectAgentStore.failTask(error);

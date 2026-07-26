@@ -85,6 +85,16 @@
           <div v-if="message.action === 'copy-prompt'" class="mda-message-actions">
             <button class="mda-btn" type="button" @click="commands.copyPrompt">复制提示词</button>
           </div>
+          <div v-if="message.action === 'connect-agent'" class="mda-message-actions">
+            <button class="mda-btn mda-btn-primary" type="button" :disabled="connectAgentStore.loading" @click="connectCodex">
+              {{ connectAgentStore.loading ? '检查中...' : '连接 Codex' }}
+            </button>
+          </div>
+          <div v-if="message.action === 'locator-settings'" class="mda-message-actions">
+            <button class="mda-inline-text-btn" type="button" @click="commands.openSettings('locator')">
+              配置 Locator 专用模型
+            </button>
+          </div>
         </div>
       </div>
     </article>
@@ -100,6 +110,7 @@ import { useMagnusCommands } from '../../app/runtime/commands';
 import { useChatStore } from '../../stores/chat.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useSearchStore } from '../../stores/search.store';
+import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { buildLogChain, serializeLogs } from '../../app/presenters/log-chain';
 import MagnusIcon from '../common/MagnusIcon.vue';
 
@@ -107,6 +118,7 @@ const commands = useMagnusCommands();
 const chatStore = useChatStore();
 const projectStore = useProjectStore();
 const searchStore = useSearchStore();
+const connectAgentStore = useConnectAgentStore();
 const messages = computed(() => chatStore.messages);
 const sourceServiceStatus = computed(() => projectStore.serviceStatus);
 const sourceServiceError = computed(() => projectStore.serviceError);
@@ -115,6 +127,10 @@ const nowTick = ref(Date.now());
 const logOpenState = ref({});
 const logNodeOpenState = ref({});
 let clockTimer = 0;
+
+async function connectCodex() {
+  await connectAgentStore.connectDefaultAgent(projectStore.current?.path || '');
+}
 
 watch(messages, nextMessages => {
   const nextState = {};

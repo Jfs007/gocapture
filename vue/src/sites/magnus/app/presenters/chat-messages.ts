@@ -84,15 +84,50 @@ export function useChatMessages() {
       return messages;
     }
 
-    messages.push({
+    const activeAgent = connectAgentStore.activeProvider;
+    const currentTask = connectAgentStore.task;
+    const projectThreadId = currentTask?.threadId || activeAgent?.projectThreadId || '';
+    const projectMessage: any = {
       id: 'project-ready',
       role: 'system',
       title: '项目已连接',
       text: [
         `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || '未识别技术栈'}`,
-        project.value.path ? `源码目录：${project.value.path}` : ''
-      ].filter(Boolean).join('\n')
-    });
+        project.value.path ? `源码目录：${project.value.path}` : '',
+        activeAgent
+          ? `开发 Agent：${activeAgent.name}${activeAgent.version ? ` · ${activeAgent.version}` : ''}`
+          : connectAgentStore.loading
+            ? '开发 Agent：正在检查'
+            : '开发 Agent：未关联',
+        activeAgent
+          ? `项目 Thread：${projectThreadId || '首次任务时建立'}`
+          : '',
+        activeAgent
+          ? modelStore.selectedModel
+            ? `Locator：${modelStore.selectedModel.name}`
+            : 'Locator：由开发 Agent 处理'
+          : ''
+      ].filter(Boolean).join('\n'),
+      action: activeAgent ? 'locator-settings' : 'connect-agent'
+    };
+    messages.push(projectMessage);
+    messages.push(...connectAgentTimelineMessages({
+      records: connectAgentStore.timeline,
+      currentTask,
+      taskStatus: connectAgentStore.taskStatus,
+      currentLogs: connectAgentStore.taskLogs,
+      taskStartedAt: connectAgentStore.taskStartedAt,
+      taskFinishedAt: connectAgentStore.taskFinishedAt,
+      agentName: activeAgent?.name || '开发 Agent'
+    }));
+
+    if (connectAgentStore.loading && !connectAgentStore.activeProvider) {
+      return messages;
+    }
+
+    if (!connectAgentStore.activeProvider) {
+      return messages;
+    }
 
     if (!selectedItems.value.length) {
       messages.push({
@@ -108,7 +143,15 @@ export function useChatMessages() {
       id: 'selection-context',
       role: 'system',
       title: '已捕获选区',
-      text: selectionChatSummary()
+      text: [
+        selectionChatSummary(),
+        ...selectionStore.items
+          .map((item, index) => {
+            const meaning = item.sourceBinding?.agentContext?.meaning;
+            return meaning ? `@选区${index + 1}：${meaning}` : '';
+          })
+          .filter(Boolean)
+      ].filter(Boolean).join('\n')
     });
 
     if (selectionConfirmed.value) {
@@ -225,35 +268,8 @@ export function useChatMessages() {
       });
     }
 
-    if (connectAgentStore.taskStatus !== 'idle') {
-      const currentTask = connectAgentStore.task;
-      const running = connectAgentStore.taskStatus === 'running';
-      const agentName = connectAgentStore.activeProvider?.name || '开发助手';
-      messages.push({
-        id: 'connect-agent-task',
-        role: 'agent',
-        title: `${agentName} 开发任务`,
-        text: running
-          ? `源码定位已完成，${agentName} 正在项目中执行修改和验证。`
-          : connectAgentStore.taskStatus === 'completed'
-            ? `${agentName} 已完成项目修改。`
-            : connectAgentStore.taskError || `${agentName} 开发任务未完成。`,
-        pre: !running ? currentTask?.finalResponse || '' : '',
-        logs: [
-          ...(connectAgentStore.taskLogs || []),
-          currentTask?.taskId ? `taskId: ${currentTask.taskId}` : '',
-          currentTask?.threadId ? `threadId: ${currentTask.threadId}` : '',
-          currentTask?.turnId ? `turnId: ${currentTask.turnId}` : '',
-          ...(currentTask?.changedFiles || []).map(file => `修改文件: ${file}`)
-        ].filter(Boolean),
-        durationStartedAt: connectAgentStore.taskStartedAt,
-        durationFinishedAt: connectAgentStore.taskFinishedAt,
-        durationActive: running,
-        logExpanded: running
-      });
-    }
-
-    if (!candidateLoading.value && needsMoreEvidence.value) {
+    const locatorFeedbackVisible = connectAgentStore.taskStatus === 'idle';
+    if (!candidateLoading.value && needsMoreEvidence.value && locatorFeedbackVisible) {
       messages.push({
         id: 'need-more-evidence',
         role: 'system',
@@ -263,14 +279,24 @@ export function useChatMessages() {
           '如果自动扩区后仍然失败，说明当前 DOM 链路还不能把候选收敛到唯一源码方向。'
         ].join('\n')
       });
-    } else if (!candidateLoading.value && candidateHits.value.length > 1 && !filesConfirmed.value) {
+    } else if (
+      !candidateLoading.value
+      && candidateHits.value.length > 1
+      && !filesConfirmed.value
+      && locatorFeedbackVisible
+    ) {
       messages.push({
         id: 'multi-candidates',
         role: 'system',
         title: '存在多个命中文件，请确认',
         text: `默认选择最高命中：${candidateHits.value[0].file}`
       });
-    } else if (!candidateLoading.value && candidateHits.value.length === 1 && !filesConfirmed.value) {
+    } else if (
+      !candidateLoading.value
+      && candidateHits.value.length === 1
+      && !filesConfirmed.value
+      && locatorFeedbackVisible
+    ) {
       messages.push({
         id: 'single-candidate',
         role: 'system',
@@ -303,4 +329,125 @@ export function useChatMessages() {
     sourceServiceText,
     chatMessages
   };
+}
+
+function connectAgentTimelineMessages({
+  records,
+  currentTask,
+  taskStatus,
+  currentLogs,
+  taskStartedAt,
+  taskFinishedAt,
+  agentName
+}: {
+  records: any[];
+  currentTask: any;
+  taskStatus: string;
+  currentLogs: string[];
+  taskStartedAt: number;
+  taskFinishedAt: number;
+  agentName: string;
+}) {
+  const groups = new Map<string, {
+    taskId: string;
+    request: any;
+    events: any[];
+    result: any;
+    firstAt: string;
+  }>();
+  for (const record of (Array.isArray(records) ? records : [])) {
+    const taskId = String(record?.taskId || record?.id || '');
+    if (!taskId) continue;
+    if (!groups.has(taskId)) {
+      groups.set(taskId, {
+        taskId,
+        request: null,
+        events: [],
+        result: null,
+        firstAt: String(record?.createdAt || '')
+      });
+    }
+    const group = groups.get(taskId)!;
+    if (record.kind === 'request') group.request = record;
+    else if (record.kind === 'result' || record.kind === 'error') group.result = record;
+    else if (record.text) group.events.push(record);
+  }
+
+  const messages: any[] = [];
+  const entries = [...groups.values()]
+    .sort((left, right) => left.firstAt.localeCompare(right.firstAt));
+  for (const group of entries) {
+    if (group.request) {
+      const pageUrl = String(group.request?.metadata?.pageUrl || '');
+      messages.push({
+        id: `connect-agent-user-${group.request.id}`,
+        role: 'user',
+        text: [
+          String(group.request.text || ''),
+          pageUrl ? `页面：${pageUrl}` : ''
+        ].filter(Boolean).join('\n')
+      });
+    }
+
+    const isCurrent = currentTask?.taskId === group.taskId;
+    const running = isCurrent && taskStatus === 'running';
+    const result = group.result;
+    const durationStartedAt = timestampOf(group.request?.createdAt)
+      || timestampOf(group.firstAt)
+      || (isCurrent ? Number(taskStartedAt || currentTask?.startedAt || 0) : 0);
+    const durationFinishedAt = result
+      ? timestampOf(result.createdAt) || Number(result?.metadata?.finishedAt || 0)
+      : isCurrent && taskStatus !== 'running'
+        ? Number(taskFinishedAt || currentTask?.finishedAt || 0)
+        : 0;
+    const changedFiles = Array.isArray(result?.metadata?.changedFiles)
+      ? result.metadata.changedFiles
+      : isCurrent && Array.isArray(currentTask?.changedFiles)
+        ? currentTask.changedFiles
+        : [];
+    const logs = uniqueLines([
+      ...group.events.map(event => String(event.text || '')),
+      ...(isCurrent ? currentLogs || [] : []),
+      isCurrent && currentTask?.threadId
+        ? `threadId: ${currentTask.threadId}`
+        : result?.threadId
+          ? `threadId: ${result.threadId}`
+          : '',
+      isCurrent && currentTask?.turnId
+        ? `turnId: ${currentTask.turnId}`
+        : result?.turnId
+          ? `turnId: ${result.turnId}`
+          : '',
+      ...changedFiles.map((file: string) => `修改文件: ${file}`)
+    ]);
+
+    messages.push({
+      id: `connect-agent-agent-${group.taskId}`,
+      role: 'agent',
+      title: `${agentName} 开发任务`,
+      text: running
+        ? `${agentName} 正在项目中执行修改和验证。`
+        : result?.kind === 'error'
+          ? `${agentName} 开发任务失败。`
+          : result
+            ? `${agentName} 已完成项目修改。`
+            : `${agentName} 开发任务未完成。`,
+      pre: result?.text || (!running && isCurrent ? currentTask?.finalResponse || '' : ''),
+      logs,
+      durationStartedAt,
+      durationFinishedAt,
+      durationActive: running,
+      logExpanded: running
+    });
+  }
+  return messages;
+}
+
+function uniqueLines(lines: string[]) {
+  return [...new Set(lines.map(line => String(line || '').trim()).filter(Boolean))];
+}
+
+function timestampOf(value: unknown) {
+  const timestamp = Date.parse(String(value || ''));
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }

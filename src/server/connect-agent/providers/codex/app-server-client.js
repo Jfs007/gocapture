@@ -112,12 +112,17 @@ class CodexAppServerClient {
     taskId = `task_${crypto.randomUUID().replace(/-/g, '')}`,
     cwd,
     prompt,
+    outputSchema,
+    threadId = '',
+    onThread = () => {},
     onEvent = () => {},
     signal,
   }) {
     if (!cwd) throw new Error('Codex 任务缺少项目目录');
     if (!String(prompt || '').trim()) throw new Error('Codex 任务缺少开发要求');
+    if (signal?.aborted) throw new Error('Codex 开发任务已取消');
     if (!this.isConnected()) await this.connect();
+    if (signal?.aborted) throw new Error('Codex 开发任务已取消');
 
     const task = {
       taskId,
@@ -139,21 +144,46 @@ class CodexAppServerClient {
     let unsubscribe = () => {};
     let abortHandler = null;
     try {
-      const threadResult = await this.request('thread/start', {
-        cwd,
-        approvalPolicy: 'never',
-        sandbox: 'workspace-write',
-        serviceName: 'magnus',
-        ephemeral: false,
-      }, REQUEST_TIMEOUT_MS);
+      const resumedThreadId = String(threadId || '').trim();
+      let threadResult;
+      let resumed = false;
+      if (resumedThreadId) {
+        try {
+          threadResult = await this.request('thread/resume', {
+            threadId: resumedThreadId,
+            cwd,
+            approvalPolicy: 'never',
+            sandbox: 'workspace-write',
+          }, REQUEST_TIMEOUT_MS);
+          resumed = true;
+        } catch (error) {
+          onEvent({
+            type: 'thread-resume-failed',
+            message: `Codex 项目 Thread 恢复失败，将创建新 Thread：${error.message || error}`,
+          });
+        }
+      }
+      if (!threadResult) {
+        threadResult = await this.request('thread/start', {
+          cwd,
+          approvalPolicy: 'never',
+          sandbox: 'workspace-write',
+          serviceName: 'magnus',
+          ephemeral: false,
+        }, REQUEST_TIMEOUT_MS);
+      }
       task.threadId = String(threadResult?.thread?.id || '');
-      if (!task.threadId) throw new Error('Codex thread/start 未返回 threadId');
-      task.status = 'thread-started';
+      if (!task.threadId) throw new Error(`Codex thread/${resumed ? 'resume' : 'start'} 未返回 threadId`);
+      task.status = resumed ? 'thread-resumed' : 'thread-started';
+      onThread({ threadId: task.threadId, resumed });
       onEvent({
-        type: 'thread-started',
+        type: resumed ? 'thread-resumed' : 'thread-started',
         task: publicTask(task),
-        message: `Codex Thread 已启动：${task.threadId}`,
+        message: resumed
+          ? `Codex 项目 Thread 已恢复：${task.threadId}`
+          : `Codex 项目 Thread 已创建：${task.threadId}`,
       });
+      if (signal?.aborted) throw new Error('Codex 开发任务已取消');
 
       const completed = deferred();
       unsubscribe = this.subscribe(message => {
@@ -187,8 +217,9 @@ class CodexAppServerClient {
         }
         completed.reject(new Error('Codex 开发任务已取消'));
       };
-      if (signal?.aborted) abortHandler();
       signal?.addEventListener?.('abort', abortHandler, { once: true });
+      // 先注册再检查，避免 signal 在检查和监听之间取消。
+      if (signal?.aborted) abortHandler();
 
       const turnResult = await this.request('turn/start', {
         threadId: task.threadId,
@@ -200,9 +231,19 @@ class CodexAppServerClient {
           writableRoots: [cwd],
           networkAccess: false,
         },
+        outputSchema,
       }, REQUEST_TIMEOUT_MS);
       task.turnId = String(turnResult?.turn?.id || task.turnId || '');
       if (!task.turnId) throw new Error('Codex turn/start 未返回 turnId');
+      // turn/start 请求期间可能发生取消。此时 abortHandler 还拿不到 turnId，
+      // 在取得 id 后补发 interrupt，避免后台留下无人接管的 Codex Turn。
+      if (signal?.aborted) {
+        await this.request('turn/interrupt', {
+          threadId: task.threadId,
+          turnId: task.turnId,
+        }, 5000).catch(() => {});
+        throw new Error('Codex 开发任务已取消');
+      }
       task.status = 'running';
       onEvent({
         type: 'turn-started',
@@ -217,6 +258,7 @@ class CodexAppServerClient {
       );
       task.status = turnStatus(completedParams?.turn) || 'completed';
       task.finishedAt = Date.now();
+      normalizeStructuredTaskResult(task);
       const result = publicTask(task);
       onEvent({
         type: 'task-completed',
@@ -384,6 +426,9 @@ function deferred() {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
+  // deferred 可能先于后续 await 被事件回调拒绝。立即登记 rejection
+  // 处理器，避免 Node 将正常的任务取消升级为进程级 unhandled rejection。
+  promise.catch(() => {});
   return { promise, resolve, reject };
 }
 
@@ -447,6 +492,27 @@ function turnStatus(turn) {
   return '';
 }
 
+function normalizeStructuredTaskResult(task) {
+  const text = String(task.finalResponse || '').trim();
+  if (!text) return;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object') return;
+    task.finalResponse = String(parsed.summary || text);
+    task.selectionMeanings = normalizeSelectionMeanings(parsed.selectionMeanings);
+  } catch (error) {
+  }
+}
+
+function normalizeSelectionMeanings(value) {
+  return (Array.isArray(value) ? value : [])
+    .map(item => ({
+      selectionId: String(item?.selectionId || '').trim(),
+      meaning: String(item?.meaning || '').trim(),
+    }))
+    .filter(item => item.selectionId && item.meaning);
+}
+
 function publicTask(task) {
   return {
     taskId: task.taskId,
@@ -456,6 +522,7 @@ function publicTask(task) {
     startedAt: task.startedAt,
     finishedAt: task.finishedAt,
     finalResponse: task.finalResponse,
+    selectionMeanings: task.selectionMeanings || [],
     changedFiles: [...task.changedFiles],
     error: task.error || '',
   };

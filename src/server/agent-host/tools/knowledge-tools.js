@@ -24,7 +24,7 @@ const AVOID_ROOTS = ['node_modules', 'dist', 'build', '.git', 'coverage'];
 
 const VERIFICATION_TEXT =
   '以上均为线索/先验，不是结论。任何候选文件或 anchor 必须先用 search_source_evidence 或 read_file 实测确认，' +
-  '方可写入 finish_dom_location。Experience 线索可能与当前代码不符，务必现场校验。';
+  '方可写入最终结构化定位结论。Experience 线索可能与当前代码不符，务必现场校验。';
 
 // 汇总当前项目知识（全部来自 project-knowledge.json，无静态回退表）。
 function resolveKnowledge(project) {
@@ -186,7 +186,7 @@ const KNOWLEDGE_TOOLS = [
       'DOM-signature→source-construct hints, derived from context7 docs for the project\'s actual library/version), ' +
       'anchor plan (which texts to grep vs skip vs treat as data-bound), preferred search scopes, and Experience leads. ' +
       'All fields are priors/leads, NOT conclusions — every candidate file or anchor must be verified with ' +
-      'search_source_evidence/read_file before it may enter finish_dom_location. ' +
+      'search_source_evidence/read_file before it may enter the final structured location response. ' +
       'Intended as the FIRST call, once per investigation.',
     category: 'knowledge',
     access: 'read',

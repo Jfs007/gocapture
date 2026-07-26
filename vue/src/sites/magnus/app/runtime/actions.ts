@@ -18,7 +18,7 @@ export function createMagnusActions(state: MagnusRuntimeState): MagnusActions {
     clearSelections: selection.clearSelections,
     sendComposer: workflow.sendComposer,
     openSourceFile,
-    openSettings: () => openSettings(api, currentPageHref?.value || ''),
+    openSettings: (section?: string) => openSettings(api, currentPageHref?.value || '', section),
     rebindSidePanel,
     copyTextWithToast,
     toggleCandidateFile: (hit: any) => toggleCandidateFile(hit, search, selection),
@@ -49,7 +49,7 @@ function rebindSidePanel() {
   window.location.reload();
 }
 
-function openSettings(api: Record<string, any>, currentPageHref: string) {
+function openSettings(api: Record<string, any>, currentPageHref: string, section = '') {
   const baseUrl = api?.sidePanelConfig?.sourceServerUrl || window.location.origin;
   const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
   const binding = readLatestPanelBinding();
@@ -60,6 +60,7 @@ function openSettings(api: Record<string, any>, currentPageHref: string) {
     if (binding.windowId != null) params.set('windowId', String(binding.windowId));
     const pageUrl = binding.page?.url || currentPageHref || '';
     if (pageUrl) params.set('pageUrl', pageUrl);
+    if (section) params.set('section', section);
     window.open(`${normalizedBaseUrl}/settings?${params.toString()}`, '_blank', 'noopener,noreferrer');
     return;
   }
@@ -71,7 +72,8 @@ function openSettings(api: Record<string, any>, currentPageHref: string) {
     }, '*');
     return;
   }
-  window.open(`${normalizedBaseUrl}/settings`, '_blank', 'noopener,noreferrer');
+  const suffix = section ? `?section=${encodeURIComponent(section)}` : '';
+  window.open(`${normalizedBaseUrl}/settings${suffix}`, '_blank', 'noopener,noreferrer');
 }
 
 async function openSourceFile(file: string, line?: number, column?: number) {

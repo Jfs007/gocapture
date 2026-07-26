@@ -5,7 +5,7 @@ export interface MagnusCommands {
   resolveRoute(): Promise<void>;
   selectProject(): Promise<void>;
   openSourceFile(file: string, line?: number, column?: number): Promise<void>;
-  openSettings(): void;
+  openSettings(section?: string): void;
   rebindSidePanel(): void;
   copyPrompt(): void;
   copyText(text: string): void;

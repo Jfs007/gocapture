@@ -9,7 +9,6 @@
       </div>
       <div v-show="!(hasResultModule && resultModuleCollapsed)" class="mda-result-module-body">
         <CandidateOptions />
-        <ModelEditorPanel />
         <ComposerPrebar @insert-asset="handleAssetInsert" />
       </div>
     </div>
@@ -18,12 +17,10 @@
       <ComposerInput ref="composerInputRef" />
       <div class="mda-composer-toolbar">
         <div class="mda-toolbar-left">
-          <ConnectAgentMenu />
           <button v-if="selectedItems.length" class="mda-inline-text-btn" type="button" @click="commands.clearSelections">清空选区</button>
           <span class="mda-build-version" :title="`构建版本 ${buildVersion}`">build {{ buildVersion }}</span>
         </div>
         <div class="mda-toolbar-right">
-          <ModelMenu />
           <button
             class="mda-send-btn"
             type="button"
@@ -73,11 +70,8 @@ import { useRouteStore } from '../../stores/route.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 import CandidateOptions from './CandidateOptions.vue';
-import ConnectAgentMenu from './ConnectAgentMenu.vue';
 import ComposerInput from './ComposerInput.vue';
 import ComposerPrebar from './ComposerPrebar.vue';
-import ModelMenu from './ModelMenu.vue';
-import ModelEditorPanel from './ModelEditorPanel.vue';
 
 const composerInputRef = ref(null);
 // 构建版本号（构建时由 app-build.js 通过 vite define 注入）。用于判断当前扩展加载的是不是最新 bundle。
@@ -106,6 +100,7 @@ const composerCanSend = computed(() => {
   if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
   if (candidateLoading.value) return false;
   if (!project.value) return false;
+  if (!connectAgentStore.activeProvider?.connected) return false;
   if (!selectedItems.value.length) return false;
   if (searchStore.showCandidatePicker) return searchStore.selectedCandidates.length > 0;
   return composerStore.trimmedContent.length > 0;

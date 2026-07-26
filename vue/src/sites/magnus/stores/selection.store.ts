@@ -91,6 +91,21 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     return items.value.find(selection => selection.uid === id)?.sourceBinding || null;
   }
 
+  function bindAgentContext(
+    id: SelectionId,
+    context: NonNullable<SelectionSourceBinding['agentContext']>,
+    fallbackBinding?: SelectionSourceBinding
+  ) {
+    const item = items.value.find(selection => selection.uid === id);
+    if (!item) return false;
+    item.sourceBinding = {
+      ...(item.sourceBinding || fallbackBinding),
+      selectionId: id,
+      agentContext: context
+    } as SelectionSourceBinding;
+    return true;
+  }
+
   function removeSelection(id: SelectionId) {
     items.value = items.value.filter(item => item.uid !== id);
     if (activeId.value === id) activeId.value = latest.value?.uid || null;
@@ -128,6 +143,7 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     promptAssets,
     replaceSelections,
     bindSourceContext,
+    bindAgentContext,
     sourceBinding,
     removeSelection,
     clear,

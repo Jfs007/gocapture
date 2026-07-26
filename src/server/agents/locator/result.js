@@ -38,7 +38,7 @@ function normalizeDecisionFiles(files) {
       line: Number(item?.line || 0),
       column: Number(item?.column || 0),
       anchor: String(item?.anchor || ''),
-      snippet: String(item?.snippet || item?.codeSnippet || ''),
+      targetSnippet: String(item?.targetSnippet || ''),
     }))
     .filter(item => item.file);
 }
@@ -48,8 +48,9 @@ function buildSearchResult(project, body, routeResult, decision, rawText, textCa
     .map(item => ({ ...item, exists: !!projectFile(project, item.file) }))
     .filter(item => item.exists);
   const enriched = validFiles.map((item, index) => {
-    const snippet = item.snippet
-      || (item.line ? textAroundLine(project, item.file, item.line, textCache) : firstUsefulSnippet(project, item.file, textCache));
+    const snippet = item.line
+      ? textAroundLine(project, item.file, item.line, textCache)
+      : firstUsefulSnippet(project, item.file, textCache);
     return {
       file: item.file,
       score: item.confidence || Math.max(100, 1000 - index * 60),
@@ -59,6 +60,7 @@ function buildSearchResult(project, body, routeResult, decision, rawText, textCa
       line: item.line || 0,
       column: item.column || 0,
       anchor: item.anchor || '',
+      targetSnippet: item.targetSnippet || '',
       reasons: [
         item.reason || '',
         decision.reason || decision.stopReason || '',
@@ -106,7 +108,7 @@ function buildSearchResult(project, body, routeResult, decision, rawText, textCa
     routeResolver: routeResult.trace,
     agent: {
       enabled: true,
-      runtime: 'langchain-staged',
+      runtime: 'langchain-react',
       status: decision.status || (enriched.length ? 'resolved' : 'need-more-context'),
       needMoreDom,
       files: validFiles,

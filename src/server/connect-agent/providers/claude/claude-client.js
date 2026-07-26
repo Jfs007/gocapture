@@ -163,6 +163,9 @@ class ClaudeCodeClient {
     taskId = `task_${crypto.randomUUID().replace(/-/g, '')}`,
     cwd,
     prompt,
+    outputSchema,
+    threadId = '',
+    onThread = () => {},
     onEvent = () => {},
     signal,
   }) {
@@ -180,12 +183,17 @@ class ClaudeCodeClient {
       changedFiles: new Set(),
       error: '',
     };
-    const resumeSessionId = this.sessions.get(cwd) || '';
+    const resumeSessionId = String(threadId || this.sessions.get(cwd) || '').trim();
+    let persistedSessionId = '';
     onEvent({ type: 'task-started', task: publicTask(task), message: `Claude Code 开发任务已创建：${taskId}` });
 
+    const structuredPrompt = outputSchema
+      ? `${prompt}\n\n最终只返回符合以下 JSON Schema 的 JSON：\n${JSON.stringify(outputSchema)}`
+      : prompt;
     const child = this.spawnTask(this.cli?.executable || 'claude', {
       cwd,
       resumeSessionId,
+      prompt: structuredPrompt,
       permissionMode: this.permissionMode,
       model: this.model,
       env: authToEnv(this.auth),
@@ -228,12 +236,22 @@ class ClaudeCodeClient {
         const event = parseJsonLine(line);
         if (!event) return;
         const description = updateTaskFromEvent(task, event, FILE_EDIT_TOOLS);
-        if (task.sessionId && cwd) this.sessions.set(cwd, task.sessionId);
+        if (task.sessionId && cwd) {
+          this.sessions.set(cwd, task.sessionId);
+          if (task.sessionId !== persistedSessionId) {
+            persistedSessionId = task.sessionId;
+            onThread({
+              threadId: task.sessionId,
+              resumed: !!resumeSessionId && task.sessionId === resumeSessionId,
+            });
+          }
+        }
         // 用 publicTask（含 finalResponse）：前端通用 store 靠 event.task.finalResponse 增量显示回复。
         onEvent({ type: 'agent-event', task: publicTask(task), event, message: description });
         if (event.type === 'result') {
           task.status = event.subtype === 'success' ? 'completed' : String(event.subtype || 'failed');
           task.finishedAt = Date.now();
+          normalizeStructuredTaskResult(task);
           const result = publicTask(task);
           onEvent({
             type: 'task-completed',
@@ -266,7 +284,7 @@ class ClaudeCodeClient {
 
       // prompt 通过 stdin 传入，避免超长参数。
       try {
-        child.stdin.write(String(prompt));
+        child.stdin.write(String(structuredPrompt));
         child.stdin.end();
       } catch (error) {
         finish(reject, taskError(task, error));
@@ -347,9 +365,27 @@ function publicTask(task) {
     startedAt: task.startedAt,
     finishedAt: task.finishedAt,
     finalResponse: task.finalResponse,
+    selectionMeanings: task.selectionMeanings || [],
     changedFiles: [...task.changedFiles],
     error: task.error || '',
   };
+}
+
+function normalizeStructuredTaskResult(task) {
+  const text = String(task.finalResponse || '').trim();
+  if (!text) return;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object') return;
+    task.finalResponse = String(parsed.summary || text);
+    task.selectionMeanings = (Array.isArray(parsed.selectionMeanings) ? parsed.selectionMeanings : [])
+      .map(item => ({
+        selectionId: String(item?.selectionId || '').trim(),
+        meaning: String(item?.meaning || '').trim(),
+      }))
+      .filter(item => item.selectionId && item.meaning);
+  } catch (error) {
+  }
 }
 
 function taskError(task, error) {

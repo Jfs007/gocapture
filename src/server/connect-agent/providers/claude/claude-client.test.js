@@ -98,6 +98,28 @@ test('ClaudeCodeClient resumes the session for a later task in the same project'
   assert.strictEqual(calls[1].resumeSessionId, 'sess-1'); // 同项目续接上一次会话
 });
 
+test('ClaudeCodeClient accepts and reports a persisted project session', async () => {
+  const calls = [];
+  const sessions = [];
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    ...NO_AUTH,
+    spawnTask: (exe, opts) => { calls.push(opts); return fakeChild(STREAM); },
+  });
+  await client.connect();
+  await client.runTask({
+    taskId: 'persisted',
+    cwd: '/proj',
+    prompt: '继续',
+    threadId: 'sess-1',
+    onThread: session => sessions.push(session),
+    onEvent() {},
+  });
+
+  assert.strictEqual(calls[0].resumeSessionId, 'sess-1');
+  assert.deepStrictEqual(sessions, [{ threadId: 'sess-1', resumed: true }]);
+});
+
 test('ClaudeCodeClient rejects a task whose result is an error', async () => {
   const client = new ClaudeCodeClient({
     inspectCli: READY_CLI,

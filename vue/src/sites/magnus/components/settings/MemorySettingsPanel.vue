@@ -18,6 +18,10 @@
           <MagnusIcon name="search" :size="17" />
           <input type="text" placeholder="搜索设置..." disabled>
         </label>
+        <div class="mda-settings-group-label">Agent</div>
+        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'locator' }" @click="tab = 'locator'">
+          <MagnusIcon name="search" :size="17" />Locator
+        </button>
         <div class="mda-settings-group-label">项目</div>
         <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'assets' }" @click="tab = 'assets'">
           <MagnusIcon name="images" :size="17" />选区资产
@@ -60,7 +64,75 @@
       <div v-if="memory.message || memory.error" class="mda-memory-feedback" :class="{ 'is-error': !!memory.error }">
         {{ memory.error || memory.message }}
       </div>
-      <template v-if="tab === 'assets'">
+      <template v-if="tab === 'locator'">
+        <div class="mda-locator-settings">
+          <div class="mda-locator-settings-intro">
+            <div>
+              <strong>Locator 专用模型</strong>
+              <p>可选。未配置时，Magnus 只整理路由、DOM 和项目结构事实，由关联 Agent 完成源码定位和开发。</p>
+            </div>
+            <span :class="{ 'is-enabled': !!locatorSelectedModel }">
+              {{ locatorSelectedModel ? '已启用' : '由 Agent 处理' }}
+            </span>
+          </div>
+
+          <label class="mda-memory-field">
+            <span>定位方式</span>
+            <select :value="locatorSelectedId" @change="selectLocatorModel">
+              <option value="">不使用专用模型</option>
+              <option v-for="item in locatorModels" :key="item.id" :value="item.id">
+                {{ item.name }} · {{ item.model }}
+              </option>
+            </select>
+          </label>
+
+          <div class="mda-memory-actions">
+            <button type="button" @click="editLocatorModel(locatorSelectedModel)">
+              {{ locatorSelectedModel ? '编辑当前模型' : '添加 DeepSeek 模型' }}
+            </button>
+          </div>
+
+          <div v-if="locatorEditorExpanded" class="mda-locator-editor">
+            <div class="mda-memory-section-title">模型配置</div>
+            <div class="mda-model-grid">
+              <label>
+                <span>名称</span>
+                <input v-model="locatorForm.name" class="mda-model-input" type="text">
+              </label>
+              <label>
+                <span>Model</span>
+                <select v-model="locatorForm.model" class="mda-model-input">
+                  <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+                  <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                </select>
+              </label>
+              <label class="is-wide">
+                <span>Endpoint</span>
+                <input v-model="locatorForm.endpoint" class="mda-model-input" type="text">
+              </label>
+              <label class="is-wide">
+                <span>API Key</span>
+                <input v-model="locatorForm.apiKey" class="mda-model-input" type="password">
+              </label>
+              <label class="is-wide">
+                <span>代理地址</span>
+                <input v-model="locatorForm.proxyUrl" class="mda-model-input" type="text" placeholder="可留空">
+              </label>
+              <label>
+                <span>超时 ms</span>
+                <input v-model.number="locatorForm.timeoutMs" class="mda-model-input" type="number" min="5000" step="1000">
+              </label>
+            </div>
+            <div class="mda-memory-actions">
+              <button v-if="locatorSelectedModel" class="is-danger" type="button" @click="removeLocatorModel">删除</button>
+              <button type="button" @click="locatorEditorExpanded = false">取消</button>
+              <button class="is-primary" type="button" @click="saveLocatorModel">保存并启用</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else-if="tab === 'assets'">
         <div v-if="!selectionAssets.length" class="mda-memory-empty">当前页面暂无选区资产。</div>
         <div v-else class="mda-settings-assets">
           <article v-for="asset in selectionAssets" :key="asset.uid" class="mda-settings-asset">
@@ -172,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, unref, watch } from 'vue';
 import MagnusIcon from '../common/MagnusIcon.vue';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useMemoryStore } from '../../stores/memory.store';
@@ -180,8 +252,10 @@ import { useSelectionStore } from '../../stores/selection.store';
 
 const props = withDefaults(defineProps<{
   mode?: 'panel' | 'page';
+  modelRuntime?: Record<string, any> | null;
 }>(), {
-  mode: 'panel'
+  mode: 'panel',
+  modelRuntime: null
 });
 defineEmits<{
   (event: 'back'): void;
@@ -191,7 +265,10 @@ defineEmits<{
 const memory = useMemoryStore();
 const appUi = useAppUiStore();
 const selectionStore = useSelectionStore();
-const tab = ref<'assets' | 'experiences' | 'tools' | 'project'>('experiences');
+const requestedSection = new URLSearchParams(window.location.search).get('section');
+const initialTab = requestedSection === 'locator' ? 'locator' : 'experiences';
+const tab = ref<'locator' | 'assets' | 'experiences' | 'tools' | 'project'>(initialTab);
+const locatorEditorExpanded = ref(false);
 const experienceId = ref('');
 const experienceDraft = reactive({
   name: '',
@@ -206,17 +283,44 @@ const toolProviders = computed(() => memory.toolProviders || []);
 const tools = computed(() => memory.tools || []);
 const resourceProviders = computed(() => memory.resourceProviders || []);
 const resources = computed(() => memory.resources || []);
+const locatorModels = computed(() => unref(props.modelRuntime?.modelConfigs) || []);
+const locatorSelectedId = computed(() => String(unref(props.modelRuntime?.selectedModelId) || ''));
+const locatorSelectedModel = computed(() => unref(props.modelRuntime?.selectedModel) || null);
+const locatorForm = computed(() => unref(props.modelRuntime?.modelForm) || {});
 const selectionAssets = computed(() => selectionStore.promptAssets || []);
 const activeExperience = computed(() => experiences.value.find((item: any) => item.componentPath === experienceId.value) || null);
 const projectLabel = computed(() => memory.snapshot?.project?.name || '当前源码项目');
 const isPage = computed(() => props.mode === 'page');
 const visible = computed(() => isPage.value || memory.open);
 const activeTitle = computed(() => {
+  if (tab.value === 'locator') return 'Locator';
   if (tab.value === 'assets') return '选区资产';
   if (tab.value === 'experiences') return 'Experience';
   if (tab.value === 'tools') return 'Tools / Resources';
   return '项目摘要';
 });
+
+function selectLocatorModel(event: Event) {
+  const id = String((event.target as HTMLSelectElement)?.value || '');
+  if (id) props.modelRuntime?.selectModelAndEnable?.(id);
+  else props.modelRuntime?.disableModelAssist?.();
+}
+
+function editLocatorModel(model: any) {
+  if (model) props.modelRuntime?.openModelEditor?.(model);
+  else props.modelRuntime?.openProviderModelEditor?.('deepseek');
+  locatorEditorExpanded.value = true;
+}
+
+function saveLocatorModel() {
+  props.modelRuntime?.saveModelForm?.();
+  locatorEditorExpanded.value = false;
+}
+
+function removeLocatorModel() {
+  props.modelRuntime?.removeSelectedModel?.();
+  locatorEditorExpanded.value = false;
+}
 
 watch(experiences, value => {
   if (!value.some((item: any) => item.componentPath === experienceId.value)) experienceId.value = value[0]?.componentPath || '';

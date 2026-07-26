@@ -83,7 +83,45 @@ export function createSelectionFacade(store: SelectionStore) {
   }
 
   function bindSourceContext(ids: string[], binding: SelectionSourceBinding) {
-    for (const uid of ids) store.bindSourceContext(uid, binding);
+    for (const uid of ids) store.bindSourceContext(uid, {
+      ...binding,
+      selectionId: uid
+    });
+  }
+
+  function bindAgentMeanings({
+    meanings,
+    providerId,
+    threadId,
+    projectRoot,
+    designRequirement,
+    changedFiles
+  }: {
+    meanings: Array<{ selectionId: string; meaning: string }>;
+    providerId: string;
+    threadId: string;
+    projectRoot: string;
+    designRequirement: string;
+    changedFiles: string[];
+  }) {
+    for (const item of meanings || []) {
+      const uid = String(item?.selectionId || '');
+      const meaning = String(item?.meaning || '').trim();
+      if (!uid || !meaning) continue;
+      const fallbackBinding: SelectionSourceBinding = {
+        selectionId: uid,
+        projectRoot,
+        designRequirement,
+        targets: (changedFiles || []).map(file => ({ file, role: 'related' })),
+        resolvedAt: Date.now()
+      };
+      store.bindAgentContext(uid, {
+        providerId,
+        threadId,
+        meaning,
+        updatedAt: Date.now()
+      }, fallbackBinding);
+    }
   }
 
   return {
@@ -96,6 +134,7 @@ export function createSelectionFacade(store: SelectionStore) {
     confirmSelectionContext,
     referencedSelectionIds,
     reusableSourceBindings,
-    bindSourceContext
+    bindSourceContext,
+    bindAgentMeanings
   };
 }

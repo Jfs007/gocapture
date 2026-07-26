@@ -1,8 +1,20 @@
 'use strict';
 
+const crypto = require('crypto');
 const { CodexAppServerClient } = require('./providers/codex/app-server-client');
 const { ClaudeCodeClient } = require('./providers/claude/claude-client');
-const { buildConnectAgentTaskPrompt } = require('./task-prompt');
+const { appendProjectMessage } = require('./message-store');
+const {
+  buildConnectAgentInputLog,
+  buildConnectAgentTaskPrompt,
+  connectAgentOutputSchema,
+} = require('./task-prompt');
+const {
+  clearProjectAgentSession,
+  loadProjectAgentSession,
+  saveProjectAgentSession,
+  saveProjectSelectionContexts,
+} = require('./project-session-store');
 
 function createConnectAgentService() {
   const providers = new Map([
@@ -26,6 +38,9 @@ function createConnectAgentService() {
     async inspect(providerId) {
       return requireProvider(providerId).inspect();
     },
+    projectSession(providerId, project) {
+      return loadProjectAgentSession(project, providerId);
+    },
     async connect(providerId, options = {}) {
       return requireProvider(providerId).connect(options);
     },
@@ -34,18 +49,178 @@ function createConnectAgentService() {
     },
     async runTask(providerId, input) {
       const provider = requireProvider(providerId);
-      return provider.runTask({
-        taskId: input.taskId,
-        cwd: input.project.path,
-        prompt: buildConnectAgentTaskPrompt(input),
-        onEvent: input.onEvent,
-        signal: input.signal,
+      const taskId = String(input.taskId || `task_${crypto.randomUUID().replace(/-/g, '')}`);
+      if (input.newThread) clearProjectAgentSession(input.project, providerId);
+      const storedSession = input.newThread
+        ? null
+        : loadProjectAgentSession(input.project, providerId);
+      const persistMessage = message => {
+        try {
+          return appendProjectMessage(input.project, providerId, {
+            taskId,
+            threadId: message.threadId || storedSession?.threadId || '',
+            ...message,
+          });
+        } catch (error) {
+          input.onEvent?.({
+            type: 'message-persist-failed',
+            message: `Agent 消息保存失败：${error.message || error}`,
+          });
+          return null;
+        }
+      };
+      const emitTimelineMessage = timelineMessage => {
+        if (!timelineMessage) return;
+        input.onEvent?.({
+          type: 'timeline-message',
+          timelineMessage,
+        });
+      };
+      const emitProviderEvent = event => {
+        const text = String(event?.message || '').trim();
+        let timelineMessage = null;
+        if (text) {
+          timelineMessage = persistMessage({
+            threadId: event?.task?.threadId || '',
+            turnId: event?.task?.turnId || '',
+            role: 'system',
+            kind: 'event',
+            text,
+            status: event?.task?.status || '',
+            metadata: {
+              eventType: String(event?.type || ''),
+              method: String(event?.event?.method || ''),
+            },
+          });
+        }
+        input.onEvent?.({
+          ...event,
+          timelineMessage,
+        });
+      };
+      const userMessage = persistMessage({
+        role: 'user',
+        kind: 'request',
+        text: String(input.userInstruction || '').trim(),
+        status: 'submitted',
+        metadata: {
+          pageUrl: String(input.pageUrl || ''),
+          selectionIds: selectionIds(input),
+        },
       });
+      emitTimelineMessage(userMessage);
+      const prompt = buildConnectAgentTaskPrompt({
+        ...input,
+        projectSession: storedSession,
+      });
+      const outputSchema = connectAgentOutputSchema(
+        input.selectionBindings,
+        input.locatorEvidence,
+      );
+      const promptContextMessage = persistMessage({
+        role: 'system',
+        kind: 'prompt-context',
+        text: buildConnectAgentInputLog({
+          providerId,
+          projectRoot: input.project.path,
+          threadId: storedSession?.threadId || '',
+          prompt,
+          outputSchema,
+        }),
+        status: 'prepared',
+        metadata: {
+          mode: input.locatorEvidence ? 'runtime-evidence' : 'located-source',
+          promptChars: prompt.length,
+          reusedThread: !!storedSession?.threadId,
+        },
+      });
+      emitTimelineMessage(promptContextMessage);
+      emitProviderEvent({
+        type: 'prompt-ready',
+        message: `Agent 输入已准备：${input.locatorEvidence ? '运行时事实模式' : '精确位置模式'}；${prompt.length} 字符`,
+      });
+      const persistThread = thread => {
+        if (!thread?.threadId) return;
+        try {
+          saveProjectAgentSession(input.project, providerId, thread);
+        } catch (error) {
+          emitProviderEvent({
+            type: 'thread-persist-failed',
+            message: `Agent 项目会话保存失败：${error.message || error}`,
+          });
+        }
+      };
+      let result;
+      try {
+        result = await provider.runTask({
+          taskId,
+          cwd: input.project.path,
+          prompt,
+          outputSchema,
+          threadId: storedSession?.threadId || '',
+          onThread: persistThread,
+          onEvent: emitProviderEvent,
+          signal: input.signal,
+        });
+      } catch (error) {
+        const errorMessage = persistMessage({
+          threadId: error?.task?.threadId || '',
+          turnId: error?.task?.turnId || '',
+          role: 'agent',
+          kind: 'error',
+          text: error?.message || String(error),
+          status: error?.task?.status || 'failed',
+          metadata: {
+            changedFiles: error?.task?.changedFiles || [],
+          },
+        });
+        emitTimelineMessage(errorMessage);
+        throw error;
+      }
+      if (Array.isArray(result?.selectionMeanings) && result.selectionMeanings.length) {
+        try {
+          saveProjectSelectionContexts(input.project, providerId, {
+            threadId: result.threadId,
+            meanings: result.selectionMeanings,
+            selectionBindings: input.selectionBindings,
+            locatorEvidence: input.locatorEvidence,
+            changedFiles: result.changedFiles,
+          });
+        } catch (error) {
+          emitProviderEvent({
+            type: 'selection-context-persist-failed',
+            message: `Agent 选区上下文保存失败：${error.message || error}`,
+          });
+        }
+      }
+      const resultMessage = persistMessage({
+        threadId: result?.threadId || '',
+        turnId: result?.turnId || '',
+        role: 'agent',
+        kind: 'result',
+        text: String(result?.finalResponse || ''),
+        status: result?.status || 'completed',
+        metadata: {
+          changedFiles: result?.changedFiles || [],
+          selectionMeanings: result?.selectionMeanings || [],
+        },
+      });
+      emitTimelineMessage(resultMessage);
+      return result;
     },
     close() {
       for (const provider of providers.values()) provider.close();
     },
   };
+}
+
+function selectionIds(input) {
+  const bindings = (Array.isArray(input?.selectionBindings) ? input.selectionBindings : [])
+    .map(item => String(item?.uid || item?.binding?.selectionId || item?.selectionId || ''));
+  const evidence = (Array.isArray(input?.locatorEvidence?.selections)
+    ? input.locatorEvidence.selections
+    : []).map(item => String(item?.selectionId || ''));
+  return [...new Set([...bindings, ...evidence].filter(Boolean))];
 }
 
 module.exports = {

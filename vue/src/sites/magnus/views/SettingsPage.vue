@@ -8,7 +8,12 @@
       multiple
       @change="onFileInputChange"
     >
-    <MemorySettingsPanel mode="page" @back="goBack" @select-project="chooseProjectAndReload" />
+    <MemorySettingsPanel
+      mode="page"
+      :model-runtime="state.model"
+      @back="goBack"
+      @select-project="chooseProjectAndReload"
+    />
   </main>
 </template>
 

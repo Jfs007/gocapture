@@ -22,6 +22,7 @@ export interface ConnectAgentProvider {
   message: string;
   error: string;
   activeTaskCount?: number;
+  projectThreadId?: string;
   authModes?: string[];
   authMode?: string;
   authConfigured?: boolean;
@@ -44,12 +45,55 @@ export interface ConnectAgentTask {
   startedAt: number;
   finishedAt: number;
   finalResponse: string;
+  selectionMeanings?: Array<{
+    selectionId: string;
+    meaning: string;
+  }>;
   changedFiles: string[];
   error: string;
 }
 
-export async function listConnectAgents(refresh = false): Promise<ConnectAgentProvider[]> {
-  const data = await sourceServerJson(`/api/connect-agents${refresh ? '?refresh=1' : ''}`, {
+export interface ConnectAgentTimelineMessage {
+  id: string;
+  providerId: string;
+  taskId: string;
+  threadId: string;
+  turnId: string;
+  role: 'user' | 'agent' | 'system';
+  kind: 'request' | 'event' | 'result' | 'error' | string;
+  text: string;
+  status: string;
+  createdAt: string;
+  metadata: Record<string, any>;
+}
+
+export async function listConnectAgentMessages(
+  projectRoot: string,
+  providerId = 'codex',
+  limit = 500
+): Promise<ConnectAgentTimelineMessage[]> {
+  if (!projectRoot) return [];
+  const query = new URLSearchParams({
+    projectRoot,
+    providerId,
+    limit: String(limit)
+  });
+  const data = await sourceServerJson(`/api/connect-agents/messages?${query}`, {
+    timeoutMs: 5000,
+    timeoutMessage: '加载 Agent 对话历史超时'
+  });
+  return Array.isArray(data?.messages) ? data.messages : [];
+}
+
+export async function listConnectAgents(
+  refresh = false,
+  projectRoot = ''
+): Promise<ConnectAgentProvider[]> {
+  const query = new URLSearchParams();
+  if (refresh) query.set('refresh', '1');
+  if (projectRoot) query.set('projectRoot', projectRoot);
+  const suffix = query.toString() ? `?${query}` : '';
+  const data = await sourceServerJson(`/api/connect-agents${suffix}`, {
     timeoutMs: refresh ? 12000 : 5000,
     timeoutMessage: '检查 Agent 连接状态超时'
   });

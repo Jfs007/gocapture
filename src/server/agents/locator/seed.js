@@ -8,35 +8,33 @@ const SEED_MAX_ANCHORS = 8;
 const SEED_MAX_CANDIDATES = 6;
 const SEED_MAX_MATCHES_PER_CANDIDATE = 4;
 const SEED_MATCH_SNIPPET_CHARS = 320;
+const SEED_MAX_ANCHOR_CHARS = 64;
 
-// 静态文字锚点判定：短、含 CJK/字母、非数据绑定 —— 框架无关，任意 UI 库都适用。
-function looksDataBoundText(text) {
+// 只做输入边界检查，不判断文案的业务含义。是否能证明渲染归属仍由 LLM 裁决。
+function isSearchableTextAnchor(text) {
   const s = String(text || '').trim();
-  if (!s) return true;
-  if (/[xX]{2}/.test(s)) return true;
-  if (/[，。、；：（）()/…]/.test(s)) return true;
-  if (/\d[、.．]/.test(s)) return true;
-  if (s.length >= 10) return true;
-  return false;
-}
-
-function isStaticLabel(text) {
-  const s = String(text || '').trim();
-  if (s.length < 2 || s.length > 8) return false;
-  return /[一-龥A-Za-z]/.test(s) && !looksDataBoundText(s);
+  if (s.length < 2 || s.length > SEED_MAX_ANCHOR_CHARS) return false;
+  return /[一-龥A-Za-z]/.test(s);
 }
 
 function extractSeedAnchors(domSelections) {
   const seen = new Set();
   const anchors = [];
+  const add = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized || seen.has(normalized) || !isSearchableTextAnchor(normalized)) return false;
+    seen.add(normalized);
+    anchors.push(normalized);
+    return anchors.length >= SEED_MAX_ANCHORS;
+  };
   for (const selection of Array.isArray(domSelections) ? domSelections : []) {
     const text = String(selection?.directText || selection?.text || '');
-    for (const token of text.split(/\s+/)) {
-      const value = token.trim();
-      if (!value || seen.has(value) || !isStaticLabel(value)) continue;
-      seen.add(value);
-      anchors.push(value);
-      if (anchors.length >= SEED_MAX_ANCHORS) return anchors;
+    for (const segment of text.split(/\r?\n+/)) {
+      // 完整可见短语优先；它通常比拆词更有区分度，标点属于原始 DOM 事实。
+      if (add(segment)) return anchors;
+      for (const token of segment.split(/\s+/)) {
+        if (add(token)) return anchors;
+      }
     }
   }
   return anchors;

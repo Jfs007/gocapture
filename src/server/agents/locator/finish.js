@@ -1,8 +1,8 @@
 'use strict';
 
-// finish_dom_location 工具（结构化交卷）+ 裁决归一 + 兜底裁决：
+// finish_dom_location 工具（ReAct 结构化交卷）+ 裁决归一 + 安全兜底：
 // - normalizeLocatorDecision：把模型 JSON 归一为决策，只保留项目里真实存在的文件/关系。
-// - buildFallbackDecision：撞递归上限或空结论时，用锚点交集/检索证据合成 best-effort 结论。
+// - buildFallbackDecision：撞递归上限或空结论时只保留候选事实，不越权认定 render。
 const { loadLangChainRuntime } = require('../../agent-host/langchain/runtime');
 const { parseJsonResult } = require('../../utils/parse-json');
 const { normalizePath } = require('./paths');
@@ -28,7 +28,8 @@ function createFinishTool() {
           line: z.number().optional().describe('渲染/定义所在大致行号。'),
           anchor: z.string().optional().describe('可在文件中定位的锚点：符号/文案/代码片段。'),
           reason: z.string().describe('判定该文件与角色的真实源码依据。'),
-          snippet: z.string().optional(),
+          targetSnippet: z.string().optional()
+            .describe('直接承载当前选区目标的最小源码片段。没有精确证据时留空，不要返回大段文件。'),
         })).max(12).describe('解释选区 DOM 的源码文件；只列真实经证据确认的，不凑数。'),
         relations: z.array(z.object({
           from: z.string(),
@@ -46,7 +47,9 @@ function createFinishTool() {
 }
 
 function normalizeLocatorDecision(rawText, project) {
-  const parsed = parseJsonResult(rawText) || {};
+  const parsed = rawText && typeof rawText === 'object'
+    ? rawText
+    : parseJsonResult(rawText) || {};
   const knownFiles = new Set((project.files || []).map(file => file.path));
   const files = (Array.isArray(parsed.files) ? parsed.files : [])
     .map(item => ({
@@ -56,7 +59,7 @@ function normalizeLocatorDecision(rawText, project) {
       line: Number(item?.line || 0),
       anchor: String(item?.anchor || ''),
       reason: String(item?.reason || ''),
-      snippet: String(item?.snippet || ''),
+      targetSnippet: String(item?.targetSnippet || item?.snippet || ''),
     }))
     .filter(item => item.file && knownFiles.has(item.file));
   const relations = (Array.isArray(parsed.relations) ? parsed.relations : [])
@@ -95,23 +98,20 @@ function buildFallbackDecision({ anchorSeed, evidenceCandidates, project, recurs
   const ranked = [...scored.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   if (!ranked.length) return null;
   return {
-    status: 'need-more-context',
-    files: ranked.map(([file, count], index) => ({
+    status: 'unresolved',
+    files: [],
+    candidateFacts: ranked.map(([file, count]) => ({
       file,
-      role: index === 0 ? 'render' : 'related',
-      confidence: Math.min(80, count * 25),
-      line: 0,
-      anchor: '',
-      reason: `${recursionLimitHit ? '递归上限触发' : 'agent 未显式收敛'}；锚点交集/检索证据共现候选（matchedAnchorCount=${count}），best-effort、未经 agent 确认，需人工核验。`,
-      snippet: '',
+      matchedAnchorCount: count,
+      reason: '锚点交集或检索工具返回的真实候选；尚未经 LLM 裁决。',
     })),
     relations: [],
     coveredDom: [],
     missingEvidence: ['agent 未显式提交结论（预算/递归上限）'],
     needMoreDom: false,
     reason: recursionLimitHit
-      ? '调查触发递归上限，返回锚点交集/检索证据中共现最高的候选作为 best-effort 结果。'
-      : 'agent 未产出有效结论，回退到锚点交集候选。',
+      ? '调查触发递归上限；保留候选事实，但本地不代替 LLM 判断渲染归属。'
+      : 'agent 未产出有效结论；保留候选事实，但本地不代替 LLM 判断渲染归属。',
   };
 }
 

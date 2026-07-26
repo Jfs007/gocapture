@@ -3075,6 +3075,60 @@
   opacity: 0.55;
 }
 
+.mda-locator-settings {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.mda-locator-settings-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.mda-locator-settings-intro strong {
+  color: #101828;
+  font-size: 15px;
+}
+
+.mda-locator-settings-intro p {
+  max-width: 620px;
+  margin: 5px 0 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mda-locator-settings-intro > span {
+  flex: 0 0 auto;
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-locator-settings-intro > span.is-enabled {
+  color: #067647;
+}
+
+.mda-locator-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mda-locator-settings > .mda-memory-actions,
+.mda-locator-editor > .mda-memory-actions {
+  position: static;
+  padding: 0;
+  background: transparent;
+}
+
 .mda-memory-section-title {
   margin-top: 4px;
   color: #344054;

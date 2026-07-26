@@ -61,7 +61,7 @@ test('DOM Locator uses a LangChain search tool before resolving source', async (
           line: 1,
           anchor: '登 录',
           reason: '源码直接生成所选按钮文案',
-          snippet: '<button class="login-submit">登 录</button>',
+          targetSnippet: '<button class="login-submit">登 录</button>',
         }],
         relations: [],
         coveredDom: ['登录按钮'],
@@ -77,6 +77,8 @@ test('DOM Locator uses a LangChain search tool before resolving source', async (
   });
   assert.equal(result.needMoreDom, false);
   assert.equal(result.hits[0].file, 'src/login.vue');
+  assert.equal(result.hits[0].targetSnippet, '<button class="login-submit">登 录</button>');
+  assert.equal(result.agent.runtime, 'langchain-react');
   assert.equal(result.agent.stage, 'dom-locator');
   assert.ok(logs.some(log => log.includes('工具调用：search_source_evidence')));
 });

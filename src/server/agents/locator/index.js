@@ -1,8 +1,7 @@
 'use strict';
 
-// DOM Source Locator —— 装配工程：选 tools + 锚点种子 + prompt + finish + 中间件，交给
-// runAgentTask 跑图；跑完归一裁决，撞限/空结论时回退兜底。机器（budget/finalization/runtime）
-// 全在 agent-host，本层只做装配与编排。
+// DOM Source Locator：确定性本地种子作为初始事实，一个 LangChain createAgent/ReAct
+// 自主调用只读工具，并通过 finish_dom_location 结构化交卷。
 const { runAgentTask } = require('../../agent-host/llm-adapter');
 const { filterToolsByConfigAction } = require('../../agent-host/capabilities');
 const { executeAgentTool, listAgentTools } = require('../../agent-host/tools/registry');
@@ -85,7 +84,7 @@ async function runDomLocatorAgent(project, input = {}, options = {}) {
   });
 
   let decision = normalizeLocatorDecision(result.rawText, project);
-  // 撞递归上限、或 agent 没给出有效文件时，回退到锚点交集/检索证据的 best-effort 结论。
+  // 撞递归上限或没有有效交卷时只暴露候选事实，不由本地替模型认定 render。
   if (result.recursionLimitHit || !decision.files.length) {
     const fallback = buildFallbackDecision({
       anchorSeed,

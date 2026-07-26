@@ -26,6 +26,9 @@ export interface ElementInfo {
 export interface SelectionSourceTarget {
   file: string;
   role?: string;
+  line?: number;
+  anchor?: string;
+  targetSnippet?: string;
   codeSnippet?: string;
   importChain?: string[];
   directionGuess?: string;
@@ -48,11 +51,18 @@ export interface SelectionSourceInvestigation {
 }
 
 export interface SelectionSourceBinding {
+  selectionId?: string;
   projectRoot: string;
   designRequirement: string;
   targets: SelectionSourceTarget[];
   investigation?: SelectionSourceInvestigation | null;
   originSelections?: unknown[];
+  agentContext?: {
+    providerId: string;
+    threadId: string;
+    meaning: string;
+    updatedAt: number;
+  } | null;
   resolvedAt: number;
 }
 

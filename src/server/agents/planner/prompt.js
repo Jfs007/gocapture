@@ -1,7 +1,7 @@
 'use strict';
 
 // Planner 的系统提示词 + 目标构建 + 输入整备：把 DOM Locator 的定位结果整理成规划输入
-// （需求、页面、选区、已定位源码及其预读正文）。
+// （需求、运行位置、选区、已定位源码及其预读正文）。
 const { readProjectText } = require('../../core/fs-utils');
 
 const MAX_SOURCE_CHARS_PER_FILE = 30000;
@@ -46,7 +46,7 @@ function buildPlanningInput(body, modelItems) {
     .map(item => [JSON.stringify(item), item])).values());
   return {
     requirement: payload.userPrompt || '',
-    page: {
+    runtimeLocation: {
       url: payload.url || body.url || '',
       path: body.pagePath || body.routeResolver?.pagePath || '',
     },
@@ -111,7 +111,7 @@ function hydratePlanningSources(project, input, textCache = new Map()) {
   }
 
   // 定义驱动场景：把 definition 文件引用到的兄弟实现补进来当参考模板——"加一项"最需要的就是同级示例。
-  // 越深的路径越像具体页面/组件（优先），排除已定位文件，最多 2 个，量入为出。
+  // 越深的路径通常越接近具体实现（优先），排除已定位文件，最多 2 个，量入为出。
   const located = new Set(input.locatedSources.map(source => source.file));
   const referenced = new Set();
   for (const text of definitionTexts) {
