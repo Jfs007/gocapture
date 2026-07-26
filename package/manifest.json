@@ -6,15 +6,14 @@
     "site": "http://localhost:3000/",
     "env": "local"
   },
-  "name": "Magnus",
-  "short_name": "Magnus",
+  "name": "GoCapture",
+  "short_name": "GoCapture",
   "author_name": "Jf.S",
   "app_module": "Offline",
   "version": "30.2.3",
   "description": "源起·伟大",
   "action": {
-    "default_title": "Magnus"
-    
+    "default_title": "GoCapture"
   },
   "background": {
     "service_worker": "js/service-worker.js",

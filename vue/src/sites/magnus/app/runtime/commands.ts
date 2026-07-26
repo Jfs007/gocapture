@@ -1,4 +1,5 @@
 import { inject, provide } from 'vue';
+import { PRODUCT_NAME } from '../config/product';
 
 export interface MagnusCommands {
   sendRequest(): Promise<void>;
@@ -39,6 +40,6 @@ export function provideMagnusCommands(commands: MagnusCommands) {
 
 export function useMagnusCommands(): MagnusCommands {
   const commands = inject<MagnusCommands>(MAGNUS_COMMANDS_KEY);
-  if (!commands) throw new Error('Magnus commands are not provided');
+  if (!commands) throw new Error(`${PRODUCT_NAME} commands are not provided`);
   return commands;
 }

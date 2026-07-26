@@ -3,9 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { loadProductBrand } = require('../product-brand');
 
 const rootDir = path.resolve(__dirname, '..', '..');
 const defaultPackageDir = path.join(rootDir, 'application');
+const productBrand = loadProductBrand();
 
 function sendReleasePage(res) {
   const html = `<!doctype html>
@@ -13,7 +15,7 @@ function sendReleasePage(res) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Magnus Release</title>
+  <title>${productBrand.displayName} Release</title>
   <style>
     :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
     body { margin: 0; background: #f6f8fb; color: #172033; }
@@ -37,7 +39,7 @@ function sendReleasePage(res) {
 </head>
 <body>
 <main>
-  <h1>Magnus Developer Release</h1>
+  <h1>${productBrand.displayName} Developer Release</h1>
   <p>开发仓库专用发布工具，不随 npm 包分发给最终用户。日志实时输出。</p>
 
   <section>

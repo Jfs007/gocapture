@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { PRODUCT_NAME } = require('../core/product-brand');
 
 const rootDir = path.resolve(__dirname, '..', '..', '..');
 const packageAppDir = path.join(rootDir, 'package', 'app');
@@ -50,7 +51,7 @@ function createUiHtml({ host, port, panelTicket }) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Magnus</title>
+    <title>${PRODUCT_NAME}</title>
     <style>
       html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #f7f8fa; }
     </style>

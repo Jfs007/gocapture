@@ -95,6 +95,12 @@
               配置 Locator 专用模型
             </button>
           </div>
+          <time
+            v-if="message.createdAt"
+            class="mda-message-time"
+            :datetime="messageDateTime(message.createdAt)"
+            :title="messageFullTime(message.createdAt)"
+          >{{ messageTime(message.createdAt) }}</time>
         </div>
       </div>
     </article>
@@ -229,6 +235,40 @@ function messageDurationMs(message) {
 function messageWorkLabel(message) {
   const duration = messageDurationMs(message);
   return `${message?.durationActive ? '处理中' : '已处理'} ${formatDuration(duration)}`;
+}
+
+function messageDate(value) {
+  const date = new Date(Number(value || 0));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function messageTime(value) {
+  const date = messageDate(value);
+  if (!date) return '';
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(date);
+}
+
+function messageFullTime(value) {
+  const date = messageDate(value);
+  if (!date) return '';
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(date);
+}
+
+function messageDateTime(value) {
+  return messageDate(value)?.toISOString() || '';
 }
 
 function isCandidateLog(log) {

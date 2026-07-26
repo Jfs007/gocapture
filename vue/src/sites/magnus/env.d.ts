@@ -8,6 +8,9 @@ declare module '*.jpg' {
   export default src;
 }
 
+declare const __PRODUCT_DISPLAY_NAME__: string;
+declare const __PRODUCT_CLI_COMMAND__: string;
+
 interface Window {
   __MAGNUS_SIDE_PANEL__?: import('./app/types/bridge-event.types').SidePanelBridgeConfig;
   __MAGNUS_DEV_ASSISTANT__?: {

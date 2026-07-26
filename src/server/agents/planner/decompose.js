@@ -68,7 +68,7 @@ async function decomposePlan(project, options = {}) {
       signal,
       stage: 'planning-decompose',
       systemPrompt: [
-        '你是 Magnus 规划前置的「需求拆解器」。',
+        '你是规划前置的「需求拆解器」。',
         '基于需求与已定位文件，把需求拆成若干相对独立的子改动，并简述每个已定位文件的作用。',
         '不预设需求形态（新增/修改/删除/重构皆可）。只拆解，不写具体计划，不调用工具。',
       ].join('\n'),

@@ -134,7 +134,7 @@ function hydratePlanningSources(project, input, textCache = new Map()) {
 
 function planningSystemPrompt() {
   return [
-    '你是 Magnus Planning Agent。DOM Locator 已完成源码定位，你在已定位证据上产出实施规划，不亲自改代码。',
+    '你是 Planning Agent。DOM Locator 已完成源码定位，你在已定位证据上产出实施规划，不亲自改代码。',
     '证据足够时不要调用任何工具，直接提交结构化计划。',
     'locatedSources.sourceContent / referenceExamples 是预读源码；complete=true 表示完整文件已给出，不要再 read_file 分页读它。referenceExamples 是项目里同类的现有实现，供参考复用，不是改动目标。',
     '规划方法（不预设需求形态，新增/修改/删除/重构皆适用）：',

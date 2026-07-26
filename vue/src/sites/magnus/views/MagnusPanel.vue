@@ -2,12 +2,12 @@
   <main class="mda-root">
     <section
       class="mda-panel"
-      aria-label="Magnus"
+      :aria-label="PRODUCT_NAME"
     >
       <header class="mda-head">
         <div class="mda-head-main">
           <div class="mda-title">
-            <img class="mda-title-logo" :src="magnusLogo" alt="Magnus">
+            <span class="mda-title-wordmark">{{ PRODUCT_NAME }}</span>
           </div>
           <div class="mda-subtitle">{{ pageHost }}</div>
         </div>
@@ -47,7 +47,7 @@
             正在探测 <code>{{ serviceHealthUrl || '/health' }}</code>
             <template v-if="serviceHealthMessage">，失败原因：{{ serviceHealthMessage }}</template>
           </div>
-          <div class="mda-service-down-hint">如果服务已启动，请运行 <code>magnus status</code> 检查端口是否一致。</div>
+          <div class="mda-service-down-hint">如果服务已启动，请运行 <code>{{ CLI_COMMAND }} status</code> 检查端口是否一致。</div>
         </div>
         <button class="mda-service-down-retry" type="button" :disabled="retryChecking" @click="retryHealth">
           {{ retryChecking ? '检查中…' : '重试' }}
@@ -102,7 +102,7 @@ import { useServiceHealth } from '../app/services/use-service-health';
 import { useUpdateCheck } from '../app/services/use-update-check';
 import { useAppUiStore } from '../stores/app-ui.store';
 import { useProjectStore } from '../stores/project.store';
-import magnusLogo from '../resources/logo.jpg';
+import { CLI_COMMAND, PRODUCT_NAME } from '../app/config/product';
 
 const props = defineProps<{
   api: Record<string, any>;

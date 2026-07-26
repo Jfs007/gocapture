@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 export interface ChatMessage {
   id: string;
   role: 'system' | 'user' | 'agent';
+  createdAt?: number;
   title?: string;
   text?: string;
   pre?: string;

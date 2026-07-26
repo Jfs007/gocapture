@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Magnus CLI —— 本地 source-server 管理 + Chrome 插件目录辅助安装。
+// 产品 CLI —— 本地 source-server 管理 + Chrome 插件目录辅助安装。
 // 登录即起、崩溃自愈、更新自重启（KeepAlive）。命令：install / uninstall / start / stop / restart / status / chrome / version。
 
 const fs = require('fs');
@@ -9,6 +9,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn, spawnSync } = require('child_process');
+const { PRODUCT_NAME, CLI_COMMAND } = require('../src/server/core/product-brand');
 
 const LABEL = 'com.magnus.source-server';
 const packageRoot = path.resolve(__dirname, '..');
@@ -206,7 +207,7 @@ async function cmdStatus() {
   const installed = fs.existsSync(plistPath);
   const loaded = isMac() && installed && isLoaded();
   const healthy = await pingHealth();
-  console.log('Magnus 本地服务状态');
+  console.log(`${PRODUCT_NAME} 本地服务状态`);
   console.log(`  地址          http://${HOST}:${PORT}`);
   console.log(`  已安装(自启)  ${installed ? '是' : '否'}${installed ? `  (${plistPath})` : ''}`);
   console.log(`  已加载(常驻)  ${loaded ? '是' : '否'}`);
@@ -224,7 +225,7 @@ function cmdChrome() {
     process.exit(1);
   }
   openPath(chromeExtensionDir);
-  console.log('Magnus Chrome 插件目录');
+  console.log(`${PRODUCT_NAME} Chrome 插件目录`);
   console.log(`  ${chromeExtensionDir}`);
   console.log('');
   console.log('安装方式：');
@@ -250,9 +251,9 @@ function cmdVersion() {
 }
 
 function cmdHelp() {
-  console.log(`Magnus CLI —— 本地 source-server 管理（macOS）
+  console.log(`${PRODUCT_NAME} CLI —— 本地 source-server 管理（macOS）
 
-用法：magnus <命令> [--port <端口>]
+用法：${CLI_COMMAND} <命令> [--port <端口>]
 
   install     注册为用户级常驻服务：登录即自启、崩溃自愈、更新自重启，并立即启动
   uninstall   停止并移除该服务

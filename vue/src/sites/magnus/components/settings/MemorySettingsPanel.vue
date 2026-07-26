@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="mda-memory-shell" :class="{ 'is-page': isPage }" role="dialog" aria-modal="true" aria-label="Magnus 设置">
+  <div v-if="visible" class="mda-memory-shell" :class="{ 'is-page': isPage }" role="dialog" aria-modal="true" :aria-label="`${PRODUCT_NAME} 设置`">
     <header v-if="!isPage" class="mda-memory-head">
       <div>
         <strong>记忆设置</strong>
@@ -12,7 +12,7 @@
       <aside v-if="isPage" class="mda-settings-sidebar">
         <button class="mda-settings-back" type="button" @click="$emit('back')">
           <MagnusIcon name="back" :size="16" />
-          <span>返回 Magnus</span>
+          <span>返回 {{ PRODUCT_NAME }}</span>
         </button>
         <label class="mda-settings-search">
           <MagnusIcon name="search" :size="17" />
@@ -41,7 +41,7 @@
       <main class="mda-settings-main">
         <header v-if="isPage" class="mda-settings-main-head">
           <div>
-            <span>Magnus 设置</span>
+            <span>{{ PRODUCT_NAME }} 设置</span>
             <strong>{{ activeTitle }}</strong>
             <em>{{ projectLabel }}</em>
           </div>
@@ -69,7 +69,7 @@
           <div class="mda-locator-settings-intro">
             <div>
               <strong>Locator 专用模型</strong>
-              <p>可选。未配置时，Magnus 只整理路由、DOM 和项目结构事实，由关联 Agent 完成源码定位和开发。</p>
+              <p>可选。未配置时，{{ PRODUCT_NAME }} 只整理路由、DOM 和项目结构事实，由关联 Agent 完成源码定位和开发。</p>
             </div>
             <span :class="{ 'is-enabled': !!locatorSelectedModel }">
               {{ locatorSelectedModel ? '已启用' : '由 Agent 处理' }}
@@ -249,6 +249,7 @@ import MagnusIcon from '../common/MagnusIcon.vue';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useMemoryStore } from '../../stores/memory.store';
 import { useSelectionStore } from '../../stores/selection.store';
+import { PRODUCT_NAME } from '../../app/config/product';
 
 const props = withDefaults(defineProps<{
   mode?: 'panel' | 'page';

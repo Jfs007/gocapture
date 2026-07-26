@@ -2,7 +2,7 @@
   "name": "@sep-agent/magnus",
   "version": "1.0.20",
   "private": true,
-  "description": "Magnus —— 本地源码定位 + 修改计划服务与 Chrome 扩展（占位包名，发布前请改成你的真实 npm 包名，或设 MAGNUS_UPDATE_PACKAGE）。",
+  "description": "GoCapture —— 本地源码定位、开发 Agent 连接服务与 Chrome 扩展。",
   "scripts": {
     "app:build": "node scripts/app-build.js",
     "app:dev": "node scripts/app-build.js --watch",
@@ -16,7 +16,8 @@
     "docs:build": "node scripts/docs-build.js",
     "docs:build:dev": "node scripts/docs-build.js dev",
     "docs:build:prod": "node scripts/docs-build.js prod",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "brand:sync": "node scripts/product-brand.js"
   },
   "keywords": [
     "chrome-extension",

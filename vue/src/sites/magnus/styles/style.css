@@ -1456,11 +1456,12 @@
   font-weight: 680;
 }
 
-.mda-title-logo {
-  display: block;
-  width: auto;
-  height: 28px;
-  object-fit: contain;
+.mda-title-wordmark {
+  color: #111827;
+  font-size: 17px;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .mda-subtitle {
@@ -1717,6 +1718,15 @@
 .mda-message-content {
   display: grid;
   gap: 6px;
+}
+
+.mda-message-time {
+  justify-self: end;
+  margin-top: 2px;
+  color: #98a2b3;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 .mda-message-content.has-work {

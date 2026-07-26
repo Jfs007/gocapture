@@ -66,6 +66,13 @@ export function useChatMessages() {
 
   const chatMessages = computed(() => {
     const messages: any[] = [];
+    const finish = () => chronologicalMessages(messages, {
+      selectionCreatedAt: latestSelectionTimestamp(selectionStore.items),
+      searchStartedAt: Number(searchStartedAt?.value || 0),
+      searchFinishedAt: Number(searchFinishedAt?.value || 0),
+      modelStartedAt: Number(modelAssistStartedAt?.value || 0),
+      modelFinishedAt: Number(modelAssistFinishedAt?.value || 0)
+    });
     if (!project.value) {
       messages.push({
         id: 'need-project',
@@ -81,7 +88,7 @@ export function useChatMessages() {
           text: sourceServiceText.value
         });
       }
-      return messages;
+      return finish();
     }
 
     const activeAgent = connectAgentStore.activeProvider;
@@ -122,11 +129,11 @@ export function useChatMessages() {
     }));
 
     if (connectAgentStore.loading && !connectAgentStore.activeProvider) {
-      return messages;
+      return finish();
     }
 
     if (!connectAgentStore.activeProvider) {
-      return messages;
+      return finish();
     }
 
     if (!selectedItems.value.length) {
@@ -136,7 +143,7 @@ export function useChatMessages() {
         title: '等待页面选区',
         text: '移动鼠标高亮页面区域，按空格键添加选区。选区会保存下来，可在输入框里用 @选区1 引用并描述修改要求。'
       });
-      return messages;
+      return finish();
     }
 
     messages.push({
@@ -322,7 +329,7 @@ export function useChatMessages() {
       });
     }
 
-    return messages;
+    return finish();
   });
 
   return {
@@ -385,7 +392,8 @@ function connectAgentTimelineMessages({
         text: [
           String(group.request.text || ''),
           pageUrl ? `页面：${pageUrl}` : ''
-        ].filter(Boolean).join('\n')
+        ].filter(Boolean).join('\n'),
+        createdAt: timestampOf(group.request.createdAt)
       });
     }
 
@@ -434,6 +442,14 @@ function connectAgentTimelineMessages({
             : `${agentName} 开发任务未完成。`,
       pre: result?.text || (!running && isCurrent ? currentTask?.finalResponse || '' : ''),
       logs,
+      createdAt: running
+        ? earliestTimestamp([
+          ...group.events.map(event => event.createdAt),
+          durationStartedAt
+        ]) || durationStartedAt
+        : timestampOf(result?.createdAt)
+          || durationFinishedAt
+          || durationStartedAt,
       durationStartedAt,
       durationFinishedAt,
       durationActive: running,
@@ -448,6 +464,111 @@ function uniqueLines(lines: string[]) {
 }
 
 function timestampOf(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
   const timestamp = Date.parse(String(value || ''));
   return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function latestSelectionTimestamp(items: any[]) {
+  return Math.max(0, ...(Array.isArray(items) ? items : []).map(item => {
+    return Number(
+      item?.createdAt
+      || item?.capturedAt
+      || item?.sourceBinding?.resolvedAt
+      || 0
+    );
+  }));
+}
+
+function earliestTimestamp(values: unknown[]) {
+  const timestamps = values
+    .map(timestampOf)
+    .filter(timestamp => timestamp > 0);
+  return timestamps.length ? Math.min(...timestamps) : 0;
+}
+
+function chronologicalMessages(messages: any[], context: {
+  selectionCreatedAt: number;
+  searchStartedAt: number;
+  searchFinishedAt: number;
+  modelStartedAt: number;
+  modelFinishedAt: number;
+}) {
+  const explicitTimes = messages
+    .map(message => timestampOf(message.createdAt))
+    .filter(timestamp => timestamp > 0);
+  const firstActivityAt = earliestTimestamp([
+    context.selectionCreatedAt,
+    context.searchStartedAt,
+    context.modelStartedAt,
+    ...explicitTimes
+  ]) || Date.now();
+  const lastLocatorAt = Math.max(
+    context.searchFinishedAt,
+    context.searchStartedAt,
+    context.modelFinishedAt,
+    context.modelStartedAt,
+    context.selectionCreatedAt,
+    firstActivityAt
+  );
+
+  return messages
+    .map((message, index) => ({
+      ...message,
+      createdAt: timestampOf(message.createdAt)
+        || inferredMessageTimestamp(message.id, index, {
+          ...context,
+          firstActivityAt,
+          lastLocatorAt
+        }),
+      __sequence: index
+    }))
+    .sort((left, right) => {
+      return left.createdAt - right.createdAt || left.__sequence - right.__sequence;
+    })
+    .map(({ __sequence, ...message }) => message);
+}
+
+function inferredMessageTimestamp(
+  id: string,
+  index: number,
+  context: {
+    selectionCreatedAt: number;
+    searchStartedAt: number;
+    searchFinishedAt: number;
+    modelStartedAt: number;
+    modelFinishedAt: number;
+    firstActivityAt: number;
+    lastLocatorAt: number;
+  }
+) {
+  if (id === 'project-ready' || id === 'need-project' || id === 'source-status') {
+    return context.firstActivityAt - 2 + index;
+  }
+  if (id === 'need-selection') return context.firstActivityAt;
+  if (id === 'selection-context') {
+    return context.selectionCreatedAt || context.firstActivityAt;
+  }
+  if (id === 'selection-confirmed' || id.startsWith('custom-evidence-')) {
+    return context.searchStartedAt > 0
+      ? context.searchStartedAt - 1
+      : (context.selectionCreatedAt || context.firstActivityAt) + 1;
+  }
+  if (id === 'searching' || id === 'search-log') {
+    return context.searchStartedAt || context.searchFinishedAt || context.firstActivityAt;
+  }
+  if (id === 'model-locating' || id === 'model-result' || id === 'model-error') {
+    return context.modelStartedAt || context.modelFinishedAt || context.lastLocatorAt;
+  }
+  if (
+    id === 'need-more-evidence'
+    || id === 'multi-candidates'
+    || id === 'single-candidate'
+  ) {
+    return (context.searchFinishedAt || context.searchStartedAt || context.lastLocatorAt) + 1;
+  }
+  if (id === 'files-confirmed' || id === 'final-prompt') {
+    return context.lastLocatorAt + 1;
+  }
+  return context.firstActivityAt + index;
 }

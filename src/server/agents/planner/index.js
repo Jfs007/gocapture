@@ -1,6 +1,6 @@
 'use strict';
 
-// Magnus Planning Agent —— 装配工程：在 DOM Locator 的定位结果上做实施规划。
+// Planning Agent —— 装配工程：在 DOM Locator 的定位结果上做实施规划。
 // 选 tools（范围门控默认只露精读+skills）+ prompt + 结构化输出(plan schema) + 中间件，交给
 // runAgentTask 跑图；跑完归一为计划，撞限/空输出时回退兜底计划。机器全在 agent-host。
 const { DEFAULT_AGENT_CONFIG_ACTION, filterToolsByConfigAction } = require('../../agent-host/capabilities');
@@ -77,7 +77,7 @@ async function runPlanningAgent(project, options = {}) {
     builtinToolNames,
   });
   const expandScopeTool = createExpandScopeTool(escalation, log);
-  log(`Planning Agent 启动：已定位文件 ${input.locatedSources.length} 个；默认范围=local（研究/文档工具隐藏，需 expand_scope 升级）；可用 Magnus tools ${tools.length} 个`);
+  log(`Planning Agent 启动：已定位文件 ${input.locatedSources.length} 个；默认范围=local（研究/文档工具隐藏，需 expand_scope 升级）；可用本地 tools ${tools.length} 个`);
   for (const source of input.locatedSources) {
     if (!source.sourceContent) continue;
     log(`Planning Agent 预读源码：${source.file}；${source.sourceContent.complete ? '完整' : '截断'}；${source.sourceContent.characters} 字符`);

@@ -38,7 +38,7 @@ const planningResultSchema = z.object({
   usedCapabilities: z.array(z.string()).describe('规划中实际用到的工具/能力。'),
 }).meta({
   title: 'magnus_change_plan',
-  description: '提交最终 Magnus 修改计划：改哪些文件、改什么、为什么，以及复用/相关/风险/验证/待确认。只写真实存在或明确要新建的文件，不编造文件、接口、组件、字段或项目约定。',
+  description: '提交最终修改计划：改哪些文件、改什么、为什么，以及复用/相关/风险/验证/待确认。只写真实存在或明确要新建的文件，不编造文件、接口、组件、字段或项目约定。',
 });
 
 function normalizeText(value) {

@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from '../config/product';
+
 export type LogNodeKind = 'process' | 'llm-input' | 'llm-output' | 'tool-call' | 'tool-result' | 'decision' | 'error';
 
 export interface LogChainNode {
@@ -74,7 +76,7 @@ function classify(raw: string): Omit<LogChainNode, 'id' | 'raw' | 'expandable' |
   const head = firstLine(raw);
 
   if (/^Agent 模型输入上下文：?/.test(head)) {
-    return { kind: 'llm-input', actor: 'LLM', title: 'Magnus → Agent 输入' };
+    return { kind: 'llm-input', actor: 'LLM', title: `${PRODUCT_NAME} → Agent 输入` };
   }
   if (/失败|报错|异常|\berror\b/i.test(head)) {
     return { kind: 'error', actor: '错误', title: head || '执行失败' };

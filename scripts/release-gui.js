@@ -3,9 +3,11 @@
 
 const http = require('http');
 const { buildRelease, publishRelease, sendReleasePage } = require('./release/release-service');
+const { loadProductBrand } = require('./product-brand');
 
 const HOST = process.env.MAGNUS_RELEASE_HOST || '127.0.0.1';
 const PORT = Number(process.env.MAGNUS_RELEASE_PORT || 17332);
+const productBrand = loadProductBrand();
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
@@ -86,5 +88,5 @@ async function handle(req, res) {
 http.createServer((req, res) => {
   void handle(req, res);
 }).listen(PORT, HOST, () => {
-  console.log(`Magnus developer release GUI: http://${HOST}:${PORT}/release`);
+  console.log(`${productBrand.displayName} developer release GUI: http://${HOST}:${PORT}/release`);
 });

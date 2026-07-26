@@ -8,16 +8,17 @@ const MAGNUS_SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
 const MAGNUS_RUNTIME_APP = 'magnus/sfr-runtime.js';
 const MAGNUS_WORKSPACE_PREFIX = 'magnus:workspace:tab:';
 const MAGNUS_OPEN_REQUEST_KEY = 'magnus:sidepanel:open-request';
-const MAGNUS_TAB_GROUP_TITLE = 'Magnus';
+const MAGNUS_PRODUCT_NAME = "GoCapture";
+const MAGNUS_TAB_GROUP_TITLE = MAGNUS_PRODUCT_NAME;
 const MAGNUS_TAB_GROUP_COLOR = 'black';
 
 function setupSidePanel() {
   if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) {
-    console.warn('Magnus sidePanel API is not available in this Chrome runtime.');
+    console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel API is not available in this Chrome runtime.`);
     return;
   }
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(error => {
-    console.warn('Magnus sidePanel setup failed:', error);
+    console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel setup failed:`, error);
   });
 }
 
@@ -32,10 +33,10 @@ chrome.action.onClicked.addListener(tab => {
       path: magnusPendingPanelPath(tab),
       enabled: true,
     }).catch(error => {
-      console.warn('Magnus sidePanel options failed:', error);
+      console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel options failed:`, error);
     });
     chrome.sidePanel.open({ tabId: tab.id }).catch(error => {
-      console.warn('Magnus sidePanel open failed:', error);
+      console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel open failed:`, error);
     });
     void ensureMagnusTabGroup(tab).then(groupId => {
       if (groupId != null) {
@@ -43,13 +44,13 @@ chrome.action.onClicked.addListener(tab => {
       }
     });
   } catch (error) {
-    console.warn('Magnus sidePanel open failed:', error);
+    console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel open failed:`, error);
   }
 });
 
 chrome.tabs.onRemoved.addListener(tabId => {
   removeMagnusWorkspace(tabId).catch(error => {
-    console.warn('Magnus workspace cleanup failed:', error);
+    console.warn(`${MAGNUS_PRODUCT_NAME} workspace cleanup failed:`, error);
   });
 });
 
@@ -242,7 +243,7 @@ async function ensureMagnusTabGroup(tab) {
     });
     return groupId;
   } catch (error) {
-    console.warn('Magnus tab group setup failed:', error);
+    console.warn(`${MAGNUS_PRODUCT_NAME} tab group setup failed:`, error);
     return null;
   }
 }
@@ -331,7 +332,7 @@ async function getTabById(tabId) {
 
 function assertMagnusInjectableTab(tab) {
   if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) {
-    throw new Error(`当前页面不支持注入 Magnus runtime：${tab?.url || ''}`);
+    throw new Error(`当前页面不支持注入 ${MAGNUS_PRODUCT_NAME} runtime：${tab?.url || ''}`);
   }
 }
 
@@ -394,7 +395,7 @@ async function installMagnusRuntime(message, sender, sendResponse) {
     assertMagnusInjectableTab(tab);
     const workspace = await getMagnusWorkspace(tab.id);
     if (!workspace || workspace.workspaceId !== message.workspaceId) {
-      throw new Error('Magnus workspace not found or mismatched.');
+      throw new Error(`${MAGNUS_PRODUCT_NAME} workspace not found or mismatched.`);
     }
     const boot = createMagnusBoot(tab, workspace);
     await injectMagnusBoot({
@@ -464,7 +465,7 @@ async function prepareMagnusPanelForTab(tab) {
     workspaceId: workspace.workspaceId,
     page: normalizeMagnusPage(tab),
   }, {}, null);
-  if (!installResult?.success) throw new Error(installResult?.error || 'Magnus runtime 安装失败。');
+  if (!installResult?.success) throw new Error(installResult?.error || `${MAGNUS_PRODUCT_NAME} runtime 安装失败。`);
   const bindResult = await bindMagnusPanel(tab, workspace);
   const panelTicket = bindResult.panelTicket;
   return {
@@ -492,7 +493,7 @@ async function rebindMagnusPanel(message, sender, sendResponse) {
     assertMagnusInjectableTab(tab);
     const workspace = await getMagnusWorkspace(tab.id);
     if (!workspace || workspace.workspaceId !== message.workspaceId) {
-      throw new Error('Magnus workspace not found or mismatched.');
+      throw new Error(`${MAGNUS_PRODUCT_NAME} workspace not found or mismatched.`);
     }
     const installResult = await installMagnusRuntime({
       tabId: tab.id,
@@ -500,7 +501,7 @@ async function rebindMagnusPanel(message, sender, sendResponse) {
       workspaceId: workspace.workspaceId,
       page: normalizeMagnusPage(tab),
     }, sender, null);
-    if (!installResult?.success) throw new Error(installResult?.error || 'Magnus runtime 安装失败。');
+    if (!installResult?.success) throw new Error(installResult?.error || `${MAGNUS_PRODUCT_NAME} runtime 安装失败。`);
     const bindResult = await bindMagnusPanel(tab, workspace);
     sendResponse && sendResponse({
       success: true,

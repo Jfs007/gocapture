@@ -7,6 +7,7 @@ import { useAppUiStore } from '../../stores/app-ui.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { runConnectAgentTask } from '../services/connect-agent.service';
 import type { MagnusRuntimeState } from '../runtime/context';
+import { PRODUCT_NAME } from '../config/product';
 import type { SelectionSourceBinding } from '../types/selection.types';
 
 const MAX_AUTO_EXPAND_ATTEMPTS = 5;
@@ -91,7 +92,7 @@ export function createComposerWorkflow(state: MagnusRuntimeState) {
     lastOriginSelections = captureOriginSelections();
     search.clearCandidateState?.();
     search.processLogs.value = [
-      'Locator 专用模型未配置：跳过 Magnus Locator Agent',
+      `Locator 专用模型未配置：跳过 ${PRODUCT_NAME} Locator Agent`,
       '先整理路由、压缩 DOM 和已捕获页面事实，再交给关联 Agent'
     ];
     search.searchStartedAt.value = Date.now();

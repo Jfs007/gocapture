@@ -6,6 +6,7 @@ const {
   inspectCodexCli,
   spawnCodexAppServer,
 } = require('./cli');
+const { PRODUCT_NAME } = require('../../../core/product-brand');
 
 const INITIALIZE_TIMEOUT_MS = 10000;
 const REQUEST_TIMEOUT_MS = 20000;
@@ -61,7 +62,7 @@ class CodexAppServerClient {
       await this.request('initialize', {
         clientInfo: {
           name: 'magnus',
-          title: 'Magnus',
+          title: PRODUCT_NAME,
           version: '1.0.0',
         },
       }, INITIALIZE_TIMEOUT_MS);
@@ -346,7 +347,7 @@ class CodexAppServerClient {
     }
     this.write({
       id: message.id,
-      error: { code: -32601, message: `Magnus 不支持 Codex 服务请求：${method}` },
+      error: { code: -32601, message: `${PRODUCT_NAME} 不支持 Codex 服务请求：${method}` },
     });
   }
 

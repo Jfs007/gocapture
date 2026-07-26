@@ -1,4 +1,5 @@
 let sourceServerUrl = '';
+const MAGNUS_PRODUCT_NAME = "GoCapture";
 const IFRAME_ID = 'magnus-sidepanel-frame';
 let loadedPanelTicket = '';
 
@@ -40,7 +41,7 @@ function loadIframe(panelTicket, options = {}) {
   if (!panelTicket) {
     frame.removeAttribute('src');
     loadedPanelTicket = '';
-    setStatus('缺少 panelTicket，无法加载 Magnus UI。');
+    setStatus(`缺少 panelTicket，无法加载 ${MAGNUS_PRODUCT_NAME} UI。`);
     return;
   }
   if (!options.force && loadedPanelTicket === panelTicket && frame.getAttribute('src')) {
@@ -69,7 +70,7 @@ function sendRuntimeMessage(message) {
 async function loadMagnusConfig() {
   const response = await sendRuntimeMessage({ cmd: 'magnus.getConfig' });
   if (!response || response.success === false || !response.sourceServerUrl) {
-    throw new Error(response?.error || '读取 Magnus 配置失败。');
+    throw new Error(response?.error || `读取 ${MAGNUS_PRODUCT_NAME} 配置失败。`);
   }
   sourceServerUrl = response.sourceServerUrl;
 }
@@ -99,7 +100,7 @@ async function preparePanel(context) {
     if (request?.tabId) context.tabId = Number(request.tabId);
   }
   if (!context.tabId) {
-    throw new Error('当前 SidePanel 未绑定页面，请点击 Magnus 插件图标打开当前页面的工作区。');
+    throw new Error(`当前 SidePanel 未绑定页面，请点击 ${MAGNUS_PRODUCT_NAME} 插件图标打开当前页面的工作区。`);
   }
   const response = await sendRuntimeMessage({
     cmd: 'magnus.openPanel',
@@ -107,7 +108,7 @@ async function preparePanel(context) {
     openPanel: false,
   });
   if (!response || response.success === false) {
-    throw new Error(response?.error || '初始化 Magnus 失败。');
+    throw new Error(response?.error || `初始化 ${MAGNUS_PRODUCT_NAME} 失败。`);
   }
   context.workspaceId = response.workspace?.workspaceId || context.workspaceId || '';
   context.tabId = Number(response.workspace?.tabId || context.tabId || 0);
@@ -240,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadIframe(panelContext.panelTicket);
       return;
     }
-    setStatus('正在初始化 Magnus...');
+    setStatus(`正在初始化 ${MAGNUS_PRODUCT_NAME}...`);
     return preparePanel(panelContext).then(panelTicket => {
       loadIframe(panelTicket);
     });

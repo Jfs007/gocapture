@@ -58,6 +58,7 @@ export const useSelectionStore = defineStore('magnus.selection', () => {
     const uid = raw?.uid || element.uid || `remote-selection-${Date.now()}-${index}`;
     return {
       uid,
+      createdAt: Number(raw?.createdAt || raw?.capturedAt || previous?.createdAt || Date.now()),
       pageBindingId: raw?.pageBindingId || (raw as any)?.workspaceId || previous?.pageBindingId || '',
       element,
       asset: raw?.asset || element,

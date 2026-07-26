@@ -95,7 +95,7 @@ function projectFacts(project) {
 
 function buildDiscoveryPrompt(project) {
   return [
-    '你是 Magnus 的 Project Interpreter。',
+    '你是 Project Interpreter。',
     '你不能访问文件系统，只能阅读输入中的 package.json、配置文件、入口文件片段和目录结构。',
     '你的任务是推测项目快照，并提出需要本地验证的关键词。',
     '',
@@ -170,7 +170,7 @@ function excerptMatches(text, keyword) {
 
 function buildFinalPrompt(project, discovery, verification) {
   return [
-    '你是 Magnus 的 Project Interpreter。',
+    '你是 Project Interpreter。',
     '你现在会收到第一轮项目推测和本地真实检索验证结果。',
     '请生成精简 Project.md，用于后续源码定位和 DOM Agent 提示词。必须只写经过配置或本地验证支持的结论；不确定的内容写入“不确定/待验证”。',
     '',

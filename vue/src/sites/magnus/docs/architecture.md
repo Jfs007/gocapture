@@ -1,17 +1,17 @@
-# Magnus Side Panel Rewrite Architecture
+# GoCapture Side Panel Rewrite Architecture
 
 本文档是 `vue/src/sites/magnus` 的重写边界。后续实现以这里为准，不再把旧 `ctx/useForm/useApi`、巨型 hook、长参数链作为主架构。
 
 ## 1. 产品功能清单
 
-Magnus 是一个运行在 Chrome Side Panel iframe 内的本地开发辅助应用。它必须保留以下能力：
+GoCapture 是一个运行在 Chrome Side Panel iframe 内的本地开发辅助应用。它必须保留以下能力：
 
 - 连接当前浏览器 Tab，并通过 `package/app/magnus/sfr-runtime.js` 操作真实页面。
 - 页面侧支持鼠标悬浮选区、空格确认、多选区保存、选区截图、扩区、高亮预览、删除选区。
 - Side Panel 展示选区资产卡片、缩略图、节点详情，并支持输入框 `@选区N` 引用。
 - 关联本地源码项目，恢复历史项目，展示 source-server 状态。
 - 解析当前页面路由，显示页面源码地址，支持 hash 路由和大小写宽松匹配。
-- 捕获页面请求作为接口线索，过滤 Magnus 自身本地请求。
+- 捕获页面请求作为接口线索，过滤 GoCapture 自身本地请求。
 - 发送用户需求后，先本地检索候选源码，再调用模型做粗加工定位。
 - 模型支持不启用和 API 模型；DeepSeek API 配置、代理、模型选择和选择结果要持久化。
 - 模型定位要实时展示日志，支持停止；最终提示词要带页面、文件、源码方向、推测方向、需求和执行兜底准则。

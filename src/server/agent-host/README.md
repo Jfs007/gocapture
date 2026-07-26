@@ -1,4 +1,4 @@
-# Magnus Agent Host
+# GoCapture Agent Host
 
 `agent-host/` is the boundary for agent capabilities exposed to the UI and to future model-driven loops.
 
@@ -34,17 +34,17 @@ model/providers
 ## Responsibilities
 
 - `llm-adapter.js`: host-level entry for LangChain LLM and tool-capable agent runs.
-- `langchain/tool-adapter.js`: wraps Magnus tools as LangChain tools.
+- `langchain/tool-adapter.js`: wraps local tools as LangChain tools.
 - `langchain/mcp-runtime.js`: loads configured MCP servers through `@langchain/mcp-adapters` and returns native LangChain tools for the current agent run.
-- `langchain/runtime.js`: creates the LangChain agent runtime from prompt + an official provider model + Magnus tools + MCP tools.
-- `model/providers/model-adapter.js`: normalizes Magnus model configuration and shared transport options. It does not implement chat, tool calling, or response parsing.
+- `langchain/runtime.js`: creates the LangChain agent runtime from prompt + an official provider model + local tools + MCP tools.
+- `model/providers/model-adapter.js`: normalizes product model configuration and shared transport options. It does not implement chat, tool calling, or response parsing.
 - `model/providers/deepseek-adapter.js`: creates the official `@langchain/deepseek` `ChatDeepSeek` model.
-- `model/providers/registry.js`: resolves a Magnus model configuration to its provider adapter and official LangChain model.
+- `model/providers/registry.js`: resolves a product model configuration to its provider adapter and official LangChain model.
 - `capabilities.js`: normalizes `configAction` and filters which capability families are exposed to a run.
 - `tools/tool.js`: the minimal Tool object protocol. A tool declares schema, read/write semantics, concurrency, validation, permission hook, and `call()`.
 - `tools/provider.js`: the ToolProvider protocol. Providers own a group of tools and are the only extension unit registered into the host.
 - `tools/registry.js`: provider registry and execution router. It must not know about project/experience internals. MCP bypasses this registry and is loaded by LangChain at runtime.
-- `tools/project-tools.js`: builtin project CRUD/read/search provider. This is Magnus' default local source capability.
+- `tools/project-tools.js`: builtin project CRUD/read/search provider. This is the default local source capability.
 - `tools/experience-tools.js`: builtin Experience provider. Experience enhancement is a tool, not a special route.
 - `resources/provider.js`: ResourceProvider protocol.
 - `resources/project-resources.js`: builtin project resources: `Project.md`, project file inventory, and task memory.
@@ -70,7 +70,7 @@ registerAgentToolProvider(createToolProvider({
 }))
 ```
 
-MCP tools are not Magnus ToolProviders. Add servers in `~/.magnus/mcp.json` or `<project>/.mcp.json`; each LangChain agent run loads them as native tools such as `mcp__github__search_code`.
+MCP tools are not local ToolProviders. Add servers in the legacy-compatible `~/.magnus/mcp.json` or `<project>/.mcp.json`; each LangChain agent run loads them as native tools such as `mcp__github__search_code`.
 
 Agent runs decide exposed capability families with `configAction`, for example `['builtin', 'skill', 'mcp']`. This keeps future capability types pluggable without adding one-off boolean switches.
 

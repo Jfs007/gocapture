@@ -64,7 +64,7 @@ function buildModelPrompt(project, body, textCache, logs, options = {}) {
   const payload = body?.searchPayload || {};
   const selections = (payload.selections || []).map(compactSelection).slice(0, 6);
   return [
-    '你是 Magnus 的源码定位复核 Agent。',
+    '你是源码定位复核 Agent。',
     '你只基于输入里的候选文件、选区摘要和用户需求判断哪些候选可保留。',
     '不要编造新文件，不要输出不在候选列表里的文件。',
     '按照给定结构化响应格式返回复核结果。',
@@ -127,7 +127,7 @@ async function runModelLocate(project, body, textCache = new Map(), options = {}
     const llmResult = await runAgentLlmTask(adapter, prompt, project, {
       signal: options.signal,
       stage: 'model-locate',
-      systemPrompt: '你是 Magnus 源码定位复核 Agent。按照给定结构化响应格式返回结果。',
+      systemPrompt: '你是源码定位复核 Agent。按照给定结构化响应格式返回结果。',
       responseFormat: modelLocateSchema,
       onLog: message => appendLog(logs, message),
     });

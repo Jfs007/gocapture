@@ -5,9 +5,11 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { applyExtensionEnv, bumpPatchVersion } = require('./extension-env');
+const { loadProductBrand, syncExtensionBrand } = require('./product-brand');
 
 const rootDir = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(rootDir, 'package.json'));
+const productBrand = loadProductBrand();
 const defaultOutDir = path.join(rootDir, 'application');
 
 function argValue(flag) {
@@ -142,7 +144,7 @@ function releasePackageJson(packageVersion) {
   return {
     name: packageName,
     version: packageVersion,
-    description: 'Magnus local source server, side panel UI, and Chrome extension shell.',
+    description: `${productBrand.displayName} local source server, side panel UI, and Chrome extension shell.`,
     bin: {
       magnus: 'bin/magnus.js',
     },
@@ -161,9 +163,9 @@ function releasePackageJson(packageVersion) {
 }
 
 function releaseReadme() {
-  return `# Magnus
+  return `# ${productBrand.displayName}
 
-Magnus 本地服务发布包，包含：
+${productBrand.displayName} 本地服务发布包，包含：
 
 - \`magnus\` CLI
 - 本地 \`source-server\`
@@ -188,6 +190,7 @@ magnus chrome
 }
 
 function configureReleaseChromePackage(packageDir) {
+  syncExtensionBrand(packageDir);
   applyExtensionEnv({
     packageDir,
     env: 'local',
@@ -232,13 +235,14 @@ function main() {
   copyRecursive(path.join(rootDir, 'bin'), path.join(outDir, 'bin'));
   copyRecursive(path.join(rootDir, 'scripts', 'source-server.js'), path.join(outDir, 'scripts', 'source-server.js'));
   copyRecursive(path.join(rootDir, 'src', 'server'), path.join(outDir, 'src', 'server'));
+  copyRecursive(path.join(rootDir, 'config'), path.join(outDir, 'config'));
   copyRecursive(path.join(rootDir, 'package'), path.join(outDir, 'package'));
   configureReleaseChromePackage(path.join(outDir, 'package'));
 
   writeJson(path.join(outDir, 'package.json'), releasePackageJson(packageVersion));
   fs.writeFileSync(path.join(outDir, 'README.md'), releaseReadme(), 'utf8');
 
-  console.log(`Magnus npm package generated: ${outDir}`);
+  console.log(`${productBrand.displayName} npm package generated: ${outDir}`);
   console.log(`Package: ${packageName}@${packageVersion}`);
   console.log(`Chrome extension source server: ${sourceServerUrl}`);
   console.log('Publish from the generated directory, not from the development repository:');

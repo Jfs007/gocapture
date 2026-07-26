@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { createRequire } = require('module');
 const { pathToFileURL } = require('url');
+const { syncExtensionBrand } = require('./product-brand');
 
 const rootDir = path.resolve(__dirname, '..');
 const packageAppDir = path.join(rootDir, 'package', 'app');
@@ -602,6 +603,7 @@ async function main() {
   const minify = typeof opts.minify === 'boolean' ? opts.minify : !watch;
   const dryRun = !!opts.dryRun;
   const nodeEnv = mode === 'production' ? 'production' : 'development';
+  const productBrand = syncExtensionBrand(path.join(rootDir, 'package'));
   const outDir = path.join(os.tmpdir(), `magnus-app-build-${process.pid}-${appName.replace(/\//g, '-')}`);
   const targetDir = path.join(packageAppDir, ...appName.split('/'));
 
@@ -633,6 +635,8 @@ async function main() {
     define: {
       'process.env.NODE_ENV': JSON.stringify(nodeEnv),
       __MAGNUS_BUILD_VERSION__: JSON.stringify(makeVersion()),
+      __PRODUCT_DISPLAY_NAME__: JSON.stringify(productBrand.displayName),
+      __PRODUCT_CLI_COMMAND__: JSON.stringify(productBrand.cliCommand),
     },
     plugins,
     build: {
