@@ -18,7 +18,7 @@ function resolveProjectFile(project, filePath) {
 }
 
 function openFileInEditor(fullPath, line = 0, column = 0) {
-  const editor = process.env.MAGNUS_EDITOR || '';
+  const editor = process.env.GOCAPTURE_EDITOR || '';
   const target = Number(line) > 0
     ? `${fullPath}:${Math.max(1, Number(line))}:${Math.max(1, Number(column) || 1)}`
     : fullPath;

@@ -46,9 +46,9 @@ function packageInfo() {
     pkg = {};
   }
   return {
-    name: process.env.MAGNUS_UPDATE_PACKAGE || pkg.name || '',
+    name: process.env.GOCAPTURE_UPDATE_PACKAGE || pkg.name || '',
     version: pkg.version || '0.0.0',
-    registry: process.env.MAGNUS_UPDATE_REGISTRY || 'https://registry.npmjs.org',
+    registry: process.env.GOCAPTURE_UPDATE_REGISTRY || 'https://registry.npmjs.org',
   };
 }
 

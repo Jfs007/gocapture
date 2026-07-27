@@ -230,7 +230,7 @@
 
     // 导出API
     mdChrome.web = {
-        name: 'chrome-extension-scaffold',
+        name: 'gocapture',
         version: '4.0',
         on: _on,
         once: _once,

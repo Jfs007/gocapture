@@ -28,7 +28,7 @@ function execFileResult(command, args, options = {}) {
 }
 
 async function resolveClaudeExecutable() {
-  const configured = String(process.env.MAGNUS_CLAUDE_PATH || '').trim();
+  const configured = String(process.env.GOCAPTURE_CLAUDE_PATH || '').trim();
   if (configured) {
     const probe = await execFileResult(configured, ['--version']);
     if (probe.ok) return { executable: configured, versionOutput: probe.stdout || probe.stderr };

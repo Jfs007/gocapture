@@ -58,13 +58,13 @@ function createUiHtml({ host, port, panelTicket }) {
   </head>
   <body>
     <script>
-      window.__MAGNUS_SIDE_PANEL__ = {
+      window.__GOCAPTURE_SIDE_PANEL__ = {
         panelTicket: ${safeTicket},
         sourceServerUrl: "http://${host}:${port}",
         bridgeUrl: "ws://${host}:${port}/bridge"
       };
     </script>
-    <script src="/app/magnus/index.js"></script>
+    <script src="/app/gocapture/index.js"></script>
   </body>
 </html>`;
 }

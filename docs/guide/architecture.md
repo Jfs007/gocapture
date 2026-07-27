@@ -48,7 +48,7 @@ window._require = (name) => window._exports.module[name]
 
 ```js
 mdChrome.web = {
-  name: 'chrome-extension-scaffold',
+  name: 'gocapture',
   version: '4.0',
   cmd,
   injectScript,

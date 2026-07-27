@@ -8,7 +8,7 @@ const { appendKnowledgeLog } = require('./knowledge-log');
 
 // 扫描/解释阶段：借可用文档工具拉取项目实际 UI 库（对版本）的文档，
 // 用一次 LLM 抽取成结构化 frameworkProfiles（class 前缀 + DOM 签名→源码写法映射）。
-// 结果被 project-knowledge 烘焙进 .magnus/project-knowledge.json，定位循环只读缓存、不 live 调 MCP。
+// 结果被 project-knowledge 烘焙进 .gocapture/project-knowledge.json，定位循环只读缓存、不 live 调 MCP。
 // 任意失败（无 context7 / 网络 / 解析失败）都返回 []，由上层安全退化。
 
 const MAX_UI_CANDIDATES = 3;
@@ -33,7 +33,7 @@ const uiProfilesSchema = z.object({
       searchAs: z.string(),
     })),
   })),
-}).meta({ title: 'magnus_ui_profiles', description: 'Submit verified UI library DOM signatures.' });
+}).meta({ title: 'gocapture_ui_profiles', description: 'Submit verified UI library DOM signatures.' });
 
 function readDeps(project) {
   try {

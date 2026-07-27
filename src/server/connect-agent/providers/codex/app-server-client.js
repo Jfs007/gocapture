@@ -2,11 +2,14 @@
 
 const readline = require('readline');
 const crypto = require('crypto');
+const path = require('path');
 const {
   inspectCodexCli,
   spawnCodexAppServer,
 } = require('./cli');
+const { loadProjectlessThreadIds } = require('./desktop-state');
 const { PRODUCT_NAME } = require('../../../core/product-brand');
+const { applyStructuredTaskResult } = require('../../structured-task-result');
 
 const INITIALIZE_TIMEOUT_MS = 10000;
 const REQUEST_TIMEOUT_MS = 20000;
@@ -16,6 +19,8 @@ class CodexAppServerClient {
   constructor(options = {}) {
     this.inspectCli = options.inspectCli || inspectCodexCli;
     this.spawnAppServer = options.spawnAppServer || spawnCodexAppServer;
+    this.now = options.now || (() => new Date());
+    this.loadProjectlessThreadIds = options.loadProjectlessThreadIds || loadProjectlessThreadIds;
     this.process = null;
     this.reader = null;
     this.pending = new Map();
@@ -61,7 +66,7 @@ class CodexAppServerClient {
     try {
       await this.request('initialize', {
         clientInfo: {
-          name: 'magnus',
+          name: 'gocapture',
           title: PRODUCT_NAME,
           version: '1.0.0',
         },
@@ -106,13 +111,63 @@ class CodexAppServerClient {
       message: this.statusMessage(),
       error: this.lastError,
       activeTaskCount: this.tasks.size,
+      supportsThreadBinding: true,
+      requiresThreadBinding: true,
     };
+  }
+
+  async listBindableThreads({ cwd, limit = 30 } = {}) {
+    if (!this.isConnected()) await this.connect();
+    const projectRoot = path.resolve(String(cwd || '.'));
+    const pageSize = Math.max(1, Math.min(Number(limit) || 30, 100));
+    const [projectResponse, recentResponse] = await Promise.all([
+      this.request('thread/list', {
+        cwd: projectRoot,
+        limit: pageSize,
+        sortKey: 'updated_at',
+        sortDirection: 'desc',
+        archived: false,
+      }, REQUEST_TIMEOUT_MS),
+      this.request('thread/list', {
+        limit: 100,
+        sortKey: 'updated_at',
+        sortDirection: 'desc',
+        archived: false,
+      }, REQUEST_TIMEOUT_MS),
+    ]);
+    const projectlessIds = this.loadProjectlessThreadIds();
+    const project = normalizeThreadList(projectResponse?.data)
+      .filter(thread => path.resolve(thread.cwd || '.') === projectRoot)
+      .slice(0, pageSize);
+    const projectIds = new Set(project.map(thread => thread.id));
+    const recent = normalizeThreadList(recentResponse?.data)
+      .filter(thread => projectlessIds.has(thread.id) && !projectIds.has(thread.id))
+      .slice(0, pageSize);
+    return {
+      project,
+      recent,
+      projectlessStateAvailable: projectlessIds.size > 0,
+    };
+  }
+
+  async readThread(threadId) {
+    if (!this.isConnected()) await this.connect();
+    const id = String(threadId || '').trim();
+    if (!id) throw new Error('缺少 Codex 任务 ID');
+    const response = await this.request('thread/read', {
+      threadId: id,
+      includeTurns: false,
+    }, REQUEST_TIMEOUT_MS);
+    const [thread] = normalizeThreadList(response?.thread ? [response.thread] : []);
+    if (!thread) throw new Error('Codex 任务不存在或无法读取');
+    return thread;
   }
 
   async runTask({
     taskId = `task_${crypto.randomUUID().replace(/-/g, '')}`,
     cwd,
     prompt,
+    initialInstructions = '',
     outputSchema,
     threadId = '',
     onThread = () => {},
@@ -133,6 +188,8 @@ class CodexAppServerClient {
       startedAt: Date.now(),
       finishedAt: 0,
       finalResponse: '',
+      agentMessages: [],
+      selectionLocations: [],
       changedFiles: new Set(),
     };
     this.tasks.set(taskId, task);
@@ -160,8 +217,9 @@ class CodexAppServerClient {
         } catch (error) {
           onEvent({
             type: 'thread-resume-failed',
-            message: `Codex 项目 Thread 恢复失败，将创建新 Thread：${error.message || error}`,
+            message: `Codex 项目 Thread 恢复失败，请重新绑定任务：${error.message || error}`,
           });
+          throw new Error(`已绑定的 Codex 任务无法恢复，请重新绑定：${error.message || error}`);
         }
       }
       if (!threadResult) {
@@ -169,12 +227,33 @@ class CodexAppServerClient {
           cwd,
           approvalPolicy: 'never',
           sandbox: 'workspace-write',
-          serviceName: 'magnus',
+          serviceName: 'gocapture',
           ephemeral: false,
+          threadSource: 'user',
         }, REQUEST_TIMEOUT_MS);
       }
       task.threadId = String(threadResult?.thread?.id || '');
       if (!task.threadId) throw new Error(`Codex thread/${resumed ? 'resume' : 'start'} 未返回 threadId`);
+      if (!resumed) {
+        const threadName = buildThreadName(cwd, this.now());
+        try {
+          await this.request('thread/name/set', {
+            threadId: task.threadId,
+            name: threadName,
+          }, REQUEST_TIMEOUT_MS);
+          onEvent({
+            type: 'thread-named',
+            task: publicTask(task),
+            message: `Codex 对话已命名：${threadName}`,
+          });
+        } catch (error) {
+          onEvent({
+            type: 'thread-name-failed',
+            task: publicTask(task),
+            message: `Codex 对话命名失败：${error.message || error}`,
+          });
+        }
+      }
       task.status = resumed ? 'thread-resumed' : 'thread-started';
       onThread({ threadId: task.threadId, resumed });
       onEvent({
@@ -222,9 +301,12 @@ class CodexAppServerClient {
       // 先注册再检查，避免 signal 在检查和监听之间取消。
       if (signal?.aborted) abortHandler();
 
+      const turnPrompt = resumed || !String(initialInstructions || '').trim()
+        ? String(prompt)
+        : `${String(initialInstructions).trim()}\n\n${String(prompt)}`;
       const turnResult = await this.request('turn/start', {
         threadId: task.threadId,
-        input: [{ type: 'text', text: String(prompt) }],
+        input: [{ type: 'text', text: turnPrompt }],
         cwd,
         approvalPolicy: 'never',
         sandboxPolicy: {
@@ -420,6 +502,41 @@ class CodexAppServerClient {
   }
 }
 
+function buildThreadName(cwd, now = new Date()) {
+  const projectName = path.basename(path.resolve(String(cwd || '.'))) || 'project';
+  const time = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  const date = [
+    time.getFullYear(),
+    padTimePart(time.getMonth() + 1),
+    padTimePart(time.getDate()),
+  ].join('-');
+  const clock = `${padTimePart(time.getHours())}:${padTimePart(time.getMinutes())}`;
+  return `${PRODUCT_NAME} · ${projectName} · ${date} ${clock}`;
+}
+
+function normalizeThreadList(value) {
+  return (Array.isArray(value) ? value : []).map(thread => ({
+    id: String(thread?.id || '').trim(),
+    name: String(thread?.name || '').trim(),
+    preview: String(thread?.preview || '').trim(),
+    cwd: String(thread?.cwd || '').trim(),
+    createdAt: Number(thread?.createdAt || 0),
+    updatedAt: Number(thread?.updatedAt || 0),
+    status: normalizeThreadStatus(thread?.status),
+    source: thread?.source || null,
+  })).filter(thread => thread.id);
+}
+
+function normalizeThreadStatus(status) {
+  if (typeof status === 'string') return status;
+  if (status && typeof status === 'object') return Object.keys(status)[0] || '';
+  return '';
+}
+
+function padTimePart(value) {
+  return String(value).padStart(2, '0');
+}
+
 function deferred() {
   let resolve;
   let reject;
@@ -474,8 +591,10 @@ function updateTaskFromNotification(task, message) {
   }
   if (message.method === 'item/completed') {
     const item = params.item || {};
-    if (item.type === 'agentMessage' && String(item.text || '').length > task.finalResponse.length) {
-      task.finalResponse = String(item.text || '');
+    if (item.type === 'agentMessage' && String(item.text || '').trim()) {
+      const text = String(item.text || '');
+      task.agentMessages.push(text);
+      task.finalResponse = text;
     }
     if (item.type === 'fileChange') {
       for (const change of (Array.isArray(item.changes) ? item.changes : [])) {
@@ -494,24 +613,7 @@ function turnStatus(turn) {
 }
 
 function normalizeStructuredTaskResult(task) {
-  const text = String(task.finalResponse || '').trim();
-  if (!text) return;
-  try {
-    const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed !== 'object') return;
-    task.finalResponse = String(parsed.summary || text);
-    task.selectionMeanings = normalizeSelectionMeanings(parsed.selectionMeanings);
-  } catch (error) {
-  }
-}
-
-function normalizeSelectionMeanings(value) {
-  return (Array.isArray(value) ? value : [])
-    .map(item => ({
-      selectionId: String(item?.selectionId || '').trim(),
-      meaning: String(item?.meaning || '').trim(),
-    }))
-    .filter(item => item.selectionId && item.meaning);
+  applyStructuredTaskResult(task);
 }
 
 function publicTask(task) {
@@ -523,7 +625,7 @@ function publicTask(task) {
     startedAt: task.startedAt,
     finishedAt: task.finishedAt,
     finalResponse: task.finalResponse,
-    selectionMeanings: task.selectionMeanings || [],
+    selectionLocations: task.selectionLocations || [],
     changedFiles: [...task.changedFiles],
     error: task.error || '',
   };

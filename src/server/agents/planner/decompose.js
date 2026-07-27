@@ -22,7 +22,7 @@ function decompositionSchema() {
       howToExtend: z.string().describe('若要在此实施改动，大致怎么改。'),
     })).describe('对已定位文件作用的简述（角色卡），供组合阶段直接用，免得重新调查。'),
   }).meta({
-    title: 'magnus_plan_decomposition',
+    title: 'gocapture_plan_decomposition',
     description: '把需求拆成子改动，并简述已定位文件的作用。只拆解，不写具体计划。',
   });
 }

@@ -5,9 +5,9 @@ const os = require('os');
 const path = require('path');
 
 const REGISTRY_VERSION = 1;
-const REGISTRY_DIR = process.env.MAGNUS_HOME
-  ? path.resolve(process.env.MAGNUS_HOME)
-  : path.join(os.homedir(), '.magnus');
+const REGISTRY_DIR = process.env.GOCAPTURE_HOME
+  ? path.resolve(process.env.GOCAPTURE_HOME)
+  : path.join(os.homedir(), '.gocapture');
 const REGISTRY_FILE = path.join(REGISTRY_DIR, 'registry.json');
 
 function nowIso() {

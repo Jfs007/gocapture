@@ -3,8 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// 项目知识/UI 签名派生的落盘日志：<projectPath>/.magnus/.log（best-effort，不影响主流程）。
-const EXPERIENCE_DIR = '.magnus';
+// 项目知识/UI 签名派生的落盘日志：<projectPath>/.gocapture/.log（best-effort，不影响主流程）。
+const EXPERIENCE_DIR = '.gocapture';
 const LOG_FILE = '.log';
 
 function knowledgeLogPath(project) {

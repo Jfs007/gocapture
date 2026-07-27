@@ -70,7 +70,7 @@ mdChrome.web.invalidateScriptCache('cp_modules/store/index.js')
 发送事件到 service worker 中央事件总线。
 
 ```js
-mdChrome.web.send('scaffold:ping', { at: Date.now() })
+mdChrome.web.send('gocapture:ping', { at: Date.now() })
 ```
 
 底层命令是 `event-emit`。

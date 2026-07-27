@@ -1,0 +1,56 @@
+import type {
+  NetworkRequestPayload,
+  PageContextPayload,
+  PageRouteChangedPayload,
+  RuntimeConnectedPayload,
+  RuntimeEvent,
+  SelectionChangedPayload
+} from '../types/bridge-event.types';
+import type { GoCaptureStores } from '../runtime/stores';
+
+export function createRuntimeEventHandler(stores: GoCaptureStores) {
+  return async function handleRuntimeEvent(event: RuntimeEvent) {
+    switch (event.type) {
+      case 'selection.changed': {
+        const payload = event.payload as SelectionChangedPayload;
+        const selections = Array.isArray(payload?.selections)
+          ? payload.selections
+          : (payload?.selection ? [payload.selection] : []);
+        const runtimeIds = new Set(selections
+          .map(item => String((item as any)?.uid || (item as any)?.element?.uid || ''))
+          .filter(Boolean));
+        const retained = stores.selectionStore.items.filter(item => (
+          item.sourceBinding && !runtimeIds.has(item.uid)
+        ));
+        stores.selectionStore.replaceSelections([
+          ...selections,
+          ...retained as any[]
+        ]);
+        break;
+      }
+      case 'page.route_changed': {
+        const payload = event.payload as PageRouteChangedPayload;
+        stores.routeStore.setPage(payload?.url || '', stores.routeStore.pagePath);
+        const sourceBoundSelections = stores.selectionStore.items.filter(item => item.sourceBinding);
+        if (sourceBoundSelections.length !== stores.selectionStore.items.length) {
+          stores.selectionStore.replaceSelections(sourceBoundSelections as any[]);
+        }
+        break;
+      }
+      case 'page.context': {
+        stores.projectStore.setPageContext(event.payload as PageContextPayload);
+        break;
+      }
+      case 'network.request': {
+        stores.requestStore.remember(event.payload as NetworkRequestPayload);
+        break;
+      }
+      case 'runtime.connected': {
+        const payload = event.payload as RuntimeConnectedPayload;
+        stores.appUiStore.setRuntimeConnected(true);
+        if (payload?.page?.url) stores.routeStore.setPage(payload.page.url, stores.routeStore.pagePath);
+        break;
+      }
+    }
+  };
+}

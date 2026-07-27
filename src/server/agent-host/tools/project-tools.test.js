@@ -9,7 +9,7 @@ const test = require('node:test');
 const { executeAgentTool, listAgentTools } = require('./registry');
 
 function fixtureProject(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-agent-tools-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-agent-tools-'));
   const projectFiles = [];
   for (const [file, content] of Object.entries(files)) {
     const fullPath = path.join(root, file);

@@ -88,7 +88,7 @@ test('runLangChainAgent returns normalized final content', async () => {
   assert.equal(result.result.messageCount, 2);
 });
 
-test('runLangChainAgent executes Magnus tools through LangChain', async () => {
+test('runLangChainAgent executes GoCapture tools through LangChain', async () => {
   const calls = [];
   const model = fakeModel()
     .respondWithTools([{ id: 'call_1', name: 'echo', args: { text: 'hi' } }])

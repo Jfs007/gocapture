@@ -112,5 +112,5 @@ chokidar.watch(root, {
 server.listen(port, host, () => {
   console.log(`[side-demo] serving ${root}`);
   console.log(`[side-demo] browser shell: http://${host}:${port}/`);
-  console.log(`[side-demo] iframe app:    http://${host}:${port}/magnus-ui.html`);
+  console.log(`[side-demo] iframe app:    http://${host}:${port}/gocapture-ui.html`);
 });

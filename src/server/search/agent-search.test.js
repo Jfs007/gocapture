@@ -10,7 +10,7 @@ const { runAgentSearch } = require('./agent-search');
 const { createFinalizationMiddleware } = require('../agents/locator');
 
 function fixtureProject(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-dom-agent-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-dom-agent-'));
   for (const [filePath, text] of Object.entries(files)) {
     const full = path.join(root, filePath);
     fs.mkdirSync(path.dirname(full), { recursive: true });

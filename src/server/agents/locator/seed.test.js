@@ -17,7 +17,7 @@ const {
 } = require('./index');
 
 function fixtureProject(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-dom-seed-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-dom-seed-'));
   const projectFiles = [];
   for (const [file, content] of Object.entries(files)) {
     const fullPath = path.join(root, file);

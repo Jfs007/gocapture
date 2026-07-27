@@ -45,21 +45,37 @@ function capturedPageFacts(body) {
   };
 }
 
+function scopedSelectionBody(body) {
+  const selections = Array.isArray(body?.selections) ? body.selections : [];
+  const activeIds = new Set((Array.isArray(body?.activeSelectionIds) ? body.activeSelectionIds : [])
+    .map(String)
+    .map(value => value.trim())
+    .filter(Boolean));
+  if (!activeIds.size) return body;
+  return {
+    ...body,
+    selections: selections.filter(item => activeIds.has(String(
+      item?.uid || item?.selectionId || item?.element?.uid || '',
+    ).trim())),
+  };
+}
+
 function buildLocatorEvidencePackage(project, body, options = {}) {
   if (!project) throw new Error('No project selected.');
   const onLog = typeof options.onLog === 'function' ? options.onLog : () => {};
   const textCache = options.textCache || new Map();
+  const scopedBody = scopedSelectionBody(body);
 
   onLog('本地证据准备：解析可用运行上下文');
-  const routeResult = resolvePageRouteTrace(project, body, textCache);
-  const routeFacts = routeFactsFromResult(body, routeResult);
+  const routeResult = resolvePageRouteTrace(project, scopedBody, textCache);
+  const routeFacts = routeFactsFromResult(scopedBody, routeResult);
   onLog(`本地证据：上下文入口${routeFacts.matched ? '已命中' : '未命中'}${routeFacts.bestPageFile ? `；入口候选=${routeFacts.bestPageFile}` : ''}`);
 
   onLog('本地证据准备：压缩当前 DOM 选区');
-  const domSelections = plannerDomInput(body);
+  const domSelections = plannerDomInput(scopedBody);
   const selections = selectionFacts(
     domSelections,
-    Array.isArray(body?.selections) ? body.selections : [],
+    Array.isArray(scopedBody?.selections) ? scopedBody.selections : [],
   );
   onLog(`本地证据：选区=${selections.length}；原始字符=${domSelections.reduce((sum, item) => sum + item.rawMarkupLength, 0)}；压缩字符=${domSelections.reduce((sum, item) => sum + item.compressedMarkupLength, 0)}`);
 
@@ -74,13 +90,13 @@ function buildLocatorEvidencePackage(project, body, options = {}) {
       kind: project.kind || 'unknown',
     },
     request: {
-      userInstruction: String(body?.userPrompt || body?.prompt || body?.message || '').trim(),
-      pageUrl: String(body?.pageUrl || body?.url || '').trim(),
-      pagePath: String(body?.pagePath || '').trim(),
+      userInstruction: String(scopedBody?.userPrompt || scopedBody?.prompt || scopedBody?.message || '').trim(),
+      pageUrl: String(scopedBody?.pageUrl || scopedBody?.url || '').trim(),
+      pagePath: String(scopedBody?.pagePath || '').trim(),
     },
     route: routeFacts,
     selections,
-    captured: capturedPageFacts(body),
+    captured: capturedPageFacts(scopedBody),
     ...(projectStructure ? { projectStructure } : {}),
   };
 
@@ -96,5 +112,6 @@ function buildLocatorEvidencePackage(project, body, options = {}) {
 module.exports = {
   buildLocatorEvidencePackage,
   routeFactsFromResult,
+  scopedSelectionBody,
   selectionFacts,
 };

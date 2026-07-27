@@ -1,7 +1,7 @@
 'use strict';
 
 // Locator 的系统提示词 + 目标（objective）构建：职责=定位选区 DOM 的渲染/驱动源码，
-// 改动诉求不在本阶段。项目结构从 .magnus/Structure.md 读取，缺失时回退文件路径清单。
+// 改动诉求不在本阶段。项目结构从 .gocapture/Structure.md 读取，缺失时回退文件路径清单。
 const fs = require('fs');
 const path = require('path');
 
@@ -17,7 +17,7 @@ const LOCATOR_SYSTEM_PROMPT = [
 ].join('\n');
 
 function readProjectStructure(project) {
-  const structurePath = path.join(project.path, '.magnus', 'Structure.md');
+  const structurePath = path.join(project.path, '.gocapture', 'Structure.md');
   try {
     const text = fs.readFileSync(structurePath, 'utf8').trim();
     if (text) return text.slice(0, MAX_STRUCTURE_CHARS);

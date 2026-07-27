@@ -10,7 +10,7 @@ const MAX_LIMIT = 2000;
 
 function messageDirectory(project) {
   if (!project?.path) throw new Error('Agent 消息缺少项目目录');
-  return path.join(project.path, '.magnus', MESSAGE_DIRECTORY);
+  return path.join(project.path, '.gocapture', MESSAGE_DIRECTORY);
 }
 
 function messageFile(project, providerId) {

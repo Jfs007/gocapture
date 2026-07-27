@@ -50,14 +50,14 @@ function appendFragment(socket, opcode, payload, fin, onText) {
       emitCompleteMessage(socket, opcode, payload, onText);
       return;
     }
-    socket.__magnusWsFragmentOpcode = opcode;
-    socket.__magnusWsFragments = [payload];
+    socket.__gocaptureWsFragmentOpcode = opcode;
+    socket.__gocaptureWsFragments = [payload];
     return;
   }
 
   if (opcode !== 0x0) return;
-  const fragmentOpcode = socket.__magnusWsFragmentOpcode;
-  const fragments = socket.__magnusWsFragments;
+  const fragmentOpcode = socket.__gocaptureWsFragmentOpcode;
+  const fragments = socket.__gocaptureWsFragments;
   if (!fragmentOpcode || !Array.isArray(fragments)) {
     socket.destroy();
     return;
@@ -65,14 +65,14 @@ function appendFragment(socket, opcode, payload, fin, onText) {
   fragments.push(payload);
   if (!fin) return;
   const complete = Buffer.concat(fragments);
-  socket.__magnusWsFragmentOpcode = 0;
-  socket.__magnusWsFragments = null;
+  socket.__gocaptureWsFragmentOpcode = 0;
+  socket.__gocaptureWsFragments = null;
   emitCompleteMessage(socket, fragmentOpcode, complete, onText);
 }
 
 function decodeFrames(socket, chunk, onText) {
-  socket.__magnusWsBuffer = Buffer.concat([socket.__magnusWsBuffer || Buffer.alloc(0), chunk]);
-  let buffer = socket.__magnusWsBuffer;
+  socket.__gocaptureWsBuffer = Buffer.concat([socket.__gocaptureWsBuffer || Buffer.alloc(0), chunk]);
+  let buffer = socket.__gocaptureWsBuffer;
   let offset = 0;
 
   while (buffer.length - offset >= 2) {
@@ -123,7 +123,7 @@ function decodeFrames(socket, chunk, onText) {
     offset += frameLength;
   }
 
-  socket.__magnusWsBuffer = buffer.subarray(offset);
+  socket.__gocaptureWsBuffer = buffer.subarray(offset);
 }
 
 function upgradeToWebSocket(req, socket) {

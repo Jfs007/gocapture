@@ -40,7 +40,7 @@ function messageText(message) {
 function createModelTelemetryMiddleware(runtime, options, modelConfig) {
   if (typeof runtime.createMiddleware !== 'function' || typeof options.onEvent !== 'function') return null;
   return runtime.createMiddleware({
-    name: 'MagnusModelTelemetry',
+    name: 'GoCaptureModelTelemetry',
     wrapModelCall: async (request, handler) => {
       const messages = Array.isArray(request.messages) ? request.messages : [];
       const tools = Array.isArray(request.tools) ? request.tools : [];

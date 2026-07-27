@@ -70,7 +70,7 @@ registerAgentToolProvider(createToolProvider({
 }))
 ```
 
-MCP tools are not local ToolProviders. Add servers in the legacy-compatible `~/.magnus/mcp.json` or `<project>/.mcp.json`; each LangChain agent run loads them as native tools such as `mcp__github__search_code`.
+MCP tools are not local ToolProviders. Add servers in `~/.gocapture/mcp.json` or `<project>/.mcp.json`; each LangChain agent run loads them as native tools such as `mcp__github__search_code`.
 
 Agent runs decide exposed capability families with `configAction`, for example `['builtin', 'skill', 'mcp']`. This keeps future capability types pluggable without adding one-off boolean switches.
 
@@ -78,7 +78,7 @@ Default capabilities are mounted by `tools/registry.js`:
 
 - `builtin.project-crud`: `read_file`, `search_text`, `find_files`, `find_symbol`, `find_endpoint`, `find_imports`, `find_importers`, `find_related_examples`, `trace_file_evidence_flow`, `read_closed_blocks`.
 - `builtin.experience`: `recon_inspect`, `experience_load`, `recon_search`, `recon_record`.
-- `builtin.project-resources`: `magnus://project/context`, `magnus://project/files`, `magnus://task/memory`.
+- `builtin.project-resources`: `gocapture://project/context`, `gocapture://project/files`, `gocapture://task/memory`.
 
 The post-location planning flow is one LangChain agent. Recon and Experience are ordinary tools selected by that agent; they must not start another model loop or become a fixed preprocessing stage.
 

@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const AUTH_PATH = path.join(os.homedir(), '.magnus', 'connect-agent', 'claude-auth.json');
+const AUTH_PATH = path.join(os.homedir(), '.gocapture', 'connect-agent', 'claude-auth.json');
 
 function normalizeAuth(raw) {
   const mode = raw?.mode === 'apikey' || raw?.mode === 'subscription' ? raw.mode : '';

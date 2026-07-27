@@ -1,6 +1,6 @@
-const PORT = Number(process.env.MAGNUS_SOURCE_PORT || 17321);
-const HOST = process.env.MAGNUS_SOURCE_HOST || '127.0.0.1';
-const MAX_FILES = Number(process.env.MAGNUS_SOURCE_MAX_FILES || 5000);
+const PORT = Number(process.env.GOCAPTURE_SOURCE_PORT || 17321);
+const HOST = process.env.GOCAPTURE_SOURCE_HOST || '127.0.0.1';
+const MAX_FILES = Number(process.env.GOCAPTURE_SOURCE_MAX_FILES || 5000);
 const MAX_SNIPPET_BYTES = 180000;
 const MAX_SNIPPET_CHARS = 3000;
 const VERSION = '0.1.0';
@@ -20,8 +20,7 @@ const SKIP_DIRS = new Set([
   '.claude',
   '.codex',
   '.DS_Store',
-  '.magnus',
-  '.magnus-project',
+  '.gocapture',
   'target',
   'vendor',
 ]);

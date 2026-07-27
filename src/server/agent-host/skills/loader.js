@@ -1,9 +1,9 @@
 'use strict';
 
 // Skills 加载：对齐市面 SKILL.md 约定（frontmatter + markdown 正文）。
-//   <project>/.magnus/skills/<name>/SKILL.md   +   ~/.magnus/skills/<name>/SKILL.md
+//   <project>/.gocapture/skills/<name>/SKILL.md   +   ~/.gocapture/skills/<name>/SKILL.md
 // frontmatter：name / description / allowed-tools。项目级同名优先于用户级。
-// 注意：Skill 与 Magnus 的 Experience 是两回事，互不混用（见 agent-host/README 边界）。
+// 注意：Skill 与 GoCapture 的 Experience 是两回事，互不混用（见 agent-host/README 边界）。
 
 const fs = require('fs');
 const os = require('os');
@@ -68,8 +68,8 @@ function readSkillsFromDir(base, source, seen, out) {
 function loadSkills(projectPath) {
   const seen = new Set();
   const skills = [];
-  if (projectPath) readSkillsFromDir(path.join(projectPath, '.magnus', 'skills'), 'project', seen, skills);
-  readSkillsFromDir(path.join(os.homedir(), '.magnus', 'skills'), 'user', seen, skills);
+  if (projectPath) readSkillsFromDir(path.join(projectPath, '.gocapture', 'skills'), 'project', seen, skills);
+  readSkillsFromDir(path.join(os.homedir(), '.gocapture', 'skills'), 'user', seen, skills);
   return skills;
 }
 

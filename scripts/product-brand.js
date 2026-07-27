@@ -8,12 +8,18 @@ const configPath = path.join(rootDir, 'config', 'product.json');
 
 function loadProductBrand() {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  const displayName = String(process.env.MAGNUS_PRODUCT_NAME || config.displayName || '').trim();
-  if (!displayName) throw new Error(`Product displayName is required: ${configPath}`);
+  const id = String(config.id || '').trim();
+  const displayName = String(process.env.GOCAPTURE_PRODUCT_NAME || config.displayName || '').trim();
+  const packageName = String(config.packageName || '').trim();
+  const cliCommand = String(config.cliCommand || '').trim();
+  if (!id || !displayName || !packageName || !cliCommand) {
+    throw new Error(`Product id, displayName, packageName, and cliCommand are required: ${configPath}`);
+  }
   return {
+    id,
     displayName,
-    legacyName: String(config.legacyName || 'Magnus').trim(),
-    cliCommand: String(config.cliCommand || 'magnus').trim(),
+    packageName,
+    cliCommand,
   };
 }
 
@@ -44,13 +50,13 @@ function syncExtensionBrand(packageDir = path.join(rootDir, 'package')) {
   );
   sidepanel = replaceRequired(
     sidepanel,
-    /(<div id="magnus-sidepanel-status" class="status">)连接 [^<]+ 本地服务(\.\.\.<\/div>)/,
+    /(<div id="gocapture-sidepanel-status" class="status">)连接 [^<]+ 本地服务(\.\.\.<\/div>)/,
     `$1连接 ${brand.displayName} 本地服务$2`,
     sidepanelPath,
   );
   sidepanel = replaceRequired(
     sidepanel,
-    /(<iframe id="magnus-sidepanel-frame" title=")[^"]+("><\/iframe>)/,
+    /(<iframe id="gocapture-sidepanel-frame" title=")[^"]+("><\/iframe>)/,
     `$1${brand.displayName}$2`,
     sidepanelPath,
   );
@@ -61,8 +67,8 @@ function syncExtensionBrand(packageDir = path.join(rootDir, 'package')) {
     const source = fs.readFileSync(filePath, 'utf8');
     const next = replaceRequired(
       source,
-      /const MAGNUS_PRODUCT_NAME = ['"][^'"]+['"];/,
-      `const MAGNUS_PRODUCT_NAME = ${JSON.stringify(brand.displayName)};`,
+      /const GOCAPTURE_PRODUCT_NAME = ['"][^'"]+['"];/,
+      `const GOCAPTURE_PRODUCT_NAME = ${JSON.stringify(brand.displayName)};`,
       filePath,
     );
     fs.writeFileSync(filePath, next, 'utf8');

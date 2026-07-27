@@ -100,7 +100,7 @@ function createLangChainTools({ tools, project, executeTool, textCache, allowedT
       if (typeof toolGuard === 'function') {
         const blocked = toolGuard(descriptor.name, toolCall.input);
         if (blocked) {
-          const observation = { tool: descriptor.name, providerId: 'magnus-tool-guard', ok: true, result: blocked };
+          const observation = { tool: descriptor.name, providerId: 'gocapture-tool-guard', ok: true, result: blocked };
           if (typeof onEvent === 'function') onEvent({ type: 'tool.result', observation });
           return JSON.stringify(blocked);
         }
@@ -114,7 +114,7 @@ function createLangChainTools({ tools, project, executeTool, textCache, allowedT
         };
         const observation = {
           tool: descriptor.name,
-          providerId: 'magnus-call-cache',
+          providerId: 'gocapture-call-cache',
           ok: true,
           result: duplicateResult,
         };

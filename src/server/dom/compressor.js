@@ -1,6 +1,6 @@
 'use strict';
 
-// DOM markup 压缩：折叠重复子结构（列表/表格行）为 <magnus-repeat> 摘要，并在字符预算内序列化，
+// DOM markup 压缩：折叠重复子结构（列表/表格行）为 <gocapture-repeat> 摘要，并在字符预算内序列化，
 // 避免把上千行同构 DOM 原样喂给模型。
 const { uniq } = require('../utils');
 const {
@@ -81,7 +81,7 @@ function serializeNode(node, budget) {
   if (node.type === 'repeat-summary') {
     const sampleTexts = uniq((node.samples || []).map(item => item.text).filter(Boolean)).slice(0, 30).join(' | ');
     const sampleAttrs = uniq((node.samples || []).flatMap(item => item.anchorAttrs || [])).slice(0, 40).join(' | ');
-    const text = `<magnus-repeat tag="${escapeAttr(node.tag)}" count="${node.count}" omitted="${node.omitted}" texts="${escapeAttr(sampleTexts)}" attrs="${escapeAttr(sampleAttrs)}" />`;
+    const text = `<gocapture-repeat tag="${escapeAttr(node.tag)}" count="${node.count}" omitted="${node.omitted}" texts="${escapeAttr(sampleTexts)}" attrs="${escapeAttr(sampleAttrs)}" />`;
     budget.remaining -= text.length;
     return text;
   }

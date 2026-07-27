@@ -4,21 +4,21 @@ const localConfig = {
 let _VERSION_ = '';
 // 全局缓存对象
 let ExeCodeMap = {};
-const MAGNUS_SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
-const MAGNUS_RUNTIME_APP = 'magnus/sfr-runtime.js';
-const MAGNUS_WORKSPACE_PREFIX = 'magnus:workspace:tab:';
-const MAGNUS_OPEN_REQUEST_KEY = 'magnus:sidepanel:open-request';
-const MAGNUS_PRODUCT_NAME = "GoCapture";
-const MAGNUS_TAB_GROUP_TITLE = MAGNUS_PRODUCT_NAME;
-const MAGNUS_TAB_GROUP_COLOR = 'black';
+const GOCAPTURE_SOURCE_SERVER_URL = 'http://127.0.0.1:17321';
+const GOCAPTURE_RUNTIME_APP = 'gocapture/sfr-runtime.js';
+const GOCAPTURE_WORKSPACE_PREFIX = 'gocapture:workspace:tab:';
+const GOCAPTURE_OPEN_REQUEST_KEY = 'gocapture:sidepanel:open-request';
+const GOCAPTURE_PRODUCT_NAME = "GoCapture";
+const GOCAPTURE_TAB_GROUP_TITLE = GOCAPTURE_PRODUCT_NAME;
+const GOCAPTURE_TAB_GROUP_COLOR = 'black';
 
 function setupSidePanel() {
   if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) {
-    console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel API is not available in this Chrome runtime.`);
+    console.warn(`${GOCAPTURE_PRODUCT_NAME} sidePanel API is not available in this Chrome runtime.`);
     return;
   }
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(error => {
-    console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel setup failed:`, error);
+    console.warn(`${GOCAPTURE_PRODUCT_NAME} sidePanel setup failed:`, error);
   });
 }
 
@@ -26,31 +26,31 @@ setupSidePanel();
 
 chrome.action.onClicked.addListener(tab => {
   try {
-    assertMagnusInjectableTab(tab);
-    void rememberMagnusOpenRequest(tab);
+    assertGoCaptureInjectableTab(tab);
+    void rememberGoCaptureOpenRequest(tab);
     chrome.sidePanel.setOptions({
       tabId: tab.id,
-      path: magnusPendingPanelPath(tab),
+      path: gocapturePendingPanelPath(tab),
       enabled: true,
     }).catch(error => {
-      console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel options failed:`, error);
+      console.warn(`${GOCAPTURE_PRODUCT_NAME} sidePanel options failed:`, error);
     });
     chrome.sidePanel.open({ tabId: tab.id }).catch(error => {
-      console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel open failed:`, error);
+      console.warn(`${GOCAPTURE_PRODUCT_NAME} sidePanel open failed:`, error);
     });
-    void ensureMagnusTabGroup(tab).then(groupId => {
+    void ensureGoCaptureTabGroup(tab).then(groupId => {
       if (groupId != null) {
-        void updateMagnusWorkspace(tab.id, { groupId });
+        void updateGoCaptureWorkspace(tab.id, { groupId });
       }
     });
   } catch (error) {
-    console.warn(`${MAGNUS_PRODUCT_NAME} sidePanel open failed:`, error);
+    console.warn(`${GOCAPTURE_PRODUCT_NAME} sidePanel open failed:`, error);
   }
 });
 
 chrome.tabs.onRemoved.addListener(tabId => {
-  removeMagnusWorkspace(tabId).catch(error => {
-    console.warn(`${MAGNUS_PRODUCT_NAME} workspace cleanup failed:`, error);
+  removeGoCaptureWorkspace(tabId).catch(error => {
+    console.warn(`${GOCAPTURE_PRODUCT_NAME} workspace cleanup failed:`, error);
   });
 });
 
@@ -211,52 +211,52 @@ async function getCurrentTab() {
 }
 
 function workspaceStorageKey(tabId) {
-  return `${MAGNUS_WORKSPACE_PREFIX}${tabId}`;
+  return `${GOCAPTURE_WORKSPACE_PREFIX}${tabId}`;
 }
 
-function createMagnusWorkspaceId(tabId) {
+function createGoCaptureWorkspaceId(tabId) {
   return `workspace_${tabId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function magnusPendingPanelPath(tab) {
+function gocapturePendingPanelPath(tab) {
   return 'sidepanel.html'
     + `?tabId=${encodeURIComponent(tab.id)}`
     + '&pending=1';
 }
 
-function normalizeMagnusPage(tab) {
+function normalizeGoCapturePage(tab) {
   return {
     url: tab?.url || '',
     title: tab?.title || '',
   };
 }
 
-async function ensureMagnusTabGroup(tab) {
+async function ensureGoCaptureTabGroup(tab) {
   if (!tab?.id || !chrome.tabs?.group || !chrome.tabGroups?.update) return null;
   try {
     const groupId = typeof tab.groupId === 'number' && tab.groupId >= 0
       ? tab.groupId
       : await chrome.tabs.group({ tabIds: [tab.id] });
     await chrome.tabGroups.update(groupId, {
-      title: MAGNUS_TAB_GROUP_TITLE,
-      color: MAGNUS_TAB_GROUP_COLOR,
+      title: GOCAPTURE_TAB_GROUP_TITLE,
+      color: GOCAPTURE_TAB_GROUP_COLOR,
     });
     return groupId;
   } catch (error) {
-    console.warn(`${MAGNUS_PRODUCT_NAME} tab group setup failed:`, error);
+    console.warn(`${GOCAPTURE_PRODUCT_NAME} tab group setup failed:`, error);
     return null;
   }
 }
 
-async function getMagnusWorkspace(tabId) {
+async function getGoCaptureWorkspace(tabId) {
   if (!tabId || !chrome.storage?.session) return null;
   const data = await chrome.storage.session.get(workspaceStorageKey(tabId));
   return data[workspaceStorageKey(tabId)] || null;
 }
 
-async function updateMagnusWorkspace(tabId, patch) {
+async function updateGoCaptureWorkspace(tabId, patch) {
   if (!tabId || !chrome.storage?.session) return null;
-  const current = await getMagnusWorkspace(tabId);
+  const current = await getGoCaptureWorkspace(tabId);
   if (!current) return null;
   const next = {
     ...current,
@@ -271,23 +271,23 @@ async function updateMagnusWorkspace(tabId, patch) {
   return next;
 }
 
-async function ensureMagnusWorkspace(tab) {
+async function ensureGoCaptureWorkspace(tab) {
   if (!tab?.id) throw new Error('Missing tab id.');
-  const current = await getMagnusWorkspace(tab.id);
+  const current = await getGoCaptureWorkspace(tab.id);
   if (current) {
-    return updateMagnusWorkspace(tab.id, {
+    return updateGoCaptureWorkspace(tab.id, {
       windowId: tab.windowId,
       groupId: tab.groupId,
-      page: normalizeMagnusPage(tab),
+      page: normalizeGoCapturePage(tab),
     });
   }
   const now = Date.now();
   const workspace = {
-    workspaceId: createMagnusWorkspaceId(tab.id),
+    workspaceId: createGoCaptureWorkspaceId(tab.id),
     tabId: tab.id,
     windowId: tab.windowId,
     groupId: tab.groupId,
-    page: normalizeMagnusPage(tab),
+    page: normalizeGoCapturePage(tab),
     createdAt: now,
     updatedAt: now,
   };
@@ -295,28 +295,28 @@ async function ensureMagnusWorkspace(tab) {
   return workspace;
 }
 
-async function removeMagnusWorkspace(tabId) {
+async function removeGoCaptureWorkspace(tabId) {
   if (!tabId || !chrome.storage?.session) return;
   await chrome.storage.session.remove(workspaceStorageKey(tabId));
 }
 
-async function rememberMagnusOpenRequest(tab) {
+async function rememberGoCaptureOpenRequest(tab) {
   if (!tab?.id || !chrome.storage?.session) return;
   await chrome.storage.session.set({
-    [MAGNUS_OPEN_REQUEST_KEY]: {
+    [GOCAPTURE_OPEN_REQUEST_KEY]: {
       tabId: tab.id,
       windowId: tab.windowId,
-      page: normalizeMagnusPage(tab),
+      page: normalizeGoCapturePage(tab),
       createdAt: Date.now(),
     },
   });
 }
 
-async function consumeMagnusOpenRequest() {
+async function consumeGoCaptureOpenRequest() {
   if (!chrome.storage?.session) return null;
-  const data = await chrome.storage.session.get(MAGNUS_OPEN_REQUEST_KEY);
-  const request = data[MAGNUS_OPEN_REQUEST_KEY] || null;
-  await chrome.storage.session.remove(MAGNUS_OPEN_REQUEST_KEY);
+  const data = await chrome.storage.session.get(GOCAPTURE_OPEN_REQUEST_KEY);
+  const request = data[GOCAPTURE_OPEN_REQUEST_KEY] || null;
+  await chrome.storage.session.remove(GOCAPTURE_OPEN_REQUEST_KEY);
   if (!request || !request.tabId || Date.now() - Number(request.createdAt || 0) > 15000) return null;
   return request;
 }
@@ -330,18 +330,18 @@ async function getTabById(tabId) {
   }
 }
 
-function assertMagnusInjectableTab(tab) {
+function assertGoCaptureInjectableTab(tab) {
   if (!tab?.id || !tab.url || !/^https?:\/\//i.test(tab.url)) {
-    throw new Error(`当前页面不支持注入 ${MAGNUS_PRODUCT_NAME} runtime：${tab?.url || ''}`);
+    throw new Error(`当前页面不支持注入 ${GOCAPTURE_PRODUCT_NAME} runtime：${tab?.url || ''}`);
   }
 }
 
-async function postMagnusSourceJson(pathname, body) {
-  const response = await fetch(`${MAGNUS_SOURCE_SERVER_URL}${pathname}`, {
+async function postGoCaptureSourceJson(pathname, body) {
+  const response = await fetch(`${GOCAPTURE_SOURCE_SERVER_URL}${pathname}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Magnus-Internal': 'chrome-extension',
+      'X-GoCapture-Internal': 'chrome-extension',
     },
     body: JSON.stringify(body || {}),
   });
@@ -352,11 +352,11 @@ async function postMagnusSourceJson(pathname, body) {
   return data;
 }
 
-async function injectMagnusBoot(message, sender, boot) {
+async function injectGoCaptureBoot(message, sender, boot) {
   let execData = {
     world: 'MAIN',
     function: value => {
-      window.__MAGNUS_SFR_BOOT__ = value;
+      window.__GOCAPTURE_SFR_BOOT__ = value;
     },
     args: [boot],
   };
@@ -364,46 +364,46 @@ async function injectMagnusBoot(message, sender, boot) {
   return chrome.scripting.executeScript(execData);
 }
 
-function createMagnusBoot(tab, workspace) {
+function createGoCaptureBoot(tab, workspace) {
   return {
     browserTabId: tab.id,
     windowId: tab.windowId,
     workspaceId: workspace.workspaceId,
-    sourceServerUrl: MAGNUS_SOURCE_SERVER_URL,
-    bridgeUrl: MAGNUS_SOURCE_SERVER_URL.replace(/^http/, 'ws') + '/bridge',
+    sourceServerUrl: GOCAPTURE_SOURCE_SERVER_URL,
+    bridgeUrl: GOCAPTURE_SOURCE_SERVER_URL.replace(/^http/, 'ws') + '/bridge',
     autoStartPicker: false,
   };
 }
 
-function installResultHasMagnusRuntime(result) {
+function installResultHasGoCaptureRuntime(result) {
   const jsUrls = Array.isArray(result?.config?.jsUrls) ? result.config.jsUrls : [];
-  return jsUrls.some(url => String(url || '').includes(MAGNUS_RUNTIME_APP));
+  return jsUrls.some(url => String(url || '').includes(GOCAPTURE_RUNTIME_APP));
 }
 
-async function injectMagnusRuntimeFallback(message, sender) {
+async function injectGoCaptureRuntimeFallback(message, sender) {
   let execData = {
     world: 'MAIN',
-    files: [`app/${MAGNUS_RUNTIME_APP}`],
+    files: [`app/${GOCAPTURE_RUNTIME_APP}`],
   };
   execData = fillIframeIdToData(message, sender, execData);
   return chrome.scripting.executeScript(execData);
 }
 
-async function installMagnusRuntime(message, sender, sendResponse) {
+async function installGoCaptureRuntime(message, sender, sendResponse) {
   try {
     const tab = await getTabById(message.tabId);
-    assertMagnusInjectableTab(tab);
-    const workspace = await getMagnusWorkspace(tab.id);
+    assertGoCaptureInjectableTab(tab);
+    const workspace = await getGoCaptureWorkspace(tab.id);
     if (!workspace || workspace.workspaceId !== message.workspaceId) {
-      throw new Error(`${MAGNUS_PRODUCT_NAME} workspace not found or mismatched.`);
+      throw new Error(`${GOCAPTURE_PRODUCT_NAME} workspace not found or mismatched.`);
     }
-    const boot = createMagnusBoot(tab, workspace);
-    await injectMagnusBoot({
+    const boot = createGoCaptureBoot(tab, workspace);
+    await injectGoCaptureBoot({
       ...message,
       tabId: tab.id,
       windowId: tab.windowId,
       url: tab.url,
-      page: normalizeMagnusPage(tab),
+      page: normalizeGoCapturePage(tab),
     }, sender, boot);
 
     const installResponse = await new Promise(resolve => {
@@ -413,23 +413,23 @@ async function installMagnusRuntime(message, sender, sendResponse) {
         tabId: tab.id,
         windowId: tab.windowId,
         url: tab.url || '',
-        page: normalizeMagnusPage(tab),
+        page: normalizeGoCapturePage(tab),
       }, sender, resolve);
     });
     let fallbackInjected = false;
-    if (!installResultHasMagnusRuntime(installResponse)) {
-      await injectMagnusRuntimeFallback({
+    if (!installResultHasGoCaptureRuntime(installResponse)) {
+      await injectGoCaptureRuntimeFallback({
         ...message,
         tabId: tab.id,
         windowId: tab.windowId,
         url: tab.url || '',
-        page: normalizeMagnusPage(tab),
+        page: normalizeGoCapturePage(tab),
       }, sender);
       fallbackInjected = true;
     }
     const response = {
       success: true,
-      type: 'magnus.installRuntime',
+      type: 'gocapture.installRuntime',
       workspace,
       boot,
       install: installResponse,
@@ -440,7 +440,7 @@ async function installMagnusRuntime(message, sender, sendResponse) {
   } catch (error) {
     const response = {
       success: false,
-      type: 'magnus.installRuntime',
+      type: 'gocapture.installRuntime',
       error: error.message || String(error),
     };
     sendResponse && sendResponse(response);
@@ -448,25 +448,25 @@ async function installMagnusRuntime(message, sender, sendResponse) {
   }
 }
 
-async function bindMagnusPanel(tab, workspace) {
-  return postMagnusSourceJson('/api/panel/bind', {
+async function bindGoCapturePanel(tab, workspace) {
+  return postGoCaptureSourceJson('/api/panel/bind', {
     tabId: tab.id,
     windowId: tab.windowId,
     workspaceId: workspace.workspaceId,
-    page: normalizeMagnusPage(tab),
+    page: normalizeGoCapturePage(tab),
   });
 }
 
-async function prepareMagnusPanelForTab(tab) {
-  const workspace = await ensureMagnusWorkspace(tab);
-  const installResult = await installMagnusRuntime({
+async function prepareGoCapturePanelForTab(tab) {
+  const workspace = await ensureGoCaptureWorkspace(tab);
+  const installResult = await installGoCaptureRuntime({
     tabId: tab.id,
     windowId: tab.windowId,
     workspaceId: workspace.workspaceId,
-    page: normalizeMagnusPage(tab),
+    page: normalizeGoCapturePage(tab),
   }, {}, null);
-  if (!installResult?.success) throw new Error(installResult?.error || `${MAGNUS_PRODUCT_NAME} runtime 安装失败。`);
-  const bindResult = await bindMagnusPanel(tab, workspace);
+  if (!installResult?.success) throw new Error(installResult?.error || `${GOCAPTURE_PRODUCT_NAME} runtime 安装失败。`);
+  const bindResult = await bindGoCapturePanel(tab, workspace);
   const panelTicket = bindResult.panelTicket;
   return {
     success: true,
@@ -476,48 +476,48 @@ async function prepareMagnusPanelForTab(tab) {
   };
 }
 
-async function openMagnusPanelCommand(message, sender, sendResponse) {
+async function openGoCapturePanelCommand(message, sender, sendResponse) {
   try {
     const tab = message.tabId ? await getTabById(message.tabId) : await getCurrentTab();
-    assertMagnusInjectableTab(tab);
-    const result = await prepareMagnusPanelForTab(tab);
+    assertGoCaptureInjectableTab(tab);
+    const result = await prepareGoCapturePanelForTab(tab);
     sendResponse && sendResponse(result);
   } catch (error) {
-    sendResponse && sendResponse({ success: false, type: 'magnus.openPanel', error: error.message || String(error) });
+    sendResponse && sendResponse({ success: false, type: 'gocapture.openPanel', error: error.message || String(error) });
   }
 }
 
-async function rebindMagnusPanel(message, sender, sendResponse) {
+async function rebindGoCapturePanel(message, sender, sendResponse) {
   try {
     const tab = await getTabById(message.tabId);
-    assertMagnusInjectableTab(tab);
-    const workspace = await getMagnusWorkspace(tab.id);
+    assertGoCaptureInjectableTab(tab);
+    const workspace = await getGoCaptureWorkspace(tab.id);
     if (!workspace || workspace.workspaceId !== message.workspaceId) {
-      throw new Error(`${MAGNUS_PRODUCT_NAME} workspace not found or mismatched.`);
+      throw new Error(`${GOCAPTURE_PRODUCT_NAME} workspace not found or mismatched.`);
     }
-    const installResult = await installMagnusRuntime({
+    const installResult = await installGoCaptureRuntime({
       tabId: tab.id,
       windowId: tab.windowId,
       workspaceId: workspace.workspaceId,
-      page: normalizeMagnusPage(tab),
+      page: normalizeGoCapturePage(tab),
     }, sender, null);
-    if (!installResult?.success) throw new Error(installResult?.error || `${MAGNUS_PRODUCT_NAME} runtime 安装失败。`);
-    const bindResult = await bindMagnusPanel(tab, workspace);
+    if (!installResult?.success) throw new Error(installResult?.error || `${GOCAPTURE_PRODUCT_NAME} runtime 安装失败。`);
+    const bindResult = await bindGoCapturePanel(tab, workspace);
     sendResponse && sendResponse({
       success: true,
-      type: 'magnus.rebindPanel',
+      type: 'gocapture.rebindPanel',
       workspace,
       panelTicket: bindResult.panelTicket,
       pageSessionId: bindResult.pageSessionId,
     });
   } catch (error) {
-    sendResponse && sendResponse({ success: false, type: 'magnus.rebindPanel', error: error.message || String(error) });
+    sendResponse && sendResponse({ success: false, type: 'gocapture.rebindPanel', error: error.message || String(error) });
   }
 }
 
-async function consumeMagnusOpenRequestCommand(message, sender, sendResponse) {
+async function consumeGoCaptureOpenRequestCommand(message, sender, sendResponse) {
   try {
-    const request = await consumeMagnusOpenRequest();
+    const request = await consumeGoCaptureOpenRequest();
     sendResponse && sendResponse({
       success: true,
       request,
@@ -525,7 +525,7 @@ async function consumeMagnusOpenRequestCommand(message, sender, sendResponse) {
   } catch (error) {
     sendResponse && sendResponse({
       success: false,
-      type: 'magnus.consumeOpenRequest',
+      type: 'gocapture.consumeOpenRequest',
       error: error.message || String(error),
     });
   }
@@ -900,7 +900,7 @@ async function executeCss(url, config, message, sender) {
  */
 async function executeCss2(cssContent, config, message, sender, url) {
   const world = config.world || "MAIN";
-  const styleId = 'magnus-app-style-' + String(url || '')
+  const styleId = 'gocapture-app-style-' + String(url || '')
     .replace(/[^a-zA-Z0-9_-]/g, '-')
     .slice(-160);
   let execData = { function: injectCssCode, args: [cssContent, styleId], world };
@@ -919,7 +919,7 @@ function injectJsCode(code) {
 
 function injectCssCode(cssContent, styleId) {
   if (!cssContent) return;
-  const id = styleId || 'magnus-app-style';
+  const id = styleId || 'gocapture-app-style';
   let style = document.getElementById(id);
   if (!style) {
     style = document.createElement('style');
@@ -1547,15 +1547,15 @@ const BaseChromeApiCmd = {
 }
 
 function onMessageLister(message, sender, sendResponse) {
-  if ("magnus.getConfig" === message?.cmd) {
+  if ("gocapture.getConfig" === message?.cmd) {
     sendResponse && sendResponse({
       success: true,
-      sourceServerUrl: MAGNUS_SOURCE_SERVER_URL,
+      sourceServerUrl: GOCAPTURE_SOURCE_SERVER_URL,
     });
     return;
   }
-  if ("magnus.consumeOpenRequest" === message?.cmd) {
-    consumeMagnusOpenRequestCommand(message, sender, sendResponse);
+  if ("gocapture.consumeOpenRequest" === message?.cmd) {
+    consumeGoCaptureOpenRequestCommand(message, sender, sendResponse);
     return true;
   }
   const tabId = message?.tabId || sender?.tab?.id;
@@ -1570,16 +1570,16 @@ function onMessageLister(message, sender, sendResponse) {
     return;
   }
   if ("changeAccount" === message.cmd) return ChangeAccountCmd.Lister(message, sender, sendResponse);
-  if ("magnus.installRuntime" === message.cmd) {
-    installMagnusRuntime(message, sender, sendResponse);
+  if ("gocapture.installRuntime" === message.cmd) {
+    installGoCaptureRuntime(message, sender, sendResponse);
     return true;
   }
-  if ("magnus.openPanel" === message.cmd) {
-    openMagnusPanelCommand(message, sender, sendResponse);
+  if ("gocapture.openPanel" === message.cmd) {
+    openGoCapturePanelCommand(message, sender, sendResponse);
     return true;
   }
-  if ("magnus.rebindPanel" === message.cmd) {
-    rebindMagnusPanel(message, sender, sendResponse);
+  if ("gocapture.rebindPanel" === message.cmd) {
+    rebindGoCapturePanel(message, sender, sendResponse);
     return true;
   }
   if ("setup" === message.cmd) return setupCodeLister(message, sender, sendResponse);

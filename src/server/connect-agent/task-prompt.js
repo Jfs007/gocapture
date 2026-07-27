@@ -1,177 +1,134 @@
 'use strict';
 
-const PRIMARY_SOURCE_ROLES = new Set(['main-render', 'render', 'co-render']);
-
 function buildConnectAgentTaskPrompt({
   userInstruction,
   pageUrl,
   selectionBindings,
   locatorEvidence,
-  projectSession,
 }) {
-  const projectThreadId = String(projectSession?.threadId || '');
-  const storedSelections = projectSession?.selections || {};
-  const bindings = Array.isArray(selectionBindings) ? selectionBindings : [];
-  const selectionContexts = bindings.map(item => {
-    const binding = item?.binding || item || {};
-    const agentContext = binding.agentContext || null;
-    const selectionId = String(item?.uid || binding.selectionId || '');
-    const stored = storedSelections[selectionId] || null;
-    const reusable = !!(
-      projectThreadId
-      && (
-        (stored?.meaning && stored?.threadId === projectThreadId)
-        || (agentContext?.meaning && agentContext?.threadId === projectThreadId)
-      )
-    );
-    return {
-      selectionId,
-      reusable,
-      meaning: reusable ? String(stored?.meaning || agentContext?.meaning || '') : '',
-      location: reusable
-        ? null
-        : buildSourceHandoff(binding, stored),
-    };
-  }).filter(item => item.selectionId || item.location);
-  const locatedIds = new Set(selectionContexts.map(item => item.selectionId).filter(Boolean));
-  const evidenceContexts = (Array.isArray(locatorEvidence?.selections)
-    ? locatorEvidence.selections
-    : []).map(item => {
-    const selectionId = String(item?.selectionId || '');
-    const stored = storedSelections[selectionId] || null;
-    const reusable = !!(
-      selectionId
-      && projectThreadId
-      && stored?.meaning
-      && stored?.threadId === projectThreadId
-    );
-    return {
-      selectionId,
-      reusable,
-      meaning: reusable ? String(stored.meaning) : '',
-      pageEvidence: reusable ? null : {
-        index: item.index,
-        selector: item.selector,
-        tag: item.tag,
-        className: item.className,
-        text: truncate(item.text, 1200),
-        markup: truncate(item.markup, 12000),
-      },
-    };
-  }).filter(item => item.selectionId && !locatedIds.has(item.selectionId));
-  selectionContexts.push(...evidenceContexts);
-
-  const reusableSelections = selectionContexts
-    .filter(item => item.reusable)
-    .map(item => ({ selectionId: item.selectionId, meaning: item.meaning }));
-  const newSelections = selectionContexts
-    .filter(item => !item.reusable)
-    .map(item => {
-      if (item.location) {
-        return { selectionId: item.selectionId, location: item.location };
-      }
-      return { selectionId: item.selectionId, pageEvidence: item.pageEvidence };
-    });
-
-  const hasSelectionContext = selectionContexts.length > 0;
+  const selectionIds = knownSelectionIds(selectionBindings, locatorEvidence);
+  const selectionReferences = selectionReferenceMap(selectionBindings, locatorEvidence);
+  const locatedIds = locatedSelectionIds(selectionBindings);
+  const runtimeEvidence = runtimeSelectionEvidence(locatorEvidence);
+  const stableInstruction = rewriteSelectionAliases(
+    userInstruction,
+    selectionIds,
+    selectionReferences,
+  );
   const sections = [
     '请直接完成以下开发任务。',
     '',
     '需求：',
-    String(userInstruction || '').trim(),
+    stableInstruction,
     `运行地址：${String(pageUrl || '').trim() || '-'}`,
   ];
 
-  if (hasSelectionContext) {
-    if (reusableSelections.length) {
-      sections.push(
-        '',
-        '当前项目 Thread 已理解的选区：',
-        JSON.stringify(reusableSelections, null, 2),
-      );
-    }
-    if (newSelections.length) {
-      sections.push(
-        '',
-        '本次选区已定位的修改位置：',
-        formatLocatedSelections(newSelections),
-      );
-    }
+  if (selectionIds.length) {
     sections.push(
       '',
-      '从上述选区继续完成需求。只有实现当前需求确实缺少事实时才扩大调查范围。',
+      '本轮选区：',
+      selectionIds.map(selectionId => {
+        const lines = [`@${selectionId}`];
+        if (locatedIds.has(selectionId)) {
+          lines.push(`位置文件：\`.gocapture/selections/${selectionId}.json\``);
+        }
+        return lines.join('\n');
+      }).join('\n'),
     );
-  } else {
-    const evidence = compactUnlocatedEvidence(locatorEvidence);
+  }
+  if (locatedIds.size) {
+    sections.push('若当前任务上下文尚未理解某个选区，读取其位置文件；不要在项目外搜索选区 ID。');
+  }
+
+  if (runtimeEvidence.length) {
     sections.push(
       '',
-      '运行时事实（尚未裁决源码归属）：',
-      JSON.stringify(evidence, null, 2),
-      '',
-      '请使用你自身的源码能力定位并修改。上下文命中只是范围线索，不代表最终修改文件。',
+      '以下选区尚未定位。请把这些经过压缩的运行时 DOM 作为首轮定位证据：',
+      JSON.stringify(runtimeEvidence, null, 2),
+      '完成需求时，同时返回每个选区实际对应的源码文件和精确行区间。不要把 DOM、路由或推理过程写入选区文件。',
     );
   }
 
   sections.push(
     '',
     '使用与改动范围匹配的最小验证；不要搜索互联网，除非需求明确要求。',
-    '最终结果中，用一句稳定、与本轮改动无关的业务描述概括每个本次首次提供的选区。',
   );
   return sections.join('\n');
 }
 
-function buildSourceHandoff(binding, stored) {
-  const targets = Array.isArray(binding.targets) && binding.targets.length
-    ? binding.targets
-    : Array.isArray(stored?.source?.targets)
-      ? stored.source.targets
-      : [];
-  const normalizedTargets = targets
-    .map(target => ({
-      file: String(target?.file || ''),
-      role: String(target?.role || 'related'),
-      line: positiveNumber(target?.line),
-      anchor: String(target?.anchor || ''),
-      targetSnippet: String(target?.targetSnippet || ''),
-    }))
-    .filter(target => target.file);
-  if (!normalizedTargets.length) return null;
-
-  // Locator 已把最能承载选区业务对象的精确目标写进 targetSnippet。
-  // 对数据驱动 UI，这可能是 definition/data-source，而通用渲染组件仍保留在关系证据中。
-  const snippetTargetIndex = normalizedTargets.findIndex(target => target.targetSnippet);
-  const primaryIndex = normalizedTargets.findIndex(target => PRIMARY_SOURCE_ROLES.has(target.role));
-  const resolvedPrimaryIndex = snippetTargetIndex >= 0
-    ? snippetTargetIndex
-    : primaryIndex >= 0
-      ? primaryIndex
-      : 0;
-  const primaryTarget = normalizedTargets[resolvedPrimaryIndex];
-  return {
-    file: primaryTarget.file,
-    ...(primaryTarget.line ? { line: primaryTarget.line } : {}),
-    ...(primaryTarget.anchor ? { anchor: primaryTarget.anchor } : {}),
-    ...(primaryTarget.targetSnippet ? { targetSnippet: primaryTarget.targetSnippet } : {}),
-  };
+function selectionReferenceMap(selectionBindings, locatorEvidence) {
+  const entries = [
+    ...(Array.isArray(selectionBindings) ? selectionBindings : []).map(item => ({
+      token: String(item?.token || ''),
+      index: Number(item?.index || 0),
+      selectionId: String(item?.uid || item?.binding?.selectionId || item?.selectionId || ''),
+    })),
+    ...(Array.isArray(locatorEvidence?.selections) ? locatorEvidence.selections : []).map(item => ({
+      token: String(item?.token || ''),
+      index: Number(item?.index || 0),
+      selectionId: String(item?.selectionId || ''),
+    })),
+  ];
+  const references = new Map();
+  for (const entry of entries) {
+    if (!entry.selectionId) continue;
+    if (entry.token) references.set(entry.token, entry.selectionId);
+    if (entry.index > 0) references.set(`@选区${entry.index}`, entry.selectionId);
+  }
+  return references;
 }
 
-function formatLocatedSelections(selections) {
-  return selections.map(item => {
-    const location = item.location || {};
-    const position = `${location.file || '-'}${location.line ? `:${location.line}` : ''}`;
-    return [
-      `@${item.selectionId || 'selection'} → ${position}`,
-      location.anchor ? `目标锚点：${location.anchor}` : '',
-      location.targetSnippet
-        ? `目标源码：\n\`\`\`\n${location.targetSnippet}\n\`\`\``
-        : '',
-    ].filter(Boolean).join('\n');
-  }).join('\n\n');
+function rewriteSelectionAliases(userInstruction, selectionIds, references = new Map()) {
+  const value = String(userInstruction || '').trim();
+  if (!value || !selectionIds.length) return value;
+  const aliases = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
+  if (!aliases.length) return value;
+  const fallbackIds = [...selectionIds];
+  const assigned = new Map();
+  let fallbackIndex = 0;
+  return value.replace(/@(?:\[)?选区(?:(\d+))?(?:\])?/g, match => {
+    const direct = references.get(match);
+    if (direct) return `@${direct}`;
+    if (selectionIds.length === 1) return `@${selectionIds[0]}`;
+    if (!assigned.has(match)) {
+      assigned.set(match, fallbackIds[fallbackIndex] || fallbackIds[fallbackIds.length - 1]);
+      fallbackIndex += 1;
+    }
+    return `@${assigned.get(match)}`;
+  });
 }
 
-function positiveNumber(value) {
-  const number = Number(value || 0);
-  return Number.isFinite(number) && number > 0 ? number : 0;
+function connectAgentInitialInstructions() {
+  return [
+    '选区引用协议：',
+    '1. 用户消息中的 @selection_* 是项目内稳定的选区引用。',
+    '2. `.gocapture/selections/<selectionId>.json` 只保存该选区对应的源码文件和精确位置。',
+    '3. 只读取本轮实际引用的选区文件；同一 Thread 已理解后，不要重复读取，除非证据失效或用户切换选区。',
+    '4. 首轮 Prompt 若附带运行时 DOM，需在完成需求的同时返回原选区对应的精确源码位置。',
+  ].join('\n');
+}
+
+function knownSelectionIds(selectionBindings, locatorEvidence) {
+  const bindingIds = (Array.isArray(selectionBindings) ? selectionBindings : [])
+    .map(item => String(item?.uid || item?.binding?.selectionId || item?.selectionId || ''));
+  const evidenceIds = (Array.isArray(locatorEvidence?.selections)
+    ? locatorEvidence.selections
+    : []).map(item => String(item?.selectionId || ''));
+  return [...new Set([...bindingIds, ...evidenceIds].filter(Boolean))];
+}
+
+function locatedSelectionIds(selectionBindings) {
+  return new Set((Array.isArray(selectionBindings) ? selectionBindings : [])
+    .filter(item => {
+      const binding = item?.binding || item || {};
+      return (Array.isArray(binding.targets) ? binding.targets : [])
+        .some(target => String(target?.file || '').trim() && (
+          Number(target?.startLine || target?.line || 0) > 0
+          || String(target?.anchor || target?.targetSnippet || target?.codeSnippet || '').trim()
+        ));
+    })
+    .map(item => String(item?.uid || item?.binding?.selectionId || item?.selectionId || ''))
+    .filter(Boolean));
 }
 
 function connectAgentOutputSchema(selectionBindings, locatorEvidence) {
@@ -185,26 +142,43 @@ function connectAgentOutputSchema(selectionBindings, locatorEvidence) {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['summary', 'selectionMeanings'],
+    required: ['summary', 'selectionLocations'],
     properties: {
       summary: {
         type: 'string',
         description: '面向用户的简洁开发结果，包括改动和验证。',
       },
-      selectionMeanings: {
+      selectionLocations: {
         type: 'array',
-        description: '选区稳定业务含义。不得描述本轮具体改动。',
+        description: '仅返回本轮尚未定位选区所对应的真实源码位置；已存在位置文件的选区可以省略。',
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['selectionId', 'meaning'],
+          required: ['selectionId', 'locations'],
           properties: {
             selectionId: ids.length
               ? { type: 'string', enum: ids }
               : { type: 'string' },
-            meaning: {
-              type: 'string',
-              description: '例如“经营数据中的店铺统计表格”，不要写“刚新增了 ROI 列”。',
+            locations: {
+              type: 'array',
+              minItems: 1,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['file', 'startLine', 'endLine', 'anchor'],
+                properties: {
+                  file: {
+                    type: 'string',
+                    description: '相对项目根目录的源码文件路径。',
+                  },
+                  startLine: { type: 'integer', minimum: 1 },
+                  endLine: { type: 'integer', minimum: 1 },
+                  anchor: {
+                    type: 'string',
+                    description: '该位置附近可稳定复查的源码锚点。',
+                  },
+                },
+              },
             },
           },
         },
@@ -213,10 +187,23 @@ function connectAgentOutputSchema(selectionBindings, locatorEvidence) {
   };
 }
 
+function runtimeSelectionEvidence(locatorEvidence) {
+  return (Array.isArray(locatorEvidence?.selections) ? locatorEvidence.selections : [])
+    .map(item => ({
+      selectionId: String(item?.selectionId || '').trim(),
+      tag: String(item?.tag || ''),
+      selector: String(item?.selector || ''),
+      text: String(item?.text || item?.directText || '').slice(0, 1200),
+      markup: String(item?.markup || '').slice(0, 8000),
+    }))
+    .filter(item => item.selectionId);
+}
+
 function buildConnectAgentInputLog({
   providerId,
   projectRoot,
   threadId,
+  initialInstructions,
   prompt,
   outputSchema,
 }) {
@@ -229,6 +216,9 @@ function buildConnectAgentInputLog({
   return [
     'Agent 模型输入上下文：',
     JSON.stringify(context, null, 2),
+    ...(String(initialInstructions || '').trim()
+      ? ['', 'Thread 初始化指令:', String(initialInstructions).trim()]
+      : []),
     '',
     'Prompt:',
     String(prompt || ''),
@@ -238,42 +228,14 @@ function buildConnectAgentInputLog({
   ].join('\n');
 }
 
-function compactUnlocatedEvidence(locatorEvidence) {
-  if (!locatorEvidence) return null;
-  return {
-    route: locatorEvidence.route || null,
-    selections: (Array.isArray(locatorEvidence.selections) ? locatorEvidence.selections : []).map(item => ({
-      selectionId: item.selectionId,
-      index: item.index,
-      selector: item.selector,
-      tag: item.tag,
-      className: item.className,
-      text: truncate(item.text, 1200),
-      markup: truncate(item.markup, 12000),
-    })),
-    captured: compactCapturedFacts(locatorEvidence.captured),
-  };
-}
-
-function compactCapturedFacts(captured) {
-  if (!captured) return null;
-  return {
-    componentHints: (Array.isArray(captured.componentHints) ? captured.componentHints : []).slice(0, 8),
-    apiRequests: (Array.isArray(captured.apiRequests) ? captured.apiRequests : []).slice(0, 12),
-    manualEvidence: truncate(captured.manualEvidence, 2000),
-  };
-}
-
-function truncate(value, maxLength) {
-  const text = String(value || '');
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength)}\n...[truncated ${text.length - maxLength} chars]`;
-}
-
 module.exports = {
-  buildSourceHandoff,
   buildConnectAgentInputLog,
   buildConnectAgentTaskPrompt,
+  connectAgentInitialInstructions,
   connectAgentOutputSchema,
-  compactUnlocatedEvidence,
+  knownSelectionIds,
+  locatedSelectionIds,
+  rewriteSelectionAliases,
+  runtimeSelectionEvidence,
+  selectionReferenceMap,
 };

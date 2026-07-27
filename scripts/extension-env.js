@@ -3,19 +3,19 @@ const path = require('path');
 
 const envConfigs = {
   prod: {
-    source: 'https://example.com/chrome-extension-scaffold/',
+    source: 'https://example.com/gocapture/',
     api: 'https://api.example.com/',
     site: 'https://app.example.com/index.html',
     env: 'prod'
   },
   dev: {
-    source: 'https://dev.example.com/chrome-extension-scaffold/',
+    source: 'https://dev.example.com/gocapture/',
     api: 'https://dev-api.example.com/',
     site: 'https://dev-app.example.com/index.html',
     env: 'dev'
   },
   local: {
-    source: 'https://dev.example.com/chrome-extension-scaffold/',
+    source: 'https://dev.example.com/gocapture/',
     api: 'http://localhost:3000/',
     site: 'http://localhost:3000/',
     env: 'local'

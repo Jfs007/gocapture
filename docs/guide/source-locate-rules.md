@@ -1,6 +1,6 @@
 # Source Locate Rules
 
-Magnus source locating must stay evidence-driven. Do not add framework-specific,
+GoCapture source locating must stay evidence-driven. Do not add framework-specific,
 component-library-specific, or scene-specific patches to make one case pass.
 
 ## General Rules

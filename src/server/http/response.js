@@ -1,6 +1,6 @@
 'use strict';
 
-const ACCESS_CONTROL_ALLOW_HEADERS = 'content-type,x-magnus-internal';
+const ACCESS_CONTROL_ALLOW_HEADERS = 'content-type,x-gocapture-internal';
 
 function sendJson(res, status, payload) {
   const text = JSON.stringify(payload, null, 2);

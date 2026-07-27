@@ -45,7 +45,7 @@ function sendReleasePage(res) {
   <section>
     <h2>打包</h2>
     <div class="grid">
-      <label>包名 <input id="packageName" type="text" value="@sep-agent/magnus"></label>
+      <label>包名 <input id="packageName" type="text" value="${productBrand.packageName}"></label>
       <label>版本（留空自动递增 patch） <input id="version" type="text" placeholder="例如 1.2.0"></label>
       <label>插件 Source Server URL <input id="sourceServerUrl" type="text" value="http://127.0.0.1:17321"></label>
     </div>

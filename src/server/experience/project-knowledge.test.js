@@ -13,7 +13,7 @@ const {
 } = require('./project-knowledge');
 
 function fixtureProject(files, stack = []) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-project-knowledge-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-project-knowledge-'));
   const projectFiles = [];
   for (const [file, content] of Object.entries(files)) {
     const fullPath = path.join(root, file);

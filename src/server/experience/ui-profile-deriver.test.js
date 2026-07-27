@@ -9,7 +9,7 @@ const test = require('node:test');
 const { deriveUiProfiles, uiCandidates, normalizeProfile } = require('./ui-profile-deriver');
 
 function fixtureProject(pkg) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-ui-deriver-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-ui-deriver-'));
   if (pkg) fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(pkg));
   return { name: 'fixture', path: root, files: [] };
 }

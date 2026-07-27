@@ -7,14 +7,14 @@ const path = require('path');
 const test = require('node:test');
 
 function loadRegistryWithHome(home) {
-  process.env.MAGNUS_HOME = home;
+  process.env.GOCAPTURE_HOME = home;
   const file = require.resolve('./page-registry');
   delete require.cache[file];
   return require('./page-registry');
 }
 
-test('page registry stores url entry to project binding under user magnus home', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-registry-'));
+test('page registry stores url entry to project binding under user gocapture home', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-registry-'));
   const registry = loadRegistryWithHome(home);
   registry.bindPageProject({
     url: 'https://winsup.itaored.com/ai-product/quick-put-goods?debug=1',
@@ -31,7 +31,7 @@ test('page registry stores url entry to project binding under user magnus home',
 });
 
 test('page registry resolves longest matching url pattern', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-registry-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-registry-'));
   const registry = loadRegistryWithHome(home);
   registry.bindPageProject({
     urlPattern: 'https://example.com/',
@@ -50,7 +50,7 @@ test('page registry resolves longest matching url pattern', () => {
 });
 
 test('page registry keeps localhost ports isolated', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-registry-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-registry-'));
   const registry = loadRegistryWithHome(home);
   registry.bindPageProject({
     url: 'http://localhost:9002/',

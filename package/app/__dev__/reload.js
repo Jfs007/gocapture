@@ -1,5 +1,5 @@
 (function () {
-    var KEY = "__MAGNUS_APP_DEV_RELOAD__";
+    var KEY = "__GOCAPTURE_APP_DEV_RELOAD__";
     var state = window[KEY] || {};
     state.generation = (state.generation || 0) + 1;
     state.poll = state.poll || 1000;
@@ -72,9 +72,9 @@
                 state.lastVersion = version;
                 if (mdWeb && typeof mdWeb.cmd === "function") {
                     state.reloading = true;
-                    dispatch("magnus-app:before-reload", { version: version });
+                    dispatch("gocapture-app:before-reload", { version: version });
                     await mdWeb.cmd({ cmd: "start", isDevConfig: 1 });
-                    dispatch("magnus-app:after-reload", { version: version });
+                    dispatch("gocapture-app:after-reload", { version: version });
                 }
             }
         } catch (error) {

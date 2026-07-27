@@ -25,7 +25,7 @@ function execFileResult(command, args, options = {}) {
 }
 
 async function resolveCodexExecutable() {
-  const configured = String(process.env.MAGNUS_CODEX_PATH || '').trim();
+  const configured = String(process.env.GOCAPTURE_CODEX_PATH || '').trim();
   if (configured) {
     const probe = await execFileResult(configured, ['--version']);
     if (probe.ok) return { executable: configured, versionOutput: probe.stdout || probe.stderr };

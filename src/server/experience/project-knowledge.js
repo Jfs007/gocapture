@@ -3,14 +3,14 @@
 const fs = require('fs');
 const path = require('path');
 
-// 结构化项目知识，写入 .magnus/project-knowledge.json，供 consult_project_knowledge 消费。
+// 结构化项目知识，写入 .gocapture/project-knowledge.json，供 consult_project_knowledge 消费。
 // - frameworks:          扫描 project.stack 的框架标签
 // - frameworkProfiles:   由 context7 派生并烘焙的 UI 库渲染签名（class 前缀 + DOM 签名→源码写法）
 // - customClassPrefixes: 本地扫描测得的高频自定义 class 前缀（如 dc-）
 // - businessDirs:        业务/视图目录
 // 无自由文本；UI 库知识来自 ui-profile-deriver（context7），不再有写死的 framework-profiles。
 
-const EXPERIENCE_DIR = '.magnus';
+const EXPERIENCE_DIR = '.gocapture';
 const PROJECT_KNOWLEDGE_FILE = 'project-knowledge.json';
 const KNOWLEDGE_VERSION = 2;
 

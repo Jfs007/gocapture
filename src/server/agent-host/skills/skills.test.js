@@ -9,9 +9,9 @@ const path = require('path');
 const { registerConfiguredSkillProviders } = require('./bootstrap');
 const { listAgentTools, listAgentToolProviders, executeAgentTool } = require('../tools/registry');
 
-test('Skills 闭环：.magnus/skills/*/SKILL.md → 登记 → skill__<name> 可见 → 调用返回指令', async () => {
-  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-skill-'));
-  const skillDir = path.join(projectDir, '.magnus', 'skills', 'pr-review');
+test('Skills 闭环：.gocapture/skills/*/SKILL.md → 登记 → skill__<name> 可见 → 调用返回指令', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-skill-'));
+  const skillDir = path.join(projectDir, '.gocapture', 'skills', 'pr-review');
   fs.mkdirSync(skillDir, { recursive: true });
   fs.writeFileSync(path.join(skillDir, 'SKILL.md'), [
     '---',
@@ -40,7 +40,7 @@ test('Skills 闭环：.magnus/skills/*/SKILL.md → 登记 → skill__<name> 可
   assert.deepEqual(output.result.allowedTools, ['read_file', 'search_text']);
 
   // 换到没有 skills 的项目 → provider 被注销
-  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-skill-empty-'));
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-skill-empty-'));
   registerConfiguredSkillProviders(empty, {});
   assert.ok(!listAgentToolProviders().some(p => p.id === 'builtin.skills'), '无 skill 的项目应注销 builtin.skills');
 });

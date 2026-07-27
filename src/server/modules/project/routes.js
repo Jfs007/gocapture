@@ -21,7 +21,7 @@ async function handleProjectRoutes({
   if (req.method === 'GET' && url.pathname === '/health') {
     sendJson(res, 200, {
       success: true,
-      name: 'magnus-source-server',
+      name: 'gocapture-source-server',
       version: VERSION,
       currentProject: projectContext.summary(),
     });

@@ -37,10 +37,10 @@ npm run app:build -- \
 }
 ```
 
-当前元素审查工具的源码在：
+GoCapture Side Panel 的源码在：
 
 ```txt
-vue/src/sites/magnus/
+vue/src/sites/gocapture/
   main.js
   App.vue
   style.css
@@ -83,7 +83,7 @@ mdChrome.web.cmd({ cmd: 'start', isDevConfig: 1 })
 如果 Vue app 需要避免重复挂载，可以监听重新注入前事件：
 
 ```js
-window.addEventListener('magnus-app:before-reload', () => {
+window.addEventListener('gocapture-app:before-reload', () => {
   window.__STH_APP__ && window.__STH_APP__.unmount()
 })
 ```

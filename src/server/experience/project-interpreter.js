@@ -29,7 +29,7 @@ const projectDiscoverySchema = z.object({
   })),
   businessFeatureDirs: z.array(z.string()),
   uncertainty: z.array(z.string()),
-}).meta({ title: 'magnus_project_discovery', description: 'Submit inferred project facts and local verification searches.' });
+}).meta({ title: 'gocapture_project_discovery', description: 'Submit inferred project facts and local verification searches.' });
 
 function appendLog(logs, text) {
   if (!Array.isArray(logs) || !text) return;
@@ -262,7 +262,7 @@ async function interpretProject(project, rawAdapter, options = {}) {
     .map(item => String(item || '').trim().replace(/^src\//, '').replace(/\/+$/, ''))
     .filter(Boolean);
   const structure = ensureStructureDoc(project, businessFeatureDirs);
-  appendLog(logs, `Structure.md：复用骨架已生成（业务功能目录=${businessFeatureDirs.join('、') || '无'}）；${structure.writable ? '已写入 .magnus/Structure.md' : '仅内存（目录不可写）'}`);
+  appendLog(logs, `Structure.md：复用骨架已生成（业务功能目录=${businessFeatureDirs.join('、') || '无'}）；${structure.writable ? '已写入 .gocapture/Structure.md' : '仅内存（目录不可写）'}`);
   const verification = searchVerification(project, discovery.verificationSearches);
   appendLog(logs, `Project Interpreter 本地验证：执行 ${verification.length} 组检索`);
   const finalPrompt = buildFinalPrompt(project, discovery, verification);

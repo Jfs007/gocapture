@@ -5,8 +5,8 @@ const http = require('http');
 const { buildRelease, publishRelease, sendReleasePage } = require('./release/release-service');
 const { loadProductBrand } = require('./product-brand');
 
-const HOST = process.env.MAGNUS_RELEASE_HOST || '127.0.0.1';
-const PORT = Number(process.env.MAGNUS_RELEASE_PORT || 17332);
+const HOST = process.env.GOCAPTURE_RELEASE_HOST || '127.0.0.1';
+const PORT = Number(process.env.GOCAPTURE_RELEASE_PORT || 17332);
 const productBrand = loadProductBrand();
 
 function sendJson(res, status, payload) {

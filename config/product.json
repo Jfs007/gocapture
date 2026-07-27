@@ -1,5 +1,6 @@
 {
+  "id": "gocapture",
   "displayName": "GoCapture",
-  "legacyName": "Magnus",
-  "cliCommand": "magnus"
+  "packageName": "@sep-agent/gocapture",
+  "cliCommand": "gocapture"
 }

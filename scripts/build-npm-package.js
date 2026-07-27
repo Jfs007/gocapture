@@ -22,13 +22,13 @@ function hasFlag(flag) {
 }
 
 const outDir = path.resolve(argValue('--out') || defaultOutDir);
-const packageName = argValue('--name') || process.env.MAGNUS_PACKAGE_NAME || rootPackage.name || '@sep-agent/magnus';
+const packageName = argValue('--name') || process.env.GOCAPTURE_PACKAGE_NAME || productBrand.packageName;
 const skipAppBuild = hasFlag('--skip-app-build');
 const skipVersionBump = hasFlag('--skip-version-bump');
 const sourceServerUrl = normalizeSourceServerUrl(
   argValue('--source-server-url') ||
-  process.env.MAGNUS_EXTENSION_SOURCE_URL ||
-  process.env.MAGNUS_SOURCE_SERVER_URL ||
+  process.env.GOCAPTURE_EXTENSION_SOURCE_URL ||
+  process.env.GOCAPTURE_SOURCE_SERVER_URL ||
   'http://127.0.0.1:17321'
 );
 
@@ -125,12 +125,12 @@ function resolveReleaseVersion() {
 
 function assertRequiredFiles() {
   const required = [
-    'bin/magnus.js',
+    `bin/${productBrand.cliCommand}.js`,
     'scripts/source-server.js',
     'src/server/server.js',
     'package/manifest.json',
     'package/sidepanel.html',
-    'package/app/magnus/index.js',
+    `package/app/${productBrand.id}/index.js`,
   ];
   for (const rel of required) {
     const filePath = path.join(rootDir, rel);
@@ -146,14 +146,14 @@ function releasePackageJson(packageVersion) {
     version: packageVersion,
     description: `${productBrand.displayName} local source server, side panel UI, and Chrome extension shell.`,
     bin: {
-      magnus: 'bin/magnus.js',
+      [productBrand.cliCommand]: `bin/${productBrand.cliCommand}.js`,
     },
     engines: {
       node: '>=20.18.1',
     },
     dependencies: { ...rootPackage.dependencies },
     keywords: [
-      'magnus',
+      productBrand.id,
       'chrome-extension',
       'source-code',
       'local-agent',
@@ -167,7 +167,7 @@ function releaseReadme() {
 
 ${productBrand.displayName} 本地服务发布包，包含：
 
-- \`magnus\` CLI
+- \`${productBrand.cliCommand}\` CLI
 - 本地 \`source-server\`
 - Side Panel UI 静态资源
 - Chrome 插件目录
@@ -176,13 +176,13 @@ ${productBrand.displayName} 本地服务发布包，包含：
 
 \`\`\`bash
 npm install -g ${packageName}
-magnus install
+${productBrand.cliCommand} install
 \`\`\`
 
 ## 安装 Chrome 插件
 
 \`\`\`bash
-magnus chrome
+${productBrand.cliCommand} chrome
 \`\`\`
 
 该命令会打开随 npm 包携带的 Chrome 插件目录。随后在 Chrome 打开 \`chrome://extensions\`，开启开发者模式，选择“加载已解压的扩展程序”，选择命令输出的目录。
@@ -203,11 +203,11 @@ function configureReleaseChromePackage(packageDir) {
   const serviceWorkerPath = path.join(packageDir, 'js', 'service-worker.js');
   const serviceWorker = fs.readFileSync(serviceWorkerPath, 'utf8');
   const nextServiceWorker = serviceWorker.replace(
-    /const MAGNUS_SOURCE_SERVER_URL = ['"][^'"]+['"];/,
-    `const MAGNUS_SOURCE_SERVER_URL = ${JSON.stringify(sourceServerOrigin(sourceServerUrl))};`
+    /const GOCAPTURE_SOURCE_SERVER_URL = ['"][^'"]+['"];/,
+    `const GOCAPTURE_SOURCE_SERVER_URL = ${JSON.stringify(sourceServerOrigin(sourceServerUrl))};`
   );
   if (nextServiceWorker === serviceWorker) {
-    throw new Error('Unable to patch MAGNUS_SOURCE_SERVER_URL in package/js/service-worker.js');
+    throw new Error('Unable to patch GOCAPTURE_SOURCE_SERVER_URL in package/js/service-worker.js');
   }
   fs.writeFileSync(serviceWorkerPath, nextServiceWorker, 'utf8');
 }
@@ -221,9 +221,9 @@ function main() {
       '--project',
       'vue',
       '--name',
-      'magnus',
+      productBrand.id,
       '--entry',
-      'src/sites/magnus/main.ts',
+      `src/sites/${productBrand.id}/main.ts`,
       '--no-minify',
     ]);
   }

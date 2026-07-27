@@ -9,7 +9,7 @@ const test = require('node:test');
 const { executeAgentTool, listAgentTools } = require('./registry');
 
 function fixtureProject(files, stack = []) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-knowledge-tools-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-knowledge-tools-'));
   const projectFiles = [];
   for (const [file, content] of Object.entries(files)) {
     const fullPath = path.join(root, file);
@@ -22,8 +22,8 @@ function fixtureProject(files, stack = []) {
 
 // 模拟扫描/解释阶段烘焙好的结构化知识（含 context7 派生的 frameworkProfiles）。
 function writeKnowledge(project, knowledge) {
-  fs.mkdirSync(path.join(project.path, '.magnus'), { recursive: true });
-  fs.writeFileSync(path.join(project.path, '.magnus', 'project-knowledge.json'), JSON.stringify(knowledge));
+  fs.mkdirSync(path.join(project.path, '.gocapture'), { recursive: true });
+  fs.writeFileSync(path.join(project.path, '.gocapture', 'project-knowledge.json'), JSON.stringify(knowledge));
 }
 
 async function consult(project, input) {

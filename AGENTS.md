@@ -1,4 +1,4 @@
-# Codex 项目规范：Magnus 本地工具边界
+# Codex 项目规范：GoCapture 本地工具边界
 
 ## 开发前强制阅读
 
@@ -18,7 +18,7 @@ Codex 在本项目中进行任何代码修改前，必须先阅读本文件。
 
 ## 最高原则
 
-在 Magnus 项目中，Codex 不得让本地工具承担框架理解职责。
+在 GoCapture 项目中，Codex 不得让本地工具承担框架理解职责。
 
 本地工具只负责收集事实、执行检索、裁剪证据、过滤明显无效命中、减少 LLM 输入压力。
 
@@ -26,7 +26,7 @@ Codex 在本项目中进行任何代码修改前，必须先阅读本文件。
 
 ## 禁止事项
 
-Codex 修改 Magnus 时，禁止写入以下类型的本地规则：
+Codex 修改 GoCapture 时，禁止写入以下类型的本地规则：
 
 1. 禁止用固定正则判断某种框架语法是否代表渲染文件。
 2. 禁止写死 Vue、React、Naive UI、Element、iView、JSX、template、setup、render、h、createElement 等框架规则。

@@ -1,6 +1,6 @@
 'use strict';
 
-// 项目公共件的「经验档案」——每个公共件一个目录 .magnus/experience/<slug>/，内含三个各司其职的文件：
+// 项目公共件的「经验档案」——每个公共件一个目录 .gocapture/experience/<slug>/，内含三个各司其职的文件：
 //   · doc.md        —— 操作文档：真实调用点片段（进 change-plan 上下文）。
 //   · meta.json     —— meta 头：role / keywords / componentPath / files（供「清单」查找与路由）。
 //   · evidence.json —— 使用案例业务文件路径：证明它确实被复用、也用于下次验证经验是否仍成立。

@@ -207,7 +207,7 @@ function findEntry(projectDir, entry) {
 
 function makeGlobalName(appName) {
   const safe = appName.replace(/[^a-zA-Z0-9_$]/g, '_');
-  return `MagnusApp_${/^[0-9]/.test(safe) ? '_' : ''}${safe}`;
+  return `GoCaptureApp_${/^[0-9]/.test(safe) ? '_' : ''}${safe}`;
 }
 
 function getRequire(projectDir) {
@@ -532,7 +532,7 @@ function syncOutput(outDir, targetDir, dryRun) {
 
 function createSyncPlugin(context) {
   return {
-    name: 'magnus-app-sync',
+    name: 'gocapture-app-sync',
     apply: 'build',
     closeBundle() {
       const output = syncOutput(context.outDir, context.targetDir, context.dryRun);
@@ -604,7 +604,7 @@ async function main() {
   const dryRun = !!opts.dryRun;
   const nodeEnv = mode === 'production' ? 'production' : 'development';
   const productBrand = syncExtensionBrand(path.join(rootDir, 'package'));
-  const outDir = path.join(os.tmpdir(), `magnus-app-build-${process.pid}-${appName.replace(/\//g, '-')}`);
+  const outDir = path.join(os.tmpdir(), `${productBrand.id}-app-build-${process.pid}-${appName.replace(/\//g, '-')}`);
   const targetDir = path.join(packageAppDir, ...appName.split('/'));
 
   const vite = await loadVite(projectDir);
@@ -634,7 +634,7 @@ async function main() {
     appType: 'custom',
     define: {
       'process.env.NODE_ENV': JSON.stringify(nodeEnv),
-      __MAGNUS_BUILD_VERSION__: JSON.stringify(makeVersion()),
+      __GOCAPTURE_BUILD_VERSION__: JSON.stringify(makeVersion()),
       __PRODUCT_DISPLAY_NAME__: JSON.stringify(productBrand.displayName),
       __PRODUCT_CLI_COMMAND__: JSON.stringify(productBrand.cliCommand),
     },

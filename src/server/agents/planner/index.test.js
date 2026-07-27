@@ -218,7 +218,7 @@ test('Planning Agent can finish directly without invoking Recon or source tools'
   // 单一改动落点（1 个已定位文件）→ 跳过拆解，只需回一个最终计划。
   const model = fakeModel().respondWithTools([{
     id: 'final_plan',
-    name: 'magnus_change_plan',
+    name: 'gocapture_change_plan',
     args: structuredArgs(),
   }]);
   const logs = [];
@@ -252,17 +252,17 @@ test('Planning Agent runs the decompose node when there are multiple located fil
   write(root, 'src/router/dc.ts', 'export default [{ children: [] }]');
   write(root, 'src/layout/menu.vue', '<template><n-menu /></template>');
   const project = scanProject(root);
-  // FIFO：≥2 个已定位文件 → 先跑拆解(magnus_plan_decomposition)，再回最终计划(magnus_change_plan)。
+  // FIFO：≥2 个已定位文件 → 先跑拆解(gocapture_plan_decomposition)，再回最终计划(gocapture_change_plan)。
   const model = fakeModel()
     .respondWithTools([{
       id: 'decomp',
-      name: 'magnus_plan_decomposition',
+      name: 'gocapture_plan_decomposition',
       args: {
         subtasks: [{ summary: '在定义里加一项', likelyFile: 'src/router/dc.ts', needsNewImpl: false }],
         fileRoles: [{ file: 'src/router/dc.ts', whatItDoes: '菜单定义', howToExtend: 'children 加一条' }],
       },
     }])
-    .respondWithTools([{ id: 'final_plan', name: 'magnus_change_plan', args: structuredArgs() }]);
+    .respondWithTools([{ id: 'final_plan', name: 'gocapture_change_plan', args: structuredArgs() }]);
   const logs = [];
   const result = await runPlanningAgent(project, {
     langchainModel: model,

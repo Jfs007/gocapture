@@ -7,13 +7,17 @@ const { appendProjectMessage } = require('./message-store');
 const {
   buildConnectAgentInputLog,
   buildConnectAgentTaskPrompt,
+  connectAgentInitialInstructions,
   connectAgentOutputSchema,
 } = require('./task-prompt');
+const {
+  persistLocatedSelectionReferences,
+  updateProjectSelectionLocations,
+} = require('./selection-reference-store');
 const {
   clearProjectAgentSession,
   loadProjectAgentSession,
   saveProjectAgentSession,
-  saveProjectSelectionContexts,
 } = require('./project-session-store');
 
 function createConnectAgentService() {
@@ -41,6 +45,31 @@ function createConnectAgentService() {
     projectSession(providerId, project) {
       return loadProjectAgentSession(project, providerId);
     },
+    async listBindableThreads(providerId, project) {
+      const provider = requireProvider(providerId);
+      if (typeof provider.listBindableThreads !== 'function') {
+        return { project: [], recent: [], projectlessStateAvailable: false };
+      }
+      return provider.listBindableThreads({ cwd: project.path });
+    },
+    async bindProjectThread(providerId, project, threadId) {
+      const provider = requireProvider(providerId);
+      if (typeof provider.readThread !== 'function') {
+        throw new Error(`${provider.status().name} 不支持绑定已有任务`);
+      }
+      const available = await provider.listBindableThreads({ cwd: project.path });
+      const candidates = [...available.project, ...available.recent];
+      const selected = candidates.find(thread => thread.id === String(threadId || '').trim());
+      if (!selected) throw new Error('该 Codex 任务不属于当前项目或“最近”列表');
+      await provider.readThread(selected.id);
+      return saveProjectAgentSession(project, providerId, {
+        threadId: selected.id,
+        threadName: selected.name || selected.preview,
+        source: available.project.some(thread => thread.id === selected.id)
+          ? 'project'
+          : 'recent',
+      });
+    },
     async connect(providerId, options = {}) {
       return requireProvider(providerId).connect(options);
     },
@@ -54,6 +83,9 @@ function createConnectAgentService() {
       const storedSession = input.newThread
         ? null
         : loadProjectAgentSession(input.project, providerId);
+      if (providerId === 'codex' && !storedSession?.threadId) {
+        throw new Error('当前项目尚未绑定 Codex 任务，请先选择项目任务或“最近”中的任务。');
+      }
       const persistMessage = message => {
         try {
           return appendProjectMessage(input.project, providerId, {
@@ -109,10 +141,19 @@ function createConnectAgentService() {
         },
       });
       emitTimelineMessage(userMessage);
+      const stagedSelectionIds = persistLocatedSelectionReferences(input.project, input);
       const prompt = buildConnectAgentTaskPrompt({
         ...input,
-        projectSession: storedSession,
       });
+      const initialInstructions = connectAgentInitialInstructions();
+      if (stagedSelectionIds.length) {
+        emitProviderEvent({
+          type: 'selection-references-staged',
+          message: `选区位置已写入：${stagedSelectionIds
+            .map(selectionId => `.gocapture/selections/${selectionId}.json`)
+            .join('、')}`,
+        });
+      }
       const outputSchema = connectAgentOutputSchema(
         input.selectionBindings,
         input.locatorEvidence,
@@ -125,6 +166,7 @@ function createConnectAgentService() {
           projectRoot: input.project.path,
           threadId: storedSession?.threadId || '',
           prompt,
+          initialInstructions: storedSession?.threadId ? '' : initialInstructions,
           outputSchema,
         }),
         status: 'prepared',
@@ -156,6 +198,7 @@ function createConnectAgentService() {
           taskId,
           cwd: input.project.path,
           prompt,
+          initialInstructions,
           outputSchema,
           threadId: storedSession?.threadId || '',
           onThread: persistThread,
@@ -177,19 +220,17 @@ function createConnectAgentService() {
         emitTimelineMessage(errorMessage);
         throw error;
       }
-      if (Array.isArray(result?.selectionMeanings) && result.selectionMeanings.length) {
+      if (Array.isArray(result?.selectionLocations) && result.selectionLocations.length) {
         try {
-          saveProjectSelectionContexts(input.project, providerId, {
-            threadId: result.threadId,
-            meanings: result.selectionMeanings,
-            selectionBindings: input.selectionBindings,
-            locatorEvidence: input.locatorEvidence,
-            changedFiles: result.changedFiles,
-          });
+          updateProjectSelectionLocations(
+            input.project,
+            result.selectionLocations,
+            input.selectionThumbnails,
+          );
         } catch (error) {
           emitProviderEvent({
             type: 'selection-context-persist-failed',
-            message: `Agent 选区上下文保存失败：${error.message || error}`,
+            message: `Agent 选区位置保存失败：${error.message || error}`,
           });
         }
       }
@@ -202,7 +243,7 @@ function createConnectAgentService() {
         status: result?.status || 'completed',
         metadata: {
           changedFiles: result?.changedFiles || [],
-          selectionMeanings: result?.selectionMeanings || [],
+          selectionLocations: result?.selectionLocations || [],
         },
       });
       emitTimelineMessage(resultMessage);

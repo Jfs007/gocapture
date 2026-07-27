@@ -6,7 +6,7 @@ const { createResourceProvider } = require('./provider');
 
 const RESOURCE_DEFINITIONS = [
   {
-    uri: 'magnus://project/context',
+    uri: 'gocapture://project/context',
     name: 'Project.md',
     description: 'Interpreted project overview, technical stack, UI framework hints, and saved experiences.',
     mimeType: 'text/markdown',
@@ -14,7 +14,7 @@ const RESOURCE_DEFINITIONS = [
     readable: true,
   },
   {
-    uri: 'magnus://project/files',
+    uri: 'gocapture://project/files',
     name: 'Project Files',
     description: 'Indexed source file inventory for the currently bound project.',
     mimeType: 'application/json',
@@ -34,14 +34,14 @@ function listProjectResources(project) {
 function readProjectResource(project, uri) {
   const value = String(uri || '');
   if (!project?.path) throw new Error('No project selected.');
-  if (value === 'magnus://project/context') {
+  if (value === 'gocapture://project/context') {
     return {
       uri: value,
       mimeType: 'text/markdown',
       content: safeRead(path.join(experienceRoot(project), 'Project.md')),
     };
   }
-  if (value === 'magnus://project/files') {
+  if (value === 'gocapture://project/files') {
     return {
       uri: value,
       mimeType: 'application/json',

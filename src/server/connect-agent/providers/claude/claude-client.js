@@ -1,5 +1,7 @@
 'use strict';
 
+const { applyStructuredTaskResult } = require('../../structured-task-result');
+
 // Claude Code 连接 provider，对齐 CodexAppServerClient 的对外接口
 // （inspect / connect / disconnect / close / status / runTask），前端可一视同仁。
 // 机制差异：Claude Code 每个任务 headless 跑一次 `claude -p --output-format stream-json`，
@@ -34,8 +36,8 @@ class ClaudeCodeClient {
     this.inspectCli = options.inspectCli || inspectClaudeCli;
     this.spawnTask = options.spawnTask || spawnClaudeTask;
     this.spawnProbe = options.spawnProbe || spawnClaudeProbe;
-    this.permissionMode = options.permissionMode || process.env.MAGNUS_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
-    this.model = options.model || process.env.MAGNUS_CLAUDE_MODEL || '';
+    this.permissionMode = options.permissionMode || process.env.GOCAPTURE_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
+    this.model = options.model || process.env.GOCAPTURE_CLAUDE_MODEL || '';
     this.tasks = new Map();   // taskId -> { child, task }
     this.sessions = new Map(); // cwd -> sessionId（跨任务续接上下文）
     this.state = 'disconnected';
@@ -147,6 +149,8 @@ class ClaudeCodeClient {
       authConfigured: !!this.auth.mode,
       supportsProxy: true,
       proxy: this.auth.proxy || '', // 非密钥，回传供前端预填
+      supportsThreadBinding: false,
+      requiresThreadBinding: false,
     };
   }
 
@@ -180,6 +184,7 @@ class ClaudeCodeClient {
       startedAt: Date.now(),
       finishedAt: 0,
       finalResponse: '',
+      selectionLocations: [],
       changedFiles: new Set(),
       error: '',
     };
@@ -365,27 +370,14 @@ function publicTask(task) {
     startedAt: task.startedAt,
     finishedAt: task.finishedAt,
     finalResponse: task.finalResponse,
-    selectionMeanings: task.selectionMeanings || [],
+    selectionLocations: task.selectionLocations || [],
     changedFiles: [...task.changedFiles],
     error: task.error || '',
   };
 }
 
 function normalizeStructuredTaskResult(task) {
-  const text = String(task.finalResponse || '').trim();
-  if (!text) return;
-  try {
-    const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed !== 'object') return;
-    task.finalResponse = String(parsed.summary || text);
-    task.selectionMeanings = (Array.isArray(parsed.selectionMeanings) ? parsed.selectionMeanings : [])
-      .map(item => ({
-        selectionId: String(item?.selectionId || '').trim(),
-        meaning: String(item?.meaning || '').trim(),
-      }))
-      .filter(item => item.selectionId && item.meaning);
-  } catch (error) {
-  }
+  applyStructuredTaskResult(task);
 }
 
 function taskError(task, error) {

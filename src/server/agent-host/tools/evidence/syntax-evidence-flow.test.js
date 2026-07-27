@@ -14,7 +14,7 @@ const {
 } = require('./syntax-evidence-flow');
 
 function projectFixture(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-syntax-flow-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-syntax-flow-'));
   for (const [file, content] of Object.entries(files)) {
     const target = path.join(root, file);
     fs.mkdirSync(path.dirname(target), { recursive: true });

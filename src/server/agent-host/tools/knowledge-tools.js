@@ -5,7 +5,7 @@ const { buildTool } = require('./tool');
 const { readProjectKnowledge } = require('../../experience/project-knowledge');
 
 // consult_project_knowledge：返回“定向线索”，不含写死的 UI 库表。
-// UI 库的 class 前缀/签名映射来自 .magnus/project-knowledge.json 里烘焙的 frameworkProfiles
+// UI 库的 class 前缀/签名映射来自 .gocapture/project-knowledge.json 里烘焙的 frameworkProfiles
 // （扫描时经 context7 派生，对任意库、对版本）；自定义前缀/业务目录同样来自该结构化文件。
 // 读不到文件/为空时安全退化（框架 unknown，但 anchor 规划仍可用）。
 // anchor 规划纯从输入 DOM 信号计算；Experience 线索留可插拔接缝。
@@ -154,7 +154,7 @@ function consultProjectKnowledge(project, input = {}) {
   ];
 
   const notes = [];
-  if (!knowledgeFilePresent) notes.push('未读取到 .magnus/project-knowledge.json；自定义前缀/业务目录走启发式回退（可能有误报），无 UI 签名。');
+  if (!knowledgeFilePresent) notes.push('未读取到 .gocapture/project-knowledge.json；自定义前缀/业务目录走启发式回退（可能有误报），无 UI 签名。');
   if (knowledgeFilePresent && !profilesPresent) notes.push('project-knowledge.json 无 frameworkProfiles（context7 未派生到或不可用）；框架签名/前缀 skip 缺失，仅提供通用 anchor 规划。');
   if (!experience.available) notes.push('当前无可用的动态 Experience 数据源，experienceLeads 为空。');
 

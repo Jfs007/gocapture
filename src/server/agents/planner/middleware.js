@@ -27,7 +27,7 @@ function createPlanningContextMiddleware() {
 const PLANNING_EXPERIENCE_TOOLS = new Set(['recon_inspect', 'recon_search']);
 // responseFormat(toolStrategy) 的合成"交计划"工具名 = plan.js schema 的 meta.title。
 // 它是 planning 的收尾机制，绝不能被门控隐藏或被收尾清掉，否则模型无法输出计划。
-const STRUCTURED_OUTPUT_TOOL = 'magnus_change_plan';
+const STRUCTURED_OUTPUT_TOOL = 'gocapture_change_plan';
 
 // "研究/广度"类工具：找相似实现、跨文件检索、项目知识。默认(local)关闭，避免琐碎改动过度研究；
 // 仅当需求明确需要跨文件一致性(project-wide)时才放开。读取已定位文件的精确工具(read_file/

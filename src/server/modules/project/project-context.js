@@ -7,7 +7,7 @@ const { registerConfiguredMcpProviders } = require('../../agent-host/mcp/bootstr
 const { registerConfiguredSkillProviders } = require('../../agent-host/skills/bootstrap');
 
 // 绑定项目后只登记本地 Skills，并记录该项目可用的 MCP 配置。
-// MCP server 不再注册成 Magnus provider；每轮 LangChain Agent 运行时按当前项目加载 MCP tools。
+// MCP server 不再注册成 GoCapture provider；每轮 LangChain Agent 运行时按当前项目加载 MCP tools。
 function registerProjectCapabilities(project, onLog) {
   if (!project || !project.path) return Promise.resolve([]);
   const log = typeof onLog === 'function' ? onLog : message => console.log(`[agent-host] ${message}`);

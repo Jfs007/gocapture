@@ -38,7 +38,7 @@ function handle(line) {
 `;
 
 function makeMockProject() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'magnus-mcp-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-mcp-'));
   const serverPath = path.join(dir, 'mock-server.js');
   fs.writeFileSync(serverPath, MOCK_SERVER);
   fs.writeFileSync(path.join(dir, '.mcp.json'), JSON.stringify({
@@ -47,7 +47,7 @@ function makeMockProject() {
   return dir;
 }
 
-test('MCP 配置登记只更新状态，不注册成 Magnus provider', async () => {
+test('MCP 配置登记只更新状态，不注册成 GoCapture provider', async () => {
   const projectDir = makeMockProject();
   const registered = await registerConfiguredMcpProviders(projectDir, {});
   assert.equal(registered.length, 1);

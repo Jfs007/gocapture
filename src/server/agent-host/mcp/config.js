@@ -2,7 +2,7 @@
 
 // MCP 配置加载：对齐 Claude 的 .mcp.json 格式。
 //   { "mcpServers": { "<name>": { "command","args","env","cwd" } | { "url","type","headers" } } }
-// 合并「用户级 ~/.magnus/mcp.json」+「项目级 <projectPath>/.mcp.json」，项目覆盖用户。
+// 合并「用户级 ~/.gocapture/mcp.json」+「项目级 <projectPath>/.mcp.json」，项目覆盖用户。
 
 const fs = require('fs');
 const os = require('os');
@@ -18,7 +18,7 @@ function readMcpServers(file) {
 }
 
 function userConfigPath() {
-  return path.join(os.homedir(), '.magnus', 'mcp.json');
+  return path.join(os.homedir(), '.gocapture', 'mcp.json');
 }
 
 function normalizeServer(name, raw) {
