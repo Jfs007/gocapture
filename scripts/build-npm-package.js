@@ -151,6 +151,9 @@ function releasePackageJson(packageVersion) {
     engines: {
       node: '>=20.18.1',
     },
+    publishConfig: {
+      access: 'public',
+    },
     dependencies: { ...rootPackage.dependencies },
     keywords: [
       productBrand.id,
@@ -247,7 +250,7 @@ function main() {
   console.log(`Chrome extension source server: ${sourceServerUrl}`);
   console.log('Publish from the generated directory, not from the development repository:');
   console.log(`  cd ${outDir}`);
-  console.log('  npm publish');
+  console.log('  npm publish --access public');
 }
 
 main();

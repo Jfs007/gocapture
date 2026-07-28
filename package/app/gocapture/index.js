@@ -9652,11 +9652,11 @@ ${unwrappedProps}
   };
   const _hoisted_19$4 = { class: "mda-log-file-label" };
   const _hoisted_20$4 = ["onClick"];
-  const _hoisted_21$4 = {
+  const _hoisted_21$3 = {
     key: 3,
     class: "mda-message-log-pre"
   };
-  const _hoisted_22$3 = {
+  const _hoisted_22$2 = {
     key: 0,
     class: "mda-message-title"
   };
@@ -9788,7 +9788,7 @@ ${unwrappedProps}
       });
       function avatarText(role) {
         if (role === "user") return "你";
-        if (role === "agent") return "模型";
+        if (role === "agent") return "Agent";
         return "系统";
       }
       function hasLogs(message) {
@@ -10038,7 +10038,7 @@ ${unwrappedProps}
                                     }, toDisplayString(candidateFile(node.raw)), 9, _hoisted_20$4)
                                   ])) : node.expandable && isNodeExpanded(message.id, logIndex, node.kind) ? (openBlock(), createElementBlock(
                                     "pre",
-                                    _hoisted_21$4,
+                                    _hoisted_21$3,
                                     toDisplayString(node.raw),
                                     1
                                     /* TEXT */
@@ -10062,7 +10062,7 @@ ${unwrappedProps}
                       [
                         message.title ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_22$3,
+                          _hoisted_22$2,
                           toDisplayString(message.title),
                           1
                           /* TEXT */
@@ -10549,6 +10549,7 @@ ${unwrappedProps}
         const assetInfo = item.asset || info;
         return {
           uid: item.uid,
+          createdAt: item.createdAt || 0,
           token: `@选区${index + 1}`,
           index: index + 1,
           label: `选区 ${index + 1}`,
@@ -10569,6 +10570,7 @@ ${unwrappedProps}
           assetInlineStyle: assetInfo.inlineStyle || "",
           assetComputedStyle: assetInfo.computedStyle || null,
           assetBox: assetInfo.box || null,
+          sourceBinding: item.sourceBinding || null,
           thumbnailCaptured: !!item.thumbnailUrl
         };
       });
@@ -10865,8 +10867,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-plan-block"
   };
   const _hoisted_20$3 = ["onClick"];
-  const _hoisted_21$3 = { class: "mda-composite-anchor" };
-  const _hoisted_22$2 = { class: "mda-plan-block-title" };
+  const _hoisted_21$2 = { class: "mda-composite-anchor" };
+  const _hoisted_22$1 = { class: "mda-plan-block-title" };
   const _hoisted_23$1 = {
     key: 3,
     class: "mda-plan-block"
@@ -11246,7 +11248,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         }, toDisplayString(item.file), 9, _hoisted_20$3),
                         createBaseVNode(
                           "span",
-                          _hoisted_21$3,
+                          _hoisted_21$2,
                           toDisplayString(item.reason),
                           1
                           /* TEXT */
@@ -11271,7 +11273,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         [
                           createBaseVNode(
                             "div",
-                            _hoisted_22$2,
+                            _hoisted_22$1,
                             toDisplayString(section.label),
                             1
                             /* TEXT */
@@ -11928,7 +11930,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260728.012423.331";
+      const buildVersion = "20260728.015916.497";
       const commands = useGoCaptureCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -12221,7 +12223,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-mcp-empty"
   };
   const _hoisted_20$2 = { class: "mda-mcp-log-time" };
-  const _hoisted_21$2 = { class: "mda-mcp-log-line" };
+  const _hoisted_21$1 = { class: "mda-mcp-log-line" };
   const _sfc_main$4 = /* @__PURE__ */ defineComponent({
     __name: "McpStatusPanel",
     props: {
@@ -12458,7 +12460,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       ),
                       createBaseVNode(
                         "span",
-                        _hoisted_21$2,
+                        _hoisted_21$1,
                         toDisplayString(log.line),
                         1
                         /* TEXT */
@@ -16528,41 +16530,39 @@ ${result.rawText}` : ""
   const _hoisted_2$1 = ["aria-label"];
   const _hoisted_3$1 = { class: "mda-head" };
   const _hoisted_4$1 = { class: "mda-head-main" };
-  const _hoisted_5$1 = { class: "mda-title" };
-  const _hoisted_6$1 = { class: "mda-title-wordmark" };
-  const _hoisted_7$1 = { class: "mda-subtitle" };
-  const _hoisted_8$1 = { class: "mda-head-actions" };
-  const _hoisted_9$1 = {
+  const _hoisted_5$1 = { class: "mda-subtitle" };
+  const _hoisted_6$1 = { class: "mda-head-actions" };
+  const _hoisted_7$1 = {
     key: 0,
     class: "mda-service-down",
     role: "alert"
   };
-  const _hoisted_10$1 = { class: "mda-service-down-main" };
-  const _hoisted_11$1 = { class: "mda-service-down-hint" };
-  const _hoisted_12$1 = { class: "mda-service-down-hint" };
-  const _hoisted_13$1 = ["disabled"];
-  const _hoisted_14$1 = {
+  const _hoisted_8$1 = { class: "mda-service-down-main" };
+  const _hoisted_9$1 = { class: "mda-service-down-hint" };
+  const _hoisted_10$1 = { class: "mda-service-down-hint" };
+  const _hoisted_11$1 = ["disabled"];
+  const _hoisted_12$1 = {
     key: 1,
     class: "mda-update-bar",
     role: "status"
   };
-  const _hoisted_15$1 = { class: "mda-update-main" };
-  const _hoisted_16$1 = { class: "mda-update-title" };
-  const _hoisted_17$1 = { class: "mda-update-hint" };
-  const _hoisted_18$1 = {
+  const _hoisted_13$1 = { class: "mda-update-main" };
+  const _hoisted_14$1 = { class: "mda-update-title" };
+  const _hoisted_15$1 = { class: "mda-update-hint" };
+  const _hoisted_16$1 = {
     key: 1,
     class: "mda-update-spinner",
     "aria-hidden": "true"
   };
-  const _hoisted_19$1 = { class: "mda-body mda-chat-body" };
-  const _hoisted_20$1 = {
+  const _hoisted_17$1 = { class: "mda-body mda-chat-body" };
+  const _hoisted_18$1 = {
     key: 2,
     class: "mda-project-checking",
     role: "status",
     "aria-live": "polite"
   };
-  const _hoisted_21$1 = { class: "mda-project-checking-box" };
-  const _hoisted_22$1 = { class: "mda-project-checking-text" };
+  const _hoisted_19$1 = { class: "mda-project-checking-box" };
+  const _hoisted_20$1 = { class: "mda-project-checking-text" };
   const _sfc_main$3 = /* @__PURE__ */ defineComponent({
     __name: "GoCapturePanel",
     props: {
@@ -16608,24 +16608,16 @@ ${result.rawText}` : ""
           }, [
             createBaseVNode("header", _hoisted_3$1, [
               createBaseVNode("div", _hoisted_4$1, [
-                createBaseVNode("div", _hoisted_5$1, [
-                  createBaseVNode(
-                    "span",
-                    _hoisted_6$1,
-                    toDisplayString(unref(PRODUCT_NAME)),
-                    1
-                    /* TEXT */
-                  )
-                ]),
+                createCommentVNode(' <div class="mda-title">\n            <span class="mda-title-wordmark">{{ PRODUCT_NAME }}</span>\n          </div> '),
                 createBaseVNode(
                   "div",
-                  _hoisted_7$1,
+                  _hoisted_5$1,
                   toDisplayString(unref(pageHost)),
                   1
                   /* TEXT */
                 )
               ]),
-              createBaseVNode("div", _hoisted_8$1, [
+              createBaseVNode("div", _hoisted_6$1, [
                 createBaseVNode(
                   "span",
                   {
@@ -16692,7 +16684,7 @@ ${result.rawText}` : ""
                 )
               ])
             ]),
-            unref(serviceOnline) === false ? (openBlock(), createElementBlock("div", _hoisted_9$1, [
+            unref(serviceOnline) === false ? (openBlock(), createElementBlock("div", _hoisted_7$1, [
               _cache[13] || (_cache[13] = createBaseVNode(
                 "span",
                 { class: "mda-service-down-icon" },
@@ -16700,7 +16692,7 @@ ${result.rawText}` : ""
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_10$1, [
+              createBaseVNode("div", _hoisted_8$1, [
                 _cache[12] || (_cache[12] = createBaseVNode(
                   "div",
                   { class: "mda-service-down-title" },
@@ -16708,7 +16700,7 @@ ${result.rawText}` : ""
                   -1
                   /* CACHED */
                 )),
-                createBaseVNode("div", _hoisted_11$1, [
+                createBaseVNode("div", _hoisted_9$1, [
                   _cache[9] || (_cache[9] = createTextVNode(
                     " 正在探测 ",
                     -1
@@ -16735,7 +16727,7 @@ ${result.rawText}` : ""
                     /* STABLE_FRAGMENT */
                   )) : createCommentVNode("v-if", true)
                 ]),
-                createBaseVNode("div", _hoisted_12$1, [
+                createBaseVNode("div", _hoisted_10$1, [
                   _cache[10] || (_cache[10] = createTextVNode(
                     "如果服务已启动，请运行 ",
                     -1
@@ -16760,8 +16752,8 @@ ${result.rawText}` : ""
                 type: "button",
                 disabled: retryChecking.value,
                 onClick: retryHealth
-              }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_13$1)
-            ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_14$1, [
+              }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_11$1)
+            ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_12$1, [
               _cache[14] || (_cache[14] = createBaseVNode(
                 "span",
                 { class: "mda-update-icon" },
@@ -16769,17 +16761,17 @@ ${result.rawText}` : ""
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_15$1, [
+              createBaseVNode("div", _hoisted_13$1, [
                 createBaseVNode(
                   "div",
-                  _hoisted_16$1,
+                  _hoisted_14$1,
                   toDisplayString(unref(updateApplying) ? "更新中…" : `发现新版本 v${unref(updateInfo).latest}`),
                   1
                   /* TEXT */
                 ),
                 createBaseVNode(
                   "div",
-                  _hoisted_17$1,
+                  _hoisted_15$1,
                   toDisplayString(unref(updateMessage) || `当前 v${unref(updateInfo).current}，可一键更新（服务会自动重启）`),
                   1
                   /* TEXT */
@@ -16791,9 +16783,9 @@ ${result.rawText}` : ""
                 type: "button",
                 onClick: _cache[6] || (_cache[6] = //@ts-ignore
                 (...args) => unref(applyUpdate) && unref(applyUpdate)(...args))
-              }, "更新")) : (openBlock(), createElementBlock("span", _hoisted_18$1))
+              }, "更新")) : (openBlock(), createElementBlock("span", _hoisted_16$1))
             ])) : createCommentVNode("v-if", true),
-            createBaseVNode("div", _hoisted_19$1, [
+            createBaseVNode("div", _hoisted_17$1, [
               createBaseVNode(
                 "input",
                 {
@@ -16813,8 +16805,8 @@ ${result.rawText}` : ""
               createVNode(_sfc_main$9),
               createVNode(_sfc_main$5)
             ]),
-            projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_20$1, [
-              createBaseVNode("div", _hoisted_21$1, [
+            projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_18$1, [
+              createBaseVNode("div", _hoisted_19$1, [
                 _cache[16] || (_cache[16] = createBaseVNode(
                   "div",
                   { class: "mda-project-checking-spinner" },
@@ -16832,7 +16824,7 @@ ${result.rawText}` : ""
                   )),
                   createBaseVNode(
                     "div",
-                    _hoisted_22$1,
+                    _hoisted_20$1,
                     toDisplayString(projectCheckingText.value),
                     1
                     /* TEXT */
@@ -17016,57 +17008,87 @@ ${result.rawText}` : ""
     key: 1,
     class: "mda-settings-assets"
   };
-  const _hoisted_21 = {
+  const _hoisted_21 = ["aria-label", "onClick"];
+  const _hoisted_22 = {
     key: 1,
     class: "mda-settings-asset-thumb is-empty"
   };
-  const _hoisted_22 = { class: "mda-settings-asset-main" };
-  const _hoisted_23 = {
+  const _hoisted_23 = { class: "mda-settings-asset-main" };
+  const _hoisted_24 = {
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_24 = { class: "mda-memory-field" };
-  const _hoisted_25 = ["value"];
-  const _hoisted_26 = {
+  const _hoisted_25 = { class: "mda-memory-field" };
+  const _hoisted_26 = ["value"];
+  const _hoisted_27 = {
     key: 0,
     class: "mda-memory-form"
   };
-  const _hoisted_27 = { class: "mda-memory-field" };
   const _hoisted_28 = { class: "mda-memory-field" };
-  const _hoisted_29 = ["value"];
-  const _hoisted_30 = { class: "mda-memory-field" };
+  const _hoisted_29 = { class: "mda-memory-field" };
+  const _hoisted_30 = ["value"];
   const _hoisted_31 = { class: "mda-memory-field" };
   const _hoisted_32 = { class: "mda-memory-field" };
   const _hoisted_33 = { class: "mda-memory-field" };
-  const _hoisted_34 = { class: "mda-memory-actions" };
-  const _hoisted_35 = ["disabled"];
-  const _hoisted_36 = {
+  const _hoisted_34 = { class: "mda-memory-field" };
+  const _hoisted_35 = { class: "mda-memory-actions" };
+  const _hoisted_36 = ["disabled"];
+  const _hoisted_37 = {
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_37 = {
+  const _hoisted_38 = {
     key: 1,
     class: "mda-memory-form"
   };
-  const _hoisted_38 = { class: "mda-memory-project-doc" };
-  const _hoisted_39 = {
+  const _hoisted_39 = { class: "mda-memory-project-doc" };
+  const _hoisted_40 = {
     key: 5,
     class: "mda-settings-toast",
     role: "status"
   };
-  const _hoisted_40 = {
+  const _hoisted_41 = {
     class: "mda-model-editor",
     role: "dialog",
     "aria-modal": "true",
     "aria-label": "Locator 模型配置"
   };
-  const _hoisted_41 = { class: "mda-model-editor-head" };
-  const _hoisted_42 = { class: "mda-model-editor-body" };
-  const _hoisted_43 = { class: "mda-model-grid" };
-  const _hoisted_44 = { class: "is-wide" };
+  const _hoisted_42 = { class: "mda-model-editor-head" };
+  const _hoisted_43 = { class: "mda-model-editor-body" };
+  const _hoisted_44 = { class: "mda-model-grid" };
   const _hoisted_45 = { class: "is-wide" };
   const _hoisted_46 = { class: "is-wide" };
-  const _hoisted_47 = { class: "mda-model-actions" };
+  const _hoisted_47 = { class: "is-wide" };
+  const _hoisted_48 = { class: "mda-model-actions" };
+  const _hoisted_49 = {
+    class: "mda-asset-detail",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": "选区资产详情"
+  };
+  const _hoisted_50 = { class: "mda-asset-detail-head" };
+  const _hoisted_51 = { class: "mda-asset-detail-body" };
+  const _hoisted_52 = { class: "mda-asset-detail-preview" };
+  const _hoisted_53 = ["src", "alt"];
+  const _hoisted_54 = {
+    key: 1,
+    class: "mda-asset-detail-preview-empty"
+  };
+  const _hoisted_55 = { class: "mda-asset-detail-info" };
+  const _hoisted_56 = { key: 0 };
+  const _hoisted_57 = {
+    key: 0,
+    class: "mda-asset-markup"
+  };
+  const _hoisted_58 = {
+    key: 0,
+    class: "mda-asset-source-list"
+  };
+  const _hoisted_59 = { key: 0 };
+  const _hoisted_60 = {
+    key: 1,
+    class: "mda-asset-source-empty"
+  };
   const _sfc_main$2 = /* @__PURE__ */ defineComponent({
     __name: "MemorySettingsPanel",
     props: {
@@ -17085,6 +17107,7 @@ ${result.rawText}` : ""
       const tab = /* @__PURE__ */ ref(initialTab);
       const locatorEditorExpanded = /* @__PURE__ */ ref(false);
       const locatorEditingId = /* @__PURE__ */ ref("");
+      const activeSelectionAsset = /* @__PURE__ */ ref(null);
       const experienceId = /* @__PURE__ */ ref("");
       const experienceDraft = /* @__PURE__ */ reactive({
         name: "",
@@ -17194,6 +17217,44 @@ ${result.rawText}` : ""
       }
       function assetThumbStyle(asset) {
         return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+      }
+      function openAssetDetails(asset) {
+        activeSelectionAsset.value = asset;
+      }
+      function closeAssetDetails() {
+        activeSelectionAsset.value = null;
+      }
+      function assetSourceTargets(asset) {
+        var _a2;
+        return Array.isArray((_a2 = asset == null ? void 0 : asset.sourceBinding) == null ? void 0 : _a2.targets) ? asset.sourceBinding.targets.filter((target) => String((target == null ? void 0 : target.file) || "").trim()) : [];
+      }
+      function sourceTargetLabel(target) {
+        const startLine = Number((target == null ? void 0 : target.line) || (target == null ? void 0 : target.startLine) || 0);
+        const endLine = Number((target == null ? void 0 : target.endLine) || 0);
+        const lineText = startLine ? `:${startLine}${endLine > startLine ? `-${endLine}` : ""}` : "";
+        return `${String((target == null ? void 0 : target.file) || "")}${lineText}`;
+      }
+      function assetMarkup(asset) {
+        const markup = String(
+          (asset == null ? void 0 : asset.outerHtml) || (asset == null ? void 0 : asset.assetOuterHtml) || (asset == null ? void 0 : asset.innerHtml) || (asset == null ? void 0 : asset.assetInnerHtml) || ""
+        ).trim();
+        if (!markup) return "";
+        return markup.length > 4e3 ? `${markup.slice(0, 4e3)}
+...` : markup;
+      }
+      function assetBoxText(asset) {
+        const box = (asset == null ? void 0 : asset.box) || (asset == null ? void 0 : asset.assetBox);
+        if (!box) return "-";
+        const width = Math.round(Number(box.width || 0));
+        const height = Math.round(Number(box.height || 0));
+        const x = Math.round(Number(box.x || 0));
+        const y = Math.round(Number(box.y || 0));
+        return `${width} × ${height} · (${x}, ${y})`;
+      }
+      function formatAssetTime(value) {
+        const date = new Date(Number(value || 0));
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleString("zh-CN", { hour12: false });
       }
       return (_ctx, _cache) => {
         var _a2;
@@ -17624,9 +17685,12 @@ ${result.rawText}` : ""
                         Fragment,
                         null,
                         renderList(selectionAssets.value, (asset) => {
-                          return openBlock(), createElementBlock("article", {
+                          return openBlock(), createElementBlock("button", {
                             key: asset.uid,
-                            class: "mda-settings-asset"
+                            class: "mda-settings-asset",
+                            type: "button",
+                            "aria-label": `查看 ${asset.token} 详情`,
+                            onClick: ($event) => openAssetDetails(asset)
                           }, [
                             asset.thumbnailUrl ? (openBlock(), createElementBlock(
                               "div",
@@ -17640,12 +17704,12 @@ ${result.rawText}` : ""
                               /* STYLE */
                             )) : (openBlock(), createElementBlock(
                               "div",
-                              _hoisted_21,
+                              _hoisted_22,
                               toDisplayString(asset.index),
                               1
                               /* TEXT */
                             )),
-                            createBaseVNode("div", _hoisted_22, [
+                            createBaseVNode("div", _hoisted_23, [
                               createBaseVNode(
                                 "strong",
                                 null,
@@ -17668,7 +17732,7 @@ ${result.rawText}` : ""
                                 /* TEXT */
                               )
                             ])
-                          ]);
+                          ], 8, _hoisted_21);
                         }),
                         128
                         /* KEYED_FRAGMENT */
@@ -17681,11 +17745,11 @@ ${result.rawText}` : ""
                   Fragment,
                   { key: 3 },
                   [
-                    !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_23, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
+                    !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_24, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
                       Fragment,
                       { key: 1 },
                       [
-                        createBaseVNode("label", _hoisted_24, [
+                        createBaseVNode("label", _hoisted_25, [
                           _cache[43] || (_cache[43] = createBaseVNode(
                             "span",
                             null,
@@ -17707,7 +17771,7 @@ ${result.rawText}` : ""
                                   return openBlock(), createElementBlock("option", {
                                     key: experience.componentPath,
                                     value: experience.componentPath
-                                  }, toDisplayString(experience.name) + " · " + toDisplayString(((_a3 = experience.validation) == null ? void 0 : _a3.valid) ? "有效" : "已失效"), 9, _hoisted_25);
+                                  }, toDisplayString(experience.name) + " · " + toDisplayString(((_a3 = experience.validation) == null ? void 0 : _a3.valid) ? "有效" : "已失效"), 9, _hoisted_26);
                                 }),
                                 128
                                 /* KEYED_FRAGMENT */
@@ -17719,8 +17783,8 @@ ${result.rawText}` : ""
                             [vModelSelect, experienceId.value]
                           ])
                         ]),
-                        activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_26, [
-                          createBaseVNode("label", _hoisted_27, [
+                        activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_27, [
+                          createBaseVNode("label", _hoisted_28, [
                             _cache[44] || (_cache[44] = createBaseVNode(
                               "span",
                               null,
@@ -17741,7 +17805,7 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.name]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_28, [
+                          createBaseVNode("label", _hoisted_29, [
                             _cache[45] || (_cache[45] = createBaseVNode(
                               "span",
                               null,
@@ -17753,9 +17817,9 @@ ${result.rawText}` : ""
                               value: activeExperience.value.componentPath,
                               type: "text",
                               disabled: ""
-                            }, null, 8, _hoisted_29)
+                            }, null, 8, _hoisted_30)
                           ]),
-                          createBaseVNode("label", _hoisted_30, [
+                          createBaseVNode("label", _hoisted_31, [
                             _cache[46] || (_cache[46] = createBaseVNode(
                               "span",
                               null,
@@ -17776,7 +17840,7 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.role]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_31, [
+                          createBaseVNode("label", _hoisted_32, [
                             _cache[47] || (_cache[47] = createBaseVNode(
                               "span",
                               null,
@@ -17800,7 +17864,7 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.keywords]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_32, [
+                          createBaseVNode("label", _hoisted_33, [
                             _cache[48] || (_cache[48] = createBaseVNode(
                               "span",
                               null,
@@ -17825,7 +17889,7 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.usageFiles]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_33, [
+                          createBaseVNode("label", _hoisted_34, [
                             _cache[49] || (_cache[49] = createBaseVNode(
                               "span",
                               null,
@@ -17850,13 +17914,13 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.doc]
                             ])
                           ]),
-                          createBaseVNode("div", _hoisted_34, [
+                          createBaseVNode("div", _hoisted_35, [
                             createBaseVNode("button", {
                               class: "is-primary",
                               type: "button",
                               disabled: unref(memory).saving,
                               onClick: saveExperience
-                            }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_35)
+                            }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_36)
                           ])
                         ])) : createCommentVNode("v-if", true)
                       ],
@@ -17870,7 +17934,7 @@ ${result.rawText}` : ""
                   Fragment,
                   { key: 4 },
                   [
-                    !toolProviders.value.length && !resourceProviders.value.length && !tools.value.length && !resources.value.length ? (openBlock(), createElementBlock("div", _hoisted_36, "当前没有可用 Tool 或 Resource。")) : (openBlock(), createElementBlock("div", _hoisted_37, [
+                    !toolProviders.value.length && !resourceProviders.value.length && !tools.value.length && !resources.value.length ? (openBlock(), createElementBlock("div", _hoisted_37, "当前没有可用 Tool 或 Resource。")) : (openBlock(), createElementBlock("div", _hoisted_38, [
                       _cache[50] || (_cache[50] = createBaseVNode(
                         "div",
                         { class: "mda-memory-section-title" },
@@ -18060,7 +18124,7 @@ ${result.rawText}` : ""
                     )),
                     createBaseVNode(
                       "pre",
-                      _hoisted_38,
+                      _hoisted_39,
                       toDisplayString(((_a2 = unref(memory).snapshot) == null ? void 0 : _a2.projectDocument) || "暂无项目摘要。"),
                       1
                       /* TEXT */
@@ -18072,7 +18136,7 @@ ${result.rawText}` : ""
               ])),
               isPage.value && unref(appUi).toastText ? (openBlock(), createElementBlock(
                 "div",
-                _hoisted_39,
+                _hoisted_40,
                 toDisplayString(unref(appUi).toastText),
                 1
                 /* TEXT */
@@ -18086,8 +18150,8 @@ ${result.rawText}` : ""
               role: "presentation",
               onClick: _cache[26] || (_cache[26] = withModifiers(($event) => locatorEditorExpanded.value = false, ["self"]))
             }, [
-              createBaseVNode("section", _hoisted_40, [
-                createBaseVNode("header", _hoisted_41, [
+              createBaseVNode("section", _hoisted_41, [
+                createBaseVNode("header", _hoisted_42, [
                   _cache[55] || (_cache[55] = createBaseVNode(
                     "div",
                     null,
@@ -18110,8 +18174,8 @@ ${result.rawText}` : ""
                     })
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_42, [
-                  createBaseVNode("div", _hoisted_43, [
+                createBaseVNode("div", _hoisted_43, [
+                  createBaseVNode("div", _hoisted_44, [
                     createBaseVNode("label", null, [
                       _cache[56] || (_cache[56] = createBaseVNode(
                         "span",
@@ -18170,7 +18234,7 @@ ${result.rawText}` : ""
                         [vModelSelect, locatorForm.value.model]
                       ])
                     ]),
-                    createBaseVNode("label", _hoisted_44, [
+                    createBaseVNode("label", _hoisted_45, [
                       _cache[59] || (_cache[59] = createBaseVNode(
                         "span",
                         null,
@@ -18192,7 +18256,7 @@ ${result.rawText}` : ""
                         [vModelText, locatorForm.value.endpoint]
                       ])
                     ]),
-                    createBaseVNode("label", _hoisted_45, [
+                    createBaseVNode("label", _hoisted_46, [
                       _cache[60] || (_cache[60] = createBaseVNode(
                         "span",
                         null,
@@ -18214,7 +18278,7 @@ ${result.rawText}` : ""
                         [vModelText, locatorForm.value.apiKey]
                       ])
                     ]),
-                    createBaseVNode("label", _hoisted_46, [
+                    createBaseVNode("label", _hoisted_47, [
                       _cache[61] || (_cache[61] = createBaseVNode(
                         "span",
                         null,
@@ -18268,7 +18332,7 @@ ${result.rawText}` : ""
                     ])
                   ])
                 ]),
-                createBaseVNode("footer", _hoisted_47, [
+                createBaseVNode("footer", _hoisted_48, [
                   locatorEditingId.value && locatorEditingId.value === locatorSelectedId.value ? (openBlock(), createElementBlock("button", {
                     key: 0,
                     class: "mda-model-delete",
@@ -18284,6 +18348,203 @@ ${result.rawText}` : ""
                     type: "button",
                     onClick: saveLocatorModel
                   }, "保存并启用")
+                ])
+              ])
+            ])) : createCommentVNode("v-if", true),
+            activeSelectionAsset.value ? (openBlock(), createElementBlock("div", {
+              key: 1,
+              class: "mda-asset-detail-modal",
+              role: "presentation",
+              onClick: withModifiers(closeAssetDetails, ["self"])
+            }, [
+              createBaseVNode("section", _hoisted_49, [
+                createBaseVNode("header", _hoisted_50, [
+                  createBaseVNode("div", null, [
+                    _cache[63] || (_cache[63] = createBaseVNode(
+                      "strong",
+                      null,
+                      "选区详情",
+                      -1
+                      /* CACHED */
+                    )),
+                    createBaseVNode(
+                      "code",
+                      null,
+                      "@" + toDisplayString(activeSelectionAsset.value.uid),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  createBaseVNode("button", {
+                    type: "button",
+                    "aria-label": "关闭",
+                    onClick: closeAssetDetails
+                  }, [
+                    createVNode(_sfc_main$b, {
+                      name: "close",
+                      size: 18
+                    })
+                  ])
+                ]),
+                createBaseVNode("div", _hoisted_51, [
+                  createBaseVNode("div", _hoisted_52, [
+                    activeSelectionAsset.value.thumbnailUrl ? (openBlock(), createElementBlock("img", {
+                      key: 0,
+                      src: activeSelectionAsset.value.thumbnailUrl,
+                      alt: `${activeSelectionAsset.value.token} 选区截图`
+                    }, null, 8, _hoisted_53)) : (openBlock(), createElementBlock("div", _hoisted_54, "暂无选区截图"))
+                  ]),
+                  createBaseVNode("div", _hoisted_55, [
+                    createBaseVNode("section", null, [
+                      _cache[70] || (_cache[70] = createBaseVNode(
+                        "h3",
+                        null,
+                        "选区信息",
+                        -1
+                        /* CACHED */
+                      )),
+                      createBaseVNode("dl", null, [
+                        createBaseVNode("div", null, [
+                          _cache[64] || (_cache[64] = createBaseVNode(
+                            "dt",
+                            null,
+                            "文案",
+                            -1
+                            /* CACHED */
+                          )),
+                          createBaseVNode(
+                            "dd",
+                            null,
+                            toDisplayString(activeSelectionAsset.value.text || activeSelectionAsset.value.assetText || "-"),
+                            1
+                            /* TEXT */
+                          )
+                        ]),
+                        createBaseVNode("div", null, [
+                          _cache[65] || (_cache[65] = createBaseVNode(
+                            "dt",
+                            null,
+                            "选择器",
+                            -1
+                            /* CACHED */
+                          )),
+                          createBaseVNode("dd", null, [
+                            createBaseVNode(
+                              "code",
+                              null,
+                              toDisplayString(activeSelectionAsset.value.selector || activeSelectionAsset.value.assetSelector || "-"),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ]),
+                        createBaseVNode("div", null, [
+                          _cache[66] || (_cache[66] = createBaseVNode(
+                            "dt",
+                            null,
+                            "Class",
+                            -1
+                            /* CACHED */
+                          )),
+                          createBaseVNode("dd", null, [
+                            createBaseVNode(
+                              "code",
+                              null,
+                              toDisplayString(activeSelectionAsset.value.className || "-"),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ]),
+                        createBaseVNode("div", null, [
+                          _cache[67] || (_cache[67] = createBaseVNode(
+                            "dt",
+                            null,
+                            "尺寸",
+                            -1
+                            /* CACHED */
+                          )),
+                          createBaseVNode(
+                            "dd",
+                            null,
+                            toDisplayString(assetBoxText(activeSelectionAsset.value)),
+                            1
+                            /* TEXT */
+                          )
+                        ]),
+                        activeSelectionAsset.value.createdAt ? (openBlock(), createElementBlock("div", _hoisted_56, [
+                          _cache[68] || (_cache[68] = createBaseVNode(
+                            "dt",
+                            null,
+                            "保存时间",
+                            -1
+                            /* CACHED */
+                          )),
+                          createBaseVNode(
+                            "dd",
+                            null,
+                            toDisplayString(formatAssetTime(activeSelectionAsset.value.createdAt)),
+                            1
+                            /* TEXT */
+                          )
+                        ])) : createCommentVNode("v-if", true)
+                      ]),
+                      assetMarkup(activeSelectionAsset.value) ? (openBlock(), createElementBlock("div", _hoisted_57, [
+                        _cache[69] || (_cache[69] = createBaseVNode(
+                          "span",
+                          null,
+                          "DOM",
+                          -1
+                          /* CACHED */
+                        )),
+                        createBaseVNode(
+                          "pre",
+                          null,
+                          toDisplayString(assetMarkup(activeSelectionAsset.value)),
+                          1
+                          /* TEXT */
+                        )
+                      ])) : createCommentVNode("v-if", true)
+                    ]),
+                    createBaseVNode("section", null, [
+                      _cache[71] || (_cache[71] = createBaseVNode(
+                        "h3",
+                        null,
+                        "定位文件",
+                        -1
+                        /* CACHED */
+                      )),
+                      assetSourceTargets(activeSelectionAsset.value).length ? (openBlock(), createElementBlock("div", _hoisted_58, [
+                        (openBlock(true), createElementBlock(
+                          Fragment,
+                          null,
+                          renderList(assetSourceTargets(activeSelectionAsset.value), (target, index) => {
+                            return openBlock(), createElementBlock("div", {
+                              key: `${target.file}-${index}`,
+                              class: "mda-asset-source"
+                            }, [
+                              createBaseVNode(
+                                "code",
+                                null,
+                                toDisplayString(sourceTargetLabel(target)),
+                                1
+                                /* TEXT */
+                              ),
+                              target.anchor ? (openBlock(), createElementBlock(
+                                "span",
+                                _hoisted_59,
+                                toDisplayString(target.anchor),
+                                1
+                                /* TEXT */
+                              )) : createCommentVNode("v-if", true)
+                            ]);
+                          }),
+                          128
+                          /* KEYED_FRAGMENT */
+                        ))
+                      ])) : (openBlock(), createElementBlock("p", _hoisted_60, "该选区尚未绑定源码位置。"))
+                    ])
+                  ])
                 ])
               ])
             ])) : createCommentVNode("v-if", true)
@@ -22226,6 +22487,7 @@ ${result.rawText}` : ""
 }
 
 .mda-settings-asset {
+  width: 100%;
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr);
   gap: 12px;
@@ -22235,6 +22497,22 @@ ${result.rawText}` : ""
   border: 1px solid #e4e7ec;
   border-radius: 12px;
   background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.mda-settings-asset:hover {
+  border-color: #98a2b3;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
+  transform: translateY(-1px);
+}
+
+.mda-settings-asset:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .mda-settings-asset-thumb {
@@ -22276,6 +22554,207 @@ ${result.rawText}` : ""
   font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.mda-asset-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, 0.48);
+}
+
+.mda-asset-detail {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24);
+}
+
+.mda-asset-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.mda-asset-detail-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mda-asset-detail-head strong {
+  color: #101828;
+  font-size: 17px;
+}
+
+.mda-asset-detail-head code {
+  overflow: hidden;
+  color: #667085;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-asset-detail-head > button {
+  flex: 0 0 auto;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #475467;
+  cursor: pointer;
+}
+
+.mda-asset-detail-head > button:hover {
+  color: #101828;
+}
+
+.mda-asset-detail-body {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 0.9fr);
+  gap: 24px;
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+}
+
+.mda-asset-detail-preview {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mda-asset-detail-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 560px;
+  object-fit: contain;
+}
+
+.mda-asset-detail-preview-empty {
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+.mda-asset-detail-info {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+}
+
+.mda-asset-detail-info section {
+  min-width: 0;
+}
+
+.mda-asset-detail-info h3 {
+  margin: 0 0 12px;
+  color: #101828;
+  font-size: 14px;
+}
+
+.mda-asset-detail-info dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.mda-asset-detail-info dl > div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.mda-asset-detail-info dt {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.mda-asset-detail-info dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #344054;
+  font-size: 12px;
+}
+
+.mda-asset-detail-info dd code,
+.mda-asset-source code {
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-asset-markup {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.mda-asset-markup > span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.mda-asset-markup pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #344054;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mda-asset-source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mda-asset-source {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid #eaecf0;
+}
+
+.mda-asset-source:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.mda-asset-source code {
+  overflow-wrap: anywhere;
+  color: #175cd3;
+}
+
+.mda-asset-source span,
+.mda-asset-source-empty {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .mda-settings-sidebar {
     flex-basis: 210px;
@@ -22284,6 +22763,24 @@ ${result.rawText}` : ""
   .mda-memory-shell.is-page .mda-memory-body {
     width: auto;
     padding: 18px;
+  }
+
+  .mda-asset-detail-modal {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .mda-asset-detail {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+  }
+
+  .mda-asset-detail-body {
+    grid-template-columns: 1fr;
+  }
+
+  .mda-asset-detail-preview {
+    min-height: 220px;
   }
 }
 

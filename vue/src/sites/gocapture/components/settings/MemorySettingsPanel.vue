@@ -133,7 +133,14 @@
       <template v-else-if="tab === 'assets'">
         <div v-if="!selectionAssets.length" class="mda-memory-empty">当前页面暂无选区资产。</div>
         <div v-else class="mda-settings-assets">
-          <article v-for="asset in selectionAssets" :key="asset.uid" class="mda-settings-asset">
+          <button
+            v-for="asset in selectionAssets"
+            :key="asset.uid"
+            class="mda-settings-asset"
+            type="button"
+            :aria-label="`查看 ${asset.token} 详情`"
+            @click="openAssetDetails(asset)"
+          >
             <div v-if="asset.thumbnailUrl" class="mda-settings-asset-thumb" :style="assetThumbStyle(asset)" />
             <div v-else class="mda-settings-asset-thumb is-empty">{{ asset.index }}</div>
             <div class="mda-settings-asset-main">
@@ -141,7 +148,7 @@
               <span>{{ asset.summary }}</span>
               <code>{{ asset.selector || asset.className || asset.text || '-' }}</code>
             </div>
-          </article>
+          </button>
         </div>
       </template>
 
@@ -296,6 +303,82 @@
           </footer>
         </section>
       </div>
+      <div
+        v-if="activeSelectionAsset"
+        class="mda-asset-detail-modal"
+        role="presentation"
+        @click.self="closeAssetDetails"
+      >
+        <section class="mda-asset-detail" role="dialog" aria-modal="true" aria-label="选区资产详情">
+          <header class="mda-asset-detail-head">
+            <div>
+              <strong>选区详情</strong>
+              <code>@{{ activeSelectionAsset.uid }}</code>
+            </div>
+            <button type="button" aria-label="关闭" @click="closeAssetDetails">
+              <GoCaptureIcon name="close" :size="18" />
+            </button>
+          </header>
+
+          <div class="mda-asset-detail-body">
+            <div class="mda-asset-detail-preview">
+              <img
+                v-if="activeSelectionAsset.thumbnailUrl"
+                :src="activeSelectionAsset.thumbnailUrl"
+                :alt="`${activeSelectionAsset.token} 选区截图`"
+              >
+              <div v-else class="mda-asset-detail-preview-empty">暂无选区截图</div>
+            </div>
+
+            <div class="mda-asset-detail-info">
+              <section>
+                <h3>选区信息</h3>
+                <dl>
+                  <div>
+                    <dt>文案</dt>
+                    <dd>{{ activeSelectionAsset.text || activeSelectionAsset.assetText || '-' }}</dd>
+                  </div>
+                  <div>
+                    <dt>选择器</dt>
+                    <dd><code>{{ activeSelectionAsset.selector || activeSelectionAsset.assetSelector || '-' }}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Class</dt>
+                    <dd><code>{{ activeSelectionAsset.className || '-' }}</code></dd>
+                  </div>
+                  <div>
+                    <dt>尺寸</dt>
+                    <dd>{{ assetBoxText(activeSelectionAsset) }}</dd>
+                  </div>
+                  <div v-if="activeSelectionAsset.createdAt">
+                    <dt>保存时间</dt>
+                    <dd>{{ formatAssetTime(activeSelectionAsset.createdAt) }}</dd>
+                  </div>
+                </dl>
+                <div v-if="assetMarkup(activeSelectionAsset)" class="mda-asset-markup">
+                  <span>DOM</span>
+                  <pre>{{ assetMarkup(activeSelectionAsset) }}</pre>
+                </div>
+              </section>
+
+              <section>
+                <h3>定位文件</h3>
+                <div v-if="assetSourceTargets(activeSelectionAsset).length" class="mda-asset-source-list">
+                  <div
+                    v-for="(target, index) in assetSourceTargets(activeSelectionAsset)"
+                    :key="`${target.file}-${index}`"
+                    class="mda-asset-source"
+                  >
+                    <code>{{ sourceTargetLabel(target) }}</code>
+                    <span v-if="target.anchor">{{ target.anchor }}</span>
+                  </div>
+                </div>
+                <p v-else class="mda-asset-source-empty">该选区尚未绑定源码位置。</p>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>
     </Teleport>
   </div>
 </template>
@@ -331,6 +414,7 @@ const initialTab: 'locator' | 'assets' | 'tools' | 'project' = allowedSections.h
 const tab = ref<'locator' | 'assets' | 'experiences' | 'tools' | 'project'>(initialTab);
 const locatorEditorExpanded = ref(false);
 const locatorEditingId = ref('');
+const activeSelectionAsset = ref<any | null>(null);
 const experienceId = ref('');
 const experienceDraft = reactive({
   name: '',
@@ -427,5 +511,56 @@ async function saveExperience() {
 
 function assetThumbStyle(asset: any) {
   return asset?.thumbnailUrl ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
+}
+
+function openAssetDetails(asset: any) {
+  activeSelectionAsset.value = asset;
+}
+
+function closeAssetDetails() {
+  activeSelectionAsset.value = null;
+}
+
+function assetSourceTargets(asset: any) {
+  return Array.isArray(asset?.sourceBinding?.targets)
+    ? asset.sourceBinding.targets.filter((target: any) => String(target?.file || '').trim())
+    : [];
+}
+
+function sourceTargetLabel(target: any) {
+  const startLine = Number(target?.line || target?.startLine || 0);
+  const endLine = Number(target?.endLine || 0);
+  const lineText = startLine
+    ? `:${startLine}${endLine > startLine ? `-${endLine}` : ''}`
+    : '';
+  return `${String(target?.file || '')}${lineText}`;
+}
+
+function assetMarkup(asset: any) {
+  const markup = String(
+    asset?.outerHtml
+    || asset?.assetOuterHtml
+    || asset?.innerHtml
+    || asset?.assetInnerHtml
+    || '',
+  ).trim();
+  if (!markup) return '';
+  return markup.length > 4000 ? `${markup.slice(0, 4000)}\n...` : markup;
+}
+
+function assetBoxText(asset: any) {
+  const box = asset?.box || asset?.assetBox;
+  if (!box) return '-';
+  const width = Math.round(Number(box.width || 0));
+  const height = Math.round(Number(box.height || 0));
+  const x = Math.round(Number(box.x || 0));
+  const y = Math.round(Number(box.y || 0));
+  return `${width} × ${height} · (${x}, ${y})`;
+}
+
+function formatAssetTime(value: number) {
+  const date = new Date(Number(value || 0));
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('zh-CN', { hour12: false });
 }
 </script>

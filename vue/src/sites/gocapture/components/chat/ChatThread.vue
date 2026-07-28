@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
 
 function avatarText(role) {
   if (role === 'user') return '你';
-  if (role === 'agent') return '模型';
+  if (role === 'agent') return 'Agent';
   return '系统';
 }
 

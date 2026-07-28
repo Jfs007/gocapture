@@ -24,6 +24,7 @@ export const useSelectionStore = defineStore('gocapture.selection', () => {
       const assetInfo = item.asset || info;
       return {
         uid: item.uid,
+        createdAt: item.createdAt || 0,
         token: `@选区${index + 1}`,
         index: index + 1,
         label: `选区 ${index + 1}`,
@@ -44,6 +45,7 @@ export const useSelectionStore = defineStore('gocapture.selection', () => {
         assetInlineStyle: assetInfo.inlineStyle || '',
         assetComputedStyle: assetInfo.computedStyle || null,
         assetBox: assetInfo.box || null,
+        sourceBinding: item.sourceBinding || null,
         thumbnailCaptured: !!item.thumbnailUrl
       };
     });

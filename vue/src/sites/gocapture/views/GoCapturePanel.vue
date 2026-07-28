@@ -6,9 +6,9 @@
     >
       <header class="mda-head">
         <div class="mda-head-main">
-          <div class="mda-title">
+          <!-- <div class="mda-title">
             <span class="mda-title-wordmark">{{ PRODUCT_NAME }}</span>
-          </div>
+          </div> -->
           <div class="mda-subtitle">{{ pageHost }}</div>
         </div>
         <div class="mda-head-actions">
