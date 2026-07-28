@@ -6,6 +6,10 @@ const {
   deleteProjectSelectionLocations,
   loadProjectSelectionLocations,
 } = require('../../connect-agent/selection-reference-store');
+const {
+  loadProjectAgentSettings,
+  saveProjectAgentSettings,
+} = require('../../connect-agent/project-settings');
 
 async function handleConnectAgentRoutes({
   req,
@@ -18,6 +22,24 @@ async function handleConnectAgentRoutes({
   sendStreamHeaders,
   writeStreamEvent,
 }) {
+  if (url.pathname === '/api/connect-agents/settings' && req.method === 'GET') {
+    const projectRoot = String(url.searchParams.get('projectRoot') || '').trim();
+    const project = projectContext.resolve(projectRoot);
+    sendJson(res, 200, {
+      success: true,
+      settings: loadProjectAgentSettings(project),
+    });
+    return true;
+  }
+
+  if (url.pathname === '/api/connect-agents/settings' && req.method === 'PUT') {
+    const body = await readBody(req);
+    const project = projectContext.resolve(body.projectRoot);
+    const settings = saveProjectAgentSettings(project, body.settings);
+    sendJson(res, 200, { success: true, settings });
+    return true;
+  }
+
   if (url.pathname === '/api/connect-agents/selections' && req.method === 'GET') {
     const projectRoot = String(url.searchParams.get('projectRoot') || '').trim();
     const project = projectContext.resolve(projectRoot);
@@ -60,6 +82,7 @@ async function handleConnectAgentRoutes({
               projectThreadId: session?.threadId || '',
               projectThreadName: session?.threadName || '',
               projectThreadSource: session?.source || '',
+              projectThreadUpdatedAt: session?.updatedAt || '',
             }
           : {}),
       };
@@ -140,10 +163,13 @@ async function handleConnectAgentRoutes({
 
   const body = await readBody(req);
   const [, providerId, action] = match;
+  const project = body?.projectRoot
+    ? projectContext.resolve(body.projectRoot)
+    : null;
   const provider = action === 'check'
     ? await connectAgent.inspect(providerId)
     : action === 'connect'
-      ? await connectAgent.connect(providerId, body || {})
+      ? await connectAgent.connect(providerId, body || {}, project)
       : connectAgent.disconnect(providerId);
   sendJson(res, 200, { success: true, provider });
   return true;

@@ -215,3 +215,22 @@ components/*
 - 跨模块行为放在 usecase/service，不通过长参数链拼接。
 - 构建产物仍输出到 `package/app/gocapture/index.js`。
 - `npm run app:inspector:build` 必须通过。
+
+## 9. Connect Agent 协议
+
+连接层分为三个互相独立的概念：
+
+```txt
+Connect Agent Service
+  -> AgentRegistry
+      -> AgentAdapter (Codex / Claude Code / future agents)
+          -> ModelBackend compatibility
+```
+
+- `AgentAdapter` 统一 `inspect / connect / disconnect / runTask`，并通过 capability 声明任务绑定、代理和模型后端配置能力。
+- `AgentRegistry` 是唯一的 Agent 注册与查找入口。服务和路由不得根据 provider id 分支。
+- `ModelBackend` 描述模型服务的 wire protocol、Endpoint 和默认模型，不承担 Agent 的任务、线程或工具行为。
+- `CompatibilityResolver` 只允许协议兼容的组合。例如 Claude Code 可连接 Anthropic Messages 兼容后端；Codex 声明 OpenAI Responses 协议，但当前由 Codex 自身配置模型后端。
+- Provider 原始事件进入服务前统一归一为 Agent event，同时保留原始事件供前端展示详细日志。
+
+新增 Agent 时实现并注册一个 adapter；不得复制 API 路由、项目消息持久化或任务编排。

@@ -1,8 +1,8 @@
 'use strict';
 
 const crypto = require('crypto');
-const { CodexAppServerClient } = require('./providers/codex/app-server-client');
-const { ClaudeCodeClient } = require('./providers/claude/claude-client');
+const { normalizeAgentEvent } = require('./core/agent-event');
+const { createDefaultAgentRegistry } = require('./providers');
 const { appendProjectMessage } = require('./message-store');
 const {
   buildConnectAgentInputLog,
@@ -19,25 +19,27 @@ const {
   loadProjectAgentSession,
   saveProjectAgentSession,
 } = require('./project-session-store');
+const { loadProjectAgentSettings } = require('./project-settings');
 
-function createConnectAgentService() {
-  const providers = new Map([
-    ['codex', new CodexAppServerClient()],
-    ['claude', new ClaudeCodeClient()],
-  ]);
+function createConnectAgentService(options = {}) {
+  const registry = options.registry || createDefaultAgentRegistry();
 
   function requireProvider(providerId) {
-    const provider = providers.get(String(providerId || ''));
-    if (!provider) throw new Error(`不支持的 Agent 连接：${providerId || '-'}`);
-    return provider;
+    return registry.require(providerId);
+  }
+
+  function configureProviderForProject(provider, project) {
+    const settings = loadProjectAgentSettings(project);
+    provider.configureProject?.(settings, project);
+    return settings;
   }
 
   return {
     async list({ refresh = false } = {}) {
       if (refresh) {
-        await Promise.all([...providers.values()].map(provider => provider.inspect()));
+        await Promise.all(registry.values().map(provider => provider.inspect()));
       }
-      return [...providers.values()].map(provider => provider.status());
+      return registry.values().map(provider => provider.status());
     },
     async inspect(providerId) {
       return requireProvider(providerId).inspect();
@@ -47,20 +49,19 @@ function createConnectAgentService() {
     },
     async listBindableThreads(providerId, project) {
       const provider = requireProvider(providerId);
-      if (typeof provider.listBindableThreads !== 'function') {
-        return { project: [], recent: [], projectlessStateAvailable: false };
-      }
+      provider.requireCapability('threadBinding', '绑定已有任务');
       return provider.listBindableThreads({ cwd: project.path });
     },
     async bindProjectThread(providerId, project, threadId) {
       const provider = requireProvider(providerId);
-      if (typeof provider.readThread !== 'function') {
-        throw new Error(`${provider.status().name} 不支持绑定已有任务`);
-      }
+      configureProviderForProject(provider, project);
+      provider.requireCapability('threadBinding', '绑定已有任务');
       const available = await provider.listBindableThreads({ cwd: project.path });
       const candidates = [...available.project, ...available.recent];
       const selected = candidates.find(thread => thread.id === String(threadId || '').trim());
-      if (!selected) throw new Error('该 Codex 任务不属于当前项目或“最近”列表');
+      if (!selected) {
+        throw new Error(`该 ${provider.manifest.name} 任务不属于当前项目或“最近”列表`);
+      }
       await provider.readThread(selected.id);
       return saveProjectAgentSession(project, providerId, {
         threadId: selected.id,
@@ -70,21 +71,27 @@ function createConnectAgentService() {
           : 'recent',
       });
     },
-    async connect(providerId, options = {}) {
-      return requireProvider(providerId).connect(options);
+    async connect(providerId, options = {}, project = null) {
+      const provider = requireProvider(providerId);
+      if (project) configureProviderForProject(provider, project);
+      return provider.connect(options);
     },
     disconnect(providerId) {
       return requireProvider(providerId).disconnect();
     },
     async runTask(providerId, input) {
       const provider = requireProvider(providerId);
+      configureProviderForProject(provider, input.project);
       const taskId = String(input.taskId || `task_${crypto.randomUUID().replace(/-/g, '')}`);
       if (input.newThread) clearProjectAgentSession(input.project, providerId);
       const storedSession = input.newThread
         ? null
         : loadProjectAgentSession(input.project, providerId);
-      if (providerId === 'codex' && !storedSession?.threadId) {
-        throw new Error('当前项目尚未绑定 Codex 任务，请先选择项目任务或“最近”中的任务。');
+      if (provider.supports('requiresThreadBinding') && !storedSession?.threadId) {
+        throw new Error(
+          `当前项目尚未绑定 ${provider.manifest.name} 任务，`
+          + '请先选择项目任务或“最近”中的任务。',
+        );
       }
       const persistMessage = message => {
         try {
@@ -120,7 +127,7 @@ function createConnectAgentService() {
             text,
             status: event?.task?.status || '',
             metadata: {
-              eventType: String(event?.type || ''),
+              eventType: String(event?.rawType || event?.type || ''),
               method: String(event?.event?.method || ''),
             },
           });
@@ -202,7 +209,7 @@ function createConnectAgentService() {
           outputSchema,
           threadId: storedSession?.threadId || '',
           onThread: persistThread,
-          onEvent: emitProviderEvent,
+          onEvent: event => emitProviderEvent(normalizeAgentEvent(provider, event)),
           signal: input.signal,
         });
       } catch (error) {
@@ -250,7 +257,7 @@ function createConnectAgentService() {
       return result;
     },
     close() {
-      for (const provider of providers.values()) provider.close();
+      registry.close();
     },
   };
 }

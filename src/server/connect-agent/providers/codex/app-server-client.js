@@ -6,17 +6,35 @@ const path = require('path');
 const {
   inspectCodexCli,
   spawnCodexAppServer,
+  proxyEnv,
 } = require('./cli');
 const { loadProjectlessThreadIds } = require('./desktop-state');
 const { PRODUCT_NAME } = require('../../../core/product-brand');
 const { applyStructuredTaskResult } = require('../../structured-task-result');
+const { AgentAdapter } = require('../../core/agent-adapter');
+const { MODEL_PROTOCOLS, listModelBackends } = require('../../core/model-backends');
 
 const INITIALIZE_TIMEOUT_MS = 10000;
 const REQUEST_TIMEOUT_MS = 20000;
 const TASK_TIMEOUT_MS = 30 * 60 * 1000;
 
-class CodexAppServerClient {
+class CodexAppServerClient extends AgentAdapter {
   constructor(options = {}) {
+    super({
+      id: 'codex',
+      name: 'Codex',
+      capabilities: {
+        proxy: true,
+        threadBinding: true,
+        requiresThreadBinding: true,
+        modelBackendConfiguration: false,
+      },
+      modelProtocols: [MODEL_PROTOCOLS.OPENAI_RESPONSES],
+      // Codex App Server currently owns its model-provider configuration.
+      // GoCapture only reports the required wire protocol and does not pretend
+      // that an arbitrary endpoint can be injected into an existing process.
+      modelBackends: ['inherit'],
+    });
     this.inspectCli = options.inspectCli || inspectCodexCli;
     this.spawnAppServer = options.spawnAppServer || spawnCodexAppServer;
     this.now = options.now || (() => new Date());
@@ -31,6 +49,18 @@ class CodexAppServerClient {
     this.lastError = '';
     this.stderrTail = [];
     this.cli = null;
+    this.proxy = '';
+  }
+
+  setProxy(proxy) {
+    const next = String(proxy || '').trim();
+    if (next === this.proxy) return;
+    this.proxy = next;
+    if (this.process) this.disconnect();
+  }
+
+  configureProject(settings = {}) {
+    this.setProxy(settings.proxy);
   }
 
   async inspect() {
@@ -58,7 +88,9 @@ class CodexAppServerClient {
     }
 
     this.state = 'connecting';
-    const child = this.spawnAppServer(cli.executable);
+    const child = this.spawnAppServer(cli.executable, {
+      env: proxyEnv(this.proxy),
+    });
     this.process = child;
     this.stderrTail = [];
     this.attachProcess(child);
@@ -98,10 +130,7 @@ class CodexAppServerClient {
   }
 
   status() {
-    return {
-      id: 'codex',
-      name: 'Codex',
-      category: 'connection',
+    return this.publicStatus({
       state: this.isConnected() ? 'connected' : this.state,
       connected: this.isConnected(),
       installed: !!this.cli?.installed,
@@ -111,9 +140,14 @@ class CodexAppServerClient {
       message: this.statusMessage(),
       error: this.lastError,
       activeTaskCount: this.tasks.size,
-      supportsThreadBinding: true,
-      requiresThreadBinding: true,
-    };
+      supportsProxy: true,
+      proxy: this.proxy,
+      availableModelBackends: listModelBackends(this.manifest.modelBackends),
+      runtimeConfig: {
+        backendId: 'inherit',
+        protocol: MODEL_PROTOCOLS.INHERIT,
+      },
+    });
   }
 
   async listBindableThreads({ cwd, limit = 30 } = {}) {

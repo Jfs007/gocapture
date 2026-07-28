@@ -82,12 +82,21 @@ async function inspectCodexCli() {
   };
 }
 
-function spawnCodexAppServer(executable) {
+function spawnCodexAppServer(executable, { env } = {}) {
   return spawn(executable, ['app-server', '--listen', 'stdio://'], {
-    env: process.env,
+    env: env || process.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
+}
+
+function proxyEnv(proxy, baseEnv = process.env) {
+  const env = { ...baseEnv };
+  if (!proxy) return env;
+  for (const key of ['https_proxy', 'http_proxy', 'all_proxy', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY']) {
+    env[key] = proxy;
+  }
+  return env;
 }
 
 module.exports = {
@@ -95,4 +104,5 @@ module.exports = {
   inspectCodexCli,
   resolveCodexExecutable,
   spawnCodexAppServer,
+  proxyEnv,
 };

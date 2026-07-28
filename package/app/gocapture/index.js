@@ -7021,6 +7021,21 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       el.value = newValue;
     }
   };
+  const vModelRadio = {
+    created(el, { value }, vnode) {
+      el.checked = looseEqual(value, vnode.props.value);
+      el[assignKey] = getModelAssigner(vnode);
+      addEventListener(el, "change", () => {
+        el[assignKey](getValue(el));
+      });
+    },
+    beforeUpdate(el, { value, oldValue }, vnode) {
+      el[assignKey] = getModelAssigner(vnode);
+      if (value !== oldValue) {
+        el.checked = looseEqual(value, vnode.props.value);
+      }
+    }
+  };
   const vModelSelect = {
     // <select multiple> value need to be deep traversed
     deep: true,
@@ -7881,15 +7896,44 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return Array.isArray(data == null ? void 0 : data.providers) ? data.providers : [];
     });
   }
-  function connectAgent(providerId, auth) {
+  function connectAgent(providerId, options) {
     return __async(this, null, function* () {
       const data = yield sourceServerJson(`/api/connect-agents/${encodeURIComponent(providerId)}/connect`, {
         method: "POST",
-        body: {},
-        timeoutMs: 15e3,
+        body: options || {},
+        timeoutMs: 75e3,
         timeoutMessage: "连接 Agent 超时"
       });
       return data.provider;
+    });
+  }
+  function loadConnectAgentSettings(projectRoot) {
+    return __async(this, null, function* () {
+      var _a2, _b;
+      const query = new URLSearchParams({ projectRoot });
+      const data = yield sourceServerJson(`/api/connect-agents/settings?${query}`, {
+        timeoutMs: 5e3,
+        timeoutMessage: "加载 Agent 公共设置超时"
+      });
+      return {
+        proxy: String(((_a2 = data == null ? void 0 : data.settings) == null ? void 0 : _a2.proxy) || ""),
+        activeProviderId: String(((_b = data == null ? void 0 : data.settings) == null ? void 0 : _b.activeProviderId) || "")
+      };
+    });
+  }
+  function saveConnectAgentSettings(projectRoot, settings) {
+    return __async(this, null, function* () {
+      var _a2, _b;
+      const data = yield sourceServerJson("/api/connect-agents/settings", {
+        method: "PUT",
+        body: { projectRoot, settings },
+        timeoutMs: 5e3,
+        timeoutMessage: "保存 Agent 公共设置超时"
+      });
+      return {
+        proxy: String(((_a2 = data == null ? void 0 : data.settings) == null ? void 0 : _a2.proxy) || ""),
+        activeProviderId: String(((_b = data == null ? void 0 : data.settings) == null ? void 0 : _b.activeProviderId) || "")
+      };
     });
   }
   function listConnectAgentThreads(providerId, projectRoot) {
@@ -7934,8 +7978,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           controller: options.controller,
           onEvent: options.onEvent,
           timeoutMs: 30 * 60 * 1e3,
-          timeoutMessage: "Codex 开发任务执行超时",
-          abortMessage: "Codex 开发任务已取消"
+          timeoutMessage: "Agent 开发任务执行超时",
+          abortMessage: "Agent 开发任务已取消"
         }
       );
     });
@@ -7965,6 +8009,9 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const selectedProviderId = /* @__PURE__ */ ref("");
     const pickerProviderId = /* @__PURE__ */ ref("");
     const currentProjectRoot = /* @__PURE__ */ ref("");
+    const projectSettings = /* @__PURE__ */ ref({ proxy: "", activeProviderId: "" });
+    const settingsSaving = /* @__PURE__ */ ref(false);
+    let autoConnectPromise = null;
     const activeProvider = computed(() => {
       const selected = providers.value.find((provider) => provider.id === selectedProviderId.value);
       if (selected) return selected;
@@ -7981,8 +8028,17 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         loading.value = true;
         connectionError.value = "";
         try {
-          setProviders(yield listConnectAgents(refresh, root));
+          const [nextProviders, settings] = yield Promise.all([
+            listConnectAgents(refresh, root),
+            root ? loadConnectAgentSettings(root) : Promise.resolve({ proxy: "", activeProviderId: "" })
+          ]);
+          setProviders(nextProviders);
+          projectSettings.value = settings;
           restoreSelectedProvider(root);
+          if (root && activeProvider.value && !settings.activeProviderId) {
+            yield persistActiveProvider(activeProvider.value.id, root);
+          }
+          yield restoreProviderConnection(root);
           return providers.value;
         } catch (error) {
           connectionError.value = (error == null ? void 0 : error.message) || "无法检查 Agent 连接状态";
@@ -7992,7 +8048,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         }
       });
     }
-    function connectProvider(providerId, projectRoot = "") {
+    function connectProvider(providerId, projectRoot = "", options) {
       return __async(this, null, function* () {
         const id = String(providerId || "").trim();
         const root = String(projectRoot || "").trim();
@@ -8004,7 +8060,10 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           const provider = available.find((item) => item.id === id);
           if (!provider) throw new Error("当前版本未提供所选 Agent");
           if (!provider.installed) throw new Error(provider.message || `未检测到 ${provider.name}`);
-          const connected = provider.connected ? provider : yield connectAgent(provider.id);
+          const connectOptions = __spreadProps(__spreadValues({}, options || {}), {
+            projectRoot: root
+          });
+          const connected = options || !provider.connected ? yield connectAgent(provider.id, connectOptions) : provider;
           upsertProvider(connected);
           selectProvider(id, root);
           if (root) {
@@ -8033,7 +8092,11 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         threadLoading.value = true;
         connectionError.value = "";
         try {
-          yield refreshProviders(true, root);
+          const [, settings] = yield Promise.all([
+            refreshProviders(true, root),
+            loadConnectAgentSettings(root)
+          ]);
+          projectSettings.value = settings;
           const initialProvider = activeProvider.value;
           pickerProviderId.value = (initialProvider == null ? void 0 : initialProvider.id) || ((_a2 = providers.value[0]) == null ? void 0 : _a2.id) || "";
           if ((initialProvider == null ? void 0 : initialProvider.connected) && initialProvider.supportsThreadBinding) {
@@ -8043,10 +8106,32 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
           }
           return true;
         } catch (error) {
-          connectionError.value = (error == null ? void 0 : error.message) || "无法加载 Codex 任务";
+          connectionError.value = (error == null ? void 0 : error.message) || "无法加载 Agent 任务";
           return false;
         } finally {
           threadLoading.value = false;
+        }
+      });
+    }
+    function saveProjectSettings(settings) {
+      return __async(this, null, function* () {
+        const root = currentProjectRoot.value;
+        if (!root) return false;
+        settingsSaving.value = true;
+        connectionError.value = "";
+        try {
+          projectSettings.value = yield saveConnectAgentSettings(root, settings);
+          const provider = pickerProvider.value || activeProvider.value;
+          if (provider == null ? void 0 : provider.connected) {
+            const connected = yield connectAgent(provider.id, { projectRoot: root });
+            upsertProvider(connected);
+          }
+          return true;
+        } catch (error) {
+          connectionError.value = (error == null ? void 0 : error.message) || "保存 Agent 公共设置失败";
+          return false;
+        } finally {
+          settingsSaving.value = false;
         }
       });
     }
@@ -8060,6 +8145,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         const provider = yield connectProvider(providerId, root);
         if (!provider) return false;
         pickerProviderId.value = provider.id;
+        yield persistActiveProvider(provider.id, root);
         if (!provider.supportsThreadBinding) {
           clearThreadGroups();
           yield loadTimeline(root, provider.id);
@@ -8089,6 +8175,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
         try {
           const session = yield bindConnectAgentThread(providerId, root, id);
           selectProvider(providerId, root);
+          yield persistActiveProvider(providerId, root);
           setProviders(yield listConnectAgents(false, root));
           yield loadTimeline(root, providerId);
           threadPickerVisible.value = false;
@@ -8134,9 +8221,41 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       }
     }
     function restoreSelectedProvider(root) {
-      const saved = root ? window.localStorage.getItem(providerStorageKey(root)) || "" : "";
-      const provider = providers.value.find((item) => item.id === saved) || providers.value.find((item) => item.projectThreadId) || providers.value.find((item) => item.connected);
+      const saved = projectSettings.value.activeProviderId || (root ? window.localStorage.getItem(providerStorageKey(root)) || "" : "");
+      const provider = providers.value.find((item) => item.id === saved) || [...providers.value].filter((item) => item.projectThreadId).sort((left, right) => String(right.projectThreadUpdatedAt || "").localeCompare(
+        String(left.projectThreadUpdatedAt || "")
+      ))[0] || providers.value.find((item) => item.connected);
       if (provider) selectProvider(provider.id, root);
+    }
+    function persistActiveProvider(providerId, root) {
+      return __async(this, null, function* () {
+        if (!root || !providerId) return;
+        projectSettings.value = yield saveConnectAgentSettings(root, __spreadProps(__spreadValues({}, projectSettings.value), {
+          activeProviderId: providerId
+        }));
+      });
+    }
+    function restoreProviderConnection(root) {
+      return __async(this, null, function* () {
+        const provider = activeProvider.value;
+        if (!root || !provider || provider.connected || !provider.installed) return;
+        if (autoConnectPromise) {
+          yield autoConnectPromise;
+          return;
+        }
+        autoConnectPromise = (() => __async(this, null, function* () {
+          try {
+            yield connectAgent(provider.id, { projectRoot: root });
+            setProviders(yield listConnectAgents(false, root));
+            restoreSelectedProvider(root);
+          } catch (error) {
+            connectionError.value = (error == null ? void 0 : error.message) || `${provider.name} 自动连接失败`;
+          } finally {
+            autoConnectPromise = null;
+          }
+        }))();
+        yield autoConnectPromise;
+      });
     }
     function clearThreadGroups() {
       threadGroups.value = {
@@ -8204,7 +8323,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       var _a2;
       const payload = error == null ? void 0 : error.payload;
       if (payload == null ? void 0 : payload.task) task.value = __spreadValues(__spreadValues({}, task.value || {}), payload.task);
-      taskError.value = (error == null ? void 0 : error.message) || String(error || "Codex 开发任务失败");
+      taskError.value = (error == null ? void 0 : error.message) || String(error || "Agent 开发任务失败");
       taskStatus.value = ((_a2 = task.value) == null ? void 0 : _a2.status) === "cancelled" ? "cancelled" : "failed";
       taskFinishedAt.value = Date.now();
       taskController.value = null;
@@ -8246,6 +8365,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       pickerProvider,
       activeProvider,
       taskRunning,
+      projectSettings,
+      settingsSaving,
       refreshProviders,
       loadTimeline,
       connectProvider,
@@ -8253,6 +8374,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       chooseProvider,
       closeThreadPicker,
       bindThread,
+      saveProjectSettings,
       selectProvider,
       setProviders,
       upsertProvider,
@@ -8847,7 +8969,7 @@ ${unwrappedProps}
       ]);
     }
   });
-  const _hoisted_1$o = {
+  const _hoisted_1$p = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8857,7 +8979,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$o,
+        _hoisted_1$p,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8891,7 +9013,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$n = {
+  const _hoisted_1$o = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8901,7 +9023,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$n,
+        _hoisted_1$o,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "rect",
@@ -8953,7 +9075,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$m = {
+  const _hoisted_1$n = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -8963,7 +9085,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$m,
+        _hoisted_1$n,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -8997,7 +9119,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$l = {
+  const _hoisted_1$m = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9007,7 +9129,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$l,
+        _hoisted_1$m,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9041,7 +9163,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$k = {
+  const _hoisted_1$l = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9051,7 +9173,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$k,
+        _hoisted_1$l,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9085,7 +9207,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$j = {
+  const _hoisted_1$k = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9095,7 +9217,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$j,
+        _hoisted_1$k,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9111,7 +9233,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$i = {
+  const _hoisted_1$j = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9121,7 +9243,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$i,
+        _hoisted_1$j,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9183,7 +9305,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$h = {
+  const _hoisted_1$i = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9193,7 +9315,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$h,
+        _hoisted_1$i,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "rect",
@@ -9231,7 +9353,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$g = {
+  const _hoisted_1$h = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9241,7 +9363,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$g,
+        _hoisted_1$h,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9275,7 +9397,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$f = {
+  const _hoisted_1$g = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9285,7 +9407,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$f,
+        _hoisted_1$g,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9330,7 +9452,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$e = {
+  const _hoisted_1$f = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9338,10 +9460,10 @@ ${unwrappedProps}
   const ImagesOutline = /* @__PURE__ */ defineComponent({
     name: "ImagesOutline",
     render: function render2(_ctx, _cache) {
-      return openBlock(), createElementBlock("svg", _hoisted_1$e, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
+      return openBlock(), createElementBlock("svg", _hoisted_1$f, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
     }
   });
-  const _hoisted_1$d = {
+  const _hoisted_1$e = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9349,10 +9471,10 @@ ${unwrappedProps}
   const LogoCodepen = /* @__PURE__ */ defineComponent({
     name: "LogoCodepen",
     render: function render2(_ctx, _cache) {
-      return openBlock(), createElementBlock("svg", _hoisted_1$d, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M241.24 303.94c-15.32-10.36-30.74-20.57-46.06-30.93c-2-1.38-3.43-1.48-5.5 0l-38.88 26.12C182 319.9 244 361.32 244 361.32v-53.79c0-1.22-1.55-2.78-2.76-3.59z" fill="currentColor"></path><path d="M195.09 240.67q23.19-15.24 46.11-30.86a7.54 7.54 0 0 0 2.8-5.34v-51.7s-62 41.12-93.26 61.94c13.7 9.16 26.67 17.91 39.78 26.44c1.02.66 3.4.28 4.57-.48z" fill="currentColor"></path><path d="M269.84 209.35q23.71 16.07 47.63 31.82a4.3 4.3 0 0 0 3.83 0l39.76-26.47L268 152.48v53.35a4.79 4.79 0 0 0 1.84 3.52z" fill="currentColor"></path><path d="M258.11 230.37a5.27 5.27 0 0 0-4.74.17c-4.82 3-9.47 6.2-14.17 9.35c-8.25 5.53-25.35 17-25.35 17l38.84 25.86a6.18 6.18 0 0 0 6.26.11l39-26s-34.07-22.66-39.84-26.49z" fill="currentColor"></path><path d="M141 237.12v39.61l29.62-19.84L141 237.12z" fill="currentColor"></path><path d="M256 32C132.29 32 32 132.29 32 256s100.29 224 224 224s224-100.29 224-224S379.71 32 256 32zm139 265c0 5.78-2.65 9.86-7.51 13.09q-61.71 41-123.29 82.19c-5.85 3.92-11.17 3.75-17-.14q-61.17-41-122.63-81.67c-5.11-3.39-7.59-7.56-7.59-13.73V217c0-6.14 2.52-10.34 7.62-13.72c40.91-27.13 81.94-54.36 122.73-81.68c5.82-3.89 11.09-4 16.94-.09q61.54 41.21 123.26 82.19c4.68 3.11 7.45 6.95 7.45 12.66z" fill="currentColor"></path><path d="M316.25 273.23q-22.59 15.34-45.39 30.34c-2.41 1.58-2.89 3.31-2.86 6.19v51.34l93-62l-38.53-25.88c-2.3-1.61-3.89-1.57-6.22.01z" fill="currentColor"></path><path d="M370 276.68v-39.62l-29.59 19.87L370 276.68z" fill="currentColor"></path>', 8)]));
+      return openBlock(), createElementBlock("svg", _hoisted_1$e, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M241.24 303.94c-15.32-10.36-30.74-20.57-46.06-30.93c-2-1.38-3.43-1.48-5.5 0l-38.88 26.12C182 319.9 244 361.32 244 361.32v-53.79c0-1.22-1.55-2.78-2.76-3.59z" fill="currentColor"></path><path d="M195.09 240.67q23.19-15.24 46.11-30.86a7.54 7.54 0 0 0 2.8-5.34v-51.7s-62 41.12-93.26 61.94c13.7 9.16 26.67 17.91 39.78 26.44c1.02.66 3.4.28 4.57-.48z" fill="currentColor"></path><path d="M269.84 209.35q23.71 16.07 47.63 31.82a4.3 4.3 0 0 0 3.83 0l39.76-26.47L268 152.48v53.35a4.79 4.79 0 0 0 1.84 3.52z" fill="currentColor"></path><path d="M258.11 230.37a5.27 5.27 0 0 0-4.74.17c-4.82 3-9.47 6.2-14.17 9.35c-8.25 5.53-25.35 17-25.35 17l38.84 25.86a6.18 6.18 0 0 0 6.26.11l39-26s-34.07-22.66-39.84-26.49z" fill="currentColor"></path><path d="M141 237.12v39.61l29.62-19.84L141 237.12z" fill="currentColor"></path><path d="M256 32C132.29 32 32 132.29 32 256s100.29 224 224 224s224-100.29 224-224S379.71 32 256 32zm139 265c0 5.78-2.65 9.86-7.51 13.09q-61.71 41-123.29 82.19c-5.85 3.92-11.17 3.75-17-.14q-61.17-41-122.63-81.67c-5.11-3.39-7.59-7.56-7.59-13.73V217c0-6.14 2.52-10.34 7.62-13.72c40.91-27.13 81.94-54.36 122.73-81.68c5.82-3.89 11.09-4 16.94-.09q61.54 41.21 123.26 82.19c4.68 3.11 7.45 6.95 7.45 12.66z" fill="currentColor"></path><path d="M316.25 273.23q-22.59 15.34-45.39 30.34c-2.41 1.58-2.89 3.31-2.86 6.19v51.34l93-62l-38.53-25.88c-2.3-1.61-3.89-1.57-6.22.01z" fill="currentColor"></path><path d="M370 276.68v-39.62l-29.59 19.87L370 276.68z" fill="currentColor"></path>', 8)]));
     }
   });
-  const _hoisted_1$c = {
+  const _hoisted_1$d = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9362,7 +9484,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$c,
+        _hoisted_1$d,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9396,7 +9518,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$b = {
+  const _hoisted_1$c = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9406,7 +9528,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$b,
+        _hoisted_1$c,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9439,7 +9561,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$a = {
+  const _hoisted_1$b = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9449,7 +9571,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$a,
+        _hoisted_1$b,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9469,7 +9591,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _sfc_main$b = /* @__PURE__ */ defineComponent({
+  const _sfc_main$c = /* @__PURE__ */ defineComponent({
     __name: "GoCaptureIcon",
     props: {
       name: {},
@@ -9510,6 +9632,114 @@ ${unwrappedProps}
       };
     }
   });
+  const BRANDS = [
+    {
+      id: "openai",
+      aliases: ["openai", "codex", "gpt", "responses"],
+      color: "#101828",
+      body: '<path fill="currentColor" d="M22.282 9.821a6 6 0 0 0-.516-4.91 6.05 6.05 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a6 6 0 0 0-3.998 2.9 6.05 6.05 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.05 6.05 0 0 0 6.515 2.9A6 6 0 0 0 13.26 24a6.06 6.06 0 0 0 5.772-4.206 6 6 0 0 0 3.997-2.9 6.06 6.06 0 0 0-.747-7.073M13.26 22.43a4.48 4.48 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.8.8 0 0 0 .392-.681v-6.737l2.02 1.168a.07.07 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494M3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.77.77 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646M2.34 7.896a4.5 4.5 0 0 1 2.366-1.973V11.6a.77.77 0 0 0 .388.677l5.815 3.354-2.02 1.168a.08.08 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855-5.833-3.387L15.119 7.2a.08.08 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667m2.01-3.023-.141-.085-4.774-2.782a.78.78 0 0 0-.785 0L9.409 9.23V6.897a.07.07 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.8.8 0 0 0-.393.681zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z"/>'
+    },
+    {
+      id: "claude",
+      aliases: ["claude", "anthropic"],
+      color: "#d97757",
+      body: '<path fill="currentColor" fill-rule="nonzero" d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 0 1-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/>'
+    },
+    {
+      id: "gemini",
+      aliases: ["gemini", "google"],
+      color: "#3186ff",
+      body: '<path fill="currentColor" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/>'
+    },
+    {
+      id: "deepseek",
+      aliases: ["deepseek"],
+      color: "#4d6bfe",
+      body: '<path fill="currentColor" d="M23.748 4.651c-.254-.124-.364.113-.512.233-.423.44-.857.794-1.51.763-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.672-.3-1.072-.614-1.26-1.424-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615Z"/>'
+    },
+    {
+      id: "qwen",
+      aliases: ["qwen", "tongyi", "alibaba"],
+      color: "#6850e8",
+      body: '<path fill="currentColor" d="M23.919 14.545 20.817 9.17l1.47-2.544a.56.56 0 0 0 0-.566l-1.633-2.83a.57.57 0 0 0-.49-.283h-6.207L12.487.402a.57.57 0 0 0-.49-.284H8.732a.56.56 0 0 0-.49.284L5.139 5.775h-2.94a.56.56 0 0 0-.49.284L.077 8.887a.56.56 0 0 0 0 .567L3.18 14.83l-1.47 2.545a.56.56 0 0 0 0 .566l1.634 2.83a.57.57 0 0 0 .49.283h6.205l1.47 2.545a.57.57 0 0 0 .49.284h3.266a.57.57 0 0 0 .49-.284l3.104-5.375h2.94a.57.57 0 0 0 .49-.283l1.634-2.828a.55.55 0 0 0-.004-.568M8.733.686l1.634 2.828-1.634 2.828H21.8L20.164 9.17H7.425L5.63 6.06Zm1.306 19.801-6.205-.002 1.634-2.83h3.265L2.201 6.344h3.267q3.182 5.517 6.367 11.032zm10.124-5.66L18.53 12l-6.532 11.315-1.634-2.83c2.129-3.673 4.25-7.351 6.373-11.028h3.592l3.102 5.374Z"/>'
+    },
+    {
+      id: "kimi",
+      aliases: ["kimi", "moonshot"],
+      color: "#101828",
+      body: '<path fill="currentColor" d="m1.053 16.91 9.538 2.55a21 20.981 0 0 0 .06 2.031l5.956 1.592a12 11.99 0 0 1-15.554-6.172m-1.02-5.79 11.352 3.035a21 20.981 0 0 0-.469 2.01l10.817 2.89a12 11.99 0 0 1-1.845 2.004L.658 15.918a12 11.99 0 0 1-.625-4.796m1.593-5.146L13.573 9.17a21 20.981 0 0 0-1.01 1.874l11.297 3.02a21 20.981 0 0 1-.67 2.362l-11.55-3.087L.125 10.26a12 11.99 0 0 1 1.499-4.285ZM6.067 1.58l11.285 3.016a21 20.981 0 0 0-1.688 1.719l7.824 2.091a21 20.981 0 0 1 .513 2.664L2.107 5.218a12 11.99 0 0 1 3.96-3.638M21.68 4.866 7.222 1.003A12 11.99 0 0 1 21.68 4.866"/>'
+    },
+    {
+      id: "doubao",
+      aliases: ["doubao", "bytedance", "豆包"],
+      color: "#1e37fc",
+      body: '<path fill="currentColor" d="M19.877 1.469 24 2.532v18.942l-4.123 1.056zM6.53 10.897l4.115 1.064v8.978L6.53 22.003zM0 2.572l4.115 1.064v16.736L0 21.428zm17.455 5.62V19.3l-4.122-1.065V9.257z"/>'
+    },
+    {
+      id: "zhipu",
+      aliases: ["zhipu", "glm", "智谱"],
+      color: "#3859ff",
+      text: "GLM"
+    },
+    {
+      id: "mistral",
+      aliases: ["mistral"],
+      color: "#fa500f",
+      body: '<path fill="currentColor" d="M17.143 3.429v3.428h-3.429v3.429h-3.428V6.857H6.857V3.43H3.43v13.714H0v3.428h10.286v-3.428H6.857v-3.429h3.429v3.429h3.429v-3.429h3.428v3.429h-3.428v3.428H24v-3.428h-3.43V3.429z"/>'
+    }
+  ];
+  const MODEL_BRANDS = Object.freeze(
+    BRANDS.map((brand) => Object.freeze(__spreadProps(__spreadValues({}, brand), { aliases: Object.freeze([...brand.aliases]) })))
+  );
+  function resolveModelBrand(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return MODEL_BRANDS.find(
+      (brand) => brand.id === normalized || brand.aliases.some((alias) => normalized.includes(alias))
+    ) || {
+      id: "generic",
+      aliases: [],
+      color: "#475467",
+      text: normalized.slice(0, 2).toUpperCase() || "AI"
+    };
+  }
+  const _hoisted_1$a = ["innerHTML"];
+  const _hoisted_2$9 = { key: 1 };
+  const _sfc_main$b = {
+    __name: "ModelBrandIcon",
+    props: {
+      name: { type: String, default: "" },
+      size: { type: Number, default: 20 }
+    },
+    setup(__props) {
+      const props = __props;
+      const brand = computed(() => resolveModelBrand(props.name));
+      return (_ctx, _cache) => {
+        return openBlock(), createElementBlock(
+          "span",
+          {
+            class: "mda-model-brand-icon",
+            style: normalizeStyle({ width: `${__props.size}px`, height: `${__props.size}px`, color: brand.value.color }),
+            "aria-hidden": "true"
+          },
+          [
+            brand.value.body ? (openBlock(), createElementBlock("svg", {
+              key: 0,
+              viewBox: "0 0 24 24",
+              innerHTML: brand.value.body
+            }, null, 8, _hoisted_1$a)) : (openBlock(), createElementBlock(
+              "b",
+              _hoisted_2$9,
+              toDisplayString(brand.value.text),
+              1
+              /* TEXT */
+            ))
+          ],
+          4
+          /* STYLE */
+        );
+      };
+    }
+  };
   const _hoisted_1$9 = { class: "mda-thread-group" };
   const _hoisted_2$8 = {
     key: 0,
@@ -9687,41 +9917,71 @@ ${unwrappedProps}
     class: "mda-project-config-actions"
   };
   const _hoisted_31$2 = { class: "mda-project-config-main" };
-  const _hoisted_32$2 = ["datetime", "title"];
-  const _hoisted_33$2 = {
+  const _hoisted_32$2 = { class: "mda-project-config-title" };
+  const _hoisted_33$2 = ["datetime", "title"];
+  const _hoisted_34$2 = {
     key: 0,
     class: "mda-warning"
   };
-  const _hoisted_34$2 = {
+  const _hoisted_35$2 = {
     key: 1,
     class: "mda-warning"
   };
-  const _hoisted_35$2 = {
+  const _hoisted_36$2 = {
     class: "mda-thread-picker",
     role: "dialog",
     "aria-modal": "true",
     "aria-label": "选择开发 Agent"
   };
-  const _hoisted_36$2 = { class: "mda-thread-picker-head" };
-  const _hoisted_37$1 = {
+  const _hoisted_37$1 = { class: "mda-thread-picker-head" };
+  const _hoisted_38$1 = { class: "mda-agent-common-settings" };
+  const _hoisted_39$1 = { class: "mda-agent-proxy-control" };
+  const _hoisted_40$1 = ["disabled"];
+  const _hoisted_41$1 = {
     class: "mda-agent-provider-grid",
     "aria-label": "可用 Agent"
   };
-  const _hoisted_38$1 = ["disabled", "onClick"];
-  const _hoisted_39$1 = { class: "mda-agent-provider-icon" };
-  const _hoisted_40$1 = { class: "mda-agent-provider-main" };
-  const _hoisted_41$1 = {
+  const _hoisted_42$1 = ["disabled", "onClick"];
+  const _hoisted_43$1 = { class: "mda-agent-provider-icon" };
+  const _hoisted_44$1 = { class: "mda-agent-provider-main" };
+  const _hoisted_45$1 = ["disabled", "onClick"];
+  const _hoisted_46$1 = {
     key: 0,
     class: "mda-thread-picker-state"
   };
-  const _hoisted_42$1 = {
+  const _hoisted_47$1 = {
     key: 2,
     class: "mda-agent-provider-note"
   };
-  const _hoisted_43$1 = {
+  const _hoisted_48$1 = {
     key: 3,
     class: "mda-thread-picker-error"
   };
+  const _hoisted_49$1 = ["aria-label"];
+  const _hoisted_50$1 = { class: "mda-thread-picker-head" };
+  const _hoisted_51$1 = { class: "mda-provider-config-body" };
+  const _hoisted_52$1 = { class: "mda-provider-mode-options" };
+  const _hoisted_53$1 = ["value"];
+  const _hoisted_54$1 = { class: "mda-provider-mode-title" };
+  const _hoisted_55$1 = { class: "mda-provider-mode-explanation" };
+  const _hoisted_56$1 = {
+    key: 0,
+    class: "mda-provider-config-field"
+  };
+  const _hoisted_57$1 = ["placeholder"];
+  const _hoisted_58$1 = { class: "mda-provider-config-grid" };
+  const _hoisted_59$1 = { class: "mda-provider-config-field" };
+  const _hoisted_60$1 = ["placeholder"];
+  const _hoisted_61 = { class: "mda-provider-config-field" };
+  const _hoisted_62 = ["placeholder"];
+  const _hoisted_63 = { class: "mda-provider-config-field" };
+  const _hoisted_64 = { class: "mda-provider-config-field" };
+  const _hoisted_65 = {
+    key: 1,
+    class: "mda-thread-picker-error"
+  };
+  const _hoisted_66 = { class: "mda-provider-config-actions" };
+  const _hoisted_67 = ["disabled"];
   const _sfc_main$9 = {
     __name: "ChatThread",
     setup(__props) {
@@ -9742,11 +10002,53 @@ ${unwrappedProps}
       const nowTick = /* @__PURE__ */ ref(Date.now());
       const logOpenState = /* @__PURE__ */ ref({});
       const logNodeOpenState = /* @__PURE__ */ ref({});
+      const providerConfigVisible = /* @__PURE__ */ ref(false);
+      const providerConfigSaving = /* @__PURE__ */ ref(false);
+      const providerConfigError = /* @__PURE__ */ ref("");
+      const configProviderId = /* @__PURE__ */ ref("");
+      const runtimeApiKey = /* @__PURE__ */ ref("");
+      const projectProxy = /* @__PURE__ */ ref("");
+      const runtimeForm = /* @__PURE__ */ ref({
+        backendId: "inherit",
+        protocol: "inherit",
+        baseUrl: "",
+        model: "",
+        fastModel: "",
+        effort: ""
+      });
+      const configProvider = computed(() => connectAgentStore.providers.find((provider) => provider.id === configProviderId.value) || null);
+      const runtimeBackendOptions = computed(() => {
+        var _a2;
+        return (((_a2 = configProvider.value) == null ? void 0 : _a2.availableModelBackends) || []).map((backend) => {
+          var _a3, _b;
+          return {
+            value: backend.id,
+            label: backend.name,
+            description: backendDescription(backend),
+            iconName: backend.id === "inherit" ? ((_a3 = configProvider.value) == null ? void 0 : _a3.id) || ((_b = configProvider.value) == null ? void 0 : _b.name) || "agent" : backend.id
+          };
+        });
+      });
+      const selectedBackend = computed(() => {
+        var _a2, _b;
+        return ((_b = (_a2 = configProvider.value) == null ? void 0 : _a2.availableModelBackends) == null ? void 0 : _b.find(
+          (backend) => backend.id === runtimeForm.value.backendId
+        )) || null;
+      });
+      const runtimeProviderExplanation = computed(() => backendExplanation(selectedBackend.value, configProvider.value));
       let clockTimer = 0;
       function openAgentPicker() {
         return __async(this, null, function* () {
           var _a2;
-          yield connectAgentStore.openAgentPicker(((_a2 = projectStore.current) == null ? void 0 : _a2.path) || "");
+          const opened = yield connectAgentStore.openAgentPicker(((_a2 = projectStore.current) == null ? void 0 : _a2.path) || "");
+          if (opened) projectProxy.value = connectAgentStore.projectSettings.proxy || "";
+        });
+      }
+      function saveProjectProxy() {
+        return __async(this, null, function* () {
+          yield connectAgentStore.saveProjectSettings(__spreadProps(__spreadValues({}, connectAgentStore.projectSettings), {
+            proxy: projectProxy.value
+          }));
         });
       }
       function chooseAgent(providerId) {
@@ -9761,10 +10063,101 @@ ${unwrappedProps}
         });
       }
       function providerSummary(provider) {
+        var _a2, _b;
         if (!provider.installed) return provider.message || "未检测到本地 CLI";
+        const backendId = (_a2 = provider.runtimeConfig) == null ? void 0 : _a2.backendId;
+        if (backendId && backendId !== "inherit") {
+          const backend = (_b = provider.availableModelBackends) == null ? void 0 : _b.find((item) => item.id === backendId);
+          return `${(backend == null ? void 0 : backend.name) || backendId} · ${provider.runtimeConfig.model || "默认模型"}`;
+        }
         if (provider.projectThreadName) return provider.projectThreadName;
         if (provider.supportsThreadBinding) return "选择一个项目任务继续对话";
         return provider.message || "首次开发时建立项目会话";
+      }
+      function openProviderConfig(provider) {
+        const config = (provider == null ? void 0 : provider.runtimeConfig) || {};
+        configProviderId.value = (provider == null ? void 0 : provider.id) || "";
+        runtimeForm.value = {
+          backendId: config.backendId || "inherit",
+          protocol: config.protocol || "inherit",
+          baseUrl: config.baseUrl || "",
+          model: config.model || "",
+          fastModel: config.fastModel || "",
+          effort: config.effort || ""
+        };
+        runtimeApiKey.value = "";
+        providerConfigError.value = "";
+        providerConfigVisible.value = true;
+      }
+      function closeProviderConfig() {
+        if (providerConfigSaving.value) return;
+        providerConfigVisible.value = false;
+      }
+      function saveProviderConfig() {
+        return __async(this, null, function* () {
+          var _a2, _b;
+          const provider = configProvider.value;
+          if (!provider) return;
+          if (runtimeForm.value.backendId === "deepseek") {
+            const endpoint = runtimeForm.value.baseUrl.replace(/\/+$/, "");
+            if (endpoint === "https://api.deepseek.com/chat/completions" || endpoint === "https://api.deepseek.com/v1" || endpoint === "https://api.deepseek.com") {
+              providerConfigError.value = "Claude Code 不能使用 Chat Completions 地址，请改为 https://api.deepseek.com/anthropic";
+              return;
+            }
+          }
+          if (runtimeForm.value.backendId !== "inherit" && !runtimeApiKey.value && !(provider.authMode === "apikey" && provider.authBackendId === runtimeForm.value.backendId)) {
+            providerConfigError.value = `首次配置 ${((_a2 = selectedBackend.value) == null ? void 0 : _a2.name) || "模型后端"} 时需要填写 API Key。`;
+            return;
+          }
+          providerConfigSaving.value = true;
+          providerConfigError.value = "";
+          try {
+            const options = __spreadValues({
+              runtimeConfig: __spreadValues({}, runtimeForm.value)
+            }, runtimeApiKey.value ? {
+              auth: {
+                mode: "apikey",
+                backendId: runtimeForm.value.backendId,
+                apiKey: runtimeApiKey.value,
+                proxy: connectAgentStore.projectSettings.proxy || ""
+              }
+            } : {});
+            const connected = yield connectAgentStore.connectProvider(
+              provider.id,
+              ((_b = projectStore.current) == null ? void 0 : _b.path) || "",
+              options
+            );
+            if (!connected) {
+              providerConfigError.value = connectAgentStore.connectionError || "模型配置验证失败";
+              return;
+            }
+            providerConfigVisible.value = false;
+          } finally {
+            providerConfigSaving.value = false;
+          }
+        });
+      }
+      watch(() => runtimeForm.value.backendId, (backendId, previousBackendId) => {
+        if (backendId === previousBackendId) return;
+        const backend = selectedBackend.value;
+        runtimeForm.value.protocol = (backend == null ? void 0 : backend.protocol) || "inherit";
+        runtimeForm.value.baseUrl = (backend == null ? void 0 : backend.defaultBaseUrl) || "";
+        runtimeForm.value.model = (backend == null ? void 0 : backend.defaultModel) || "";
+        runtimeForm.value.fastModel = (backend == null ? void 0 : backend.defaultFastModel) || "";
+        runtimeForm.value.effort = backendId === "deepseek" ? "max" : "";
+      });
+      function backendDescription(backend) {
+        if (backend.id === "inherit") return "读取 Agent 自己的用户或项目配置";
+        if (backend.protocol === "anthropic-messages") return "通过 Anthropic Messages 协议提供模型";
+        if (backend.protocol === "openai-responses") return "通过 OpenAI Responses 协议提供模型";
+        return backend.protocol || "模型后端";
+      }
+      function backendExplanation(backend, provider) {
+        if (!backend || !provider) return "";
+        if (backend.id === "inherit") {
+          return `GoCapture 不覆盖模型与密钥，${provider.name} 使用自己已有的登录、用户和项目配置。`;
+        }
+        return `${provider.name} 仍负责 Agent、工具与开发工作流；模型请求通过 ${backend.name} 的 ${backend.protocol} 协议执行。该配置只影响 GoCapture 启动的进程。`;
       }
       watch(messages, (nextMessages) => {
         const nextState = {};
@@ -9886,12 +10279,13 @@ ${unwrappedProps}
         return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
       }
       return (_ctx, _cache) => {
-        var _a2, _b;
+        var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
         return openBlock(), createElementBlock("section", _hoisted_1$8, [
           (openBlock(true), createElementBlock(
             Fragment,
             null,
             renderList(messages.value, (message) => {
+              var _a3;
               return openBlock(), createElementBlock(
                 "article",
                 {
@@ -9946,7 +10340,7 @@ ${unwrappedProps}
                         "aria-label": "复制全部日志",
                         onClick: ($event) => copyAllLogs(message.logs)
                       }, [
-                        createVNode(_sfc_main$b, {
+                        createVNode(_sfc_main$c, {
                           name: "copy",
                           size: 15
                         })
@@ -9966,7 +10360,7 @@ ${unwrappedProps}
                                 role: "listitem"
                               },
                               [
-                                _cache[5] || (_cache[5] = createBaseVNode(
+                                _cache[12] || (_cache[12] = createBaseVNode(
                                   "span",
                                   {
                                     class: "mda-log-node-marker",
@@ -10106,62 +10500,29 @@ ${unwrappedProps}
                         ])) : createCommentVNode("v-if", true),
                         message.action === "agent-settings" ? (openBlock(), createElementBlock("div", _hoisted_30$2, [
                           createBaseVNode("button", {
-                            class: "mda-project-config-card is-locator-step",
-                            type: "button",
-                            onClick: _cache[2] || (_cache[2] = ($event) => unref(commands).openSettings("locator"))
-                          }, [..._cache[6] || (_cache[6] = [
-                            createBaseVNode(
-                              "span",
-                              { class: "mda-project-config-main" },
-                              [
-                                createBaseVNode("em", null, "可选职责 · 前置定位"),
-                                createBaseVNode("strong", null, "Locator"),
-                                createBaseVNode("small", null, "未配置时由开发 Agent 直接定位")
-                              ],
-                              -1
-                              /* CACHED */
-                            ),
-                            createBaseVNode(
-                              "b",
-                              null,
-                              "配置",
-                              -1
-                              /* CACHED */
-                            ),
-                            createBaseVNode(
-                              "span",
-                              { class: "mda-locator-card-help" },
-                              [
-                                createTextVNode(" 为什么配置 Locator？ "),
-                                createBaseVNode("span", {
-                                  class: "mda-locator-help-tip",
-                                  role: "tooltip"
-                                }, " Locator 可先用成本更低的模型定位源码，再把精确位置交给关联 Agent，减少主 Agent 的检索轮次和 Token 消耗。 ")
-                              ],
-                              -1
-                              /* CACHED */
-                            )
-                          ])]),
-                          createBaseVNode("button", {
-                            class: "mda-project-config-card",
+                            class: "mda-project-config-card is-agent-primary",
                             type: "button",
                             onClick: openAgentPicker
                           }, [
                             createBaseVNode("span", _hoisted_31$2, [
-                              _cache[7] || (_cache[7] = createBaseVNode(
+                              _cache[14] || (_cache[14] = createBaseVNode(
                                 "em",
                                 null,
-                                "主要职责 · 开发执行",
+                                "主要职责",
                                 -1
                                 /* CACHED */
                               )),
-                              _cache[8] || (_cache[8] = createBaseVNode(
-                                "strong",
-                                null,
-                                "开发 Agent",
-                                -1
-                                /* CACHED */
-                              )),
+                              createBaseVNode("strong", _hoisted_32$2, [
+                                createVNode(_sfc_main$b, {
+                                  name: ((_a3 = unref(connectAgentStore).activeProvider) == null ? void 0 : _a3.id) || "agent",
+                                  size: 18
+                                }, null, 8, ["name"]),
+                                _cache[13] || (_cache[13] = createTextVNode(
+                                  " 开发 Agent ",
+                                  -1
+                                  /* CACHED */
+                                ))
+                              ]),
                               createBaseVNode(
                                 "small",
                                 null,
@@ -10170,21 +10531,57 @@ ${unwrappedProps}
                                 /* TEXT */
                               )
                             ]),
-                            _cache[9] || (_cache[9] = createBaseVNode(
+                            _cache[15] || (_cache[15] = createBaseVNode(
                               "b",
                               null,
                               "重新选择",
                               -1
                               /* CACHED */
                             ))
-                          ])
+                          ]),
+                          createBaseVNode("button", {
+                            class: "mda-locator-optional-row",
+                            type: "button",
+                            onClick: _cache[2] || (_cache[2] = ($event) => unref(commands).openSettings("locator"))
+                          }, [..._cache[16] || (_cache[16] = [
+                            createBaseVNode(
+                              "span",
+                              null,
+                              [
+                                createBaseVNode("strong", null, "Locator"),
+                                createBaseVNode("small", null, "可选前置定位；未配置时由开发 Agent 完成全部工作")
+                              ],
+                              -1
+                              /* CACHED */
+                            ),
+                            createBaseVNode(
+                              "b",
+                              null,
+                              "配置可选优化",
+                              -1
+                              /* CACHED */
+                            ),
+                            createBaseVNode(
+                              "span",
+                              { class: "mda-locator-card-help" },
+                              [
+                                createTextVNode(" 为什么配置？ "),
+                                createBaseVNode("span", {
+                                  class: "mda-locator-help-tip",
+                                  role: "tooltip"
+                                }, " 可用成本更低的模型先定位源码，再把位置交给开发 Agent，从而减少主 Agent 的检索轮次和 Token 消耗。它不是必需步骤。 ")
+                              ],
+                              -1
+                              /* CACHED */
+                            )
+                          ])])
                         ])) : createCommentVNode("v-if", true),
                         message.createdAt ? (openBlock(), createElementBlock("time", {
                           key: 7,
                           class: "mda-message-time",
                           datetime: messageDateTime(message.createdAt),
                           title: messageFullTime(message.createdAt)
-                        }, toDisplayString(messageTime(message.createdAt)), 9, _hoisted_32$2)) : createCommentVNode("v-if", true)
+                        }, toDisplayString(messageTime(message.createdAt)), 9, _hoisted_33$2)) : createCommentVNode("v-if", true)
                       ],
                       2
                       /* CLASS */
@@ -10200,14 +10597,14 @@ ${unwrappedProps}
           )),
           sourceServiceError.value ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_33$2,
+            _hoisted_34$2,
             toDisplayString(sourceServiceError.value),
             1
             /* TEXT */
           )) : createCommentVNode("v-if", true),
           candidateError.value ? (openBlock(), createElementBlock(
             "div",
-            _hoisted_34$2,
+            _hoisted_35$2,
             toDisplayString(candidateError.value),
             1
             /* TEXT */
@@ -10217,11 +10614,11 @@ ${unwrappedProps}
               key: 0,
               class: "mda-thread-picker-backdrop",
               role: "presentation",
-              onClick: _cache[4] || (_cache[4] = withModifiers((...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args), ["self"]))
+              onClick: _cache[5] || (_cache[5] = withModifiers((...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args), ["self"]))
             }, [
-              createBaseVNode("section", _hoisted_35$2, [
-                createBaseVNode("header", _hoisted_36$2, [
-                  _cache[10] || (_cache[10] = createBaseVNode(
+              createBaseVNode("section", _hoisted_36$2, [
+                createBaseVNode("header", _hoisted_37$1, [
+                  _cache[17] || (_cache[17] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -10237,62 +10634,117 @@ ${unwrappedProps}
                     "aria-label": "关闭",
                     onClick: _cache[3] || (_cache[3] = (...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args))
                   }, [
-                    createVNode(_sfc_main$b, {
+                    createVNode(_sfc_main$c, {
                       name: "close",
                       size: 18
                     })
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_37$1, [
+                createBaseVNode("div", _hoisted_38$1, [
+                  _cache[18] || (_cache[18] = createBaseVNode(
+                    "div",
+                    null,
+                    [
+                      createBaseVNode("strong", null, "项目网络代理"),
+                      createBaseVNode("small", null, "可选。统一应用于当前项目启动的 Codex 和 Claude Code。")
+                    ],
+                    -1
+                    /* CACHED */
+                  )),
+                  createBaseVNode("div", _hoisted_39$1, [
+                    withDirectives(createBaseVNode(
+                      "input",
+                      {
+                        "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => projectProxy.value = $event),
+                        type: "url",
+                        placeholder: "例如 http://127.0.0.1:7890",
+                        "aria-label": "项目 Agent 代理地址"
+                      },
+                      null,
+                      512
+                      /* NEED_PATCH */
+                    ), [
+                      [
+                        vModelText,
+                        projectProxy.value,
+                        void 0,
+                        { trim: true }
+                      ]
+                    ]),
+                    createBaseVNode("button", {
+                      type: "button",
+                      disabled: unref(connectAgentStore).settingsSaving,
+                      onClick: saveProjectProxy
+                    }, toDisplayString(unref(connectAgentStore).settingsSaving ? "保存中" : "保存"), 9, _hoisted_40$1)
+                  ])
+                ]),
+                createBaseVNode("div", _hoisted_41$1, [
                   (openBlock(true), createElementBlock(
                     Fragment,
                     null,
                     renderList(unref(connectAgentStore).providers, (provider) => {
-                      return openBlock(), createElementBlock("button", {
-                        key: provider.id,
-                        class: normalizeClass(["mda-agent-provider-card", { "is-selected": unref(connectAgentStore).pickerProviderId === provider.id }]),
-                        type: "button",
-                        disabled: unref(connectAgentStore).loading,
-                        onClick: ($event) => chooseAgent(provider.id)
-                      }, [
-                        createBaseVNode("span", _hoisted_39$1, [
-                          createVNode(_sfc_main$b, {
-                            name: "agent",
-                            size: 22
-                          })
-                        ]),
-                        createBaseVNode("span", _hoisted_40$1, [
-                          createBaseVNode(
-                            "strong",
-                            null,
-                            toDisplayString(provider.name),
-                            1
-                            /* TEXT */
-                          ),
-                          createBaseVNode(
-                            "small",
-                            null,
-                            toDisplayString(providerSummary(provider)),
-                            1
-                            /* TEXT */
-                          )
-                        ]),
-                        createBaseVNode(
-                          "span",
-                          {
-                            class: normalizeClass(["mda-agent-provider-state", { "is-connected": provider.connected }])
-                          },
-                          toDisplayString(provider.connected ? "已连接" : provider.installed ? "可连接" : "未安装"),
-                          3
-                          /* TEXT, CLASS */
-                        )
-                      ], 10, _hoisted_38$1);
+                      return openBlock(), createElementBlock(
+                        "div",
+                        {
+                          key: provider.id,
+                          class: normalizeClass(["mda-agent-provider-shell", { "is-selected": unref(connectAgentStore).pickerProviderId === provider.id }])
+                        },
+                        [
+                          createBaseVNode("button", {
+                            class: "mda-agent-provider-card",
+                            type: "button",
+                            disabled: unref(connectAgentStore).loading,
+                            onClick: ($event) => chooseAgent(provider.id)
+                          }, [
+                            createBaseVNode("span", _hoisted_43$1, [
+                              createVNode(_sfc_main$b, {
+                                name: provider.id || provider.name,
+                                size: 24
+                              }, null, 8, ["name"])
+                            ]),
+                            createBaseVNode("span", _hoisted_44$1, [
+                              createBaseVNode(
+                                "strong",
+                                null,
+                                toDisplayString(provider.name),
+                                1
+                                /* TEXT */
+                              ),
+                              createBaseVNode(
+                                "small",
+                                null,
+                                toDisplayString(providerSummary(provider)),
+                                1
+                                /* TEXT */
+                              )
+                            ]),
+                            createBaseVNode(
+                              "span",
+                              {
+                                class: normalizeClass(["mda-agent-provider-state", { "is-connected": provider.connected }])
+                              },
+                              toDisplayString(provider.connected ? "已连接" : provider.installed ? "可连接" : "未安装"),
+                              3
+                              /* TEXT, CLASS */
+                            )
+                          ], 8, _hoisted_42$1),
+                          provider.supportsRuntimeConfig ? (openBlock(), createElementBlock("button", {
+                            key: 0,
+                            class: "mda-agent-provider-config",
+                            type: "button",
+                            disabled: unref(connectAgentStore).loading,
+                            onClick: ($event) => openProviderConfig(provider)
+                          }, " 配置运行模型 ", 8, _hoisted_45$1)) : createCommentVNode("v-if", true)
+                        ],
+                        2
+                        /* CLASS */
+                      );
                     }),
                     128
                     /* KEYED_FRAGMENT */
                   ))
                 ]),
-                unref(connectAgentStore).threadLoading ? (openBlock(), createElementBlock("div", _hoisted_41$1, "正在读取 Agent 任务…")) : ((_a2 = unref(connectAgentStore).pickerProvider) == null ? void 0 : _a2.supportsThreadBinding) ? (openBlock(), createElementBlock(
+                unref(connectAgentStore).threadLoading ? (openBlock(), createElementBlock("div", _hoisted_46$1, "正在读取 Agent 任务…")) : ((_a2 = unref(connectAgentStore).pickerProvider) == null ? void 0 : _a2.supportsThreadBinding) ? (openBlock(), createElementBlock(
                   Fragment,
                   { key: 1 },
                   [
@@ -10315,19 +10767,281 @@ ${unwrappedProps}
                   /* STABLE_FRAGMENT */
                 )) : ((_b = unref(connectAgentStore).pickerProvider) == null ? void 0 : _b.connected) ? (openBlock(), createElementBlock(
                   "div",
-                  _hoisted_42$1,
+                  _hoisted_47$1,
                   toDisplayString(unref(connectAgentStore).pickerProvider.name) + " 已关联。首次发送开发需求时会为当前项目建立并保存会话。 ",
                   1
                   /* TEXT */
                 )) : createCommentVNode("v-if", true),
                 unref(connectAgentStore).connectionError ? (openBlock(), createElementBlock(
                   "p",
-                  _hoisted_43$1,
+                  _hoisted_48$1,
                   toDisplayString(unref(connectAgentStore).connectionError),
                   1
                   /* TEXT */
                 )) : createCommentVNode("v-if", true)
               ])
+            ])) : createCommentVNode("v-if", true),
+            providerConfigVisible.value ? (openBlock(), createElementBlock("div", {
+              key: 1,
+              class: "mda-thread-picker-backdrop",
+              role: "presentation",
+              onClick: withModifiers(closeProviderConfig, ["self"])
+            }, [
+              createBaseVNode("section", {
+                class: "mda-provider-config-dialog",
+                role: "dialog",
+                "aria-modal": "true",
+                "aria-label": `${((_c = configProvider.value) == null ? void 0 : _c.name) || "Agent"} 运行模型配置`
+              }, [
+                createBaseVNode("header", _hoisted_50$1, [
+                  createBaseVNode("div", null, [
+                    createBaseVNode(
+                      "h2",
+                      null,
+                      toDisplayString(((_d = configProvider.value) == null ? void 0 : _d.name) || "Agent") + " 运行模型",
+                      1
+                      /* TEXT */
+                    ),
+                    _cache[19] || (_cache[19] = createBaseVNode(
+                      "p",
+                      null,
+                      "仅影响 GoCapture 启动的当前 Agent，不修改本机全局配置。",
+                      -1
+                      /* CACHED */
+                    ))
+                  ]),
+                  createBaseVNode("button", {
+                    class: "mda-thread-picker-close",
+                    type: "button",
+                    "aria-label": "关闭",
+                    onClick: closeProviderConfig
+                  }, [
+                    createVNode(_sfc_main$c, {
+                      name: "close",
+                      size: 18
+                    })
+                  ])
+                ]),
+                createBaseVNode("div", _hoisted_51$1, [
+                  createBaseVNode("fieldset", _hoisted_52$1, [
+                    _cache[20] || (_cache[20] = createBaseVNode(
+                      "legend",
+                      null,
+                      "模型来源",
+                      -1
+                      /* CACHED */
+                    )),
+                    (openBlock(true), createElementBlock(
+                      Fragment,
+                      null,
+                      renderList(runtimeBackendOptions.value, (option) => {
+                        return openBlock(), createElementBlock("label", {
+                          key: option.value
+                        }, [
+                          withDirectives(createBaseVNode("input", {
+                            "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => runtimeForm.value.backendId = $event),
+                            type: "radio",
+                            value: option.value
+                          }, null, 8, _hoisted_53$1), [
+                            [vModelRadio, runtimeForm.value.backendId]
+                          ]),
+                          createBaseVNode("span", null, [
+                            createBaseVNode("strong", _hoisted_54$1, [
+                              createVNode(_sfc_main$b, {
+                                name: option.iconName,
+                                size: 20
+                              }, null, 8, ["name"]),
+                              createTextVNode(
+                                " " + toDisplayString(option.label),
+                                1
+                                /* TEXT */
+                              )
+                            ]),
+                            createBaseVNode(
+                              "small",
+                              null,
+                              toDisplayString(option.description),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ]);
+                      }),
+                      128
+                      /* KEYED_FRAGMENT */
+                    ))
+                  ]),
+                  createBaseVNode(
+                    "p",
+                    _hoisted_55$1,
+                    toDisplayString(runtimeProviderExplanation.value),
+                    1
+                    /* TEXT */
+                  ),
+                  runtimeForm.value.backendId !== "inherit" ? (openBlock(), createElementBlock(
+                    Fragment,
+                    { key: 0 },
+                    [
+                      ((_e = selectedBackend.value) == null ? void 0 : _e.configurable) && runtimeForm.value.backendId !== "anthropic" ? (openBlock(), createElementBlock("label", _hoisted_56$1, [
+                        _cache[21] || (_cache[21] = createBaseVNode(
+                          "span",
+                          null,
+                          "Endpoint",
+                          -1
+                          /* CACHED */
+                        )),
+                        withDirectives(createBaseVNode("input", {
+                          "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => runtimeForm.value.baseUrl = $event),
+                          type: "url",
+                          placeholder: ((_f = selectedBackend.value) == null ? void 0 : _f.defaultBaseUrl) || "https://gateway.example.com"
+                        }, null, 8, _hoisted_57$1), [
+                          [
+                            vModelText,
+                            runtimeForm.value.baseUrl,
+                            void 0,
+                            { trim: true }
+                          ]
+                        ])
+                      ])) : createCommentVNode("v-if", true),
+                      createBaseVNode("div", _hoisted_58$1, [
+                        createBaseVNode("label", _hoisted_59$1, [
+                          _cache[22] || (_cache[22] = createBaseVNode(
+                            "span",
+                            null,
+                            "主模型",
+                            -1
+                            /* CACHED */
+                          )),
+                          withDirectives(createBaseVNode("input", {
+                            "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => runtimeForm.value.model = $event),
+                            type: "text",
+                            placeholder: ((_g = selectedBackend.value) == null ? void 0 : _g.defaultModel) || "留空使用 Agent 默认值"
+                          }, null, 8, _hoisted_60$1), [
+                            [
+                              vModelText,
+                              runtimeForm.value.model,
+                              void 0,
+                              { trim: true }
+                            ]
+                          ])
+                        ]),
+                        createBaseVNode("label", _hoisted_61, [
+                          _cache[23] || (_cache[23] = createBaseVNode(
+                            "span",
+                            null,
+                            "快速 / 子 Agent 模型",
+                            -1
+                            /* CACHED */
+                          )),
+                          withDirectives(createBaseVNode("input", {
+                            "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => runtimeForm.value.fastModel = $event),
+                            type: "text",
+                            placeholder: ((_h = selectedBackend.value) == null ? void 0 : _h.defaultFastModel) || "可留空"
+                          }, null, 8, _hoisted_62), [
+                            [
+                              vModelText,
+                              runtimeForm.value.fastModel,
+                              void 0,
+                              { trim: true }
+                            ]
+                          ])
+                        ])
+                      ]),
+                      createBaseVNode("label", _hoisted_63, [
+                        createBaseVNode(
+                          "span",
+                          null,
+                          toDisplayString(((_i = selectedBackend.value) == null ? void 0 : _i.name) || "模型后端") + " API Key " + toDisplayString(((_j = configProvider.value) == null ? void 0 : _j.authMode) === "apikey" && ((_k = configProvider.value) == null ? void 0 : _k.authBackendId) === runtimeForm.value.backendId ? "（留空则沿用已保存密钥）" : ""),
+                          1
+                          /* TEXT */
+                        ),
+                        withDirectives(createBaseVNode(
+                          "input",
+                          {
+                            "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => runtimeApiKey.value = $event),
+                            type: "password",
+                            autocomplete: "new-password",
+                            placeholder: "sk-..."
+                          },
+                          null,
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [
+                            vModelText,
+                            runtimeApiKey.value,
+                            void 0,
+                            { trim: true }
+                          ]
+                        ])
+                      ]),
+                      createBaseVNode("label", _hoisted_64, [
+                        _cache[25] || (_cache[25] = createBaseVNode(
+                          "span",
+                          null,
+                          "推理强度",
+                          -1
+                          /* CACHED */
+                        )),
+                        withDirectives(createBaseVNode(
+                          "select",
+                          {
+                            "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => runtimeForm.value.effort = $event)
+                          },
+                          [..._cache[24] || (_cache[24] = [
+                            createBaseVNode(
+                              "option",
+                              { value: "" },
+                              "使用模型默认值",
+                              -1
+                              /* CACHED */
+                            ),
+                            createBaseVNode(
+                              "option",
+                              { value: "high" },
+                              "High",
+                              -1
+                              /* CACHED */
+                            ),
+                            createBaseVNode(
+                              "option",
+                              { value: "max" },
+                              "Max",
+                              -1
+                              /* CACHED */
+                            )
+                          ])],
+                          512
+                          /* NEED_PATCH */
+                        ), [
+                          [vModelSelect, runtimeForm.value.effort]
+                        ])
+                      ])
+                    ],
+                    64
+                    /* STABLE_FRAGMENT */
+                  )) : createCommentVNode("v-if", true),
+                  providerConfigError.value ? (openBlock(), createElementBlock(
+                    "p",
+                    _hoisted_65,
+                    toDisplayString(providerConfigError.value),
+                    1
+                    /* TEXT */
+                  )) : createCommentVNode("v-if", true)
+                ]),
+                createBaseVNode("footer", _hoisted_66, [
+                  createBaseVNode("button", {
+                    type: "button",
+                    onClick: closeProviderConfig
+                  }, "取消"),
+                  createBaseVNode("button", {
+                    class: "is-primary",
+                    type: "button",
+                    disabled: providerConfigSaving.value,
+                    onClick: saveProviderConfig
+                  }, toDisplayString(providerConfigSaving.value ? "验证中…" : "保存并连接"), 9, _hoisted_67)
+                ])
+              ], 8, _hoisted_49$1)
             ])) : createCommentVNode("v-if", true)
           ]))
         ]);
@@ -11930,7 +12644,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260728.015916.497";
+      const buildVersion = "20260729.011236.203";
       const commands = useGoCaptureCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -15065,7 +15779,7 @@ ${source}` : "",
         text: [
           `${project.value.name} · ${project.value.fileCount} 个文件 · ${project.value.stackText || "未识别技术栈"}`,
           project.value.path ? `源码目录：${project.value.path}` : "",
-          activeAgent ? agentBound ? `开发 Agent：${activeAgent.name}${activeAgent.version ? ` · ${activeAgent.version}` : ""}` : `开发 Agent：${activeAgent.name} 已连接，尚未绑定任务` : connectAgentStore.loading ? "开发 Agent：正在检查" : "开发 Agent：未关联",
+          activeAgent ? agentBound ? `开发 Agent：${activeAgent.name}${activeAgent.version ? ` · ${activeAgent.version}` : ""}` : !activeAgent.connected ? `开发 Agent：${activeAgent.name} 需要重新连接` : `开发 Agent：${activeAgent.name} 已连接，尚未绑定任务` : connectAgentStore.loading ? "开发 Agent：正在检查" : "开发 Agent：未关联",
           agentBound ? `项目 Thread：${projectThreadId || "首次任务时建立"}` : "",
           agentBound ? modelStore.selectedModel ? `Locator：${modelStore.selectedModel.name}` : "Locator：由开发 Agent 处理" : ""
         ].filter(Boolean).join("\n"),
@@ -16642,7 +17356,7 @@ ${result.rawText}` : ""
                     ]
                   },
                   [
-                    createVNode(_sfc_main$b, {
+                    createVNode(_sfc_main$c, {
                       name: "refresh",
                       size: 19
                     })
@@ -16674,7 +17388,7 @@ ${result.rawText}` : ""
                     ]
                   },
                   [
-                    createVNode(_sfc_main$b, {
+                    createVNode(_sfc_main$c, {
                       name: "cog",
                       size: 20
                     })
@@ -17298,7 +18012,7 @@ ${result.rawText}` : ""
                 type: "button",
                 onClick: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("back"))
               }, [
-                createVNode(_sfc_main$b, {
+                createVNode(_sfc_main$c, {
                   name: "back",
                   size: 16
                 }),
@@ -17311,7 +18025,7 @@ ${result.rawText}` : ""
                 )
               ]),
               createBaseVNode("label", _hoisted_5, [
-                createVNode(_sfc_main$b, {
+                createVNode(_sfc_main$c, {
                   name: "search",
                   size: 17
                 }),
@@ -17342,7 +18056,7 @@ ${result.rawText}` : ""
                   onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "locator")
                 },
                 [
-                  createVNode(_sfc_main$b, {
+                  createVNode(_sfc_main$c, {
                     name: "search",
                     size: 17
                   }),
@@ -17370,7 +18084,7 @@ ${result.rawText}` : ""
                   onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "assets")
                 },
                 [
-                  createVNode(_sfc_main$b, {
+                  createVNode(_sfc_main$c, {
                     name: "images",
                     size: 17
                   }),
@@ -17388,7 +18102,7 @@ ${result.rawText}` : ""
                 type: "button",
                 onClick: showExperienceComingSoon
               }, [
-                createVNode(_sfc_main$b, {
+                createVNode(_sfc_main$c, {
                   name: "book",
                   size: 17
                 }),
@@ -17415,7 +18129,7 @@ ${result.rawText}` : ""
                   onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "project")
                 },
                 [
-                  createVNode(_sfc_main$b, {
+                  createVNode(_sfc_main$c, {
                     name: "folder",
                     size: 17
                   }),
@@ -17443,7 +18157,7 @@ ${result.rawText}` : ""
                   onClick: _cache[5] || (_cache[5] = ($event) => tab.value = "tools")
                 },
                 [
-                  createVNode(_sfc_main$b, {
+                  createVNode(_sfc_main$c, {
                     name: "construct",
                     size: 17
                   }),
@@ -17647,7 +18361,7 @@ ${result.rawText}` : ""
                             title: `编辑 ${item.name}`,
                             onClick: ($event) => editLocatorModel(item)
                           }, [
-                            createVNode(_sfc_main$b, {
+                            createVNode(_sfc_main$c, {
                               name: "settings",
                               size: 17
                             })
@@ -17663,7 +18377,7 @@ ${result.rawText}` : ""
                       type: "button",
                       onClick: _cache[11] || (_cache[11] = ($event) => editLocatorModel(null))
                     }, [
-                      createVNode(_sfc_main$b, {
+                      createVNode(_sfc_main$c, {
                         name: "add",
                         size: 16
                       }),
@@ -18168,7 +18882,7 @@ ${result.rawText}` : ""
                     "aria-label": "关闭",
                     onClick: _cache[18] || (_cache[18] = ($event) => locatorEditorExpanded.value = false)
                   }, [
-                    createVNode(_sfc_main$b, {
+                    createVNode(_sfc_main$c, {
                       name: "close",
                       size: 18
                     })
@@ -18380,7 +19094,7 @@ ${result.rawText}` : ""
                     "aria-label": "关闭",
                     onClick: closeAssetDetails
                   }, [
-                    createVNode(_sfc_main$b, {
+                    createVNode(_sfc_main$c, {
                       name: "close",
                       size: 18
                     })
@@ -21412,7 +22126,7 @@ ${result.rawText}` : ""
   background: #f9fafb;
 }
 
-.mda-project-config-card.is-locator-step {
+.mda-project-config-card.is-agent-primary {
   border-left: 3px solid #1677ff;
   background: #f8fbff;
 }
@@ -21447,8 +22161,52 @@ ${result.rawText}` : ""
   font-style: normal;
 }
 
-.mda-project-config-card.is-locator-step em {
+.mda-project-config-card.is-agent-primary em {
   color: #1677ff;
+}
+
+.mda-locator-optional-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-locator-optional-row > span:first-child {
+  display: inline-flex;
+  gap: 7px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mda-locator-optional-row strong {
+  color: #475467;
+  font-size: 11px;
+}
+
+.mda-locator-optional-row small {
+  overflow: hidden;
+  color: #98a2b3;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-locator-optional-row b {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.mda-locator-optional-row:hover strong,
+.mda-locator-optional-row:hover b {
+  color: #175cd3;
 }
 
 .mda-project-config-card b {
@@ -21495,7 +22253,7 @@ ${result.rawText}` : ""
 }
 
 .mda-locator-card-help:hover .mda-locator-help-tip,
-.mda-project-config-card.is-locator-step:focus-visible .mda-locator-help-tip {
+.mda-locator-optional-row:focus-visible .mda-locator-help-tip {
   opacity: 1;
   transform: translateY(0);
 }
@@ -23049,30 +23807,111 @@ ${result.rawText}` : ""
   padding: 18px 20px 6px;
 }
 
+.mda-agent-common-settings {
+  display: grid;
+  gap: 10px;
+  margin: 16px 20px 0;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.mda-agent-common-settings > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.mda-agent-common-settings strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.mda-agent-common-settings small {
+  color: #667085;
+  font-size: 10px;
+}
+
+.mda-agent-proxy-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.mda-agent-proxy-control input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+}
+
+.mda-agent-proxy-control input:focus {
+  border-color: #1677ff;
+  outline: 2px solid rgba(22, 119, 255, 0.12);
+}
+
+.mda-agent-proxy-control button {
+  min-width: 58px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+}
+
+.mda-agent-proxy-control button:hover:not(:disabled) {
+  border-color: #98a2b3;
+  background: #f2f4f7;
+}
+
+.mda-agent-proxy-control button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.mda-agent-provider-shell {
+  position: relative;
+  min-width: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.mda-agent-provider-shell:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-agent-provider-shell.is-selected {
+  border-color: #1677ff;
+  background: #f5f9ff;
+}
+
 .mda-agent-provider-card {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+  width: 100%;
   min-width: 0;
   min-height: 76px;
   padding: 11px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  background: #fff;
+  border: 0;
+  background: transparent;
   color: #344054;
   text-align: left;
   cursor: pointer;
 }
 
 .mda-agent-provider-card:hover:not(:disabled) {
-  border-color: #98a2b3;
-  background: #f9fafb;
-}
-
-.mda-agent-provider-card.is-selected {
-  border-color: #1677ff;
-  background: #f5f9ff;
+  background: rgba(242, 244, 247, 0.72);
 }
 
 .mda-agent-provider-card:disabled {
@@ -23088,6 +23927,37 @@ ${result.rawText}` : ""
   border-radius: 6px;
   background: #f2f4f7;
   color: #344054;
+}
+
+.mda-model-brand-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  line-height: 1;
+}
+
+.mda-model-brand-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mda-model-brand-icon b {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2f6;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.mda-project-config-title,
+.mda-provider-mode-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .mda-agent-provider-main {
@@ -23123,6 +23993,178 @@ ${result.rawText}` : ""
   color: #067647;
 }
 
+.mda-agent-provider-config {
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  border: 0;
+  border-top: 1px solid #eaecf0;
+  background: transparent;
+  color: #175cd3;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+}
+
+.mda-agent-provider-config:hover:not(:disabled) {
+  background: #eff8ff;
+}
+
+.mda-provider-config-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 56px rgba(16, 24, 40, 0.22);
+}
+
+.mda-provider-config-body {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.mda-provider-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mda-provider-mode-options legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-provider-mode-options label {
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.mda-provider-mode-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mda-provider-mode-options label > span {
+  display: grid;
+  min-height: 72px;
+  align-content: start;
+  gap: 5px;
+  padding: 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.mda-provider-mode-options input:checked + span {
+  border-color: #1677ff;
+  background: #f5f9ff;
+  box-shadow: inset 0 0 0 1px #1677ff;
+}
+
+.mda-provider-mode-options input:focus-visible + span {
+  outline: 2px solid #84adff;
+  outline-offset: 2px;
+}
+
+.mda-provider-mode-options strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-provider-mode-options small {
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mda-provider-mode-explanation {
+  margin: -6px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid #84adff;
+  background: #f5f9ff;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.mda-provider-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mda-provider-config-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mda-provider-config-field > span {
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-provider-config-field input,
+.mda-provider-config-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.mda-provider-config-field input:focus,
+.mda-provider-config-field select:focus {
+  border-color: #1677ff;
+  outline: 2px solid rgba(22, 119, 255, 0.12);
+}
+
+.mda-provider-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #eaecf0;
+}
+
+.mda-provider-config-actions button {
+  min-width: 76px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mda-provider-config-actions button.is-primary {
+  border-color: #1677ff;
+  background: #1677ff;
+  color: #fff;
+}
+
+.mda-provider-config-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .mda-agent-provider-note {
   margin: 16px 20px 20px;
   padding: 12px;
@@ -23136,6 +24178,15 @@ ${result.rawText}` : ""
 
 @media (max-width: 560px) {
   .mda-agent-provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-provider-mode-options,
+  .mda-provider-config-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-agent-proxy-control {
     grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -25,11 +25,19 @@ export interface ConnectAgentProvider {
   projectThreadId?: string;
   projectThreadName?: string;
   projectThreadSource?: 'project' | 'recent' | string;
+  projectThreadUpdatedAt?: string;
   authModes?: string[];
   authMode?: string;
+  authBackendId?: string;
   authConfigured?: boolean;
   supportsProxy?: boolean;
   proxy?: string;
+  supportsRuntimeConfig?: boolean;
+  runtimeConfig?: AgentRuntimeConfig;
+  capabilities?: Record<string, boolean>;
+  modelProtocols?: string[];
+  modelBackends?: string[];
+  availableModelBackends?: ModelBackendDefinition[];
   supportsThreadBinding?: boolean;
   requiresThreadBinding?: boolean;
 }
@@ -52,9 +60,40 @@ export interface ConnectAgentThreadGroups {
 
 export interface ConnectAgentAuth {
   mode: 'subscription' | 'apikey';
+  backendId?: string;
   apiKey?: string;
   oauthToken?: string;
   proxy?: string;
+}
+
+export interface ModelBackendDefinition {
+  id: string;
+  name: string;
+  protocol: 'inherit' | 'anthropic-messages' | 'openai-responses' | string;
+  configurable: boolean;
+  defaultBaseUrl?: string;
+  defaultModel?: string;
+  defaultFastModel?: string;
+}
+
+export interface AgentRuntimeConfig {
+  backendId: string;
+  protocol?: string;
+  baseUrl?: string;
+  model?: string;
+  fastModel?: string;
+  effort?: '' | 'high' | 'max';
+}
+
+export interface ConnectAgentOptions {
+  auth?: ConnectAgentAuth;
+  runtimeConfig?: AgentRuntimeConfig;
+  projectRoot?: string;
+}
+
+export interface ConnectAgentProjectSettings {
+  proxy: string;
+  activeProviderId: string;
 }
 
 export interface ConnectAgentTask {
@@ -127,15 +166,45 @@ export async function listConnectAgents(
 
 export async function connectAgent(
   providerId: string,
-  auth?: ConnectAgentAuth
+  options?: ConnectAgentOptions
 ): Promise<ConnectAgentProvider> {
   const data = await sourceServerJson(`/api/connect-agents/${encodeURIComponent(providerId)}/connect`, {
     method: 'POST',
-    body: auth ? { auth } : {},
-    timeoutMs: 15000,
+    body: options || {},
+    timeoutMs: 75000,
     timeoutMessage: '连接 Agent 超时'
   });
   return data.provider;
+}
+
+export async function loadConnectAgentSettings(
+  projectRoot: string
+): Promise<ConnectAgentProjectSettings> {
+  const query = new URLSearchParams({ projectRoot });
+  const data = await sourceServerJson(`/api/connect-agents/settings?${query}`, {
+    timeoutMs: 5000,
+    timeoutMessage: '加载 Agent 公共设置超时'
+  });
+  return {
+    proxy: String(data?.settings?.proxy || ''),
+    activeProviderId: String(data?.settings?.activeProviderId || '')
+  };
+}
+
+export async function saveConnectAgentSettings(
+  projectRoot: string,
+  settings: ConnectAgentProjectSettings
+): Promise<ConnectAgentProjectSettings> {
+  const data = await sourceServerJson('/api/connect-agents/settings', {
+    method: 'PUT',
+    body: { projectRoot, settings },
+    timeoutMs: 5000,
+    timeoutMessage: '保存 Agent 公共设置超时'
+  });
+  return {
+    proxy: String(data?.settings?.proxy || ''),
+    activeProviderId: String(data?.settings?.activeProviderId || '')
+  };
 }
 
 export async function disconnectAgent(providerId: string): Promise<ConnectAgentProvider> {
@@ -200,8 +269,8 @@ export async function runConnectAgentTask(
       controller: options.controller,
       onEvent: options.onEvent,
       timeoutMs: 30 * 60 * 1000,
-      timeoutMessage: 'Codex 开发任务执行超时',
-      abortMessage: 'Codex 开发任务已取消'
+      timeoutMessage: 'Agent 开发任务执行超时',
+      abortMessage: 'Agent 开发任务已取消'
     }
   );
 }

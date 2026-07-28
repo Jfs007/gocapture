@@ -11,19 +11,37 @@ const readline = require('readline');
 const crypto = require('crypto');
 const { inspectClaudeCli, spawnClaudeTask, spawnClaudeProbe } = require('./cli');
 const { normalizeAuth, loadClaudeAuth, saveClaudeAuth, authToEnv } = require('./auth-store');
+const {
+  CLAUDE_MODEL_BACKENDS,
+  loadRuntimeConfig,
+  normalizeRuntimeConfig,
+  runtimeConfigToEnv,
+  saveRuntimeConfig,
+  validateRuntimeConfig,
+} = require('./runtime-config');
+const { AgentAdapter } = require('../../core/agent-adapter');
+const {
+  MODEL_PROTOCOLS,
+  assertModelBackendCompatible,
+  getModelBackend,
+  listModelBackends,
+} = require('../../core/model-backends');
 
 const PROBE_TIMEOUT_MS = 60 * 1000;
 // Claude 常把鉴权/网络失败当"文本回复"打出来(subtype 仍 success)，故除退出码/is_error 外，也按文本特征判失败。
-const AUTH_FAIL_RE = /API Error:\s*40[13]|Failed to authenticate|not allowed|Invalid API key|unauthor/i;
+const AUTH_FAIL_RE = /API Error:\s*40[13]|Failed to authenticate|not allowed|Invalid API key|api key.*invalid|unauthor/i;
 // 区域/网络受限：Anthropic 直连被拒(403 Request not allowed)，多为所在区域需走代理。
 const REGION_BLOCK_RE = /Request not allowed|\b403\b/i;
 
-function explainProbeFailure(text) {
+function explainProbeFailure(text, provider = 'anthropic') {
+  const serviceName = provider === 'deepseek' ? 'DeepSeek' : 'Anthropic';
   if (REGION_BLOCK_RE.test(text)) {
-    return '请求受限：该区域无法直连 Anthropic（403 Request not allowed）。请在授权里配置代理后重试。';
+    return `请求受限：当前环境无法连接 ${serviceName}（403 Request not allowed）。请检查 Endpoint、账户权限或代理。`;
   }
   if (/Invalid API key|Failed to authenticate|unauthor|\b401\b/i.test(text)) {
-    return '授权无效：请改用有效的 API Key，或重新登录订阅（claude setup-token / claude auth login）。';
+    return provider === 'deepseek'
+      ? 'DeepSeek 授权无效：请检查 API Key 与 Anthropic 兼容 Endpoint。'
+      : '授权无效：请改用有效的 API Key，或重新登录订阅（claude setup-token / claude auth login）。';
   }
   return '授权验证失败';
 }
@@ -31,11 +49,24 @@ function explainProbeFailure(text) {
 const TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const FILE_EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'create_file', 'str_replace_editor']);
 
-class ClaudeCodeClient {
+class ClaudeCodeClient extends AgentAdapter {
   constructor(options = {}) {
+    super({
+      id: 'claude',
+      name: 'Claude Code',
+      capabilities: {
+        proxy: true,
+        threadBinding: false,
+        requiresThreadBinding: false,
+        modelBackendConfiguration: true,
+      },
+      modelProtocols: [MODEL_PROTOCOLS.ANTHROPIC_MESSAGES],
+      modelBackends: CLAUDE_MODEL_BACKENDS,
+    });
     this.inspectCli = options.inspectCli || inspectClaudeCli;
     this.spawnTask = options.spawnTask || spawnClaudeTask;
     this.spawnProbe = options.spawnProbe || spawnClaudeProbe;
+    this.fetch = options.fetch || globalThis.fetch;
     this.permissionMode = options.permissionMode || process.env.GOCAPTURE_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
     this.model = options.model || process.env.GOCAPTURE_CLAUDE_MODEL || '';
     this.tasks = new Map();   // taskId -> { child, task }
@@ -46,6 +77,21 @@ class ClaudeCodeClient {
     // 用户授权（订阅 / apikey）：构造时从盘上恢复；连接时可携带新授权覆盖并落盘。
     this.auth = options.auth ? normalizeAuth(options.auth) : (options.loadAuth || loadClaudeAuth)();
     this.saveAuth = options.saveAuth || saveClaudeAuth;
+    this.runtimeConfig = normalizeRuntimeConfig(
+      options.runtimeConfig || (options.loadRuntimeConfig || loadRuntimeConfig)(),
+    );
+    this.saveRuntimeConfig = options.saveRuntimeConfig || saveRuntimeConfig;
+  }
+
+  setProxy(proxy) {
+    this.auth = normalizeAuth({
+      ...this.auth,
+      proxy: String(proxy || '').trim(),
+    });
+  }
+
+  configureProject(settings = {}) {
+    this.setProxy(settings.proxy);
   }
 
   async inspect() {
@@ -56,26 +102,95 @@ class ClaudeCodeClient {
   async connect(options = {}) {
     this.state = 'checking';
     this.lastError = '';
-    // 连接时可携带授权（订阅/apikey）→ 覆盖并落盘。
+    const previousAuth = this.auth;
+    const previousRuntimeConfig = this.runtimeConfig;
+    const hasAuthUpdate = !!options?.auth;
+    const hasRuntimeUpdate = !!options?.runtimeConfig;
+    // 先将新配置放入内存供探针验证；验证成功后再落盘。
     if (options && options.auth) {
       this.auth = normalizeAuth(options.auth);
-      this.saveAuth(this.auth);
     }
-    const cli = await this.inspectCli();
-    this.cli = cli;
-    if (!cli.installed) {
-      this.state = 'unavailable';
-      throw new Error(cli.message);
+    if (options && options.runtimeConfig) {
+      this.runtimeConfig = normalizeRuntimeConfig(options.runtimeConfig);
     }
-    // 真实验证：用当前授权发一次极小请求，确认能通过 API（auth status 只查本地凭据，过不了会 403）。
-    const probe = await this.probeAuth();
-    if (!probe.ok) {
-      this.state = 'error';
-      this.lastError = probe.message;
-      throw new Error(probe.message);
+    try {
+      const runtimeConfigError = validateRuntimeConfig(this.runtimeConfig, this.manifest);
+      if (runtimeConfigError) throw new Error(runtimeConfigError);
+      assertModelBackendCompatible(this.manifest, this.runtimeConfig.backendId);
+      const cli = await this.inspectCli();
+      this.cli = cli;
+      if (!cli.installed) {
+        this.state = 'unavailable';
+        throw new Error(cli.message);
+      }
+      // DeepSeek 先直连兼容 API，避免 Claude CLI 在 401 时持续重试直到超时。
+      const probe = this.runtimeConfig.backendId !== 'inherit'
+        && this.runtimeConfig.backendId !== 'anthropic'
+        && !this.auth.proxy
+        ? await this.probeAnthropicCompatibleApi()
+        : await this.probeAuth();
+      if (!probe.ok) {
+        this.state = 'error';
+        this.lastError = probe.message;
+        throw new Error(probe.message);
+      }
+      if (hasAuthUpdate && !this.saveAuth(this.auth)) {
+        throw new Error('Claude Code 授权配置保存失败');
+      }
+      if (hasRuntimeUpdate && !this.saveRuntimeConfig(this.runtimeConfig)) {
+        throw new Error('Claude Code 运行模型配置保存失败');
+      }
+      this.state = 'connected';
+      return this.status();
+    } catch (error) {
+      if (hasAuthUpdate) this.auth = previousAuth;
+      if (hasRuntimeUpdate) this.runtimeConfig = previousRuntimeConfig;
+      throw error;
     }
-    this.state = 'connected';
-    return this.status();
+  }
+
+  async probeAnthropicCompatibleApi() {
+    const backend = getModelBackend(this.runtimeConfig.backendId);
+    const backendName = backend?.name || '模型后端';
+    if (this.auth.mode !== 'apikey' || !this.auth.apiKey) {
+      return { ok: false, message: `${backendName} 连接缺少 API Key` };
+    }
+    if (typeof this.fetch !== 'function') {
+      return this.probeAuth();
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15 * 1000);
+    try {
+      const baseUrl = String(this.runtimeConfig.baseUrl || '').replace(/\/+$/, '');
+      const response = await this.fetch(`${baseUrl}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'x-api-key': this.auth.apiKey,
+        },
+        body: JSON.stringify({
+          model: this.runtimeConfig.fastModel || this.runtimeConfig.model || 'deepseek-v4-flash',
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'OK' }],
+        }),
+        signal: controller.signal,
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) return { ok: true, message: '' };
+      const detail = String(body?.error?.message || body?.message || `HTTP ${response.status}`);
+      if (response.status === 401 || response.status === 403) {
+        return { ok: false, message: `${backendName} 授权失败：${detail}` };
+      }
+      return { ok: false, message: `${backendName} API 验证失败：${detail}` };
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return { ok: false, message: `${backendName} API 验证超时（15s），请检查网络或代理` };
+      }
+      return { ok: false, message: `${backendName} API 验证失败：${error.message}` };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   probeAuth() {
@@ -84,7 +199,9 @@ class ClaudeCodeClient {
       let err = '';
       let child;
       try {
-        child = this.spawnProbe(this.cli?.executable || 'claude', { env: authToEnv(this.auth) });
+        child = this.spawnProbe(this.cli?.executable || 'claude', {
+          env: this.claudeEnv(),
+        });
       } catch (error) {
         resolve({ ok: false, message: `授权验证失败：${error.message}` });
         return;
@@ -106,7 +223,7 @@ class ClaudeCodeClient {
           return;
         }
         const hint = AUTH_FAIL_RE.test(text)
-          ? explainProbeFailure(text)
+          ? explainProbeFailure(text, this.runtimeConfig.backendId)
           : `授权验证失败${code != null ? `（退出码 ${code}）` : ''}`;
         resolve({ ok: false, message: `${hint}${text ? `：${text.slice(0, 200)}` : ''}` });
       });
@@ -129,10 +246,7 @@ class ClaudeCodeClient {
   }
 
   status() {
-    return {
-      id: 'claude',
-      name: 'Claude Code',
-      category: 'connection',
+    return this.publicStatus({
       state: this.isConnected() ? 'connected' : this.state,
       connected: this.isConnected(),
       installed: !!this.cli?.installed,
@@ -146,12 +260,14 @@ class ClaudeCodeClient {
       // 授权元数据：前端据此展示"订阅/apikey"授权入口与当前状态（不回传密钥本身）。
       authModes: ['subscription', 'apikey'],
       authMode: this.auth.mode || '',
+      authBackendId: this.auth.backendId || '',
       authConfigured: !!this.auth.mode,
       supportsProxy: true,
       proxy: this.auth.proxy || '', // 非密钥，回传供前端预填
-      supportsThreadBinding: false,
-      requiresThreadBinding: false,
-    };
+      supportsRuntimeConfig: true,
+      runtimeConfig: { ...this.runtimeConfig },
+      availableModelBackends: listModelBackends(this.manifest.modelBackends),
+    });
   }
 
   statusMessage() {
@@ -177,9 +293,12 @@ class ClaudeCodeClient {
     if (!String(prompt || '').trim()) throw new Error('Claude Code 任务缺少开发要求');
     if (!this.isConnected()) await this.connect();
 
+    const resumeSessionId = String(threadId || this.sessions.get(cwd) || '').trim();
     const task = {
       taskId,
-      sessionId: '',
+      // `--resume` 指向的是项目级稳定会话。Claude stream 中后续出现的
+      // session_id 可能只属于本次调用，不能覆盖它。
+      sessionId: resumeSessionId,
       status: 'starting',
       startedAt: Date.now(),
       finishedAt: 0,
@@ -188,7 +307,6 @@ class ClaudeCodeClient {
       changedFiles: new Set(),
       error: '',
     };
-    const resumeSessionId = String(threadId || this.sessions.get(cwd) || '').trim();
     let persistedSessionId = '';
     onEvent({ type: 'task-started', task: publicTask(task), message: `Claude Code 开发任务已创建：${taskId}` });
 
@@ -200,8 +318,8 @@ class ClaudeCodeClient {
       resumeSessionId,
       prompt: structuredPrompt,
       permissionMode: this.permissionMode,
-      model: this.model,
-      env: authToEnv(this.auth),
+      model: this.runtimeConfig.model || this.model,
+      env: this.claudeEnv(),
     });
     const entry = { child, task };
     this.tasks.set(taskId, entry);
@@ -241,7 +359,9 @@ class ClaudeCodeClient {
         const event = parseJsonLine(line);
         if (!event) return;
         const description = updateTaskFromEvent(task, event, FILE_EDIT_TOOLS);
-        if (task.sessionId && cwd) {
+        const isSessionInit = event.type === 'system' && event.subtype === 'init';
+        const canPersistSession = !!resumeSessionId || isSessionInit;
+        if (task.sessionId && cwd && canPersistSession) {
           this.sessions.set(cwd, task.sessionId);
           if (task.sessionId !== persistedSessionId) {
             persistedSessionId = task.sessionId;
@@ -261,7 +381,9 @@ class ClaudeCodeClient {
           onEvent({
             type: 'task-completed',
             task: result,
-            message: task.status === 'completed' ? 'Claude Code 开发任务已完成' : `Claude Code 开发任务结束：${task.status}`,
+            message: task.status === 'completed'
+              ? 'Claude Code 开发任务已完成'
+              : `Claude Code 开发任务结束：${task.status}${task.finalResponse ? `：${task.finalResponse}` : ''}`,
           });
           if (event.is_error) finish(reject, taskError(task, new Error(task.finalResponse || 'Claude Code 开发任务执行失败')));
           else finish(resolve, result);
@@ -297,6 +419,14 @@ class ClaudeCodeClient {
     }).finally(() => {
       this.tasks.delete(taskId);
     });
+  }
+
+  claudeEnv() {
+    return runtimeConfigToEnv(
+      this.runtimeConfig,
+      this.auth,
+      authToEnv(this.auth),
+    );
   }
 
   stopAllTasks(reason) {
@@ -348,10 +478,24 @@ function updateTaskFromEvent(task, event, fileEditTools) {
     return ''; // tool_result 回填，无需噪声
   }
   if (type === 'result') {
-    if (String(event.result || '').trim()) task.finalResponse = String(event.result);
-    return `Claude Code 结束：${event.subtype || 'result'}`;
+    const detail = resultEventDetail(event);
+    if (detail) task.finalResponse = detail;
+    return `Claude Code 结束：${event.subtype || 'result'}${detail ? `：${detail}` : ''}`;
   }
   return '';
+}
+
+function resultEventDetail(event) {
+  const values = [
+    event?.result,
+    event?.error,
+    event?.message,
+    ...(Array.isArray(event?.errors) ? event.errors : []),
+  ];
+  return values
+    .map(value => typeof value === 'string' ? value.trim() : '')
+    .filter(Boolean)
+    .join('；');
 }
 
 function describeToolUse(tool, input, file) {

@@ -2633,7 +2633,7 @@
   background: #f9fafb;
 }
 
-.mda-project-config-card.is-locator-step {
+.mda-project-config-card.is-agent-primary {
   border-left: 3px solid #1677ff;
   background: #f8fbff;
 }
@@ -2668,8 +2668,52 @@
   font-style: normal;
 }
 
-.mda-project-config-card.is-locator-step em {
+.mda-project-config-card.is-agent-primary em {
   color: #1677ff;
+}
+
+.mda-locator-optional-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-locator-optional-row > span:first-child {
+  display: inline-flex;
+  gap: 7px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mda-locator-optional-row strong {
+  color: #475467;
+  font-size: 11px;
+}
+
+.mda-locator-optional-row small {
+  overflow: hidden;
+  color: #98a2b3;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-locator-optional-row b {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.mda-locator-optional-row:hover strong,
+.mda-locator-optional-row:hover b {
+  color: #175cd3;
 }
 
 .mda-project-config-card b {
@@ -2716,7 +2760,7 @@
 }
 
 .mda-locator-card-help:hover .mda-locator-help-tip,
-.mda-project-config-card.is-locator-step:focus-visible .mda-locator-help-tip {
+.mda-locator-optional-row:focus-visible .mda-locator-help-tip {
   opacity: 1;
   transform: translateY(0);
 }
@@ -4270,30 +4314,111 @@
   padding: 18px 20px 6px;
 }
 
+.mda-agent-common-settings {
+  display: grid;
+  gap: 10px;
+  margin: 16px 20px 0;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.mda-agent-common-settings > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.mda-agent-common-settings strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.mda-agent-common-settings small {
+  color: #667085;
+  font-size: 10px;
+}
+
+.mda-agent-proxy-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.mda-agent-proxy-control input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+}
+
+.mda-agent-proxy-control input:focus {
+  border-color: #1677ff;
+  outline: 2px solid rgba(22, 119, 255, 0.12);
+}
+
+.mda-agent-proxy-control button {
+  min-width: 58px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+}
+
+.mda-agent-proxy-control button:hover:not(:disabled) {
+  border-color: #98a2b3;
+  background: #f2f4f7;
+}
+
+.mda-agent-proxy-control button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.mda-agent-provider-shell {
+  position: relative;
+  min-width: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.mda-agent-provider-shell:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-agent-provider-shell.is-selected {
+  border-color: #1677ff;
+  background: #f5f9ff;
+}
+
 .mda-agent-provider-card {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+  width: 100%;
   min-width: 0;
   min-height: 76px;
   padding: 11px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  background: #fff;
+  border: 0;
+  background: transparent;
   color: #344054;
   text-align: left;
   cursor: pointer;
 }
 
 .mda-agent-provider-card:hover:not(:disabled) {
-  border-color: #98a2b3;
-  background: #f9fafb;
-}
-
-.mda-agent-provider-card.is-selected {
-  border-color: #1677ff;
-  background: #f5f9ff;
+  background: rgba(242, 244, 247, 0.72);
 }
 
 .mda-agent-provider-card:disabled {
@@ -4309,6 +4434,37 @@
   border-radius: 6px;
   background: #f2f4f7;
   color: #344054;
+}
+
+.mda-model-brand-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  line-height: 1;
+}
+
+.mda-model-brand-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mda-model-brand-icon b {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2f6;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.mda-project-config-title,
+.mda-provider-mode-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .mda-agent-provider-main {
@@ -4344,6 +4500,178 @@
   color: #067647;
 }
 
+.mda-agent-provider-config {
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  border: 0;
+  border-top: 1px solid #eaecf0;
+  background: transparent;
+  color: #175cd3;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+}
+
+.mda-agent-provider-config:hover:not(:disabled) {
+  background: #eff8ff;
+}
+
+.mda-provider-config-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 56px rgba(16, 24, 40, 0.22);
+}
+
+.mda-provider-config-body {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.mda-provider-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mda-provider-mode-options legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-provider-mode-options label {
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.mda-provider-mode-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mda-provider-mode-options label > span {
+  display: grid;
+  min-height: 72px;
+  align-content: start;
+  gap: 5px;
+  padding: 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.mda-provider-mode-options input:checked + span {
+  border-color: #1677ff;
+  background: #f5f9ff;
+  box-shadow: inset 0 0 0 1px #1677ff;
+}
+
+.mda-provider-mode-options input:focus-visible + span {
+  outline: 2px solid #84adff;
+  outline-offset: 2px;
+}
+
+.mda-provider-mode-options strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-provider-mode-options small {
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mda-provider-mode-explanation {
+  margin: -6px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid #84adff;
+  background: #f5f9ff;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.mda-provider-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mda-provider-config-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mda-provider-config-field > span {
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-provider-config-field input,
+.mda-provider-config-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.mda-provider-config-field input:focus,
+.mda-provider-config-field select:focus {
+  border-color: #1677ff;
+  outline: 2px solid rgba(22, 119, 255, 0.12);
+}
+
+.mda-provider-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #eaecf0;
+}
+
+.mda-provider-config-actions button {
+  min-width: 76px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mda-provider-config-actions button.is-primary {
+  border-color: #1677ff;
+  background: #1677ff;
+  color: #fff;
+}
+
+.mda-provider-config-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .mda-agent-provider-note {
   margin: 16px 20px 20px;
   padding: 12px;
@@ -4357,6 +4685,15 @@
 
 @media (max-width: 560px) {
   .mda-agent-provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-provider-mode-options,
+  .mda-provider-config-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-agent-proxy-control {
     grid-template-columns: minmax(0, 1fr);
   }
 }

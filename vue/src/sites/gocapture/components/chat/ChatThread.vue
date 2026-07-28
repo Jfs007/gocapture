@@ -91,27 +91,29 @@
             </button>
           </div>
           <div v-if="message.action === 'agent-settings'" class="mda-project-config-actions">
-            <button class="mda-project-config-card is-locator-step" type="button" @click="commands.openSettings('locator')">
+            <button class="mda-project-config-card is-agent-primary" type="button" @click="openAgentPicker">
               <span class="mda-project-config-main">
-                <em>可选职责 · 前置定位</em>
-                <strong>Locator</strong>
-                <small>未配置时由开发 Agent 直接定位</small>
-              </span>
-              <b>配置</b>
-              <span class="mda-locator-card-help">
-                为什么配置 Locator？
-                <span class="mda-locator-help-tip" role="tooltip">
-                  Locator 可先用成本更低的模型定位源码，再把精确位置交给关联 Agent，减少主 Agent 的检索轮次和 Token 消耗。
-                </span>
-              </span>
-            </button>
-            <button class="mda-project-config-card" type="button" @click="openAgentPicker">
-              <span class="mda-project-config-main">
-                <em>主要职责 · 开发执行</em>
-                <strong>开发 Agent</strong>
+                <em>主要职责</em>
+                <strong class="mda-project-config-title">
+                  <ModelBrandIcon :name="connectAgentStore.activeProvider?.id || 'agent'" :size="18" />
+                  开发 Agent
+                </strong>
                 <small>{{ activeAgentLabel }}</small>
               </span>
               <b>重新选择</b>
+            </button>
+            <button class="mda-locator-optional-row" type="button" @click="commands.openSettings('locator')">
+              <span>
+                <strong>Locator</strong>
+                <small>可选前置定位；未配置时由开发 Agent 完成全部工作</small>
+              </span>
+              <b>配置可选优化</b>
+              <span class="mda-locator-card-help">
+                为什么配置？
+                <span class="mda-locator-help-tip" role="tooltip">
+                  可用成本更低的模型先定位源码，再把位置交给开发 Agent，从而减少主 Agent 的检索轮次和 Token 消耗。它不是必需步骤。
+                </span>
+              </span>
             </button>
           </div>
           <time
@@ -150,27 +152,58 @@
             </button>
           </header>
 
+          <div class="mda-agent-common-settings">
+            <div>
+              <strong>项目网络代理</strong>
+              <small>可选。统一应用于当前项目启动的 Codex 和 Claude Code。</small>
+            </div>
+            <div class="mda-agent-proxy-control">
+              <input
+                v-model.trim="projectProxy"
+                type="url"
+                placeholder="例如 http://127.0.0.1:7890"
+                aria-label="项目 Agent 代理地址"
+              >
+              <button type="button" :disabled="connectAgentStore.settingsSaving" @click="saveProjectProxy">
+                {{ connectAgentStore.settingsSaving ? '保存中' : '保存' }}
+              </button>
+            </div>
+          </div>
+
           <div class="mda-agent-provider-grid" aria-label="可用 Agent">
-            <button
+            <div
               v-for="provider in connectAgentStore.providers"
               :key="provider.id"
-              class="mda-agent-provider-card"
+              class="mda-agent-provider-shell"
               :class="{ 'is-selected': connectAgentStore.pickerProviderId === provider.id }"
-              type="button"
-              :disabled="connectAgentStore.loading"
-              @click="chooseAgent(provider.id)"
             >
-              <span class="mda-agent-provider-icon">
-                <GoCaptureIcon name="agent" :size="22" />
-              </span>
-              <span class="mda-agent-provider-main">
-                <strong>{{ provider.name }}</strong>
-                <small>{{ providerSummary(provider) }}</small>
-              </span>
-              <span class="mda-agent-provider-state" :class="{ 'is-connected': provider.connected }">
-                {{ provider.connected ? '已连接' : provider.installed ? '可连接' : '未安装' }}
-              </span>
-            </button>
+              <button
+                class="mda-agent-provider-card"
+                type="button"
+                :disabled="connectAgentStore.loading"
+                @click="chooseAgent(provider.id)"
+              >
+                <span class="mda-agent-provider-icon">
+                  <ModelBrandIcon :name="provider.id || provider.name" :size="24" />
+                </span>
+                <span class="mda-agent-provider-main">
+                  <strong>{{ provider.name }}</strong>
+                  <small>{{ providerSummary(provider) }}</small>
+                </span>
+                <span class="mda-agent-provider-state" :class="{ 'is-connected': provider.connected }">
+                  {{ provider.connected ? '已连接' : provider.installed ? '可连接' : '未安装' }}
+                </span>
+              </button>
+              <button
+                v-if="provider.supportsRuntimeConfig"
+                class="mda-agent-provider-config"
+                type="button"
+                :disabled="connectAgentStore.loading"
+                @click="openProviderConfig(provider)"
+              >
+                配置运行模型
+              </button>
+            </div>
           </div>
 
           <div v-if="connectAgentStore.threadLoading" class="mda-thread-picker-state">正在读取 Agent 任务…</div>
@@ -198,6 +231,83 @@
           </p>
         </section>
       </div>
+
+      <div
+        v-if="providerConfigVisible"
+        class="mda-thread-picker-backdrop"
+        role="presentation"
+        @click.self="closeProviderConfig"
+      >
+        <section class="mda-provider-config-dialog" role="dialog" aria-modal="true" :aria-label="`${configProvider?.name || 'Agent'} 运行模型配置`">
+          <header class="mda-thread-picker-head">
+            <div>
+              <h2>{{ configProvider?.name || 'Agent' }} 运行模型</h2>
+              <p>仅影响 GoCapture 启动的当前 Agent，不修改本机全局配置。</p>
+            </div>
+            <button class="mda-thread-picker-close" type="button" aria-label="关闭" @click="closeProviderConfig">
+              <GoCaptureIcon name="close" :size="18" />
+            </button>
+          </header>
+
+          <div class="mda-provider-config-body">
+            <fieldset class="mda-provider-mode-options">
+              <legend>模型来源</legend>
+              <label v-for="option in runtimeBackendOptions" :key="option.value">
+                <input v-model="runtimeForm.backendId" type="radio" :value="option.value">
+                <span>
+                  <strong class="mda-provider-mode-title">
+                    <ModelBrandIcon :name="option.iconName" :size="20" />
+                    {{ option.label }}
+                  </strong>
+                  <small>{{ option.description }}</small>
+                </span>
+              </label>
+            </fieldset>
+            <p class="mda-provider-mode-explanation">{{ runtimeProviderExplanation }}</p>
+
+            <template v-if="runtimeForm.backendId !== 'inherit'">
+              <label v-if="selectedBackend?.configurable && runtimeForm.backendId !== 'anthropic'" class="mda-provider-config-field">
+                <span>Endpoint</span>
+                <input v-model.trim="runtimeForm.baseUrl" type="url" :placeholder="selectedBackend?.defaultBaseUrl || 'https://gateway.example.com'">
+              </label>
+              <div class="mda-provider-config-grid">
+                <label class="mda-provider-config-field">
+                  <span>主模型</span>
+                  <input v-model.trim="runtimeForm.model" type="text" :placeholder="selectedBackend?.defaultModel || '留空使用 Agent 默认值'">
+                </label>
+                <label class="mda-provider-config-field">
+                  <span>快速 / 子 Agent 模型</span>
+                  <input v-model.trim="runtimeForm.fastModel" type="text" :placeholder="selectedBackend?.defaultFastModel || '可留空'">
+                </label>
+              </div>
+              <label class="mda-provider-config-field">
+                <span>
+                  {{ selectedBackend?.name || '模型后端' }} API Key
+                  {{ configProvider?.authMode === 'apikey' && configProvider?.authBackendId === runtimeForm.backendId ? '（留空则沿用已保存密钥）' : '' }}
+                </span>
+                <input v-model.trim="runtimeApiKey" type="password" autocomplete="new-password" placeholder="sk-...">
+              </label>
+              <label class="mda-provider-config-field">
+                <span>推理强度</span>
+                <select v-model="runtimeForm.effort">
+                  <option value="">使用模型默认值</option>
+                  <option value="high">High</option>
+                  <option value="max">Max</option>
+                </select>
+              </label>
+            </template>
+
+            <p v-if="providerConfigError" class="mda-thread-picker-error">{{ providerConfigError }}</p>
+          </div>
+
+          <footer class="mda-provider-config-actions">
+            <button type="button" @click="closeProviderConfig">取消</button>
+            <button class="is-primary" type="button" :disabled="providerConfigSaving" @click="saveProviderConfig">
+              {{ providerConfigSaving ? '验证中…' : '保存并连接' }}
+            </button>
+          </footer>
+        </section>
+      </div>
     </Teleport>
   </section>
 </template>
@@ -211,6 +321,7 @@ import { useSearchStore } from '../../stores/search.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { buildLogChain, serializeLogs } from '../../app/presenters/log-chain';
 import GoCaptureIcon from '../common/GoCaptureIcon.vue';
+import ModelBrandIcon from '../common/ModelBrandIcon.vue';
 import ThreadGroup from './ThreadGroup.vue';
 
 const commands = useGoCaptureCommands();
@@ -230,10 +341,49 @@ const activeAgentLabel = computed(() => {
 const nowTick = ref(Date.now());
 const logOpenState = ref({});
 const logNodeOpenState = ref({});
+const providerConfigVisible = ref(false);
+const providerConfigSaving = ref(false);
+const providerConfigError = ref('');
+const configProviderId = ref('');
+const runtimeApiKey = ref('');
+const projectProxy = ref('');
+const runtimeForm = ref({
+  backendId: 'inherit',
+  protocol: 'inherit',
+  baseUrl: '',
+  model: '',
+  fastModel: '',
+  effort: ''
+});
+const configProvider = computed(() =>
+  connectAgentStore.providers.find(provider => provider.id === configProviderId.value) || null);
+const runtimeBackendOptions = computed(() =>
+  (configProvider.value?.availableModelBackends || []).map(backend => ({
+    value: backend.id,
+    label: backend.name,
+    description: backendDescription(backend),
+    iconName: backend.id === 'inherit'
+      ? (configProvider.value?.id || configProvider.value?.name || 'agent')
+      : backend.id
+  })));
+const selectedBackend = computed(() =>
+  configProvider.value?.availableModelBackends?.find(
+    backend => backend.id === runtimeForm.value.backendId
+  ) || null);
+const runtimeProviderExplanation = computed(() =>
+  backendExplanation(selectedBackend.value, configProvider.value));
 let clockTimer = 0;
 
 async function openAgentPicker() {
-  await connectAgentStore.openAgentPicker(projectStore.current?.path || '');
+  const opened = await connectAgentStore.openAgentPicker(projectStore.current?.path || '');
+  if (opened) projectProxy.value = connectAgentStore.projectSettings.proxy || '';
+}
+
+async function saveProjectProxy() {
+  await connectAgentStore.saveProjectSettings({
+    ...connectAgentStore.projectSettings,
+    proxy: projectProxy.value
+  });
 }
 
 async function chooseAgent(providerId) {
@@ -246,9 +396,109 @@ async function bindAgentThread(threadId) {
 
 function providerSummary(provider) {
   if (!provider.installed) return provider.message || '未检测到本地 CLI';
+  const backendId = provider.runtimeConfig?.backendId;
+  if (backendId && backendId !== 'inherit') {
+    const backend = provider.availableModelBackends?.find(item => item.id === backendId);
+    return `${backend?.name || backendId} · ${provider.runtimeConfig.model || '默认模型'}`;
+  }
   if (provider.projectThreadName) return provider.projectThreadName;
   if (provider.supportsThreadBinding) return '选择一个项目任务继续对话';
   return provider.message || '首次开发时建立项目会话';
+}
+
+function openProviderConfig(provider) {
+  const config = provider?.runtimeConfig || {};
+  configProviderId.value = provider?.id || '';
+  runtimeForm.value = {
+    backendId: config.backendId || 'inherit',
+    protocol: config.protocol || 'inherit',
+    baseUrl: config.baseUrl || '',
+    model: config.model || '',
+    fastModel: config.fastModel || '',
+    effort: config.effort || ''
+  };
+  runtimeApiKey.value = '';
+  providerConfigError.value = '';
+  providerConfigVisible.value = true;
+}
+
+function closeProviderConfig() {
+  if (providerConfigSaving.value) return;
+  providerConfigVisible.value = false;
+}
+
+async function saveProviderConfig() {
+  const provider = configProvider.value;
+  if (!provider) return;
+  if (runtimeForm.value.backendId === 'deepseek') {
+    const endpoint = runtimeForm.value.baseUrl.replace(/\/+$/, '');
+    if (endpoint === 'https://api.deepseek.com/chat/completions'
+      || endpoint === 'https://api.deepseek.com/v1'
+      || endpoint === 'https://api.deepseek.com') {
+      providerConfigError.value = 'Claude Code 不能使用 Chat Completions 地址，请改为 https://api.deepseek.com/anthropic';
+      return;
+    }
+  }
+  if (runtimeForm.value.backendId !== 'inherit'
+    && !runtimeApiKey.value
+    && !(provider.authMode === 'apikey' && provider.authBackendId === runtimeForm.value.backendId)) {
+    providerConfigError.value = `首次配置 ${selectedBackend.value?.name || '模型后端'} 时需要填写 API Key。`;
+    return;
+  }
+  providerConfigSaving.value = true;
+  providerConfigError.value = '';
+  try {
+    const options = {
+      runtimeConfig: { ...runtimeForm.value },
+      ...(runtimeApiKey.value
+        ? {
+            auth: {
+              mode: 'apikey',
+              backendId: runtimeForm.value.backendId,
+              apiKey: runtimeApiKey.value,
+              proxy: connectAgentStore.projectSettings.proxy || ''
+            }
+          }
+        : {})
+    };
+    const connected = await connectAgentStore.connectProvider(
+      provider.id,
+      projectStore.current?.path || '',
+      options
+    );
+    if (!connected) {
+      providerConfigError.value = connectAgentStore.connectionError || '模型配置验证失败';
+      return;
+    }
+    providerConfigVisible.value = false;
+  } finally {
+    providerConfigSaving.value = false;
+  }
+}
+
+watch(() => runtimeForm.value.backendId, (backendId, previousBackendId) => {
+  if (backendId === previousBackendId) return;
+  const backend = selectedBackend.value;
+  runtimeForm.value.protocol = backend?.protocol || 'inherit';
+  runtimeForm.value.baseUrl = backend?.defaultBaseUrl || '';
+  runtimeForm.value.model = backend?.defaultModel || '';
+  runtimeForm.value.fastModel = backend?.defaultFastModel || '';
+  runtimeForm.value.effort = backendId === 'deepseek' ? 'max' : '';
+});
+
+function backendDescription(backend) {
+  if (backend.id === 'inherit') return '读取 Agent 自己的用户或项目配置';
+  if (backend.protocol === 'anthropic-messages') return '通过 Anthropic Messages 协议提供模型';
+  if (backend.protocol === 'openai-responses') return '通过 OpenAI Responses 协议提供模型';
+  return backend.protocol || '模型后端';
+}
+
+function backendExplanation(backend, provider) {
+  if (!backend || !provider) return '';
+  if (backend.id === 'inherit') {
+    return `GoCapture 不覆盖模型与密钥，${provider.name} 使用自己已有的登录、用户和项目配置。`;
+  }
+  return `${provider.name} 仍负责 Agent、工具与开发工作流；模型请求通过 ${backend.name} 的 ${backend.protocol} 协议执行。该配置只影响 GoCapture 启动的进程。`;
 }
 
 watch(messages, nextMessages => {

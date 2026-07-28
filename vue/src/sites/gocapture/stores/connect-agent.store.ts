@@ -6,7 +6,11 @@ import {
   listConnectAgents,
   listConnectAgentMessages,
   listConnectAgentThreads,
+  loadConnectAgentSettings,
+  saveConnectAgentSettings,
   type ConnectAgentProvider,
+  type ConnectAgentProjectSettings,
+  type ConnectAgentOptions,
   type ConnectAgentTask,
   type ConnectAgentThreadGroups,
   type ConnectAgentTimelineMessage
@@ -37,6 +41,9 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
   const selectedProviderId = ref('');
   const pickerProviderId = ref('');
   const currentProjectRoot = ref('');
+  const projectSettings = ref<ConnectAgentProjectSettings>({ proxy: '', activeProviderId: '' });
+  const settingsSaving = ref(false);
+  let autoConnectPromise: Promise<void> | null = null;
 
   const activeProvider = computed(() => {
     const selected = providers.value.find(provider => provider.id === selectedProviderId.value);
@@ -57,8 +64,19 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     loading.value = true;
     connectionError.value = '';
     try {
-      setProviders(await listConnectAgents(refresh, root));
+      const [nextProviders, settings] = await Promise.all([
+        listConnectAgents(refresh, root),
+        root
+          ? loadConnectAgentSettings(root)
+          : Promise.resolve({ proxy: '', activeProviderId: '' })
+      ]);
+      setProviders(nextProviders);
+      projectSettings.value = settings;
       restoreSelectedProvider(root);
+      if (root && activeProvider.value && !settings.activeProviderId) {
+        await persistActiveProvider(activeProvider.value.id, root);
+      }
+      await restoreProviderConnection(root);
       return providers.value;
     } catch (error) {
       connectionError.value = (error as Error)?.message || '无法检查 Agent 连接状态';
@@ -68,7 +86,11 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     }
   }
 
-  async function connectProvider(providerId: string, projectRoot = '') {
+  async function connectProvider(
+    providerId: string,
+    projectRoot = '',
+    options?: ConnectAgentOptions
+  ) {
     const id = String(providerId || '').trim();
     const root = String(projectRoot || '').trim();
     loading.value = true;
@@ -79,7 +101,13 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
       const provider = available.find(item => item.id === id);
       if (!provider) throw new Error('当前版本未提供所选 Agent');
       if (!provider.installed) throw new Error(provider.message || `未检测到 ${provider.name}`);
-      const connected = provider.connected ? provider : await connectAgent(provider.id);
+      const connectOptions = {
+        ...(options || {}),
+        projectRoot: root
+      };
+      const connected = options || !provider.connected
+        ? await connectAgent(provider.id, connectOptions)
+        : provider;
       upsertProvider(connected);
       selectProvider(id, root);
       if (root) {
@@ -106,7 +134,11 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     threadLoading.value = true;
     connectionError.value = '';
     try {
-      await refreshProviders(true, root);
+      const [, settings] = await Promise.all([
+        refreshProviders(true, root),
+        loadConnectAgentSettings(root)
+      ]);
+      projectSettings.value = settings;
       const initialProvider = activeProvider.value;
       pickerProviderId.value = initialProvider?.id || providers.value[0]?.id || '';
       if (initialProvider?.connected && initialProvider.supportsThreadBinding) {
@@ -116,10 +148,31 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
       }
       return true;
     } catch (error) {
-      connectionError.value = (error as Error)?.message || '无法加载 Codex 任务';
+      connectionError.value = (error as Error)?.message || '无法加载 Agent 任务';
       return false;
     } finally {
       threadLoading.value = false;
+    }
+  }
+
+  async function saveProjectSettings(settings: ConnectAgentProjectSettings) {
+    const root = currentProjectRoot.value;
+    if (!root) return false;
+    settingsSaving.value = true;
+    connectionError.value = '';
+    try {
+      projectSettings.value = await saveConnectAgentSettings(root, settings);
+      const provider = pickerProvider.value || activeProvider.value;
+      if (provider?.connected) {
+        const connected = await connectAgent(provider.id, { projectRoot: root });
+        upsertProvider(connected);
+      }
+      return true;
+    } catch (error) {
+      connectionError.value = (error as Error)?.message || '保存 Agent 公共设置失败';
+      return false;
+    } finally {
+      settingsSaving.value = false;
     }
   }
 
@@ -133,6 +186,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     const provider = await connectProvider(providerId, root);
     if (!provider) return false;
     pickerProviderId.value = provider.id;
+    await persistActiveProvider(provider.id, root);
     if (!provider.supportsThreadBinding) {
       clearThreadGroups();
       await loadTimeline(root, provider.id);
@@ -161,6 +215,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     try {
       const session = await bindConnectAgentThread(providerId, root, id);
       selectProvider(providerId, root);
+      await persistActiveProvider(providerId, root);
       setProviders(await listConnectAgents(false, root));
       await loadTimeline(root, providerId);
       threadPickerVisible.value = false;
@@ -207,11 +262,46 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
   }
 
   function restoreSelectedProvider(root: string) {
-    const saved = root ? window.localStorage.getItem(providerStorageKey(root)) || '' : '';
+    const saved = projectSettings.value.activeProviderId
+      || (root ? window.localStorage.getItem(providerStorageKey(root)) || '' : '');
     const provider = providers.value.find(item => item.id === saved)
-      || providers.value.find(item => item.projectThreadId)
+      || [...providers.value]
+        .filter(item => item.projectThreadId)
+        .sort((left, right) =>
+          String(right.projectThreadUpdatedAt || '').localeCompare(
+            String(left.projectThreadUpdatedAt || '')
+          ))[0]
       || providers.value.find(item => item.connected);
     if (provider) selectProvider(provider.id, root);
+  }
+
+  async function persistActiveProvider(providerId: string, root: string) {
+    if (!root || !providerId) return;
+    projectSettings.value = await saveConnectAgentSettings(root, {
+      ...projectSettings.value,
+      activeProviderId: providerId
+    });
+  }
+
+  async function restoreProviderConnection(root: string) {
+    const provider = activeProvider.value;
+    if (!root || !provider || provider.connected || !provider.installed) return;
+    if (autoConnectPromise) {
+      await autoConnectPromise;
+      return;
+    }
+    autoConnectPromise = (async () => {
+      try {
+        await connectAgent(provider.id, { projectRoot: root });
+        setProviders(await listConnectAgents(false, root));
+        restoreSelectedProvider(root);
+      } catch (error) {
+        connectionError.value = (error as Error)?.message || `${provider.name} 自动连接失败`;
+      } finally {
+        autoConnectPromise = null;
+      }
+    })();
+    await autoConnectPromise;
   }
 
   function clearThreadGroups() {
@@ -291,7 +381,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
   function failTask(error: unknown) {
     const payload = (error as any)?.payload;
     if (payload?.task) task.value = { ...(task.value || {}), ...payload.task };
-    taskError.value = (error as Error)?.message || String(error || 'Codex 开发任务失败');
+    taskError.value = (error as Error)?.message || String(error || 'Agent 开发任务失败');
     taskStatus.value = task.value?.status === 'cancelled' ? 'cancelled' : 'failed';
     taskFinishedAt.value = Date.now();
     taskController.value = null;
@@ -335,6 +425,8 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     pickerProvider,
     activeProvider,
     taskRunning,
+    projectSettings,
+    settingsSaving,
     refreshProviders,
     loadTimeline,
     connectProvider,
@@ -342,6 +434,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     chooseProvider,
     closeThreadPicker,
     bindThread,
+    saveProjectSettings,
     selectProvider,
     setProviders,
     upsertProvider,

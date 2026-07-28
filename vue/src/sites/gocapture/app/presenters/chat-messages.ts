@@ -107,7 +107,9 @@ export function useChatMessages() {
         activeAgent
           ? agentBound
             ? `开发 Agent：${activeAgent.name}${activeAgent.version ? ` · ${activeAgent.version}` : ''}`
-            : `开发 Agent：${activeAgent.name} 已连接，尚未绑定任务`
+            : !activeAgent.connected
+              ? `开发 Agent：${activeAgent.name} 需要重新连接`
+              : `开发 Agent：${activeAgent.name} 已连接，尚未绑定任务`
           : connectAgentStore.loading
             ? '开发 Agent：正在检查'
             : '开发 Agent：未关联',
