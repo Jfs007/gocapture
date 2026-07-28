@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 const docsEnv = process.env.DOCS_ENV || 'prod'
 const isDevBuild = docsEnv === 'dev'
-const docsBase = process.env.GOCAPTURE_DOCS_BASE || (isDevBuild ? '/' : '/magnus/')
+const docsBase = process.env.GOCAPTURE_DOCS_BASE || (isDevBuild ? '/' : '/gocapture/')
 
 export default defineConfig({
   title: 'GoCapture',
@@ -32,7 +32,8 @@ export default defineConfig({
             { text: '产品概览', link: '/guide/' },
             { text: '快速上手', link: '/guide/quick-start' },
             { text: '项目与 Agent 配置', link: '/guide/config' },
-            { text: '部署到 Gitee Pages', link: '/guide/deploy-gitee' },
+            { text: '部署到 GitHub Pages', link: '/guide/deploy-github' },
+            { text: '从 Gitee 部署', link: '/guide/deploy-gitee' },
           ]
         },
         {

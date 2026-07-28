@@ -87,7 +87,7 @@ const steps = [
       <nav aria-label="主导航">
         <a :href="withBase('/guide/quick-start')">快速开始</a>
         <a :href="withBase('/guide/')">使用指南</a>
-        <a href="https://gitee.com/senruo/magnus" target="_blank" rel="noreferrer">Gitee</a>
+        <a href="https://github.com/Jfs007/gocapture" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
       <a class="gc-nav-cta" :href="withBase('/guide/quick-start')">
         开始使用
@@ -310,7 +310,7 @@ const steps = [
       <p>浏览器页面选区与本地开发 Agent 之间的连接层。</p>
       <div>
         <a :href="withBase('/guide/')">文档</a>
-        <a href="https://gitee.com/senruo/magnus" target="_blank" rel="noreferrer">Gitee</a>
+        <a href="https://github.com/Jfs007/gocapture" target="_blank" rel="noreferrer">GitHub</a>
         <span>MIT License</span>
       </div>
     </footer>
