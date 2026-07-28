@@ -22,7 +22,7 @@ https://jfs007.github.io/gocapture/
 .github/workflows/docs-pages.yml
 ```
 
-每次向 `master` 分支推送代码时，工作流会：
+每次向 GitHub 的 `main` 分支推送代码时，工作流会：
 
 1. 安装 Node.js 与项目依赖
 2. 执行 `npm run docs:build`
