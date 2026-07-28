@@ -1,61 +1,63 @@
-# 开始
+# GoCapture 使用指南
 
-这个项目现在定位为 Chrome MV3 插件脚手架。它保留底层桥接、动态注入、后台命令和 cookie/fetch/download 等基础能力，移除了原先绑定具体平台的业务脚本。
+GoCapture 是浏览器页面与本地开发 Agent 之间的连接层。
 
-## 核心目录
+你可以在真实页面中框选一个区域，直接提出“文案加粗”“增加一列”“调整这个表单”等需求。GoCapture 会保存页面选区、绑定本地项目，并把必要的上下文交给 Codex 或 Claude Code 完成开发。
 
-```txt
-package/
-  chrome/              # 注入到网页主世界的桥接运行时
-  js/                  # content script、service worker、offscreen
-  app/                 # 动态业务脚本输出目录
-main-site/
-  src/                 # iframe 页面示例，可用于调试 bridge，不作为 app 打包入口
-vue/
-  src/sites/           # 工程化 app 源码，构建后输出到 package/app
-docs/
-  .vitepress/          # VitePress 文档站配置
+## 它解决什么问题
+
+传统协作需要反复描述：
+
+> 登录页右侧表单下方，那个蓝色圆角按钮里的“登录”文案。
+
+使用 GoCapture 后，只需框选按钮并输入：
+
+```text
+@选区 文案加粗
 ```
 
-## 本地开发
+选区会获得稳定 ID，并与项目中的源码位置建立关系。后续继续修改同一区域时，不需要重复解释它在哪里。
 
-启动 iframe 示例页：
+## 完整流程
 
-```bash
-cd main-site
-yarn dev
+```text
+在网页中选择区域
+  → 绑定本地源码项目
+  → 关联开发 Agent
+  → 提交需求
+  → Agent 修改并验证
+  → 结果回传到侧边栏
 ```
 
-构建工程化 app 到 `package/app`：
+## 主要能力
 
-```bash
-npm run app:inspector:build
-```
+### 页面选区
 
-启动文档站：
+- 捕获用户实际看到的页面区域
+- 保存 DOM 证据、页面地址和选区截图
+- 支持将选区作为项目资产持续使用
 
-```bash
-npm run docs:dev
-```
+### 项目绑定
 
-## 当前 app 配置
+- 一个线上域名和多个本地开发地址可指向同一个源码项目
+- 项目级保存选区、Agent 任务和消息记录
+- 刷新页面或重启本地服务后可以恢复
 
-`package/app/config.json` 现在不会加载任何业务脚本：
+### 开发 Agent
 
-```json
-{
-  "result": {
-    "cssUrls": [],
-    "jsUrls": []
-  },
-  "rules": {},
-  "canInjectIframeList": [],
-  "version": "20260608.000000",
-  "success": true,
-  "api": ""
-}
-```
+当前支持：
 
-当你开始一个新业务时，可以用 `npm run app:build` 自动输出 `package/app/<name>/index.js` 并更新 `jsUrls`、`cssUrls` 和 `rules`。详细说明见 [工程化 App 打包](/guide/app-build)。
+- **Codex**：通过 App Server 建立项目任务并继续已有 Thread
+- **Claude Code**：复用 Claude Code 工作流，可沿用现有配置或设置模型后端
 
-源码定位相关约束见 [源码定位规则](/guide/source-locate-rules)。
+### 可选 Locator
+
+默认由开发 Agent 完成定位和修改。你也可以为 Locator 配置单独的低成本模型，让它先定位源码，再把位置交给开发 Agent，以减少主 Agent 的检索轮次和 Token 消耗。
+
+Locator 是可选优化，不是使用 GoCapture 的前置条件。
+
+## 下一步
+
+- [安装并完成第一个任务](/guide/quick-start)
+- [配置项目、Agent 和 Locator](/guide/config)
+- [将文档发布到 Gitee Pages](/guide/deploy-gitee)

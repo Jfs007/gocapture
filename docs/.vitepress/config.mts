@@ -2,11 +2,13 @@ import { defineConfig } from 'vitepress'
 
 const docsEnv = process.env.DOCS_ENV || 'prod'
 const isDevBuild = docsEnv === 'dev'
+const docsBase = process.env.GOCAPTURE_DOCS_BASE || (isDevBuild ? '/' : '/magnus/')
 
 export default defineConfig({
-  title: 'Chrome Extension Scaffold',
-  description: 'A scaffold for script injection and extension bridge communication.',
+  title: 'GoCapture',
+  description: '从浏览器选区直接连接本地源码与开发 Agent。',
   lang: 'zh-CN',
+  base: docsBase,
   cleanUrls: true,
   outDir: isDevBuild ? '.vitepress/dist-dev' : '.vitepress/dist',
   vite: {
@@ -17,20 +19,28 @@ export default defineConfig({
   themeConfig: {
     logo: '/logo.svg',
     nav: [
-      { text: 'Guide', link: '/guide/' },
-      { text: 'API', link: '/api/web' },
-      { text: 'Examples', link: '/examples/' }
+      { text: '快速开始', link: '/guide/quick-start' },
+      { text: '使用指南', link: '/guide/' },
+      { text: '配置', link: '/guide/config' },
+      { text: 'Gitee', link: 'https://gitee.com/senruo/magnus' }
     ],
     sidebar: {
       '/guide/': [
         {
-          text: 'Guide',
+          text: '使用 GoCapture',
           items: [
-            { text: '开始', link: '/guide/' },
+            { text: '产品概览', link: '/guide/' },
             { text: '快速上手', link: '/guide/quick-start' },
+            { text: '项目与 Agent 配置', link: '/guide/config' },
+            { text: '部署到 Gitee Pages', link: '/guide/deploy-gitee' },
+          ]
+        },
+        {
+          text: '开发与原理',
+          collapsed: true,
+          items: [
             { text: '架构', link: '/guide/architecture' },
             { text: '工程化 App 打包', link: '/guide/app-build' },
-            { text: '动态配置', link: '/guide/config' },
             { text: '源码定位规则', link: '/guide/source-locate-rules' }
           ]
         }
@@ -57,8 +67,8 @@ export default defineConfig({
       provider: 'local'
     },
     footer: {
-      message: `Released under the MIT License. Build env: ${docsEnv}.`,
-      copyright: 'Copyright © 2026'
+      message: 'GoCapture 使用 MIT License 发布。',
+      copyright: 'Copyright © 2026 GoCapture'
     }
   }
 })
