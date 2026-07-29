@@ -9,6 +9,9 @@ export default defineConfig({
   description: '从浏览器选区直接连接本地源码与开发 Agent。',
   lang: 'zh-CN',
   base: docsBase,
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', href: `${docsBase}logo.png` }]
+  ],
   cleanUrls: true,
   outDir: isDevBuild ? '.vitepress/dist-dev' : '.vitepress/dist',
   vite: {
@@ -17,7 +20,7 @@ export default defineConfig({
     }
   },
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/logo.png',
     nav: [
       { text: '快速开始', link: '/guide/quick-start' },
       { text: '使用指南', link: '/guide/' },

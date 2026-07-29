@@ -81,7 +81,7 @@ const steps = [
   <main class="gc-home">
     <header class="gc-nav">
       <a class="gc-brand" :href="withBase('/')">
-        <img :src="withBase('/logo.svg')" alt="" width="32" height="32">
+        <img :src="withBase('/logo.png')" alt="GoCapture" width="32" height="32">
         <span>GoCapture</span>
       </a>
       <nav aria-label="主导航">
@@ -304,7 +304,7 @@ const steps = [
 
     <footer class="gc-footer">
       <a class="gc-brand" :href="withBase('/')">
-        <img :src="withBase('/logo.svg')" alt="" width="28" height="28">
+        <img :src="withBase('/logo.png')" alt="GoCapture" width="28" height="28">
         <span>GoCapture</span>
       </a>
       <p>浏览器页面选区与本地开发 Agent 之间的连接层。</p>

@@ -2,5 +2,6 @@
   "id": "gocapture",
   "displayName": "GoCapture",
   "packageName": "@sep-agent/gocapture",
-  "cliCommand": "gocapture"
+  "cliCommand": "gocapture",
+  "logo": "assets/brand/logo.png"
 }

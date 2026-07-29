@@ -12,14 +12,16 @@ function loadProductBrand() {
   const displayName = String(process.env.GOCAPTURE_PRODUCT_NAME || config.displayName || '').trim();
   const packageName = String(config.packageName || '').trim();
   const cliCommand = String(config.cliCommand || '').trim();
-  if (!id || !displayName || !packageName || !cliCommand) {
-    throw new Error(`Product id, displayName, packageName, and cliCommand are required: ${configPath}`);
+  const logoPath = path.resolve(rootDir, String(config.logo || '').trim());
+  if (!id || !displayName || !packageName || !cliCommand || !fs.existsSync(logoPath)) {
+    throw new Error(`Product id, displayName, packageName, cliCommand, and logo are required: ${configPath}`);
   }
   return {
     id,
     displayName,
     packageName,
     cliCommand,
+    logoPath,
   };
 }
 
@@ -30,6 +32,7 @@ function replaceRequired(source, pattern, replacement, filePath) {
 
 function syncExtensionBrand(packageDir = path.join(rootDir, 'package')) {
   const brand = loadProductBrand();
+  copyBrandLogo(brand.logoPath, path.join(packageDir, 'icons', 'icon.png'));
   const manifestPath = path.join(packageDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   manifest.name = brand.displayName;
@@ -76,12 +79,25 @@ function syncExtensionBrand(packageDir = path.join(rootDir, 'package')) {
   return brand;
 }
 
+function syncDocumentationBrand(docsDir = path.join(rootDir, 'docs')) {
+  const brand = loadProductBrand();
+  copyBrandLogo(brand.logoPath, path.join(docsDir, 'public', 'logo.png'));
+  return brand;
+}
+
+function copyBrandLogo(source, target) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(source, target);
+}
+
 if (require.main === module) {
   const brand = syncExtensionBrand();
+  syncDocumentationBrand();
   console.log(`Product brand synchronized: ${brand.displayName}`);
 }
 
 module.exports = {
   loadProductBrand,
+  syncDocumentationBrand,
   syncExtensionBrand,
 };
