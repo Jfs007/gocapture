@@ -6,8 +6,10 @@ const { AgentAdapter } = require('./agent-adapter');
 const { AgentRegistry } = require('./agent-registry');
 const { normalizeAgentEvent } = require('./agent-event');
 const {
+  ANTHROPIC_COMPATIBLE_BRANDS,
   MODEL_PROTOCOLS,
   assertModelBackendCompatible,
+  listModelBackends,
 } = require('./model-backends');
 
 test('AgentAdapter exposes normalized capabilities', () => {
@@ -41,6 +43,25 @@ test('model compatibility is based on wire protocol and allow-list', () => {
   assert.throws(
     () => assertModelBackendCompatible(manifest, 'custom-responses'),
     /不支持模型后端/,
+  );
+});
+
+test('model brand backends share one Anthropic Messages compatibility contract', () => {
+  const ids = ANTHROPIC_COMPATIBLE_BRANDS.map(([id]) => id);
+  const backends = listModelBackends(ids);
+  assert.deepEqual(backends.map(item => item.id), ids);
+  assert.ok(backends.every(item =>
+    item.protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+    && item.selectionGroup === 'anthropic-compatible'
+    && item.requiresBaseUrl
+    && item.requiresModel
+  ));
+  assert.ok(backends.every(item => Array.isArray(item.modelPresets)));
+  assert.ok(backends.every(item => Array.isArray(item.endpointPresets)));
+  assert.ok(backends.find(item => item.id === 'deepseek').modelPresets.includes('deepseek-v4-flash'));
+  assert.equal(
+    backends.find(item => item.id === 'qwen').endpointPresets[1].value,
+    'https://coding.dashscope.aliyuncs.com/apps/anthropic',
   );
 });
 

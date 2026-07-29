@@ -474,6 +474,45 @@ test('connect({runtimeConfig}) persists an isolated DeepSeek runtime', async () 
   client.close();
 });
 
+test('switching model brands restores that brand runtime and saved API key', async () => {
+  let savedRuntime = null;
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    loadAuthForBackend: backendId => backendId === 'qwen'
+      ? { mode: 'apikey', backendId: 'qwen', apiKey: 'sk-qwen' }
+      : { mode: '', backendId: '', apiKey: '' },
+    listAuthBackendIds: () => ['deepseek', 'qwen'],
+    saveAuth: () => true,
+    loadRuntimeConfig: () => ({ backendId: 'deepseek' }),
+    loadRuntimeProfiles: () => ({
+      deepseek: { backendId: 'deepseek', model: 'deepseek-v4-pro' },
+      qwen: {
+        backendId: 'qwen',
+        baseUrl: 'https://gateway.example.com/anthropic',
+        model: 'qwen3.7-max',
+      },
+    }),
+    saveRuntimeConfig: config => { savedRuntime = config; return true; },
+    fetch: async (url, options) => {
+      assert.strictEqual(url, 'https://gateway.example.com/anthropic/v1/messages');
+      assert.strictEqual(options.headers['x-api-key'], 'sk-qwen');
+      return { ok: true, status: 200, json: async () => ({ type: 'message' }) };
+    },
+  });
+
+  await client.connect({
+    runtimeConfig: {
+      backendId: 'qwen',
+      baseUrl: 'https://gateway.example.com/anthropic',
+      model: 'qwen3.7-max',
+    },
+  });
+
+  assert.strictEqual(savedRuntime.backendId, 'qwen');
+  assert.strictEqual(client.status().authBackendId, 'qwen');
+  assert.deepStrictEqual(client.status().authBackendIds, ['deepseek', 'qwen']);
+});
+
 test('connect() does not persist or retain a runtime config that fails validation', async () => {
   let saveCount = 0;
   const client = new ClaudeCodeClient({

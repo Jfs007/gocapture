@@ -141,6 +141,57 @@ function finalizeSelectionTaskDiff(project, snapshot, changedFiles = [], taskId 
   return changes;
 }
 
+function selectionDiffsFromProvider(project, references = [], fileDiffs = [], taskId = '') {
+  const byFile = new Map((Array.isArray(fileDiffs) ? fileDiffs : [])
+    .map(diff => [projectRelativeFile(project, diff?.file), diff])
+    .filter(([file, diff]) => file && diff?.patch));
+  if (!byFile.size) return [];
+  const changes = [];
+  const seen = new Set();
+
+  for (const reference of (Array.isArray(references) ? references : [])) {
+    for (const location of (Array.isArray(reference?.locations) ? reference.locations : [])) {
+      const file = projectRelativeFile(project, location?.file);
+      const diff = byFile.get(file);
+      const key = `${reference.selectionId}\0${file}`;
+      if (!diff || seen.has(key)) continue;
+      seen.add(key);
+      const beforeContent = typeof diff.before === 'string' ? diff.before : '';
+      const afterContent = typeof diff.after === 'string' ? diff.after : '';
+      const patch = String(diff.patch || '').slice(0, MAX_PATCH_CHARS);
+      const stats = patchStats(patch);
+      changes.push({
+        selectionId: reference.selectionId,
+        taskId: String(taskId || ''),
+        file,
+        before: {
+          startLine: positiveLine(location.startLine),
+          endLine: positiveLine(location.endLine),
+          source: sourceAtLocation(beforeContent, location),
+        },
+        after: {
+          startLine: positiveLine(location.startLine),
+          endLine: positiveLine(location.endLine),
+          source: location.source || sourceAtLocation(afterContent, location),
+        },
+        patch,
+        additions: Number(diff.additions ?? stats.additions),
+        deletions: Number(diff.deletions ?? stats.deletions),
+      });
+    }
+  }
+  return changes;
+}
+
+function mergeSelectionDiffs(...groups) {
+  const merged = new Map();
+  for (const diff of groups.flat()) {
+    if (!diff?.selectionId || !diff?.file || !diff?.patch) continue;
+    merged.set(`${diff.selectionId}\0${diff.file}`, diff);
+  }
+  return [...merged.values()];
+}
+
 function mapLocationThroughDiff(location, parts) {
   const start = positiveLine(location.startLine);
   const end = Math.max(start, positiveLine(location.endLine) || start);
@@ -244,6 +295,8 @@ module.exports = {
   captureSelectionTaskSnapshot,
   finalizeSelectionTaskDiff,
   mapLocationThroughDiff,
+  mergeSelectionDiffs,
   patchStats,
+  selectionDiffsFromProvider,
   sourceAtLocation,
 };

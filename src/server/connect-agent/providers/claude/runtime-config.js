@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+  ANTHROPIC_COMPATIBLE_BRANDS,
   assertModelBackendCompatible,
   getModelBackend,
 } = require('../../core/model-backends');
@@ -13,7 +14,7 @@ const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/anthropic';
 const CLAUDE_MODEL_BACKENDS = Object.freeze([
   'inherit',
   'anthropic',
-  'deepseek',
+  ...ANTHROPIC_COMPATIBLE_BRANDS.map(([id]) => id),
   'custom-anthropic',
 ]);
 
@@ -31,7 +32,7 @@ function normalizeRuntimeConfig(raw) {
     fastModel: String(raw?.fastModel || backend?.defaultFastModel || '').trim(),
     effort: ['high', 'max'].includes(raw?.effort)
       ? raw.effort
-      : (backendId === 'deepseek' ? 'max' : ''),
+      : (backend?.defaultEffort || ''),
   };
 }
 
@@ -45,6 +46,10 @@ function validateRuntimeConfig(config, manifest = null) {
     }
   }
   if (normalized.backendId === 'inherit' || normalized.backendId === 'anthropic') return '';
+  const backend = getModelBackend(normalized.backendId);
+  if (backend?.requiresBaseUrl && !normalized.baseUrl) {
+    return `${backend.name} 需要 Anthropic Messages 兼容 Endpoint`;
+  }
   let endpoint;
   try {
     endpoint = new URL(normalized.baseUrl);
@@ -56,21 +61,64 @@ function validateRuntimeConfig(config, manifest = null) {
     && endpoint.pathname.replace(/\/+$/, '') !== '/anthropic') {
     return 'Claude Code 需要 DeepSeek Anthropic Endpoint：https://api.deepseek.com/anthropic';
   }
+  if (backend?.requiresModel && !normalized.model) {
+    return `${backend.name} 需要填写网关实际提供的模型名称`;
+  }
   return '';
 }
 
-function loadRuntimeConfig() {
-  try {
-    return normalizeRuntimeConfig(JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')));
-  } catch (error) {
-    return normalizeRuntimeConfig({});
+function normalizeRuntimeState(raw) {
+  if (raw?.profiles && typeof raw.profiles === 'object') {
+    const profiles = Object.fromEntries(
+      Object.entries(raw.profiles)
+        .filter(([backendId]) => CLAUDE_MODEL_BACKENDS.includes(backendId))
+        .map(([backendId, profile]) => [
+          backendId,
+          normalizeRuntimeConfig({ ...profile, backendId }),
+        ]),
+    );
+    const requestedActive = String(raw.activeBackendId || '').trim();
+    const activeBackendId = profiles[requestedActive]
+      ? requestedActive
+      : (Object.keys(profiles)[0] || 'inherit');
+    if (!profiles[activeBackendId]) {
+      profiles[activeBackendId] = normalizeRuntimeConfig({ backendId: activeBackendId });
+    }
+    return { version: 2, activeBackendId, profiles };
   }
+  const migrated = normalizeRuntimeConfig(raw || {});
+  return {
+    version: 2,
+    activeBackendId: migrated.backendId,
+    profiles: { [migrated.backendId]: migrated },
+  };
+}
+
+function loadRuntimeState() {
+  try {
+    return normalizeRuntimeState(JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')));
+  } catch (error) {
+    return normalizeRuntimeState({});
+  }
+}
+
+function loadRuntimeConfig() {
+  const state = loadRuntimeState();
+  return state.profiles[state.activeBackendId];
+}
+
+function loadRuntimeProfiles() {
+  return { ...loadRuntimeState().profiles };
 }
 
 function saveRuntimeConfig(config) {
   try {
+    const normalized = normalizeRuntimeConfig(config);
+    const state = loadRuntimeState();
+    state.activeBackendId = normalized.backendId;
+    state.profiles[normalized.backendId] = normalized;
     fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(normalizeRuntimeConfig(config), null, 2), {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(state, null, 2), {
       mode: 0o600,
     });
     return true;
@@ -134,7 +182,10 @@ module.exports = {
   CONFIG_PATH,
   DEEPSEEK_BASE_URL,
   loadRuntimeConfig,
+  loadRuntimeProfiles,
+  loadRuntimeState,
   normalizeRuntimeConfig,
+  normalizeRuntimeState,
   runtimeConfigToEnv,
   saveRuntimeConfig,
   validateRuntimeConfig,

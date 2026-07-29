@@ -20,18 +20,64 @@ function normalizeAuth(raw) {
   };
 }
 
-function loadClaudeAuth() {
-  try {
-    return normalizeAuth(JSON.parse(fs.readFileSync(AUTH_PATH, 'utf8')));
-  } catch (error) {
-    return { mode: '', backendId: '', apiKey: '', oauthToken: '' };
+function normalizeAuthState(raw) {
+  if (raw?.profiles && typeof raw.profiles === 'object') {
+    const profiles = Object.fromEntries(
+      Object.entries(raw.profiles)
+        .map(([backendId, auth]) => [
+          backendId,
+          normalizeAuth({ ...auth, backendId }),
+        ])
+        .filter(([, auth]) => auth.mode),
+    );
+    const requestedActive = String(raw.activeBackendId || '').trim();
+    const activeBackendId = profiles[requestedActive]
+      ? requestedActive
+      : (Object.keys(profiles)[0] || '');
+    return { version: 2, activeBackendId, profiles };
   }
+  const migrated = normalizeAuth(raw || {});
+  const migratedBackendId = migrated.backendId || (migrated.mode ? 'inherit' : '');
+  return {
+    version: 2,
+    activeBackendId: migratedBackendId,
+    profiles: migrated.mode && migratedBackendId
+      ? { [migratedBackendId]: { ...migrated, backendId: migratedBackendId } }
+      : {},
+  };
+}
+
+function loadClaudeAuthState() {
+  try {
+    return normalizeAuthState(JSON.parse(fs.readFileSync(AUTH_PATH, 'utf8')));
+  } catch (error) {
+    return normalizeAuthState({});
+  }
+}
+
+function loadClaudeAuth() {
+  const state = loadClaudeAuthState();
+  return state.profiles[state.activeBackendId] || normalizeAuth({});
+}
+
+function loadClaudeAuthForBackend(backendId) {
+  return loadClaudeAuthState().profiles[String(backendId || '').trim()] || normalizeAuth({});
+}
+
+function listClaudeAuthBackendIds() {
+  return Object.keys(loadClaudeAuthState().profiles);
 }
 
 function saveClaudeAuth(auth) {
   try {
+    const normalized = normalizeAuth(auth);
+    const state = loadClaudeAuthState();
+    if (normalized.mode && normalized.backendId) {
+      state.activeBackendId = normalized.backendId;
+      state.profiles[normalized.backendId] = normalized;
+    }
     fs.mkdirSync(path.dirname(AUTH_PATH), { recursive: true });
-    fs.writeFileSync(AUTH_PATH, JSON.stringify(normalizeAuth(auth)), { mode: 0o600 });
+    fs.writeFileSync(AUTH_PATH, JSON.stringify(state, null, 2), { mode: 0o600 });
     return true;
   } catch (error) {
     return false;
@@ -60,8 +106,12 @@ function authToEnv(auth, baseEnv = process.env) {
 
 module.exports = {
   AUTH_PATH,
+  listClaudeAuthBackendIds,
   normalizeAuth,
+  normalizeAuthState,
   loadClaudeAuth,
+  loadClaudeAuthForBackend,
+  loadClaudeAuthState,
   saveClaudeAuth,
   authToEnv,
 };

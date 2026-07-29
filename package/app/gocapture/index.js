@@ -9971,48 +9971,59 @@ ${unwrappedProps}
   const _hoisted_56$1 = { class: "mda-provider-mode-options" };
   const _hoisted_57$1 = ["value"];
   const _hoisted_58$1 = { class: "mda-provider-mode-title" };
-  const _hoisted_59$1 = { class: "mda-provider-mode-explanation" };
-  const _hoisted_60$1 = {
+  const _hoisted_59$1 = {
+    key: 0,
+    class: "mda-provider-brand-select"
+  };
+  const _hoisted_60$1 = ["value"];
+  const _hoisted_61 = { class: "mda-provider-mode-explanation" };
+  const _hoisted_62 = {
     key: 0,
     class: "mda-provider-config-field"
   };
-  const _hoisted_61 = ["placeholder"];
-  const _hoisted_62 = { class: "mda-provider-config-grid" };
-  const _hoisted_63 = { class: "mda-provider-config-field" };
-  const _hoisted_64 = ["placeholder"];
-  const _hoisted_65 = { class: "mda-provider-config-field" };
-  const _hoisted_66 = ["placeholder"];
+  const _hoisted_63 = ["placeholder"];
+  const _hoisted_64 = { id: "mda-endpoint-presets" };
+  const _hoisted_65 = ["value", "label"];
+  const _hoisted_66 = { class: "mda-provider-config-grid" };
   const _hoisted_67 = { class: "mda-provider-config-field" };
-  const _hoisted_68 = { class: "mda-provider-config-field" };
-  const _hoisted_69 = {
+  const _hoisted_68 = ["placeholder"];
+  const _hoisted_69 = { class: "mda-provider-config-field" };
+  const _hoisted_70 = ["placeholder"];
+  const _hoisted_71 = { id: "mda-primary-model-presets" };
+  const _hoisted_72 = ["value"];
+  const _hoisted_73 = { id: "mda-fast-model-presets" };
+  const _hoisted_74 = ["value"];
+  const _hoisted_75 = { class: "mda-provider-config-field" };
+  const _hoisted_76 = { class: "mda-provider-config-field" };
+  const _hoisted_77 = {
     key: 1,
     class: "mda-thread-picker-error"
   };
-  const _hoisted_70 = { class: "mda-provider-config-actions" };
-  const _hoisted_71 = ["disabled"];
-  const _hoisted_72 = {
+  const _hoisted_78 = { class: "mda-provider-config-actions" };
+  const _hoisted_79 = ["disabled"];
+  const _hoisted_80 = {
     class: "mda-diff-review",
     role: "dialog",
     "aria-modal": "true",
     "aria-label": "审查源码更改"
   };
-  const _hoisted_73 = { class: "mda-thread-picker-head" };
-  const _hoisted_74 = { class: "mda-diff-review-body" };
-  const _hoisted_75 = {
+  const _hoisted_81 = { class: "mda-thread-picker-head" };
+  const _hoisted_82 = { class: "mda-diff-review-body" };
+  const _hoisted_83 = {
     class: "mda-diff-file-list",
     "aria-label": "修改文件"
   };
-  const _hoisted_76 = ["onClick"];
-  const _hoisted_77 = {
+  const _hoisted_84 = ["onClick"];
+  const _hoisted_85 = {
     key: 0,
     class: "mda-diff-code"
   };
-  const _hoisted_78 = {
+  const _hoisted_86 = {
     class: "mda-diff-lines",
     role: "table",
     "aria-label": "源码差异"
   };
-  const _hoisted_79 = { "aria-hidden": "true" };
+  const _hoisted_87 = { "aria-hidden": "true" };
   const _sfc_main$9 = {
     __name: "ChatThread",
     setup(__props) {
@@ -10042,6 +10053,7 @@ ${unwrappedProps}
       const configProviderId = /* @__PURE__ */ ref("");
       const runtimeApiKey = /* @__PURE__ */ ref("");
       const projectProxy = /* @__PURE__ */ ref("");
+      const compatibleBackendId = /* @__PURE__ */ ref("deepseek");
       const runtimeForm = /* @__PURE__ */ ref({
         backendId: "inherit",
         protocol: "inherit",
@@ -10054,14 +10066,40 @@ ${unwrappedProps}
       const runtimeBackendOptions = computed(() => {
         var _a2;
         return (((_a2 = configProvider.value) == null ? void 0 : _a2.availableModelBackends) || []).map((backend) => {
-          var _a3, _b;
+          var _a3, _b, _c;
           return {
             value: backend.id,
-            label: backend.name,
+            label: backend.id === "inherit" ? `沿用 ${((_a3 = configProvider.value) == null ? void 0 : _a3.name) || "Agent"}` : backend.name,
             description: backendDescription(backend),
-            iconName: backend.id === "inherit" ? ((_a3 = configProvider.value) == null ? void 0 : _a3.id) || ((_b = configProvider.value) == null ? void 0 : _b.name) || "agent" : backend.id
+            iconName: backend.brandId || (backend.id === "inherit" ? ((_b = configProvider.value) == null ? void 0 : _b.id) || ((_c = configProvider.value) == null ? void 0 : _c.name) || "agent" : backend.id),
+            backend
           };
         });
+      });
+      const compatibleBackendOptions = computed(() => {
+        var _a2;
+        return (((_a2 = configProvider.value) == null ? void 0 : _a2.availableModelBackends) || []).filter(
+          (backend) => backend.selectionGroup === "anthropic-compatible"
+        );
+      });
+      const selectedCompatibleBackend = computed(() => compatibleBackendOptions.value.find((backend) => backend.id === compatibleBackendId.value) || compatibleBackendOptions.value[0] || null);
+      const runtimeSourceCards = computed(() => {
+        const options = runtimeBackendOptions.value;
+        const cards = options.filter(
+          (option) => option.backend.selectionGroup === "system" || option.backend.selectionGroup === "native"
+        );
+        const compatible = selectedCompatibleBackend.value;
+        if (compatible) {
+          cards.push({
+            value: compatible.id,
+            label: compatible.name,
+            description: backendDescription(compatible),
+            iconName: compatible.brandId || compatible.id,
+            backend: compatible,
+            kind: "compatible"
+          });
+        }
+        return cards;
       });
       const selectedBackend = computed(() => {
         var _a2, _b;
@@ -10070,6 +10108,10 @@ ${unwrappedProps}
         )) || null;
       });
       const runtimeProviderExplanation = computed(() => backendExplanation(selectedBackend.value, configProvider.value));
+      const hasSavedBackendAuth = computed(() => {
+        var _a2, _b, _c, _d;
+        return ((_b = (_a2 = configProvider.value) == null ? void 0 : _a2.authBackendIds) == null ? void 0 : _b.includes(runtimeForm.value.backendId)) || ((_c = configProvider.value) == null ? void 0 : _c.authMode) === "apikey" && ((_d = configProvider.value) == null ? void 0 : _d.authBackendId) === runtimeForm.value.backendId;
+      });
       const activeReviewDiff = computed(() => reviewDiffs.value[reviewDiffIndex.value] || null);
       const activePatchLines = computed(() => {
         var _a2;
@@ -10114,8 +10156,16 @@ ${unwrappedProps}
         return provider.message || "首次开发时建立项目会话";
       }
       function openProviderConfig(provider) {
+        var _a2, _b, _c;
         const config = (provider == null ? void 0 : provider.runtimeConfig) || {};
         configProviderId.value = (provider == null ? void 0 : provider.id) || "";
+        const configuredBackend = (_a2 = provider == null ? void 0 : provider.availableModelBackends) == null ? void 0 : _a2.find(
+          (backend) => backend.id === config.backendId
+        );
+        const compatibleDefault = ((_b = provider == null ? void 0 : provider.availableModelBackends) == null ? void 0 : _b.find((backend) => backend.id === "deepseek")) || ((_c = provider == null ? void 0 : provider.availableModelBackends) == null ? void 0 : _c.find(
+          (backend) => backend.selectionGroup === "anthropic-compatible"
+        ));
+        compatibleBackendId.value = (configuredBackend == null ? void 0 : configuredBackend.selectionGroup) === "anthropic-compatible" ? configuredBackend.id : (compatibleDefault == null ? void 0 : compatibleDefault.id) || "deepseek";
         runtimeForm.value = {
           backendId: config.backendId || "inherit",
           protocol: config.protocol || "inherit",
@@ -10137,14 +10187,7 @@ ${unwrappedProps}
           var _a2, _b;
           const provider = configProvider.value;
           if (!provider) return;
-          if (runtimeForm.value.backendId === "deepseek") {
-            const endpoint = runtimeForm.value.baseUrl.replace(/\/+$/, "");
-            if (endpoint === "https://api.deepseek.com/chat/completions" || endpoint === "https://api.deepseek.com/v1" || endpoint === "https://api.deepseek.com") {
-              providerConfigError.value = "Claude Code 不能使用 Chat Completions 地址，请改为 https://api.deepseek.com/anthropic";
-              return;
-            }
-          }
-          if (runtimeForm.value.backendId !== "inherit" && !runtimeApiKey.value && !(provider.authMode === "apikey" && provider.authBackendId === runtimeForm.value.backendId)) {
+          if (runtimeForm.value.backendId !== "inherit" && !runtimeApiKey.value && !hasSavedBackendAuth.value) {
             providerConfigError.value = `首次配置 ${((_a2 = selectedBackend.value) == null ? void 0 : _a2.name) || "模型后端"} 时需要填写 API Key。`;
             return;
           }
@@ -10177,16 +10220,25 @@ ${unwrappedProps}
         });
       }
       watch(() => runtimeForm.value.backendId, (backendId, previousBackendId) => {
+        var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
         if (backendId === previousBackendId) return;
         const backend = selectedBackend.value;
+        const savedProfile = (_b = (_a2 = configProvider.value) == null ? void 0 : _a2.runtimeProfiles) == null ? void 0 : _b[backendId];
         runtimeForm.value.protocol = (backend == null ? void 0 : backend.protocol) || "inherit";
-        runtimeForm.value.baseUrl = (backend == null ? void 0 : backend.defaultBaseUrl) || "";
-        runtimeForm.value.model = (backend == null ? void 0 : backend.defaultModel) || "";
-        runtimeForm.value.fastModel = (backend == null ? void 0 : backend.defaultFastModel) || "";
-        runtimeForm.value.effort = backendId === "deepseek" ? "max" : "";
+        runtimeForm.value.baseUrl = (_d = (_c = savedProfile == null ? void 0 : savedProfile.baseUrl) != null ? _c : backend == null ? void 0 : backend.defaultBaseUrl) != null ? _d : "";
+        runtimeForm.value.model = (_f = (_e = savedProfile == null ? void 0 : savedProfile.model) != null ? _e : backend == null ? void 0 : backend.defaultModel) != null ? _f : "";
+        runtimeForm.value.fastModel = (_h = (_g = savedProfile == null ? void 0 : savedProfile.fastModel) != null ? _g : backend == null ? void 0 : backend.defaultFastModel) != null ? _h : "";
+        runtimeForm.value.effort = (_j = (_i = savedProfile == null ? void 0 : savedProfile.effort) != null ? _i : backend == null ? void 0 : backend.defaultEffort) != null ? _j : "";
       });
+      function selectCompatibleBackend() {
+        runtimeForm.value.backendId = compatibleBackendId.value;
+      }
       function backendDescription(backend) {
         if (backend.id === "inherit") return "读取 Agent 自己的用户或项目配置";
+        if (backend.selectionGroup === "native") return "使用官方 Claude API 与模型";
+        if (backend.selectionGroup === "anthropic-compatible") {
+          return backend.defaultBaseUrl ? "通过 Anthropic Messages 兼容接口运行 Claude Code" : "通过兼容网关将该品牌模型接入 Claude Code";
+        }
         if (backend.protocol === "anthropic-messages") return "通过 Anthropic Messages 协议提供模型";
         if (backend.protocol === "openai-responses") return "通过 OpenAI Responses 协议提供模型";
         return backend.protocol || "模型后端";
@@ -10195,6 +10247,9 @@ ${unwrappedProps}
         if (!backend || !provider) return "";
         if (backend.id === "inherit") {
           return `GoCapture 不覆盖模型与密钥，${provider.name} 使用自己已有的登录、用户和项目配置。`;
+        }
+        if (backend.selectionGroup === "anthropic-compatible") {
+          return `${provider.name} 继续负责 Agent、工具与开发工作流；${backend.name} 需要提供 Anthropic Messages 兼容接口，可使用模型服务自身的兼容地址或统一 LLM 网关。`;
         }
         return `${provider.name} 仍负责 Agent、工具与开发工作流；模型请求通过 ${backend.name} 的 ${backend.protocol} 协议执行。该配置只影响 GoCapture 启动的进程。`;
       }
@@ -10356,7 +10411,7 @@ ${unwrappedProps}
         return String(log || "").replace(/^(候选\s+\d+:\s+|文件:\s+)/, "").trim();
       }
       return (_ctx, _cache) => {
-        var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+        var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
         return openBlock(), createElementBlock("section", _hoisted_1$8, [
           (openBlock(true), createElementBlock(
             Fragment,
@@ -10437,7 +10492,7 @@ ${unwrappedProps}
                                 role: "listitem"
                               },
                               [
-                                _cache[13] || (_cache[13] = createBaseVNode(
+                                _cache[15] || (_cache[15] = createBaseVNode(
                                   "span",
                                   {
                                     class: "mda-log-node-marker",
@@ -10596,7 +10651,7 @@ ${unwrappedProps}
                                     1
                                     /* TEXT */
                                   ),
-                                  _cache[14] || (_cache[14] = createTextVNode()),
+                                  _cache[16] || (_cache[16] = createTextVNode()),
                                   createBaseVNode(
                                     "em",
                                     null,
@@ -10641,7 +10696,7 @@ ${unwrappedProps}
                             onClick: openAgentPicker
                           }, [
                             createBaseVNode("span", _hoisted_35$2, [
-                              _cache[16] || (_cache[16] = createBaseVNode(
+                              _cache[18] || (_cache[18] = createBaseVNode(
                                 "em",
                                 null,
                                 "主要职责",
@@ -10653,7 +10708,7 @@ ${unwrappedProps}
                                   name: ((_a3 = unref(connectAgentStore).activeProvider) == null ? void 0 : _a3.id) || "agent",
                                   size: 18
                                 }, null, 8, ["name"]),
-                                _cache[15] || (_cache[15] = createTextVNode(
+                                _cache[17] || (_cache[17] = createTextVNode(
                                   " 开发 Agent ",
                                   -1
                                   /* CACHED */
@@ -10667,7 +10722,7 @@ ${unwrappedProps}
                                 /* TEXT */
                               )
                             ]),
-                            _cache[17] || (_cache[17] = createBaseVNode(
+                            _cache[19] || (_cache[19] = createBaseVNode(
                               "b",
                               null,
                               "重新选择",
@@ -10679,7 +10734,7 @@ ${unwrappedProps}
                             class: "mda-locator-optional-row",
                             type: "button",
                             onClick: _cache[2] || (_cache[2] = ($event) => unref(commands).openSettings("locator"))
-                          }, [..._cache[18] || (_cache[18] = [
+                          }, [..._cache[20] || (_cache[20] = [
                             createBaseVNode(
                               "span",
                               null,
@@ -10754,7 +10809,7 @@ ${unwrappedProps}
             }, [
               createBaseVNode("section", _hoisted_40$1, [
                 createBaseVNode("header", _hoisted_41$1, [
-                  _cache[19] || (_cache[19] = createBaseVNode(
+                  _cache[21] || (_cache[21] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -10777,7 +10832,7 @@ ${unwrappedProps}
                   ])
                 ]),
                 createBaseVNode("div", _hoisted_42$1, [
-                  _cache[20] || (_cache[20] = createBaseVNode(
+                  _cache[22] || (_cache[22] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -10938,7 +10993,7 @@ ${unwrappedProps}
                       1
                       /* TEXT */
                     ),
-                    _cache[21] || (_cache[21] = createBaseVNode(
+                    _cache[23] || (_cache[23] = createBaseVNode(
                       "p",
                       null,
                       "仅影响 GoCapture 启动的当前 Agent，不修改本机全局配置。",
@@ -10960,7 +11015,7 @@ ${unwrappedProps}
                 ]),
                 createBaseVNode("div", _hoisted_55$1, [
                   createBaseVNode("fieldset", _hoisted_56$1, [
-                    _cache[22] || (_cache[22] = createBaseVNode(
+                    _cache[25] || (_cache[25] = createBaseVNode(
                       "legend",
                       null,
                       "模型来源",
@@ -10970,7 +11025,7 @@ ${unwrappedProps}
                     (openBlock(true), createElementBlock(
                       Fragment,
                       null,
-                      renderList(runtimeBackendOptions.value, (option) => {
+                      renderList(runtimeSourceCards.value, (option) => {
                         return openBlock(), createElementBlock("label", {
                           key: option.value
                         }, [
@@ -10987,11 +11042,50 @@ ${unwrappedProps}
                                 name: option.iconName,
                                 size: 20
                               }, null, 8, ["name"]),
-                              createTextVNode(
-                                " " + toDisplayString(option.label),
+                              createBaseVNode(
+                                "span",
+                                null,
+                                toDisplayString(option.label),
                                 1
                                 /* TEXT */
-                              )
+                              ),
+                              option.kind === "compatible" ? (openBlock(), createElementBlock("span", _hoisted_59$1, [
+                                withDirectives(createBaseVNode(
+                                  "select",
+                                  {
+                                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => compatibleBackendId.value = $event),
+                                    "aria-label": "选择第三方模型品牌",
+                                    onClick: _cache[8] || (_cache[8] = withModifiers(() => {
+                                    }, ["stop"])),
+                                    onChange: selectCompatibleBackend
+                                  },
+                                  [
+                                    (openBlock(true), createElementBlock(
+                                      Fragment,
+                                      null,
+                                      renderList(compatibleBackendOptions.value, (backend) => {
+                                        return openBlock(), createElementBlock("option", {
+                                          key: backend.id,
+                                          value: backend.id
+                                        }, toDisplayString(backend.name), 9, _hoisted_60$1);
+                                      }),
+                                      128
+                                      /* KEYED_FRAGMENT */
+                                    ))
+                                  ],
+                                  544
+                                  /* NEED_HYDRATION, NEED_PATCH */
+                                ), [
+                                  [vModelSelect, compatibleBackendId.value]
+                                ]),
+                                _cache[24] || (_cache[24] = createBaseVNode(
+                                  "i",
+                                  { "aria-hidden": "true" },
+                                  null,
+                                  -1
+                                  /* CACHED */
+                                ))
+                              ])) : createCommentVNode("v-if", true)
                             ]),
                             createBaseVNode(
                               "small",
@@ -11009,7 +11103,7 @@ ${unwrappedProps}
                   ]),
                   createBaseVNode(
                     "p",
-                    _hoisted_59$1,
+                    _hoisted_61,
                     toDisplayString(runtimeProviderExplanation.value),
                     1
                     /* TEXT */
@@ -11018,8 +11112,8 @@ ${unwrappedProps}
                     Fragment,
                     { key: 0 },
                     [
-                      ((_e = selectedBackend.value) == null ? void 0 : _e.configurable) && runtimeForm.value.backendId !== "anthropic" ? (openBlock(), createElementBlock("label", _hoisted_60$1, [
-                        _cache[23] || (_cache[23] = createBaseVNode(
+                      ((_e = selectedBackend.value) == null ? void 0 : _e.configurable) && runtimeForm.value.backendId !== "anthropic" ? (openBlock(), createElementBlock("label", _hoisted_62, [
+                        _cache[26] || (_cache[26] = createBaseVNode(
                           "span",
                           null,
                           "Endpoint",
@@ -11027,21 +11121,37 @@ ${unwrappedProps}
                           /* CACHED */
                         )),
                         withDirectives(createBaseVNode("input", {
-                          "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => runtimeForm.value.baseUrl = $event),
+                          "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => runtimeForm.value.baseUrl = $event),
                           type: "url",
-                          placeholder: ((_f = selectedBackend.value) == null ? void 0 : _f.defaultBaseUrl) || "https://gateway.example.com"
-                        }, null, 8, _hoisted_61), [
+                          list: "mda-endpoint-presets",
+                          placeholder: ((_f = selectedBackend.value) == null ? void 0 : _f.defaultBaseUrl) || "选择预设或输入兼容网关地址"
+                        }, null, 8, _hoisted_63), [
                           [
                             vModelText,
                             runtimeForm.value.baseUrl,
                             void 0,
                             { trim: true }
                           ]
+                        ]),
+                        createBaseVNode("datalist", _hoisted_64, [
+                          (openBlock(true), createElementBlock(
+                            Fragment,
+                            null,
+                            renderList(((_g = selectedBackend.value) == null ? void 0 : _g.endpointPresets) || [], (endpoint) => {
+                              return openBlock(), createElementBlock("option", {
+                                key: endpoint.value,
+                                value: endpoint.value,
+                                label: endpoint.label
+                              }, null, 8, _hoisted_65);
+                            }),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
                         ])
                       ])) : createCommentVNode("v-if", true),
-                      createBaseVNode("div", _hoisted_62, [
-                        createBaseVNode("label", _hoisted_63, [
-                          _cache[24] || (_cache[24] = createBaseVNode(
+                      createBaseVNode("div", _hoisted_66, [
+                        createBaseVNode("label", _hoisted_67, [
+                          _cache[27] || (_cache[27] = createBaseVNode(
                             "span",
                             null,
                             "主模型",
@@ -11049,10 +11159,11 @@ ${unwrappedProps}
                             /* CACHED */
                           )),
                           withDirectives(createBaseVNode("input", {
-                            "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => runtimeForm.value.model = $event),
+                            "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => runtimeForm.value.model = $event),
                             type: "text",
-                            placeholder: ((_g = selectedBackend.value) == null ? void 0 : _g.defaultModel) || "留空使用 Agent 默认值"
-                          }, null, 8, _hoisted_64), [
+                            list: "mda-primary-model-presets",
+                            placeholder: ((_h = selectedBackend.value) == null ? void 0 : _h.defaultModel) || "选择预设或输入网关模型名"
+                          }, null, 8, _hoisted_68), [
                             [
                               vModelText,
                               runtimeForm.value.model,
@@ -11061,8 +11172,8 @@ ${unwrappedProps}
                             ]
                           ])
                         ]),
-                        createBaseVNode("label", _hoisted_65, [
-                          _cache[25] || (_cache[25] = createBaseVNode(
+                        createBaseVNode("label", _hoisted_69, [
+                          _cache[28] || (_cache[28] = createBaseVNode(
                             "span",
                             null,
                             "快速 / 子 Agent 模型",
@@ -11070,10 +11181,11 @@ ${unwrappedProps}
                             /* CACHED */
                           )),
                           withDirectives(createBaseVNode("input", {
-                            "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => runtimeForm.value.fastModel = $event),
+                            "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => runtimeForm.value.fastModel = $event),
                             type: "text",
-                            placeholder: ((_h = selectedBackend.value) == null ? void 0 : _h.defaultFastModel) || "可留空"
-                          }, null, 8, _hoisted_66), [
+                            list: "mda-fast-model-presets",
+                            placeholder: ((_i = selectedBackend.value) == null ? void 0 : _i.defaultFastModel) || "选择预设或留空"
+                          }, null, 8, _hoisted_70), [
                             [
                               vModelText,
                               runtimeForm.value.fastModel,
@@ -11081,20 +11193,48 @@ ${unwrappedProps}
                               { trim: true }
                             ]
                           ])
+                        ]),
+                        createBaseVNode("datalist", _hoisted_71, [
+                          (openBlock(true), createElementBlock(
+                            Fragment,
+                            null,
+                            renderList(((_j = selectedBackend.value) == null ? void 0 : _j.modelPresets) || [], (model) => {
+                              return openBlock(), createElementBlock("option", {
+                                key: `primary:${model}`,
+                                value: model
+                              }, null, 8, _hoisted_72);
+                            }),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
+                        ]),
+                        createBaseVNode("datalist", _hoisted_73, [
+                          (openBlock(true), createElementBlock(
+                            Fragment,
+                            null,
+                            renderList(((_k = selectedBackend.value) == null ? void 0 : _k.modelPresets) || [], (model) => {
+                              return openBlock(), createElementBlock("option", {
+                                key: `fast:${model}`,
+                                value: model
+                              }, null, 8, _hoisted_74);
+                            }),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
                         ])
                       ]),
-                      createBaseVNode("label", _hoisted_67, [
+                      createBaseVNode("label", _hoisted_75, [
                         createBaseVNode(
                           "span",
                           null,
-                          toDisplayString(((_i = selectedBackend.value) == null ? void 0 : _i.name) || "模型后端") + " API Key " + toDisplayString(((_j = configProvider.value) == null ? void 0 : _j.authMode) === "apikey" && ((_k = configProvider.value) == null ? void 0 : _k.authBackendId) === runtimeForm.value.backendId ? "（留空则沿用已保存密钥）" : ""),
+                          toDisplayString(((_l = selectedBackend.value) == null ? void 0 : _l.name) || "模型后端") + " API Key " + toDisplayString(hasSavedBackendAuth.value ? "（已保存，留空则继续沿用）" : ""),
                           1
                           /* TEXT */
                         ),
                         withDirectives(createBaseVNode(
                           "input",
                           {
-                            "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => runtimeApiKey.value = $event),
+                            "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => runtimeApiKey.value = $event),
                             type: "password",
                             autocomplete: "new-password",
                             placeholder: "sk-..."
@@ -11111,8 +11251,8 @@ ${unwrappedProps}
                           ]
                         ])
                       ]),
-                      createBaseVNode("label", _hoisted_68, [
-                        _cache[27] || (_cache[27] = createBaseVNode(
+                      createBaseVNode("label", _hoisted_76, [
+                        _cache[30] || (_cache[30] = createBaseVNode(
                           "span",
                           null,
                           "推理强度",
@@ -11122,9 +11262,9 @@ ${unwrappedProps}
                         withDirectives(createBaseVNode(
                           "select",
                           {
-                            "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => runtimeForm.value.effort = $event)
+                            "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => runtimeForm.value.effort = $event)
                           },
-                          [..._cache[26] || (_cache[26] = [
+                          [..._cache[29] || (_cache[29] = [
                             createBaseVNode(
                               "option",
                               { value: "" },
@@ -11159,13 +11299,13 @@ ${unwrappedProps}
                   )) : createCommentVNode("v-if", true),
                   providerConfigError.value ? (openBlock(), createElementBlock(
                     "p",
-                    _hoisted_69,
+                    _hoisted_77,
                     toDisplayString(providerConfigError.value),
                     1
                     /* TEXT */
                   )) : createCommentVNode("v-if", true)
                 ]),
-                createBaseVNode("footer", _hoisted_70, [
+                createBaseVNode("footer", _hoisted_78, [
                   createBaseVNode("button", {
                     type: "button",
                     onClick: closeProviderConfig
@@ -11175,7 +11315,7 @@ ${unwrappedProps}
                     type: "button",
                     disabled: providerConfigSaving.value,
                     onClick: saveProviderConfig
-                  }, toDisplayString(providerConfigSaving.value ? "验证中…" : "保存并连接"), 9, _hoisted_71)
+                  }, toDisplayString(providerConfigSaving.value ? "验证中…" : "保存并连接"), 9, _hoisted_79)
                 ])
               ], 8, _hoisted_53$1)
             ])) : createCommentVNode("v-if", true),
@@ -11185,9 +11325,9 @@ ${unwrappedProps}
               role: "presentation",
               onClick: withModifiers(closeDiffReview, ["self"])
             }, [
-              createBaseVNode("section", _hoisted_72, [
-                createBaseVNode("header", _hoisted_73, [
-                  _cache[28] || (_cache[28] = createBaseVNode(
+              createBaseVNode("section", _hoisted_80, [
+                createBaseVNode("header", _hoisted_81, [
+                  _cache[31] || (_cache[31] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -11209,8 +11349,8 @@ ${unwrappedProps}
                     })
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_74, [
-                  createBaseVNode("nav", _hoisted_75, [
+                createBaseVNode("div", _hoisted_82, [
+                  createBaseVNode("nav", _hoisted_83, [
                     (openBlock(true), createElementBlock(
                       Fragment,
                       null,
@@ -11236,7 +11376,7 @@ ${unwrappedProps}
                               1
                               /* TEXT */
                             ),
-                            _cache[29] || (_cache[29] = createTextVNode()),
+                            _cache[32] || (_cache[32] = createTextVNode()),
                             createBaseVNode(
                               "em",
                               null,
@@ -11245,19 +11385,19 @@ ${unwrappedProps}
                               /* TEXT */
                             )
                           ])
-                        ], 10, _hoisted_76);
+                        ], 10, _hoisted_84);
                       }),
                       128
                       /* KEYED_FRAGMENT */
                     ))
                   ]),
-                  activeReviewDiff.value ? (openBlock(), createElementBlock("section", _hoisted_77, [
+                  activeReviewDiff.value ? (openBlock(), createElementBlock("section", _hoisted_85, [
                     createBaseVNode("header", null, [
                       createBaseVNode(
                         "button",
                         {
                           type: "button",
-                          onClick: _cache[12] || (_cache[12] = ($event) => unref(commands).openSourceFile(activeReviewDiff.value.file))
+                          onClick: _cache[14] || (_cache[14] = ($event) => unref(commands).openSourceFile(activeReviewDiff.value.file))
                         },
                         toDisplayString(activeReviewDiff.value.file),
                         1
@@ -11271,7 +11411,7 @@ ${unwrappedProps}
                         /* TEXT */
                       )
                     ]),
-                    createBaseVNode("div", _hoisted_78, [
+                    createBaseVNode("div", _hoisted_86, [
                       (openBlock(true), createElementBlock(
                         Fragment,
                         null,
@@ -11286,7 +11426,7 @@ ${unwrappedProps}
                             [
                               createBaseVNode(
                                 "span",
-                                _hoisted_79,
+                                _hoisted_87,
                                 toDisplayString(line.marker),
                                 1
                                 /* TEXT */
@@ -12915,7 +13055,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260729.161918.609";
+      const buildVersion = "20260730.011401.990";
       const commands = useGoCaptureCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -23955,14 +24095,22 @@ ${result.rawText}` : ""
 
 /* 新版本更新提示条 */
 .mda-update-bar {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  left: 12px;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 8px 12px 0;
+  /* max-width: 520px; */
+  /* width: 100%; */
+  margin-left: auto;
   padding: 10px 12px;
   border: 1px solid #9ecbff;
   background: #eef6ff;
   border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(15, 74, 134, 0.16);
   color: #0b4a86;
 }
 .mda-update-icon { font-size: 15px; line-height: 1; }
@@ -24471,6 +24619,13 @@ ${result.rawText}` : ""
   gap: 7px;
 }
 
+.mda-provider-mode-title > span:not(.mda-provider-brand-select) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mda-agent-provider-main {
   display: grid;
   min-width: 0;
@@ -24596,6 +24751,34 @@ ${result.rawText}` : ""
   color: #667085;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.mda-provider-brand-select {
+  position: relative;
+  display: inline-grid;
+  min-width: 18px;
+  margin-left: auto;
+}
+
+.mda-provider-brand-select select {
+  position: absolute;
+  inset: -8px -5px -8px -120px;
+  width: 143px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.mda-provider-brand-select i {
+  width: 0;
+  height: 0;
+  border-top: 5px solid #667085;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  pointer-events: none;
+}
+
+.mda-provider-brand-select:focus-within i {
+  border-top-color: #1677ff;
 }
 
 .mda-provider-mode-explanation {

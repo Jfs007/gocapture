@@ -149,3 +149,61 @@ test('connect service persists the task diff and refreshes the selected source',
   assert.equal(resultMessage.metadata.selectionDiffs[0].additions, 1);
   assert.equal(resultMessage.metadata.selectionDiffs[0].deletions, 1);
 });
+
+test('connect service maps provider diff after a first-time selection is located', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-first-selection-diff-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src/View.js'), 'const title = "before";\n');
+
+  class LocatingAgent extends FakeAgent {
+    async runTask(input) {
+      fs.writeFileSync(path.join(input.cwd, 'src/View.js'), 'const title = "after";\n');
+      return {
+        ...(await super.runTask(input)),
+        changedFiles: ['src/View.js'],
+        fileDiffs: [{
+          file: 'src/View.js',
+          patch: [
+            '--- a/src/View.js',
+            '+++ b/src/View.js',
+            '@@ -1,1 +1,1 @@',
+            '-const title = "before";',
+            '+const title = "after";',
+            '',
+          ].join('\n'),
+          additions: 1,
+          deletions: 1,
+          source: 'fake-provider',
+        }],
+        selectionLocations: [{
+          selectionId: 'selection_first',
+          locations: [{
+            file: 'src/View.js',
+            startLine: 1,
+            endLine: 1,
+            anchor: 'const title',
+          }],
+        }],
+      };
+    }
+  }
+
+  const service = createConnectAgentService({
+    registry: new AgentRegistry([new LocatingAgent()]),
+  });
+  const result = await service.runTask('fake', {
+    project: { path: root },
+    userInstruction: '@selection_first 修改标题',
+    locatorEvidence: {
+      selections: [{ selectionId: 'selection_first' }],
+    },
+    selectionBindings: [],
+  });
+
+  assert.equal(result.selectionDiffs.length, 1);
+  assert.equal(result.selectionDiffs[0].selectionId, 'selection_first');
+  assert.equal(result.selectionDiffs[0].file, 'src/View.js');
+  assert.equal(result.selectionDiffs[0].additions, 1);
+  assert.match(result.selectionDiffs[0].patch, /const title = "after"/);
+});

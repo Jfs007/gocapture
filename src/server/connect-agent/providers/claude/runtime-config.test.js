@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   DEEPSEEK_BASE_URL,
   normalizeRuntimeConfig,
+  normalizeRuntimeState,
   runtimeConfigToEnv,
   validateRuntimeConfig,
 } = require('./runtime-config');
@@ -68,4 +69,83 @@ test('validateRuntimeConfig rejects the OpenAI endpoint for Claude Code', () => 
     backendId: 'deepseek',
     baseUrl: 'https://api.deepseek.com/anthropic',
   }), '');
+});
+
+test('Anthropic-compatible brands use the same runtime contract', () => {
+  assert.deepStrictEqual(normalizeRuntimeConfig({
+    backendId: 'gemini',
+    baseUrl: 'https://llm-gateway.example.com/anthropic',
+    model: 'gemini-model',
+  }), {
+    backendId: 'gemini',
+    protocol: 'anthropic-messages',
+    baseUrl: 'https://llm-gateway.example.com/anthropic',
+    model: 'gemini-model',
+    fastModel: '',
+    effort: '',
+  });
+  assert.equal(
+    normalizeRuntimeConfig({ backendId: 'qwen', model: 'qwen-model' }).baseUrl,
+    'https://dashscope.aliyuncs.com/apps/anthropic',
+  );
+  assert.match(
+    validateRuntimeConfig({ backendId: 'gemini', model: 'gemini-model' }),
+    /兼容 Endpoint/,
+  );
+  assert.match(
+    validateRuntimeConfig({
+      backendId: 'qwen',
+      baseUrl: 'https://llm-gateway.example.com/anthropic',
+    }),
+    /模型名称/,
+  );
+  assert.strictEqual(validateRuntimeConfig({
+    backendId: 'qwen',
+    baseUrl: 'https://llm-gateway.example.com/anthropic',
+    model: 'qwen-model',
+  }), '');
+});
+
+test('runtimeConfigToEnv maps any Anthropic-compatible brand without provider branches', () => {
+  const env = runtimeConfigToEnv(
+    {
+      backendId: 'mistral',
+      baseUrl: 'https://llm-gateway.example.com/anthropic',
+      model: 'mistral-model',
+    },
+    { mode: 'apikey', backendId: 'mistral', apiKey: 'sk-gateway' },
+    { PATH: '/bin' },
+  );
+
+  assert.strictEqual(env.ANTHROPIC_BASE_URL, 'https://llm-gateway.example.com/anthropic');
+  assert.strictEqual(env.ANTHROPIC_AUTH_TOKEN, 'sk-gateway');
+  assert.strictEqual(env.ANTHROPIC_MODEL, 'mistral-model');
+});
+
+test('runtime state migrates a legacy config and retains one profile per brand', () => {
+  const migrated = normalizeRuntimeState({
+    backendId: 'deepseek',
+    model: 'deepseek-v4-flash',
+  });
+  assert.strictEqual(migrated.version, 2);
+  assert.strictEqual(migrated.activeBackendId, 'deepseek');
+  assert.strictEqual(migrated.profiles.deepseek.model, 'deepseek-v4-flash');
+
+  const state = normalizeRuntimeState({
+    version: 2,
+    activeBackendId: 'qwen',
+    profiles: {
+      deepseek: {
+        backendId: 'deepseek',
+        model: 'deepseek-v4-pro',
+      },
+      qwen: {
+        backendId: 'qwen',
+        baseUrl: 'https://gateway.example.com/anthropic',
+        model: 'qwen3.7-max',
+      },
+    },
+  });
+  assert.strictEqual(state.profiles.deepseek.model, 'deepseek-v4-pro');
+  assert.strictEqual(state.profiles.qwen.model, 'qwen3.7-max');
 });

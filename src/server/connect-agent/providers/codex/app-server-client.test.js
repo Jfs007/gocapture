@@ -54,6 +54,18 @@ function fakeAppServer() {
             itemId: 'message_test',
             delta: '修改完成',
           });
+          notify(child, 'turn/diff/updated', {
+            threadId: 'thread_test',
+            turnId: 'turn_test',
+            diff: [
+              '--- a/src/example.js',
+              '+++ b/src/example.js',
+              '@@ -1,1 +1,1 @@',
+              '-const value = 1;',
+              '+const value = 2;',
+              '',
+            ].join('\n'),
+          });
           notify(child, 'item/completed', {
             threadId: 'thread_test',
             turnId: 'turn_test',
@@ -157,6 +169,10 @@ test('Codex App Server task streams thread, turn, events and final result', asyn
   assert.equal(result.status, 'completed');
   assert.equal(result.finalResponse, '修改完成');
   assert.deepEqual(result.changedFiles, ['src/example.js']);
+  assert.equal(result.fileDiffs.length, 1);
+  assert.equal(result.fileDiffs[0].file, 'src/example.js');
+  assert.equal(result.fileDiffs[0].additions, 1);
+  assert.equal(result.fileDiffs[0].deletions, 1);
   assert.ok(events.some(event => event.type === 'thread-started'));
   assert.ok(events.some(event => event.type === 'thread-named'));
   assert.ok(events.some(event => event.type === 'turn-started'));

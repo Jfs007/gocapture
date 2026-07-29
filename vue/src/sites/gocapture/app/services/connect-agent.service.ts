@@ -29,11 +29,13 @@ export interface ConnectAgentProvider {
   authModes?: string[];
   authMode?: string;
   authBackendId?: string;
+  authBackendIds?: string[];
   authConfigured?: boolean;
   supportsProxy?: boolean;
   proxy?: string;
   supportsRuntimeConfig?: boolean;
   runtimeConfig?: AgentRuntimeConfig;
+  runtimeProfiles?: AgentRuntimeProfiles;
   capabilities?: Record<string, boolean>;
   modelProtocols?: string[];
   modelBackends?: string[];
@@ -69,11 +71,21 @@ export interface ConnectAgentAuth {
 export interface ModelBackendDefinition {
   id: string;
   name: string;
+  brandId?: string;
+  selectionGroup?: 'system' | 'native' | 'anthropic-compatible' | 'responses-compatible' | 'custom' | string;
   protocol: 'inherit' | 'anthropic-messages' | 'openai-responses' | string;
   configurable: boolean;
   defaultBaseUrl?: string;
   defaultModel?: string;
   defaultFastModel?: string;
+  defaultEffort?: '' | 'high' | 'max';
+  requiresBaseUrl?: boolean;
+  requiresModel?: boolean;
+  modelPresets?: string[];
+  endpointPresets?: Array<{
+    label: string;
+    value: string;
+  }>;
 }
 
 export interface AgentRuntimeConfig {
@@ -84,6 +96,8 @@ export interface AgentRuntimeConfig {
   fastModel?: string;
   effort?: '' | 'high' | 'max';
 }
+
+export type AgentRuntimeProfiles = Record<string, AgentRuntimeConfig>;
 
 export interface ConnectAgentOptions {
   auth?: ConnectAgentAuth;
@@ -115,8 +129,20 @@ export interface ConnectAgentTask {
     }>;
   }>;
   selectionDiffs?: SelectionTaskDiff[];
+  fileDiffs?: ProviderFileDiff[];
   changedFiles: string[];
   error: string;
+}
+
+export interface ProviderFileDiff {
+  file: string;
+  patch: string;
+  additions: number;
+  deletions: number;
+  phase: 'proposed' | 'applied' | string;
+  source: string;
+  before?: string;
+  after?: string;
 }
 
 export interface SelectionTaskDiff {

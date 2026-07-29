@@ -18,6 +18,8 @@ const {
 const {
   captureSelectionTaskSnapshot,
   finalizeSelectionTaskDiff,
+  mergeSelectionDiffs,
+  selectionDiffsFromProvider,
 } = require('./selection-task-diff');
 const {
   clearProjectAgentSession,
@@ -218,7 +220,22 @@ function createConnectAgentService(options = {}) {
           outputSchema,
           threadId: storedSession?.threadId || '',
           onThread: persistThread,
-          onEvent: event => emitProviderEvent(normalizeAgentEvent(provider, event)),
+          onEvent: event => {
+            const normalized = normalizeAgentEvent(provider, event);
+            const liveDiffs = selectionDiffsFromProvider(
+              input.project,
+              selectionSnapshot.references,
+              normalized.fileDiffs,
+              taskId,
+            );
+            if (normalized.task && liveDiffs.length) {
+              normalized.task = {
+                ...normalized.task,
+                selectionDiffs: liveDiffs,
+              };
+            }
+            emitProviderEvent(normalized);
+          },
           signal: input.signal,
         });
       } catch (error) {
@@ -250,7 +267,7 @@ function createConnectAgentService(options = {}) {
           });
         }
       }
-      const selectionDiffs = finalizeSelectionTaskDiff(
+      const snapshotDiffs = finalizeSelectionTaskDiff(
         input.project,
         selectionSnapshot,
         result?.changedFiles,
@@ -262,6 +279,13 @@ function createConnectAgentService(options = {}) {
       if (refreshedSelectionLocations.length) {
         result.selectionLocations = refreshedSelectionLocations;
       }
+      const providerDiffs = selectionDiffsFromProvider(
+        input.project,
+        refreshedSelectionLocations,
+        result?.fileDiffs,
+        taskId,
+      );
+      const selectionDiffs = mergeSelectionDiffs(providerDiffs, snapshotDiffs);
       result.selectionDiffs = selectionDiffs;
       const resultMessage = persistMessage({
         threadId: result?.threadId || '',
@@ -272,6 +296,7 @@ function createConnectAgentService(options = {}) {
         status: result?.status || 'completed',
         metadata: {
           changedFiles: result?.changedFiles || [],
+          fileDiffs: result?.fileDiffs || [],
           selectionLocations: result?.selectionLocations || [],
           selectionDiffs,
         },

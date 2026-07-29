@@ -13,6 +13,12 @@ const { PRODUCT_NAME } = require('../../../core/product-brand');
 const { applyStructuredTaskResult } = require('../../structured-task-result');
 const { AgentAdapter } = require('../../core/agent-adapter');
 const { MODEL_PROTOCOLS, listModelBackends } = require('../../core/model-backends');
+const {
+  publicFileDiffs,
+  recordUnifiedDiff,
+  setTaskFileDiff,
+  taskFile,
+} = require('../../core/file-diff');
 
 const INITIALIZE_TIMEOUT_MS = 10000;
 const REQUEST_TIMEOUT_MS = 20000;
@@ -224,7 +230,9 @@ class CodexAppServerClient extends AgentAdapter {
       finalResponse: '',
       agentMessages: [],
       selectionLocations: [],
+      cwd,
       changedFiles: new Set(),
+      fileDiffs: new Map(),
     };
     this.tasks.set(taskId, task);
     onEvent({
@@ -310,6 +318,7 @@ class CodexAppServerClient extends AgentAdapter {
         onEvent({
           type: 'codex-event',
           task: taskIdentity(task),
+          fileDiffs: publicFileDiffs(task),
           event: message,
           message: describeNotification(message),
         });
@@ -620,6 +629,9 @@ function updateTaskFromNotification(task, message) {
   const turnId = notificationTurnId(message);
   if (turnId && !task.turnId) task.turnId = turnId;
   const params = message?.params || {};
+  if (message.method === 'turn/diff/updated') {
+    recordUnifiedDiff(task, params.diff, 'codex-app-server');
+  }
   if (message.method === 'item/agentMessage/delta') {
     task.finalResponse += String(params.delta || '');
   }
@@ -632,8 +644,16 @@ function updateTaskFromNotification(task, message) {
     }
     if (item.type === 'fileChange') {
       for (const change of (Array.isArray(item.changes) ? item.changes : [])) {
-        const file = String(change?.path || change?.file || '');
+        const file = taskFile(task, change?.path || change?.file);
         if (file) task.changedFiles.add(file);
+        if (file && change?.diff) {
+          setTaskFileDiff(task, {
+            file,
+            patch: change.diff,
+            phase: 'applied',
+            source: 'codex-app-server',
+          });
+        }
       }
     }
   }
@@ -661,6 +681,7 @@ function publicTask(task) {
     finalResponse: task.finalResponse,
     selectionLocations: task.selectionLocations || [],
     changedFiles: [...task.changedFiles],
+    fileDiffs: publicFileDiffs(task),
     error: task.error || '',
   };
 }

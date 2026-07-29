@@ -269,12 +269,29 @@
           <div class="mda-provider-config-body">
             <fieldset class="mda-provider-mode-options">
               <legend>模型来源</legend>
-              <label v-for="option in runtimeBackendOptions" :key="option.value">
+              <label v-for="option in runtimeSourceCards" :key="option.value">
                 <input v-model="runtimeForm.backendId" type="radio" :value="option.value">
                 <span>
                   <strong class="mda-provider-mode-title">
                     <ModelBrandIcon :name="option.iconName" :size="20" />
-                    {{ option.label }}
+                    <span>{{ option.label }}</span>
+                    <span v-if="option.kind === 'compatible'" class="mda-provider-brand-select">
+                      <select
+                        v-model="compatibleBackendId"
+                        aria-label="选择第三方模型品牌"
+                        @click.stop
+                        @change="selectCompatibleBackend"
+                      >
+                        <option
+                          v-for="backend in compatibleBackendOptions"
+                          :key="backend.id"
+                          :value="backend.id"
+                        >
+                          {{ backend.name }}
+                        </option>
+                      </select>
+                      <i aria-hidden="true" />
+                    </span>
                   </strong>
                   <small>{{ option.description }}</small>
                 </span>
@@ -285,22 +302,51 @@
             <template v-if="runtimeForm.backendId !== 'inherit'">
               <label v-if="selectedBackend?.configurable && runtimeForm.backendId !== 'anthropic'" class="mda-provider-config-field">
                 <span>Endpoint</span>
-                <input v-model.trim="runtimeForm.baseUrl" type="url" :placeholder="selectedBackend?.defaultBaseUrl || 'https://gateway.example.com'">
+                <input
+                  v-model.trim="runtimeForm.baseUrl"
+                  type="url"
+                  list="mda-endpoint-presets"
+                  :placeholder="selectedBackend?.defaultBaseUrl || '选择预设或输入兼容网关地址'"
+                >
+                <datalist id="mda-endpoint-presets">
+                  <option
+                    v-for="endpoint in selectedBackend?.endpointPresets || []"
+                    :key="endpoint.value"
+                    :value="endpoint.value"
+                    :label="endpoint.label"
+                  />
+                </datalist>
               </label>
               <div class="mda-provider-config-grid">
                 <label class="mda-provider-config-field">
                   <span>主模型</span>
-                  <input v-model.trim="runtimeForm.model" type="text" :placeholder="selectedBackend?.defaultModel || '留空使用 Agent 默认值'">
+                  <input
+                    v-model.trim="runtimeForm.model"
+                    type="text"
+                    list="mda-primary-model-presets"
+                    :placeholder="selectedBackend?.defaultModel || '选择预设或输入网关模型名'"
+                  >
                 </label>
                 <label class="mda-provider-config-field">
                   <span>快速 / 子 Agent 模型</span>
-                  <input v-model.trim="runtimeForm.fastModel" type="text" :placeholder="selectedBackend?.defaultFastModel || '可留空'">
+                  <input
+                    v-model.trim="runtimeForm.fastModel"
+                    type="text"
+                    list="mda-fast-model-presets"
+                    :placeholder="selectedBackend?.defaultFastModel || '选择预设或留空'"
+                  >
                 </label>
+                <datalist id="mda-primary-model-presets">
+                  <option v-for="model in selectedBackend?.modelPresets || []" :key="`primary:${model}`" :value="model" />
+                </datalist>
+                <datalist id="mda-fast-model-presets">
+                  <option v-for="model in selectedBackend?.modelPresets || []" :key="`fast:${model}`" :value="model" />
+                </datalist>
               </div>
               <label class="mda-provider-config-field">
                 <span>
                   {{ selectedBackend?.name || '模型后端' }} API Key
-                  {{ configProvider?.authMode === 'apikey' && configProvider?.authBackendId === runtimeForm.backendId ? '（留空则沿用已保存密钥）' : '' }}
+                  {{ hasSavedBackendAuth ? '（已保存，留空则继续沿用）' : '' }}
                 </span>
                 <input v-model.trim="runtimeApiKey" type="password" autocomplete="new-password" placeholder="sk-...">
               </label>
@@ -420,6 +466,7 @@ const reviewDiffIndex = ref(0);
 const configProviderId = ref('');
 const runtimeApiKey = ref('');
 const projectProxy = ref('');
+const compatibleBackendId = ref('deepseek');
 const runtimeForm = ref({
   backendId: 'inherit',
   protocol: 'inherit',
@@ -433,18 +480,53 @@ const configProvider = computed(() =>
 const runtimeBackendOptions = computed(() =>
   (configProvider.value?.availableModelBackends || []).map(backend => ({
     value: backend.id,
-    label: backend.name,
+    label: backend.id === 'inherit'
+      ? `沿用 ${configProvider.value?.name || 'Agent'}`
+      : backend.name,
     description: backendDescription(backend),
-    iconName: backend.id === 'inherit'
+    iconName: backend.brandId || (backend.id === 'inherit'
       ? (configProvider.value?.id || configProvider.value?.name || 'agent')
-      : backend.id
+      : backend.id),
+    backend
   })));
+const compatibleBackendOptions = computed(() =>
+  (configProvider.value?.availableModelBackends || []).filter(
+    backend => backend.selectionGroup === 'anthropic-compatible'
+  ));
+const selectedCompatibleBackend = computed(() =>
+  compatibleBackendOptions.value.find(backend => backend.id === compatibleBackendId.value)
+  || compatibleBackendOptions.value[0]
+  || null);
+const runtimeSourceCards = computed(() => {
+  const options = runtimeBackendOptions.value;
+  const cards = options.filter(option =>
+    option.backend.selectionGroup === 'system' || option.backend.selectionGroup === 'native'
+  );
+  const compatible = selectedCompatibleBackend.value;
+  if (compatible) {
+    cards.push({
+      value: compatible.id,
+      label: compatible.name,
+      description: backendDescription(compatible),
+      iconName: compatible.brandId || compatible.id,
+      backend: compatible,
+      kind: 'compatible'
+    });
+  }
+  return cards;
+});
 const selectedBackend = computed(() =>
   configProvider.value?.availableModelBackends?.find(
     backend => backend.id === runtimeForm.value.backendId
   ) || null);
 const runtimeProviderExplanation = computed(() =>
   backendExplanation(selectedBackend.value, configProvider.value));
+const hasSavedBackendAuth = computed(() =>
+  configProvider.value?.authBackendIds?.includes(runtimeForm.value.backendId)
+  || (
+    configProvider.value?.authMode === 'apikey'
+    && configProvider.value?.authBackendId === runtimeForm.value.backendId
+  ));
 const activeReviewDiff = computed(() => reviewDiffs.value[reviewDiffIndex.value] || null);
 const activePatchLines = computed(() => patchLines(activeReviewDiff.value?.patch || ''));
 let clockTimer = 0;
@@ -484,6 +566,16 @@ function providerSummary(provider) {
 function openProviderConfig(provider) {
   const config = provider?.runtimeConfig || {};
   configProviderId.value = provider?.id || '';
+  const configuredBackend = provider?.availableModelBackends?.find(
+    backend => backend.id === config.backendId
+  );
+  const compatibleDefault = provider?.availableModelBackends?.find(backend => backend.id === 'deepseek')
+    || provider?.availableModelBackends?.find(
+      backend => backend.selectionGroup === 'anthropic-compatible'
+    );
+  compatibleBackendId.value = configuredBackend?.selectionGroup === 'anthropic-compatible'
+    ? configuredBackend.id
+    : (compatibleDefault?.id || 'deepseek');
   runtimeForm.value = {
     backendId: config.backendId || 'inherit',
     protocol: config.protocol || 'inherit',
@@ -505,18 +597,9 @@ function closeProviderConfig() {
 async function saveProviderConfig() {
   const provider = configProvider.value;
   if (!provider) return;
-  if (runtimeForm.value.backendId === 'deepseek') {
-    const endpoint = runtimeForm.value.baseUrl.replace(/\/+$/, '');
-    if (endpoint === 'https://api.deepseek.com/chat/completions'
-      || endpoint === 'https://api.deepseek.com/v1'
-      || endpoint === 'https://api.deepseek.com') {
-      providerConfigError.value = 'Claude Code 不能使用 Chat Completions 地址，请改为 https://api.deepseek.com/anthropic';
-      return;
-    }
-  }
   if (runtimeForm.value.backendId !== 'inherit'
     && !runtimeApiKey.value
-    && !(provider.authMode === 'apikey' && provider.authBackendId === runtimeForm.value.backendId)) {
+    && !hasSavedBackendAuth.value) {
     providerConfigError.value = `首次配置 ${selectedBackend.value?.name || '模型后端'} 时需要填写 API Key。`;
     return;
   }
@@ -554,15 +637,26 @@ async function saveProviderConfig() {
 watch(() => runtimeForm.value.backendId, (backendId, previousBackendId) => {
   if (backendId === previousBackendId) return;
   const backend = selectedBackend.value;
+  const savedProfile = configProvider.value?.runtimeProfiles?.[backendId];
   runtimeForm.value.protocol = backend?.protocol || 'inherit';
-  runtimeForm.value.baseUrl = backend?.defaultBaseUrl || '';
-  runtimeForm.value.model = backend?.defaultModel || '';
-  runtimeForm.value.fastModel = backend?.defaultFastModel || '';
-  runtimeForm.value.effort = backendId === 'deepseek' ? 'max' : '';
+  runtimeForm.value.baseUrl = savedProfile?.baseUrl ?? backend?.defaultBaseUrl ?? '';
+  runtimeForm.value.model = savedProfile?.model ?? backend?.defaultModel ?? '';
+  runtimeForm.value.fastModel = savedProfile?.fastModel ?? backend?.defaultFastModel ?? '';
+  runtimeForm.value.effort = savedProfile?.effort ?? backend?.defaultEffort ?? '';
 });
+
+function selectCompatibleBackend() {
+  runtimeForm.value.backendId = compatibleBackendId.value;
+}
 
 function backendDescription(backend) {
   if (backend.id === 'inherit') return '读取 Agent 自己的用户或项目配置';
+  if (backend.selectionGroup === 'native') return '使用官方 Claude API 与模型';
+  if (backend.selectionGroup === 'anthropic-compatible') {
+    return backend.defaultBaseUrl
+      ? '通过 Anthropic Messages 兼容接口运行 Claude Code'
+      : '通过兼容网关将该品牌模型接入 Claude Code';
+  }
   if (backend.protocol === 'anthropic-messages') return '通过 Anthropic Messages 协议提供模型';
   if (backend.protocol === 'openai-responses') return '通过 OpenAI Responses 协议提供模型';
   return backend.protocol || '模型后端';
@@ -572,6 +666,9 @@ function backendExplanation(backend, provider) {
   if (!backend || !provider) return '';
   if (backend.id === 'inherit') {
     return `GoCapture 不覆盖模型与密钥，${provider.name} 使用自己已有的登录、用户和项目配置。`;
+  }
+  if (backend.selectionGroup === 'anthropic-compatible') {
+    return `${provider.name} 继续负责 Agent、工具与开发工作流；${backend.name} 需要提供 Anthropic Messages 兼容接口，可使用模型服务自身的兼容地址或统一 LLM 网关。`;
   }
   return `${provider.name} 仍负责 Agent、工具与开发工作流；模型请求通过 ${backend.name} 的 ${backend.protocol} 协议执行。该配置只影响 GoCapture 启动的进程。`;
 }

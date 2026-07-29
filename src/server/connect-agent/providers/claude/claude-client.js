@@ -9,10 +9,18 @@ const { applyStructuredTaskResult } = require('../../structured-task-result');
 const readline = require('readline');
 const crypto = require('crypto');
 const { inspectClaudeCli, spawnClaudeTask, spawnClaudeProbe } = require('./cli');
-const { normalizeAuth, loadClaudeAuth, saveClaudeAuth, authToEnv } = require('./auth-store');
+const {
+  normalizeAuth,
+  loadClaudeAuth,
+  loadClaudeAuthForBackend,
+  listClaudeAuthBackendIds,
+  saveClaudeAuth,
+  authToEnv,
+} = require('./auth-store');
 const {
   CLAUDE_MODEL_BACKENDS,
   loadRuntimeConfig,
+  loadRuntimeProfiles,
   normalizeRuntimeConfig,
   runtimeConfigToEnv,
   saveRuntimeConfig,
@@ -25,6 +33,11 @@ const {
   getModelBackend,
   listModelBackends,
 } = require('../../core/model-backends');
+const {
+  captureProposedFileEdit,
+  finalizeTaskFileDiffs,
+  publicFileDiffs,
+} = require('../../core/file-diff');
 
 const PROBE_TIMEOUT_MS = 60 * 1000;
 // Claude 常把鉴权/网络失败当"文本回复"打出来(subtype 仍 success)，故除退出码/is_error 外，也按文本特征判失败。
@@ -33,13 +46,13 @@ const AUTH_FAIL_RE = /API Error:\s*40[13]|Failed to authenticate|not allowed|Inv
 const REGION_BLOCK_RE = /Request not allowed|\b403\b/i;
 
 function explainProbeFailure(text, provider = 'anthropic') {
-  const serviceName = provider === 'deepseek' ? 'DeepSeek' : 'Anthropic';
+  const serviceName = getModelBackend(provider)?.name || 'Anthropic';
   if (REGION_BLOCK_RE.test(text)) {
     return `请求受限：当前环境无法连接 ${serviceName}（403 Request not allowed）。请检查 Endpoint、账户权限或代理。`;
   }
   if (/Invalid API key|Failed to authenticate|unauthor|\b401\b/i.test(text)) {
-    return provider === 'deepseek'
-      ? 'DeepSeek 授权无效：请检查 API Key 与 Anthropic 兼容 Endpoint。'
+    return provider !== 'anthropic'
+      ? `${serviceName} 授权无效：请检查 API Key 与 Anthropic Messages 兼容 Endpoint。`
       : '授权无效：请改用有效的 API Key，或重新登录订阅（claude setup-token / claude auth login）。';
   }
   return '授权验证失败';
@@ -74,13 +87,26 @@ class ClaudeCodeClient extends AgentAdapter {
     this.state = 'disconnected';
     this.lastError = '';
     this.cli = null;
-    // 用户授权（订阅 / apikey）：构造时从盘上恢复；连接时可携带新授权覆盖并落盘。
-    this.auth = options.auth ? normalizeAuth(options.auth) : (options.loadAuth || loadClaudeAuth)();
-    this.saveAuth = options.saveAuth || saveClaudeAuth;
     this.runtimeConfig = normalizeRuntimeConfig(
       options.runtimeConfig || (options.loadRuntimeConfig || loadRuntimeConfig)(),
     );
+    this.loadRuntimeProfiles = options.loadRuntimeProfiles
+      || (options.loadRuntimeConfig
+        ? () => ({ [this.runtimeConfig.backendId]: { ...this.runtimeConfig } })
+        : loadRuntimeProfiles);
     this.saveRuntimeConfig = options.saveRuntimeConfig || saveRuntimeConfig;
+    this.loadAuthForBackend = options.loadAuthForBackend
+      || (options.loadAuth ? () => options.loadAuth() : loadClaudeAuthForBackend);
+    this.listAuthBackendIds = options.listAuthBackendIds
+      || (options.loadAuth ? () => {
+        const auth = options.loadAuth();
+        return auth?.mode && auth?.backendId ? [auth.backendId] : [];
+      } : listClaudeAuthBackendIds);
+    // 用户授权按模型品牌恢复；连接时可携带新授权覆盖当前品牌并落盘。
+    this.auth = options.auth
+      ? normalizeAuth({ ...options.auth, backendId: options.auth.backendId || this.runtimeConfig.backendId })
+      : (options.loadAuth ? options.loadAuth() : this.loadAuthForBackend(this.runtimeConfig.backendId));
+    this.saveAuth = options.saveAuth || saveClaudeAuth;
   }
 
   setProxy(proxy) {
@@ -112,10 +138,16 @@ class ClaudeCodeClient extends AgentAdapter {
     const hasRuntimeUpdate = !!options?.runtimeConfig;
     // 先将新配置放入内存供探针验证；验证成功后再落盘。
     if (options && options.auth) {
-      this.auth = normalizeAuth(options.auth);
+      this.auth = normalizeAuth({
+        ...options.auth,
+        backendId: options.auth.backendId || options.runtimeConfig?.backendId || this.runtimeConfig.backendId,
+      });
     }
     if (options && options.runtimeConfig) {
       this.runtimeConfig = normalizeRuntimeConfig(options.runtimeConfig);
+      if (!hasAuthUpdate) {
+        this.auth = this.loadAuthForBackend(this.runtimeConfig.backendId);
+      }
     }
     try {
       const runtimeConfigError = validateRuntimeConfig(this.runtimeConfig, this.manifest);
@@ -127,7 +159,7 @@ class ClaudeCodeClient extends AgentAdapter {
         this.state = 'unavailable';
         throw new Error(cli.message);
       }
-      // DeepSeek 先直连兼容 API，避免 Claude CLI 在 401 时持续重试直到超时。
+      // 兼容网关先做轻量直连探测，避免 Claude CLI 在配置错误时持续重试。
       const probe = this.runtimeConfig.backendId !== 'inherit'
         && this.runtimeConfig.backendId !== 'anthropic'
         && !this.auth.proxy
@@ -177,7 +209,7 @@ class ClaudeCodeClient extends AgentAdapter {
           'x-api-key': this.auth.apiKey,
         },
         body: JSON.stringify({
-          model: this.runtimeConfig.fastModel || this.runtimeConfig.model || 'deepseek-v4-flash',
+          model: this.runtimeConfig.fastModel || this.runtimeConfig.model,
           max_tokens: 1,
           messages: [{ role: 'user', content: 'OK' }],
         }),
@@ -269,11 +301,13 @@ class ClaudeCodeClient extends AgentAdapter {
       authModes: ['subscription', 'apikey'],
       authMode: this.auth.mode || '',
       authBackendId: this.auth.backendId || '',
+      authBackendIds: this.listAuthBackendIds(),
       authConfigured: !!this.auth.mode,
       supportsProxy: true,
       proxy: this.auth.proxy || '', // 非密钥，回传供前端预填
       supportsRuntimeConfig: true,
       runtimeConfig: { ...this.runtimeConfig },
+      runtimeProfiles: this.loadRuntimeProfiles(),
       availableModelBackends: listModelBackends(this.manifest.modelBackends),
     });
   }
@@ -319,7 +353,10 @@ class ClaudeCodeClient extends AgentAdapter {
       finishedAt: 0,
       finalResponse: '',
       selectionLocations: [],
+      cwd,
       changedFiles: new Set(),
+      fileBaselines: new Map(),
+      fileDiffs: new Map(),
       error: '',
     };
     onEvent({ type: 'task-started', task: publicTask(task), message: `Claude Code 开发任务已创建：${taskId}` });
@@ -456,6 +493,7 @@ class ClaudeCodeClient extends AgentAdapter {
 
     task.status = event.subtype === 'success' ? 'completed' : String(event.subtype || 'failed');
     task.finishedAt = Date.now();
+    finalizeTaskFileDiffs(task, 'claude-code');
     normalizeStructuredTaskResult(task);
     const result = publicTask(task);
     entry.onEvent({
@@ -596,7 +634,7 @@ function updateTaskFromEvent(task, event, fileEditTools) {
       if (block?.type === 'tool_use') {
         const tool = String(block.name || '工具');
         const file = String(block?.input?.file_path || block?.input?.path || block?.input?.notebook_path || '');
-        if (fileEditTools.has(tool) && file) task.changedFiles.add(file);
+        if (fileEditTools.has(tool) && file) captureProposedFileEdit(task, tool, block?.input || {});
         notes.push(describeToolUse(tool, block?.input || {}, file));
       }
     }
@@ -645,6 +683,7 @@ function publicTask(task) {
     finalResponse: task.finalResponse,
     selectionLocations: task.selectionLocations || [],
     changedFiles: [...task.changedFiles],
+    fileDiffs: publicFileDiffs(task),
     error: task.error || '',
   };
 }

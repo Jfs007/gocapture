@@ -4186,14 +4186,22 @@
 
 /* 新版本更新提示条 */
 .mda-update-bar {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  left: 12px;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 8px 12px 0;
+  /* max-width: 520px; */
+  /* width: 100%; */
+  margin-left: auto;
   padding: 10px 12px;
   border: 1px solid #9ecbff;
   background: #eef6ff;
   border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(15, 74, 134, 0.16);
   color: #0b4a86;
 }
 .mda-update-icon { font-size: 15px; line-height: 1; }
@@ -4702,6 +4710,13 @@
   gap: 7px;
 }
 
+.mda-provider-mode-title > span:not(.mda-provider-brand-select) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mda-agent-provider-main {
   display: grid;
   min-width: 0;
@@ -4827,6 +4842,34 @@
   color: #667085;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.mda-provider-brand-select {
+  position: relative;
+  display: inline-grid;
+  min-width: 18px;
+  margin-left: auto;
+}
+
+.mda-provider-brand-select select {
+  position: absolute;
+  inset: -8px -5px -8px -120px;
+  width: 143px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.mda-provider-brand-select i {
+  width: 0;
+  height: 0;
+  border-top: 5px solid #667085;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  pointer-events: none;
+}
+
+.mda-provider-brand-select:focus-within i {
+  border-top-color: #1677ff;
 }
 
 .mda-provider-mode-explanation {

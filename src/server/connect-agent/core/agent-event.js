@@ -11,6 +11,11 @@ function normalizeAgentEvent(agent, event = {}) {
     message: String(event?.message || ''),
     task: event?.task || null,
     event: event?.event || null,
+    fileDiffs: Array.isArray(event?.fileDiffs)
+      ? event.fileDiffs
+      : Array.isArray(event?.task?.fileDiffs)
+        ? event.task.fileDiffs
+        : [],
   };
 }
 
