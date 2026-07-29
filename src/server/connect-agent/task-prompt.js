@@ -8,7 +8,6 @@ function buildConnectAgentTaskPrompt({
 }) {
   const selectionIds = knownSelectionIds(selectionBindings, locatorEvidence);
   const selectionReferences = selectionReferenceMap(selectionBindings, locatorEvidence);
-  const locatedIds = locatedSelectionIds(selectionBindings);
   const runtimeEvidence = runtimeSelectionEvidence(locatorEvidence);
   const stableInstruction = rewriteSelectionAliases(
     userInstruction,
@@ -23,21 +22,13 @@ function buildConnectAgentTaskPrompt({
     `运行地址：${String(pageUrl || '').trim() || '-'}`,
   ];
 
-  if (selectionIds.length) {
+  const hasStableSelectionReference = selectionIds
+    .some(selectionId => stableInstruction.includes(`@${selectionId}`));
+  if (selectionIds.length && !hasStableSelectionReference) {
     sections.push(
       '',
-      '本轮选区：',
-      selectionIds.map(selectionId => {
-        const lines = [`@${selectionId}`];
-        if (locatedIds.has(selectionId)) {
-          lines.push(`位置文件：\`.gocapture/selections/${selectionId}.json\``);
-        }
-        return lines.join('\n');
-      }).join('\n'),
+      `选区：${selectionIds.map(selectionId => `@${selectionId}`).join('、')}`,
     );
-  }
-  if (locatedIds.size) {
-    sections.push('若当前任务上下文尚未理解某个选区，读取其位置文件；不要在项目外搜索选区 ID。');
   }
 
   if (runtimeEvidence.length) {
@@ -132,13 +123,10 @@ function locatedSelectionIds(selectionBindings) {
 }
 
 function connectAgentOutputSchema(selectionBindings, locatorEvidence) {
-  const bindingIds = (Array.isArray(selectionBindings) ? selectionBindings : [])
-    .map(item => String(item?.uid || item?.binding?.selectionId || item?.selectionId || ''))
-    .filter(Boolean);
-  const evidenceIds = (Array.isArray(locatorEvidence?.selections) ? locatorEvidence.selections : [])
-    .map(item => String(item?.selectionId || ''))
-    .filter(Boolean);
-  const ids = [...new Set([...bindingIds, ...evidenceIds])];
+  const locatedIds = locatedSelectionIds(selectionBindings);
+  const ids = knownSelectionIds(selectionBindings, locatorEvidence)
+    .filter(selectionId => !locatedIds.has(selectionId));
+  if (!ids.length) return null;
   return {
     type: 'object',
     additionalProperties: false,
@@ -222,9 +210,9 @@ function buildConnectAgentInputLog({
     '',
     'Prompt:',
     String(prompt || ''),
-    '',
-    'Structured output schema:',
-    JSON.stringify(outputSchema || {}, null, 2),
+    ...(outputSchema
+      ? ['', 'Structured output schema:', JSON.stringify(outputSchema, null, 2)]
+      : []),
   ].join('\n');
 }
 

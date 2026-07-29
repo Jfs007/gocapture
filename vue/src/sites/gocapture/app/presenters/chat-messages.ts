@@ -422,6 +422,11 @@ function connectAgentTimelineMessages({
       : isCurrent && Array.isArray(currentTask?.changedFiles)
         ? currentTask.changedFiles
         : [];
+    const selectionDiffs = Array.isArray(result?.metadata?.selectionDiffs)
+      ? result.metadata.selectionDiffs
+      : isCurrent && Array.isArray(currentTask?.selectionDiffs)
+        ? currentTask.selectionDiffs
+        : [];
     const logs = uniqueLines([
       ...group.events.map(event => String(event.text || '')),
       ...(isCurrent ? currentLogs || [] : []),
@@ -450,6 +455,7 @@ function connectAgentTimelineMessages({
             ? `${agentName} 已完成项目修改。`
             : `${agentName} 开发任务未完成。`,
       pre: result?.text || (!running && isCurrent ? currentTask?.finalResponse || '' : ''),
+      diffs: selectionDiffs,
       logs,
       createdAt: running
         ? earliestTimestamp([

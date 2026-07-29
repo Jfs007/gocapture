@@ -27,7 +27,9 @@ export interface SelectionSourceTarget {
   file: string;
   role?: string;
   line?: number;
+  endLine?: number;
   anchor?: string;
+  source?: string;
   targetSnippet?: string;
   codeSnippet?: string;
   importChain?: string[];

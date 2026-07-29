@@ -11,9 +11,14 @@ const {
   connectAgentOutputSchema,
 } = require('./task-prompt');
 const {
+  loadProjectSelectionLocations,
   persistLocatedSelectionReferences,
   updateProjectSelectionLocations,
 } = require('./selection-reference-store');
+const {
+  captureSelectionTaskSnapshot,
+  finalizeSelectionTaskDiff,
+} = require('./selection-task-diff');
 const {
   clearProjectAgentSession,
   loadProjectAgentSession,
@@ -149,6 +154,10 @@ function createConnectAgentService(options = {}) {
       });
       emitTimelineMessage(userMessage);
       const stagedSelectionIds = persistLocatedSelectionReferences(input.project, input);
+      const selectionSnapshot = captureSelectionTaskSnapshot(
+        input.project,
+        selectionIds(input),
+      );
       const prompt = buildConnectAgentTaskPrompt({
         ...input,
       });
@@ -241,6 +250,19 @@ function createConnectAgentService(options = {}) {
           });
         }
       }
+      const selectionDiffs = finalizeSelectionTaskDiff(
+        input.project,
+        selectionSnapshot,
+        result?.changedFiles,
+        taskId,
+      );
+      const activeSelectionIds = new Set(selectionIds(input));
+      const refreshedSelectionLocations = loadProjectSelectionLocations(input.project)
+        .filter(reference => activeSelectionIds.has(reference.selectionId));
+      if (refreshedSelectionLocations.length) {
+        result.selectionLocations = refreshedSelectionLocations;
+      }
+      result.selectionDiffs = selectionDiffs;
       const resultMessage = persistMessage({
         threadId: result?.threadId || '',
         turnId: result?.turnId || '',
@@ -251,6 +273,7 @@ function createConnectAgentService(options = {}) {
         metadata: {
           changedFiles: result?.changedFiles || [],
           selectionLocations: result?.selectionLocations || [],
+          selectionDiffs,
         },
       });
       emitTimelineMessage(resultMessage);

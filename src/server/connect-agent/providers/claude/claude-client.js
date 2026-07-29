@@ -4,9 +4,8 @@ const { applyStructuredTaskResult } = require('../../structured-task-result');
 
 // Claude Code 连接 provider，对齐 CodexAppServerClient 的对外接口
 // （inspect / connect / disconnect / close / status / runTask），前端可一视同仁。
-// 机制差异：Claude Code 每个任务 headless 跑一次 `claude -p --output-format stream-json`，
-// 用 --resume <session_id> 续接会话。会话 id 按 cwd(项目) 记忆 → 同项目后续任务自动带上下文
-// （这正是 Codex 那套目前缺的“跨请求上下文”，这里一开始就做对）。
+// 每个项目维护一个 stream-json worker。任务在同一项目内串行写入 worker stdin；
+// 进程异常或服务重启后，再用持久化 session id 恢复上下文。
 const readline = require('readline');
 const crypto = require('crypto');
 const { inspectClaudeCli, spawnClaudeTask, spawnClaudeProbe } = require('./cli');
@@ -69,7 +68,8 @@ class ClaudeCodeClient extends AgentAdapter {
     this.fetch = options.fetch || globalThis.fetch;
     this.permissionMode = options.permissionMode || process.env.GOCAPTURE_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
     this.model = options.model || process.env.GOCAPTURE_CLAUDE_MODEL || '';
-    this.tasks = new Map();   // taskId -> { child, task }
+    this.tasks = new Map();   // taskId -> queue entry
+    this.runners = new Map(); // cwd -> { worker, active, pending, sessionId }
     this.sessions = new Map(); // cwd -> sessionId（跨任务续接上下文）
     this.state = 'disconnected';
     this.lastError = '';
@@ -84,10 +84,14 @@ class ClaudeCodeClient extends AgentAdapter {
   }
 
   setProxy(proxy) {
+    const previous = this.auth.proxy;
     this.auth = normalizeAuth({
       ...this.auth,
       proxy: String(proxy || '').trim(),
     });
+    if (previous !== this.auth.proxy && this.runners.size) {
+      this.stopAllTasks('Claude Code 代理配置已更新');
+    }
   }
 
   configureProject(settings = {}) {
@@ -139,6 +143,9 @@ class ClaudeCodeClient extends AgentAdapter {
       }
       if (hasRuntimeUpdate && !this.saveRuntimeConfig(this.runtimeConfig)) {
         throw new Error('Claude Code 运行模型配置保存失败');
+      }
+      if ((hasAuthUpdate || hasRuntimeUpdate) && this.runners.size) {
+        this.stopAllTasks('Claude Code 连接配置已更新');
       }
       this.state = 'connected';
       return this.status();
@@ -257,6 +264,7 @@ class ClaudeCodeClient extends AgentAdapter {
       message: this.statusMessage(),
       error: this.lastError,
       activeTaskCount: this.tasks.size,
+      warmWorkerCount: [...this.runners.values()].filter(runner => !!runner.worker).length,
       // 授权元数据：前端据此展示"订阅/apikey"授权入口与当前状态（不回传密钥本身）。
       authModes: ['subscription', 'apikey'],
       authMode: this.auth.mode || '',
@@ -283,6 +291,7 @@ class ClaudeCodeClient extends AgentAdapter {
     taskId = `task_${crypto.randomUUID().replace(/-/g, '')}`,
     cwd,
     prompt,
+    initialInstructions = '',
     outputSchema,
     threadId = '',
     onThread = () => {},
@@ -293,13 +302,19 @@ class ClaudeCodeClient extends AgentAdapter {
     if (!String(prompt || '').trim()) throw new Error('Claude Code 任务缺少开发要求');
     if (!this.isConnected()) await this.connect();
 
-    const resumeSessionId = String(threadId || this.sessions.get(cwd) || '').trim();
+    const runner = this.projectRunner(cwd);
+    const requestedSessionId = String(threadId || this.sessions.get(cwd) || '').trim();
+    if (!runner.active && runner.worker && requestedSessionId && runner.sessionId !== requestedSessionId) {
+      this.stopWorker(runner);
+    }
+    if (!runner.worker && requestedSessionId) {
+      runner.sessionId = requestedSessionId;
+      runner.instructionsSent = true;
+    }
     const task = {
       taskId,
-      // `--resume` 指向的是项目级稳定会话。Claude stream 中后续出现的
-      // session_id 可能只属于本次调用，不能覆盖它。
-      sessionId: resumeSessionId,
-      status: 'starting',
+      sessionId: runner.sessionId || requestedSessionId,
+      status: 'queued',
       startedAt: Date.now(),
       finishedAt: 0,
       finalResponse: '',
@@ -307,118 +322,202 @@ class ClaudeCodeClient extends AgentAdapter {
       changedFiles: new Set(),
       error: '',
     };
-    let persistedSessionId = '';
     onEvent({ type: 'task-started', task: publicTask(task), message: `Claude Code 开发任务已创建：${taskId}` });
 
-    const structuredPrompt = outputSchema
-      ? `${prompt}\n\n最终只返回符合以下 JSON Schema 的 JSON：\n${JSON.stringify(outputSchema)}`
-      : prompt;
+    return await new Promise((resolve, reject) => {
+      const entry = {
+        task,
+        prompt: String(prompt),
+        initialInstructions: String(initialInstructions || '').trim(),
+        outputSchema,
+        requestedSessionId,
+        onThread,
+        onEvent,
+        signal,
+        resolve,
+        reject,
+        settled: false,
+        persistedSessionId: '',
+        timeoutId: null,
+        onAbort: null,
+      };
+      entry.onAbort = () => this.cancelEntry(runner, entry);
+      if (signal?.aborted) {
+        task.status = 'cancelled';
+        reject(taskError(task, new Error('Claude Code 开发任务已取消')));
+        return;
+      }
+      signal?.addEventListener?.('abort', entry.onAbort, { once: true });
+      this.tasks.set(taskId, entry);
+      runner.pending.push(entry);
+      this.pumpRunner(runner);
+    });
+  }
+
+  projectRunner(cwd) {
+    let runner = this.runners.get(cwd);
+    if (!runner) {
+      runner = {
+        cwd,
+        worker: null,
+        reader: null,
+        active: null,
+        pending: [],
+        sessionId: String(this.sessions.get(cwd) || ''),
+        instructionsSent: !!this.sessions.get(cwd),
+        stderrTail: [],
+      };
+      this.runners.set(cwd, runner);
+    }
+    return runner;
+  }
+
+  ensureWorker(runner) {
+    if (runner.worker && !runner.worker.killed) return runner.worker;
     const child = this.spawnTask(this.cli?.executable || 'claude', {
-      cwd,
-      resumeSessionId,
-      prompt: structuredPrompt,
+      cwd: runner.cwd,
+      resumeSessionId: runner.sessionId,
       permissionMode: this.permissionMode,
       model: this.runtimeConfig.model || this.model,
       env: this.claudeEnv(),
     });
-    const entry = { child, task };
-    this.tasks.set(taskId, entry);
-
-    const stderrTail = [];
-    let settled = false;
-    return await new Promise((resolve, reject) => {
-      const finish = (fn, arg) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        fn(arg);
-      };
-      const onAbort = () => {
-        task.status = 'cancelled';
-        if (child && !child.killed) child.kill('SIGTERM');
-        finish(reject, taskError(task, new Error('Claude Code 开发任务已取消')));
-      };
-      const timeoutId = setTimeout(() => {
-        task.status = 'failed';
-        if (child && !child.killed) child.kill('SIGTERM');
-        finish(reject, taskError(task, new Error('Claude Code 开发任务执行超时')));
-      }, TASK_TIMEOUT_MS);
-      const reader = readline.createInterface({ input: child.stdout });
-
-      function cleanup() {
-        clearTimeout(timeoutId);
-        reader.close();
-        signal?.removeEventListener?.('abort', onAbort);
-        // 记住会话 id → 同项目后续任务续接上下文。
-      }
-
-      if (signal?.aborted) { onAbort(); return; }
-      signal?.addEventListener?.('abort', onAbort, { once: true });
-
-      reader.on('line', line => {
-        const event = parseJsonLine(line);
-        if (!event) return;
-        const description = updateTaskFromEvent(task, event, FILE_EDIT_TOOLS);
-        const isSessionInit = event.type === 'system' && event.subtype === 'init';
-        const canPersistSession = !!resumeSessionId || isSessionInit;
-        if (task.sessionId && cwd && canPersistSession) {
-          this.sessions.set(cwd, task.sessionId);
-          if (task.sessionId !== persistedSessionId) {
-            persistedSessionId = task.sessionId;
-            onThread({
-              threadId: task.sessionId,
-              resumed: !!resumeSessionId && task.sessionId === resumeSessionId,
-            });
-          }
-        }
-        // 用 publicTask（含 finalResponse）：前端通用 store 靠 event.task.finalResponse 增量显示回复。
-        onEvent({ type: 'agent-event', task: publicTask(task), event, message: description });
-        if (event.type === 'result') {
-          task.status = event.subtype === 'success' ? 'completed' : String(event.subtype || 'failed');
-          task.finishedAt = Date.now();
-          normalizeStructuredTaskResult(task);
-          const result = publicTask(task);
-          onEvent({
-            type: 'task-completed',
-            task: result,
-            message: task.status === 'completed'
-              ? 'Claude Code 开发任务已完成'
-              : `Claude Code 开发任务结束：${task.status}${task.finalResponse ? `：${task.finalResponse}` : ''}`,
-          });
-          if (event.is_error) finish(reject, taskError(task, new Error(task.finalResponse || 'Claude Code 开发任务执行失败')));
-          else finish(resolve, result);
-        }
-      });
-
-      child.stderr?.on('data', chunk => {
-        const lines = String(chunk || '').split(/\r?\n/).map(value => value.trim()).filter(Boolean);
-        stderrTail.push(...lines);
-        if (stderrTail.length > 12) stderrTail.splice(0, stderrTail.length - 12);
-      });
-      child.on('error', error => {
-        task.status = 'failed';
-        finish(reject, taskError(task, error));
-      });
-      child.on('exit', (code, sig) => {
-        if (settled) return;
-        // 正常应在 result 事件里已 settle；走到这里说明进程提前退出且没给 result。
-        const detail = stderrTail.slice(-4).join('；');
-        const message = `Claude Code 进程提前退出${code != null ? `（退出码 ${code}）` : ''}${sig ? `（${sig}）` : ''}${detail ? `：${detail}` : ''}`;
-        task.status = 'failed';
-        task.finishedAt = Date.now();
-        finish(reject, taskError(task, new Error(message)));
-      });
-
-      // prompt 通过 stdin 传入，避免超长参数。
-      try {
-        child.stdin.write(String(structuredPrompt));
-        child.stdin.end();
-      } catch (error) {
-        finish(reject, taskError(task, error));
-      }
-    }).finally(() => {
-      this.tasks.delete(taskId);
+    runner.worker = child;
+    runner.stderrTail = [];
+    runner.reader = readline.createInterface({ input: child.stdout });
+    runner.reader.on('line', line => this.handleWorkerLine(runner, child, line));
+    child.stderr?.on('data', chunk => {
+      if (runner.worker !== child) return;
+      const lines = String(chunk || '').split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+      runner.stderrTail.push(...lines);
+      if (runner.stderrTail.length > 12) runner.stderrTail.splice(0, runner.stderrTail.length - 12);
     });
+    child.on('error', error => this.handleWorkerFailure(runner, child, error));
+    child.on('exit', (code, signal) => {
+      const detail = runner.stderrTail.slice(-4).join('；');
+      const message = `Claude Code 进程退出${code != null ? `（退出码 ${code}）` : ''}${signal ? `（${signal}）` : ''}${detail ? `：${detail}` : ''}`;
+      this.handleWorkerFailure(runner, child, new Error(message));
+    });
+    return child;
+  }
+
+  pumpRunner(runner) {
+    if (runner.active || !runner.pending.length) return;
+    const entry = runner.pending.shift();
+    runner.active = entry;
+    entry.task.status = 'starting';
+    entry.timeoutId = setTimeout(() => {
+      entry.task.status = 'failed';
+      this.finishEntry(runner, entry, entry.reject, taskError(entry.task, new Error('Claude Code 开发任务执行超时')));
+      this.stopWorker(runner);
+      this.pumpRunner(runner);
+    }, TASK_TIMEOUT_MS);
+    try {
+      const reusedWorker = !!runner.worker && !runner.worker.killed;
+      const child = this.ensureWorker(runner);
+      entry.onEvent({
+        type: reusedWorker ? 'worker-reused' : 'worker-started',
+        task: publicTask(entry.task),
+        message: reusedWorker
+          ? 'Claude Code 已复用项目常驻进程'
+          : `Claude Code 项目常驻进程已启动${runner.sessionId ? '，并恢复已有会话' : ''}`,
+      });
+      child.stdin.write(`${serializeUserMessage(buildWorkerPrompt(runner, entry))}\n`);
+    } catch (error) {
+      entry.task.status = 'failed';
+      this.finishEntry(runner, entry, entry.reject, taskError(entry.task, error));
+      this.stopWorker(runner);
+      this.pumpRunner(runner);
+    }
+  }
+
+  handleWorkerLine(runner, child, line) {
+    if (runner.worker !== child) return;
+    const entry = runner.active;
+    if (!entry) return;
+    const event = parseJsonLine(line);
+    if (!event) return;
+    const { task } = entry;
+    const description = updateTaskFromEvent(task, event, FILE_EDIT_TOOLS);
+    const isSessionInit = event.type === 'system' && event.subtype === 'init';
+    const canPersistSession = !!runner.sessionId || isSessionInit;
+    if (task.sessionId && canPersistSession) {
+      runner.sessionId = task.sessionId;
+      this.sessions.set(runner.cwd, task.sessionId);
+      if (task.sessionId !== entry.persistedSessionId) {
+        entry.persistedSessionId = task.sessionId;
+        entry.onThread({
+          threadId: task.sessionId,
+          resumed: !!entry.requestedSessionId && task.sessionId === entry.requestedSessionId,
+        });
+      }
+    }
+    entry.onEvent({ type: 'agent-event', task: publicTask(task), event, message: description });
+    if (event.type !== 'result') return;
+
+    task.status = event.subtype === 'success' ? 'completed' : String(event.subtype || 'failed');
+    task.finishedAt = Date.now();
+    normalizeStructuredTaskResult(task);
+    const result = publicTask(task);
+    entry.onEvent({
+      type: 'task-completed',
+      task: result,
+      message: task.status === 'completed'
+        ? 'Claude Code 开发任务已完成'
+        : `Claude Code 开发任务结束：${task.status}${task.finalResponse ? `：${task.finalResponse}` : ''}`,
+    });
+    if (event.is_error) {
+      this.finishEntry(runner, entry, entry.reject, taskError(task, new Error(task.finalResponse || 'Claude Code 开发任务执行失败')));
+    } else {
+      this.finishEntry(runner, entry, entry.resolve, result);
+    }
+    this.pumpRunner(runner);
+  }
+
+  handleWorkerFailure(runner, child, error) {
+    if (!child || runner.worker !== child) return;
+    runner.worker = null;
+    runner.reader?.close();
+    runner.reader = null;
+    if (!runner.sessionId) runner.instructionsSent = false;
+    if (runner.active) {
+      const entry = runner.active;
+      entry.task.status = entry.task.status === 'cancelled' ? 'cancelled' : 'failed';
+      this.finishEntry(runner, entry, entry.reject, taskError(entry.task, error));
+    }
+    this.pumpRunner(runner);
+  }
+
+  finishEntry(runner, entry, finish, value) {
+    if (entry.settled) return;
+    entry.settled = true;
+    clearTimeout(entry.timeoutId);
+    entry.signal?.removeEventListener?.('abort', entry.onAbort);
+    this.tasks.delete(entry.task.taskId);
+    if (runner.active === entry) runner.active = null;
+    finish(value);
+  }
+
+  cancelEntry(runner, entry) {
+    if (entry.settled) return;
+    entry.task.status = 'cancelled';
+    if (runner.active === entry) {
+      this.finishEntry(runner, entry, entry.reject, taskError(entry.task, new Error('Claude Code 开发任务已取消')));
+      this.stopWorker(runner);
+      this.pumpRunner(runner);
+      return;
+    }
+    const index = runner.pending.indexOf(entry);
+    if (index >= 0) runner.pending.splice(index, 1);
+    this.finishEntry(runner, entry, entry.reject, taskError(entry.task, new Error('Claude Code 开发任务已取消')));
+  }
+
+  stopWorker(runner) {
+    const child = runner.worker;
+    runner.worker = null;
+    runner.reader?.close();
+    runner.reader = null;
+    if (!runner.sessionId) runner.instructionsSent = false;
+    if (child && !child.killed) child.kill('SIGTERM');
   }
 
   claudeEnv() {
@@ -430,12 +529,40 @@ class ClaudeCodeClient extends AgentAdapter {
   }
 
   stopAllTasks(reason) {
-    for (const { child, task } of this.tasks.values()) {
-      task.error = task.error || reason;
-      if (child && !child.killed) child.kill('SIGTERM');
+    for (const runner of this.runners.values()) {
+      const entries = [runner.active, ...runner.pending].filter(Boolean);
+      runner.pending = [];
+      for (const entry of entries) {
+        entry.task.status = 'cancelled';
+        entry.task.error = entry.task.error || reason;
+        this.finishEntry(runner, entry, entry.reject, taskError(entry.task, new Error(reason)));
+      }
+      this.stopWorker(runner);
     }
-    this.tasks.clear();
+    this.runners.clear();
   }
+}
+
+function serializeUserMessage(prompt) {
+  return JSON.stringify({
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{ type: 'text', text: String(prompt || '') }],
+    },
+  });
+}
+
+function buildWorkerPrompt(runner, entry) {
+  let prompt = entry.prompt;
+  if (!runner.instructionsSent && entry.initialInstructions) {
+    prompt = `${entry.initialInstructions}\n\n${prompt}`;
+    runner.instructionsSent = true;
+  }
+  if (entry.outputSchema) {
+    prompt = `${prompt}\n\n最终只返回符合以下 JSON Schema 的 JSON：\n${JSON.stringify(entry.outputSchema)}`;
+  }
+  return prompt;
 }
 
 function parseJsonLine(line) {
@@ -458,6 +585,7 @@ function updateTaskFromEvent(task, event, fileEditTools) {
     return `Claude Code 会话已启动${task.sessionId ? `：${task.sessionId}` : ''}`;
   }
   if (type === 'assistant') {
+    if (task.status === 'starting') task.status = 'running';
     const blocks = Array.isArray(event?.message?.content) ? event.message.content : [];
     const notes = [];
     for (const block of blocks) {
@@ -475,6 +603,7 @@ function updateTaskFromEvent(task, event, fileEditTools) {
     return notes.filter(Boolean).map(note => `Claude 使用：${note}`).join('\n');
   }
   if (type === 'user') {
+    if (task.status === 'starting') task.status = 'running';
     return ''; // tool_result 回填，无需噪声
   }
   if (type === 'result') {
@@ -534,4 +663,5 @@ module.exports = {
   ClaudeCodeClient,
   updateTaskFromEvent,
   describeToolUse,
+  serializeUserMessage,
 };

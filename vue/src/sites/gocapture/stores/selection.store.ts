@@ -99,6 +99,7 @@ export const useSelectionStore = defineStore('gocapture.selection', () => {
       startLine: number;
       endLine: number;
       anchor: string;
+      source?: string;
     }>;
   }>, projectRoot: string) {
     for (const reference of references) {
@@ -108,7 +109,10 @@ export const useSelectionStore = defineStore('gocapture.selection', () => {
           file: String(location?.file || '').trim(),
           role: 'render',
           line: Number(location?.startLine || 0),
-          anchor: String(location?.anchor || '').trim()
+          endLine: Number(location?.endLine || location?.startLine || 0),
+          anchor: String(location?.anchor || '').trim(),
+          source: String(location?.source || ''),
+          targetSnippet: String(location?.source || '')
         }))
         .filter(location => location.file && (location.line || location.anchor));
       if (!uid || !targets.length) continue;

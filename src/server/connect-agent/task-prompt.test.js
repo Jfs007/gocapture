@@ -30,10 +30,10 @@ test('located task prompt contains only the task and a stable selection referenc
   });
 
   assert.match(prompt, /增加 ROI 列/);
-  assert.match(prompt, /本轮选区：\n@selection_1/);
+  assert.match(prompt, /选区：@selection_1/);
   assert.doesNotMatch(prompt, /@选区\d+/);
-  assert.match(prompt, /\.gocapture\/selections\/selection_1\.json/);
-  assert.match(prompt, /不要在项目外搜索选区 ID/);
+  assert.doesNotMatch(prompt, /\.gocapture\/selections\/selection_1\.json/);
+  assert.doesNotMatch(prompt, /不要在项目外搜索选区 ID/);
   assert.doesNotMatch(prompt, /src\/StoreTable\.vue/);
   assert.doesNotMatch(prompt, /title: '毛利率'/);
   assert.doesNotMatch(prompt, /GoCapture/);
@@ -76,9 +76,9 @@ test('located prompt keeps only the selection id and excludes Locator evidence',
   });
 
   assert.match(prompt, /需求：\n@selection_1 文案加粗/);
-  assert.match(prompt, /本轮选区：\n@selection_1/);
+  assert.doesNotMatch(prompt, /本轮选区：/);
   assert.doesNotMatch(prompt, /@选区\d+/);
-  assert.match(prompt, /\.gocapture\/selections\/selection_1\.json/);
+  assert.doesNotMatch(prompt, /\.gocapture\/selections\/selection_1\.json/);
   assert.doesNotMatch(prompt, /src\/PwdForm\.vue:31/);
   assert.doesNotMatch(prompt, /<n-button>登 录<\/n-button>/);
   assert.doesNotMatch(prompt, /large surrounding source/);
@@ -105,7 +105,7 @@ test('agent prompt replaces frontend selection aliases with stable selection ids
   });
 
   assert.match(prompt, /@selection_title 修改标题，@selection_button 调整按钮/);
-  assert.match(prompt, /本轮选区：\n@selection_title/);
+  assert.doesNotMatch(prompt, /本轮选区：/);
   assert.match(prompt, /@selection_button/);
   assert.doesNotMatch(prompt, /@选区\d+/);
 });
@@ -176,7 +176,7 @@ test('a different project thread still resolves evidence from the local referenc
     }],
   });
 
-  assert.match(prompt, /本轮选区：\n@selection_1/);
+  assert.match(prompt, /选区：@selection_1/);
   assert.doesNotMatch(prompt, /@选区\d+/);
   assert.doesNotMatch(prompt, /src\/StoreTable\.vue/);
   assert.doesNotMatch(prompt, /source evidence/);
@@ -202,7 +202,7 @@ test('an unlocated selection sends compressed DOM directly to the Agent', () => 
     },
   });
 
-  assert.match(prompt, /本轮选区：\n@selection_1/);
+  assert.match(prompt, /选区：@selection_1/);
   assert.doesNotMatch(prompt, /@选区\d+/);
   assert.doesNotMatch(prompt, /登录页的提交按钮/);
   assert.match(prompt, /large DOM evidence/);
@@ -226,7 +226,7 @@ test('an id-only binding and runtime DOM collapse into one stable reference', ()
     },
   });
 
-  assert.match(prompt, /本轮选区：\n@selection_1/);
+  assert.match(prompt, /选区：@selection_1/);
   assert.doesNotMatch(prompt, /@选区\d+/);
   assert.match(prompt, /<button><span>登 录<\/span><\/button>/);
   assert.doesNotMatch(prompt, /@selection_1 → -/);
@@ -242,6 +242,32 @@ test('connect agent output schema restricts locations to known selections', () =
     schema.properties.selectionLocations.items.properties.selectionId.enum,
     ['selection_1', 'selection_2'],
   );
+});
+
+test('connect agent omits the output schema after every referenced selection is located', () => {
+  const selectionBindings = [{
+    uid: 'selection_1',
+    binding: {
+      targets: [{
+        file: 'src/View.vue',
+        startLine: 12,
+        endLine: 14,
+        anchor: '登录',
+      }],
+    },
+  }];
+  const schema = connectAgentOutputSchema(selectionBindings, null);
+  const log = buildConnectAgentInputLog({
+    providerId: 'claude',
+    projectRoot: '/tmp/project',
+    threadId: 'thread_1',
+    prompt: '修改颜色',
+    outputSchema: schema,
+  });
+
+  assert.strictEqual(schema, null);
+  assert.doesNotMatch(log, /Structured output schema:/);
+  assert.doesNotMatch(log, /selectionLocations/);
 });
 
 test('connect agent input log contains the exact provider prompt and output contract', () => {
@@ -297,7 +323,7 @@ test('unlocated task prompt embeds bounded DOM but excludes unrelated project ev
     },
   });
 
-  assert.match(prompt, /本轮选区：\n@selection_1/);
+  assert.match(prompt, /选区：@selection_1/);
   assert.doesNotMatch(prompt, /@选区\d+/);
   assert.doesNotMatch(prompt, /src\/login\.vue/);
   assert.match(prompt, /"markup": "<button>x+/);

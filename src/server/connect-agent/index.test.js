@@ -8,6 +8,8 @@ const test = require('node:test');
 const { AgentAdapter } = require('./core/agent-adapter');
 const { AgentRegistry } = require('./core/agent-registry');
 const { createConnectAgentService } = require('./index');
+const { loadProjectMessages } = require('./message-store');
+const { loadProjectSelectionLocations } = require('./selection-reference-store');
 
 class FakeAgent extends AgentAdapter {
   constructor({ requiresThreadBinding = false } = {}) {
@@ -96,4 +98,54 @@ test('any adapter can require a bound thread through its manifest', async t => {
     }),
     /尚未绑定 Fake Agent 任务/,
   );
+});
+
+test('connect service persists the task diff and refreshes the selected source', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-task-diff-service-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src/View.vue'), '.title { color: red; }\n');
+
+  class EditingAgent extends FakeAgent {
+    async runTask(input) {
+      fs.writeFileSync(path.join(input.cwd, 'src/View.vue'), '.title { color: blue; }\n');
+      return {
+        ...(await super.runTask(input)),
+        changedFiles: ['src/View.vue'],
+      };
+    }
+  }
+
+  const service = createConnectAgentService({
+    registry: new AgentRegistry([new EditingAgent()]),
+  });
+  const project = { path: root };
+  const result = await service.runTask('fake', {
+    project,
+    userInstruction: '@selection_title 改为蓝色',
+    selectionBindings: [{
+      uid: 'selection_title',
+      binding: {
+        targets: [{
+          file: 'src/View.vue',
+          line: 1,
+          anchor: '.title',
+          targetSnippet: '.title { color: red; }',
+        }],
+      },
+    }],
+  });
+
+  assert.equal(result.selectionDiffs.length, 1);
+  assert.equal(result.selectionDiffs[0].after.source, '.title { color: blue; }');
+  assert.equal(result.selectionLocations.length, 1);
+  assert.equal(result.selectionLocations[0].locations[0].source, '.title { color: blue; }');
+  assert.equal(
+    loadProjectSelectionLocations(project)[0].locations[0].source,
+    '.title { color: blue; }',
+  );
+  const resultMessage = loadProjectMessages(project, 'fake')
+    .find(message => message.kind === 'result');
+  assert.equal(resultMessage.metadata.selectionDiffs[0].additions, 1);
+  assert.equal(resultMessage.metadata.selectionDiffs[0].deletions, 1);
 });

@@ -1,8 +1,7 @@
 'use strict';
 
 // Claude Code CLI 探测 + headless 拉起，对齐 codex/cli.js 的形状。
-// 与 Codex 不同：Claude Code 没有"一个长驻 app-server 多路 thread"的模式，而是每个任务
-// headless 跑一次 `claude -p --output-format stream-json`，用 --resume <session_id> 续接会话。
+// 开发任务使用 stream-json 双向流：同一项目进程可连续接收多轮用户消息。
 const { execFile, spawn } = require('child_process');
 const path = require('path');
 
@@ -109,11 +108,18 @@ function spawnClaudeProbe(executable, { env } = {}) {
   });
 }
 
-// headless 拉起一次 Claude Code：stream-json 事件从 stdout 逐行输出；prompt 通过 stdin 传入（避免超长参数）。
+// 拉起一个可复用的 Claude Code worker：stdout 持续输出 stream-json，
+// stdin 持续接收 stream-json 用户消息，调用方负责在连接关闭时结束进程。
 // permissionMode 默认放开权限以便自动改文件（对应 Codex 的 approvalPolicy:never + workspace-write）。
 // env 由 client 根据用户授权(订阅/apikey)构建后传入。
 function spawnClaudeTask(executable, { cwd, resumeSessionId, permissionMode = 'bypassPermissions', model, env } = {}) {
-  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', permissionMode];
+  const args = [
+    '-p',
+    '--input-format', 'stream-json',
+    '--output-format', 'stream-json',
+    '--verbose',
+    '--permission-mode', permissionMode,
+  ];
   if (model) args.push('--model', model);
   if (resumeSessionId) args.push('--resume', resumeSessionId);
   return spawn(executable, args, {

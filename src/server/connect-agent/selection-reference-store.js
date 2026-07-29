@@ -98,11 +98,13 @@ function normalizeLocations(value) {
   return (Array.isArray(value) ? value : [])
     .map(item => {
       const startLine = positiveNumber(item?.startLine || item?.line);
+      const source = String(item?.source || item?.targetSnippet || '');
       return {
         file: String(item?.file || '').trim(),
         startLine,
         endLine: positiveNumber(item?.endLine || startLine),
         anchor: String(item?.anchor || sourceAnchor(item)).trim(),
+        ...(source ? { source } : {}),
       };
     })
     .filter(item => item.file && (item.startLine || item.anchor));
@@ -121,9 +123,28 @@ function writeSelectionLocations(project, references) {
     const file = selectionReferenceFile(project, reference.selectionId);
     atomicWrite(file, `${JSON.stringify({
       selectionId: reference.selectionId,
-      locations: reference.locations,
+      locations: reference.locations.map(location => ({
+        ...location,
+        source: readLocationSource(project, location) || location.source || '',
+      })),
       thumbnail: String(reference.thumbnail || ''),
     }, null, 2)}\n`);
+  }
+}
+
+function readLocationSource(project, location) {
+  const root = path.resolve(String(project?.path || ''));
+  const relative = String(location?.file || '').trim();
+  if (!root || !relative) return '';
+  const absolute = path.resolve(root, relative);
+  if (absolute !== root && !absolute.startsWith(`${root}${path.sep}`)) return '';
+  try {
+    const lines = fs.readFileSync(absolute, 'utf8').split(/\r?\n/);
+    const start = positiveNumber(location?.startLine);
+    const end = Math.max(start, positiveNumber(location?.endLine) || start);
+    return start ? lines.slice(start - 1, end).join('\n') : '';
+  } catch (error) {
+    return '';
   }
 }
 

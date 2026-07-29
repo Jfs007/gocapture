@@ -2,9 +2,9 @@
 
 const assert = require('assert');
 const test = require('node:test');
-const { Readable } = require('stream');
+const { PassThrough, Readable, Writable } = require('stream');
 const { EventEmitter } = require('events');
-const { ClaudeCodeClient, updateTaskFromEvent } = require('./claude-client');
+const { ClaudeCodeClient, serializeUserMessage, updateTaskFromEvent } = require('./claude-client');
 const { authToEnv } = require('./auth-store');
 
 const NO_AUTH = {
@@ -15,18 +15,76 @@ const NO_AUTH = {
   spawnProbe: (...args) => okProbe(...args), // 延后引用，避开 const 的 TDZ
 };
 
-function fakeChild(lines) {
-  const stdout = new Readable({ read() {} });
+function fakeChild(linesOrTurns) {
+  const turns = Array.isArray(linesOrTurns?.[0])
+    ? linesOrTurns
+    : [linesOrTurns];
+  const stdout = new PassThrough();
   const child = new EventEmitter();
   child.stdout = stdout;
-  child.stderr = new EventEmitter();
-  child.stdin = { write() {}, end() {} };
+  child.stderr = new PassThrough();
+  child.writes = [];
   child.killed = false;
-  child.kill = () => { child.killed = true; };
-  setImmediate(() => {
-    for (const line of lines) stdout.push(`${JSON.stringify(line)}\n`);
-    stdout.push(null);
+  let turnIndex = 0;
+  child.stdin = new Writable({
+    write(chunk, encoding, callback) {
+      const input = String(chunk || '').trim();
+      child.writes.push(input);
+      const lines = turns[Math.min(turnIndex, turns.length - 1)] || [];
+      turnIndex += 1;
+      setImmediate(() => {
+        for (const line of lines) stdout.write(`${JSON.stringify(line)}\n`);
+      });
+      callback();
+    },
   });
+  child.kill = signal => {
+    if (child.killed) return;
+    child.killed = true;
+    child.stdin.destroy();
+    stdout.end();
+    setImmediate(() => child.emit('exit', null, signal || 'SIGTERM'));
+  };
+  return child;
+}
+
+function crashingChild(sessionId = 'session-before-crash') {
+  const child = fakeChild([]);
+  child.stdin = new Writable({
+    write(chunk, encoding, callback) {
+      child.writes.push(String(chunk || '').trim());
+      setImmediate(() => {
+        child.stdout.write(`${JSON.stringify({
+          type: 'system',
+          subtype: 'init',
+          session_id: sessionId,
+        })}\n`);
+        setImmediate(() => child.emit('exit', 1, null));
+      });
+      callback();
+    },
+  });
+  return child;
+}
+
+function staleResultOnKillChild() {
+  const child = fakeChild([]);
+  child.kill = signal => {
+    if (child.killed) return;
+    child.killed = true;
+    child.stdin.destroy();
+    setImmediate(() => {
+      child.stdout.write(`${JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        session_id: 'stale-session',
+        is_error: false,
+        result: '旧任务的迟到结果',
+      })}\n`);
+      child.stdout.end();
+      child.emit('exit', null, signal || 'SIGTERM');
+    });
+  };
   return child;
 }
 
@@ -83,43 +141,165 @@ test('ClaudeCodeClient.runTask maps stream-json → events, tracks session + cha
   assert.ok(events.some(e => e.type === 'task-completed'));
   assert.ok(events.some(e => e.type === 'agent-event'));
   assert.strictEqual(client.status().activeTaskCount, 0); // 结束后清理
+  client.close();
 });
 
-test('ClaudeCodeClient resumes the session for a later task in the same project', async () => {
+test('ClaudeCodeClient reuses one worker for later tasks in the same project', async () => {
+  const calls = [];
+  let worker;
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    ...NO_AUTH,
+    spawnTask: (exe, opts) => {
+      calls.push(opts);
+      worker = fakeChild([STREAM, [
+        { type: 'assistant', session_id: 'sess-1', message: { content: [{ type: 'text', text: '第二次完成' }] } },
+        { type: 'result', subtype: 'success', session_id: 'sess-1', is_error: false, result: '第二次完成' },
+      ]]);
+      return worker;
+    },
+  });
+  await client.connect();
+  await client.runTask({
+    taskId: 't1',
+    cwd: '/proj',
+    prompt: '第一次',
+    initialInstructions: '只在首次发送的协议',
+    onEvent() {},
+  });
+  await client.runTask({
+    taskId: 't2',
+    cwd: '/proj',
+    prompt: '第二次',
+    initialInstructions: '只在首次发送的协议',
+    onEvent() {},
+  });
+
+  assert.strictEqual(calls[0].resumeSessionId, ''); // 首次无续接
+  assert.strictEqual(calls.length, 1); // 第二轮复用同一个系统进程
+  assert.strictEqual(worker.writes.length, 2);
+  assert.strictEqual(
+    JSON.parse(worker.writes[0]).message.content[0].text,
+    '只在首次发送的协议\n\n第一次',
+  );
+  assert.strictEqual(JSON.parse(worker.writes[1]).message.content[0].text, '第二次');
+  client.close();
+});
+
+test('ClaudeCodeClient serializes concurrent tasks through one project worker', async () => {
+  let worker;
+  let spawnCount = 0;
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    ...NO_AUTH,
+    spawnTask: () => {
+      spawnCount += 1;
+      worker = fakeChild([STREAM, [
+        { type: 'result', subtype: 'success', session_id: 'sess-1', is_error: false, result: '第二个完成' },
+      ]]);
+      return worker;
+    },
+  });
+  await client.connect();
+
+  const first = client.runTask({ taskId: 'q1', cwd: '/proj', prompt: '第一个', onEvent() {} });
+  const second = client.runTask({ taskId: 'q2', cwd: '/proj', prompt: '第二个', onEvent() {} });
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+
+  assert.strictEqual(firstResult.status, 'completed');
+  assert.strictEqual(secondResult.finalResponse, '第二个完成');
+  assert.strictEqual(spawnCount, 1);
+  assert.deepStrictEqual(
+    worker.writes.map(line => JSON.parse(line).message.content[0].text),
+    ['第一个', '第二个'],
+  );
+  client.close();
+});
+
+test('ClaudeCodeClient restarts a crashed worker and resumes queued work', async () => {
   const calls = [];
   const client = new ClaudeCodeClient({
     inspectCli: READY_CLI,
     ...NO_AUTH,
-    spawnTask: (exe, opts) => { calls.push(opts); return fakeChild(STREAM); },
+    spawnTask: (exe, options) => {
+      calls.push(options);
+      return calls.length === 1 ? crashingChild('session-before-crash') : fakeChild(STREAM);
+    },
   });
   await client.connect();
-  await client.runTask({ taskId: 't1', cwd: '/proj', prompt: '第一次', onEvent() {} });
-  await client.runTask({ taskId: 't2', cwd: '/proj', prompt: '第二次', onEvent() {} });
 
-  assert.strictEqual(calls[0].resumeSessionId, ''); // 首次无续接
-  assert.strictEqual(calls[1].resumeSessionId, 'sess-1'); // 同项目续接上一次会话
+  const failed = client.runTask({ taskId: 'crash', cwd: '/proj', prompt: '会崩溃', onEvent() {} })
+    .then(() => null, error => error);
+  const recovered = client.runTask({ taskId: 'after-crash', cwd: '/proj', prompt: '继续', onEvent() {} });
+
+  const [failure, result] = await Promise.all([failed, recovered]);
+  assert.match(failure.message, /进程退出/);
+  assert.strictEqual(result.status, 'completed');
+  assert.strictEqual(calls.length, 2);
+  assert.strictEqual(calls[1].resumeSessionId, 'session-before-crash');
+  client.close();
+});
+
+test('ClaudeCodeClient cancels the active turn by restarting its worker', async () => {
+  const workers = [];
+  const client = new ClaudeCodeClient({
+    inspectCli: READY_CLI,
+    ...NO_AUTH,
+    spawnTask: () => {
+      const child = workers.length ? fakeChild(STREAM) : staleResultOnKillChild();
+      workers.push(child);
+      return child;
+    },
+  });
+  await client.connect();
+
+  const controller = new AbortController();
+  const cancelled = client.runTask({
+    taskId: 'cancel',
+    cwd: '/proj',
+    prompt: '取消我',
+    signal: controller.signal,
+    onEvent() {},
+  });
+  controller.abort();
+  await assert.rejects(cancelled, /已取消/);
+
+  const result = await client.runTask({ taskId: 'after-cancel', cwd: '/proj', prompt: '新任务', onEvent() {} });
+  assert.strictEqual(result.status, 'completed');
+  assert.strictEqual(result.finalResponse, '已完成：加粗了标签');
+  assert.strictEqual(workers.length, 2);
+  assert.strictEqual(workers[0].killed, true);
+  client.close();
 });
 
 test('ClaudeCodeClient accepts and reports a persisted project session', async () => {
   const calls = [];
   const sessions = [];
+  let worker;
   const client = new ClaudeCodeClient({
     inspectCli: READY_CLI,
     ...NO_AUTH,
-    spawnTask: (exe, opts) => { calls.push(opts); return fakeChild(STREAM); },
+    spawnTask: (exe, opts) => {
+      calls.push(opts);
+      worker = fakeChild(STREAM);
+      return worker;
+    },
   });
   await client.connect();
   await client.runTask({
     taskId: 'persisted',
     cwd: '/proj',
     prompt: '继续',
+    initialInstructions: '只应发送给新会话',
     threadId: 'sess-1',
     onThread: session => sessions.push(session),
     onEvent() {},
   });
 
   assert.strictEqual(calls[0].resumeSessionId, 'sess-1');
+  assert.doesNotMatch(worker.writes[0], /只应发送给新会话/);
   assert.deepStrictEqual(sessions, [{ threadId: 'sess-1', resumed: true }]);
+  client.close();
 });
 
 test('ClaudeCodeClient keeps the persisted session when resumed stream reports another id', async () => {
@@ -144,6 +324,7 @@ test('ClaudeCodeClient keeps the persisted session when resumed stream reports a
 
   assert.strictEqual(result.sessionId, 'stable-project-session');
   assert.deepStrictEqual(sessions, [{ threadId: 'stable-project-session', resumed: true }]);
+  client.close();
 });
 
 test('ClaudeCodeClient does not persist a session id emitted only by an immediate error result', async () => {
@@ -175,6 +356,7 @@ test('ClaudeCodeClient does not persist a session id emitted only by an immediat
   );
   assert.deepStrictEqual(sessions, []);
   assert.strictEqual(client.sessions.has('/proj'), false);
+  client.close();
 });
 
 test('ClaudeCodeClient rejects a task whose result is an error', async () => {
@@ -191,6 +373,7 @@ test('ClaudeCodeClient rejects a task whose result is an error', async () => {
     () => client.runTask({ taskId: 'e1', cwd: '/proj', prompt: 'x', onEvent() {} }),
     /炸了/,
   );
+  client.close();
 });
 
 test('status() reports the connection contract shape', () => {
@@ -288,6 +471,7 @@ test('connect({runtimeConfig}) persists an isolated DeepSeek runtime', async () 
   assert.strictEqual(taskCalls[0].model, 'deepseek-v4-pro[1m]');
   assert.strictEqual(taskCalls[0].env.ANTHROPIC_BASE_URL, 'https://api.deepseek.com/anthropic');
   assert.strictEqual(taskCalls[0].env.ANTHROPIC_AUTH_TOKEN, 'sk-ds');
+  client.close();
 });
 
 test('connect() does not persist or retain a runtime config that fails validation', async () => {
@@ -357,4 +541,14 @@ test('updateTaskFromEvent tracks file edits and final text', () => {
   ] } }, new Set(['Write']));
   assert.ok(task.changedFiles.has('a.ts'));
   assert.strictEqual(task.finalResponse, 'hi');
+});
+
+test('serializeUserMessage produces Claude stream-json user input', () => {
+  assert.deepStrictEqual(JSON.parse(serializeUserMessage('继续修改')), {
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{ type: 'text', text: '继续修改' }],
+    },
+  });
 });

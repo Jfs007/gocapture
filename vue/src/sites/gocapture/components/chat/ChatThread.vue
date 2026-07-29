@@ -77,6 +77,23 @@
           <div v-if="message.title" class="mda-message-title">{{ message.title }}</div>
           <div v-if="message.text" class="mda-message-text">{{ message.text }}</div>
           <pre v-if="message.pre" class="mda-message-pre">{{ message.pre }}</pre>
+          <section v-if="hasDiffs(message)" class="mda-task-changes" aria-label="本轮源码更改">
+            <header class="mda-task-changes-head">
+              <div>
+                <strong>已更新 {{ diffFileSummaries(message.diffs).length }} 个选区源码</strong>
+                <button type="button" @click="openDiffReview(message.diffs)">查看更改</button>
+              </div>
+              <button class="mda-task-review-button" type="button" @click="openDiffReview(message.diffs)">审查</button>
+            </header>
+            <div
+              v-for="file in diffFileSummaries(message.diffs)"
+              :key="file.file"
+              class="mda-task-change-file"
+            >
+              <span>{{ file.file }}</span>
+              <b><i>+{{ file.additions }}</i> <em>-{{ file.deletions }}</em></b>
+            </div>
+          </section>
           <div v-if="message.action === 'choose-project'" class="mda-message-actions">
             <button class="mda-btn mda-btn-primary" type="button" :disabled="sourceServiceStatus === 'loading'" @click="commands.selectProject">
               {{ sourceServiceStatus === 'loading' ? '选择中' : '选择源码' }}
@@ -308,6 +325,59 @@
           </footer>
         </section>
       </div>
+
+      <div
+        v-if="diffReviewVisible"
+        class="mda-thread-picker-backdrop"
+        role="presentation"
+        @click.self="closeDiffReview"
+      >
+        <section class="mda-diff-review" role="dialog" aria-modal="true" aria-label="审查源码更改">
+          <header class="mda-thread-picker-head">
+            <div>
+              <h2>审查源码更改</h2>
+              <p>本轮 Agent 修改前后的选区源码。</p>
+            </div>
+            <button class="mda-thread-picker-close" type="button" aria-label="关闭" @click="closeDiffReview">
+              <GoCaptureIcon name="close" :size="18" />
+            </button>
+          </header>
+          <div class="mda-diff-review-body">
+            <nav class="mda-diff-file-list" aria-label="修改文件">
+              <button
+                v-for="(diff, index) in reviewDiffs"
+                :key="`${diff.selectionId}:${diff.file}:${index}`"
+                type="button"
+                :class="{ 'is-active': reviewDiffIndex === index }"
+                @click="reviewDiffIndex = index"
+              >
+                <span>{{ diff.file }}</span>
+                <b><i>+{{ diff.additions }}</i> <em>-{{ diff.deletions }}</em></b>
+              </button>
+            </nav>
+            <section v-if="activeReviewDiff" class="mda-diff-code">
+              <header>
+                <button type="button" @click="commands.openSourceFile(activeReviewDiff.file)">
+                  {{ activeReviewDiff.file }}
+                </button>
+                <span>@{{ activeReviewDiff.selectionId }}</span>
+              </header>
+              <div class="mda-diff-lines" role="table" aria-label="源码差异">
+                <div
+                  v-for="(line, index) in activePatchLines"
+                  :key="`${index}:${line.text}`"
+                  class="mda-diff-line"
+                  :class="`is-${line.kind}`"
+                  role="row"
+                >
+                  <span aria-hidden="true">{{ line.marker }}</span>
+                  <code>{{ line.text }}</code>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
     </Teleport>
   </section>
 </template>
@@ -344,6 +414,9 @@ const logNodeOpenState = ref({});
 const providerConfigVisible = ref(false);
 const providerConfigSaving = ref(false);
 const providerConfigError = ref('');
+const diffReviewVisible = ref(false);
+const reviewDiffs = ref([]);
+const reviewDiffIndex = ref(0);
 const configProviderId = ref('');
 const runtimeApiKey = ref('');
 const projectProxy = ref('');
@@ -372,6 +445,8 @@ const selectedBackend = computed(() =>
   ) || null);
 const runtimeProviderExplanation = computed(() =>
   backendExplanation(selectedBackend.value, configProvider.value));
+const activeReviewDiff = computed(() => reviewDiffs.value[reviewDiffIndex.value] || null);
+const activePatchLines = computed(() => patchLines(activeReviewDiff.value?.patch || ''));
 let clockTimer = 0;
 
 async function openAgentPicker() {
@@ -579,6 +654,52 @@ function toggleNode(messageId, index, kind) {
 
 function copyAllLogs(logs) {
   commands.copyText(serializeLogs(logs || []));
+}
+
+function hasDiffs(message) {
+  return Array.isArray(message?.diffs) && message.diffs.length > 0;
+}
+
+function diffFileSummaries(diffs) {
+  const files = new Map();
+  for (const diff of Array.isArray(diffs) ? diffs : []) {
+    const file = String(diff?.file || '');
+    if (!file) continue;
+    const current = files.get(file) || { file, additions: 0, deletions: 0 };
+    current.additions += Number(diff?.additions || 0);
+    current.deletions += Number(diff?.deletions || 0);
+    files.set(file, current);
+  }
+  return [...files.values()];
+}
+
+function openDiffReview(diffs) {
+  reviewDiffs.value = Array.isArray(diffs) ? diffs : [];
+  reviewDiffIndex.value = 0;
+  diffReviewVisible.value = reviewDiffs.value.length > 0;
+}
+
+function closeDiffReview() {
+  diffReviewVisible.value = false;
+}
+
+function patchLines(patch) {
+  return String(patch || '')
+    .split(/\r?\n/)
+    .filter(line => !line.startsWith('Index:') && !line.startsWith('===='))
+    .map(line => {
+      if (line.startsWith('+++') || line.startsWith('---')) {
+        return { kind: 'meta', marker: '', text: line };
+      }
+      if (line.startsWith('@@')) return { kind: 'hunk', marker: '', text: line };
+      if (line.startsWith('+')) return { kind: 'added', marker: '+', text: line.slice(1) };
+      if (line.startsWith('-')) return { kind: 'removed', marker: '-', text: line.slice(1) };
+      return {
+        kind: 'context',
+        marker: line.startsWith(' ') ? ' ' : '',
+        text: line.startsWith(' ') ? line.slice(1) : line
+      };
+    });
 }
 
 function formatDuration(ms) {

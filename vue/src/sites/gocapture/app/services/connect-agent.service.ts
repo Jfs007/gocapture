@@ -111,10 +111,31 @@ export interface ConnectAgentTask {
       startLine: number;
       endLine: number;
       anchor: string;
+      source?: string;
     }>;
   }>;
+  selectionDiffs?: SelectionTaskDiff[];
   changedFiles: string[];
   error: string;
+}
+
+export interface SelectionTaskDiff {
+  selectionId: string;
+  taskId: string;
+  file: string;
+  before: {
+    startLine: number;
+    endLine: number;
+    source: string;
+  };
+  after: {
+    startLine: number;
+    endLine: number;
+    source: string;
+  };
+  patch: string;
+  additions: number;
+  deletions: number;
 }
 
 export interface ConnectAgentTimelineMessage {

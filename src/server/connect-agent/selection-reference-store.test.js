@@ -66,6 +66,7 @@ test('Locator source bindings persist locations and thumbnail in the selection J
       startLine: 31,
       endLine: 31,
       anchor: '登 录',
+      source: '<n-button>登 录</n-button>',
     }],
     thumbnail: 'data:image/png;base64,locator-thumbnail',
   });
@@ -99,6 +100,7 @@ test('Agent locations persist the thumbnail supplied with the first turn', () =>
   assert.deepEqual(Object.keys(stored), ['selectionId', 'locations', 'thumbnail']);
   assert.equal(stored.locations[0].file, 'src/views/login/PwdForm.vue');
   assert.equal(stored.locations[0].endLine, 35);
+  assert.equal(stored.locations[0].source, '');
   assert.equal(stored.thumbnail, 'data:image/png;base64,agent-thumbnail');
 });
 

@@ -123,6 +123,7 @@ export function createSelectionFacade(store: SelectionStore) {
         startLine: number;
         endLine: number;
         anchor: string;
+        source?: string;
       }>;
     }>;
     projectRoot: string;
@@ -135,7 +136,10 @@ export function createSelectionFacade(store: SelectionStore) {
           file: String(location?.file || '').trim(),
           role: 'render',
           line: Number(location?.startLine || 0),
+          endLine: Number(location?.endLine || location?.startLine || 0),
           anchor: String(location?.anchor || '').trim(),
+          source: String(location?.source || ''),
+          targetSnippet: String(location?.source || ''),
         }))
         .filter(location => location.file);
       if (!uid || !targets.length) continue;

@@ -1789,6 +1789,91 @@
   color: #f2f4f7;
 }
 
+.mda-task-changes {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid #d0f2ea;
+}
+
+.mda-task-changes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mda-task-changes-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.mda-task-changes-head strong {
+  color: #101828;
+  font-size: 12px;
+}
+
+.mda-task-changes-head > div > button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #175cd3;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.mda-task-review-button {
+  padding: 5px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.mda-task-review-button:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-task-change-file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  color: #475467;
+  font-size: 11px;
+}
+
+.mda-task-change-file > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-task-change-file b,
+.mda-diff-file-list b {
+  display: flex;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.mda-task-change-file i,
+.mda-diff-file-list i {
+  color: #079455;
+  font-style: normal;
+}
+
+.mda-task-change-file em,
+.mda-diff-file-list em {
+  color: #d92d20;
+  font-style: normal;
+}
+
 .mda-composer-wrap {
   gap: 10px;
   padding: 12px;
@@ -4305,6 +4390,156 @@
 
 .mda-thread-picker-error {
   color: #b42318;
+}
+
+.mda-diff-review {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1040px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 40px));
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 56px rgba(16, 24, 40, 0.22);
+}
+
+.mda-diff-review-body {
+  display: grid;
+  grid-template-columns: minmax(210px, 28%) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.mda-diff-file-list {
+  overflow: auto;
+  padding: 8px;
+  border-right: 1px solid #eaecf0;
+  background: #f9fafb;
+}
+
+.mda-diff-file-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #344054;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-diff-file-list button:hover,
+.mda-diff-file-list button.is-active {
+  background: #eaf2ff;
+  color: #175cd3;
+}
+
+.mda-diff-file-list button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.mda-diff-code {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.mda-diff-code > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.mda-diff-code > header button {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #175cd3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mda-diff-code > header span {
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.mda-diff-lines {
+  overflow: auto;
+  background: #fff;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.mda-diff-line {
+  display: grid;
+  grid-template-columns: 24px minmax(max-content, 1fr);
+  min-height: 20px;
+  color: #344054;
+}
+
+.mda-diff-line > span {
+  padding: 1px 6px;
+  color: #98a2b3;
+  text-align: center;
+  user-select: none;
+}
+
+.mda-diff-line code {
+  padding: 1px 10px;
+  white-space: pre;
+}
+
+.mda-diff-line.is-added {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.mda-diff-line.is-removed {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.mda-diff-line.is-hunk {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.mda-diff-line.is-meta {
+  color: #667085;
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  .mda-diff-review-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .mda-diff-file-list {
+    display: flex;
+    gap: 4px;
+    max-height: 110px;
+    border-right: 0;
+    border-bottom: 1px solid #eaecf0;
+  }
+
+  .mda-diff-file-list button {
+    flex: 0 0 min(260px, 80vw);
+  }
 }
 
 .mda-agent-provider-grid {
