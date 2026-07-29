@@ -68,30 +68,24 @@ function validateRuntimeConfig(config, manifest = null) {
 }
 
 function normalizeRuntimeState(raw) {
-  if (raw?.profiles && typeof raw.profiles === 'object') {
-    const profiles = Object.fromEntries(
+  const profiles = raw?.version === 2 && raw?.profiles && typeof raw.profiles === 'object'
+    ? Object.fromEntries(
       Object.entries(raw.profiles)
         .filter(([backendId]) => CLAUDE_MODEL_BACKENDS.includes(backendId))
         .map(([backendId, profile]) => [
           backendId,
           normalizeRuntimeConfig({ ...profile, backendId }),
         ]),
-    );
-    const requestedActive = String(raw.activeBackendId || '').trim();
-    const activeBackendId = profiles[requestedActive]
-      ? requestedActive
-      : (Object.keys(profiles)[0] || 'inherit');
-    if (!profiles[activeBackendId]) {
-      profiles[activeBackendId] = normalizeRuntimeConfig({ backendId: activeBackendId });
-    }
-    return { version: 2, activeBackendId, profiles };
+    )
+    : {};
+  const requestedActive = String(raw?.activeBackendId || '').trim();
+  const activeBackendId = profiles[requestedActive]
+    ? requestedActive
+    : (Object.keys(profiles)[0] || 'inherit');
+  if (!profiles[activeBackendId]) {
+    profiles[activeBackendId] = normalizeRuntimeConfig({ backendId: activeBackendId });
   }
-  const migrated = normalizeRuntimeConfig(raw || {});
-  return {
-    version: 2,
-    activeBackendId: migrated.backendId,
-    profiles: { [migrated.backendId]: migrated },
-  };
+  return { version: 2, activeBackendId, profiles };
 }
 
 function loadRuntimeState() {

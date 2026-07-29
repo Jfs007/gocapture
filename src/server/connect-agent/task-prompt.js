@@ -5,8 +5,12 @@ function buildConnectAgentTaskPrompt({
   pageUrl,
   selectionBindings,
   locatorEvidence,
+  conversationMode,
 }) {
   const selectionIds = knownSelectionIds(selectionBindings, locatorEvidence);
+  if (conversationMode === 'chat' || !selectionIds.length) {
+    return String(userInstruction || '').trim();
+  }
   const selectionReferences = selectionReferenceMap(selectionBindings, locatorEvidence);
   const runtimeEvidence = runtimeSelectionEvidence(locatorEvidence);
   const stableInstruction = rewriteSelectionAliases(

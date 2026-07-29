@@ -42,6 +42,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useGoCaptureCommands } from '../../app/runtime/commands';
 import { useComposerStore } from '../../stores/composer.store';
+import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { useModelStore } from '../../stores/model.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useSearchStore } from '../../stores/search.store';
@@ -49,6 +50,7 @@ import { useSelectionStore } from '../../stores/selection.store';
 
 const commands = useGoCaptureCommands();
 const composerStore = useComposerStore();
+const connectAgentStore = useConnectAgentStore();
 const modelStore = useModelStore();
 const projectStore = useProjectStore();
 const searchStore = useSearchStore();
@@ -64,9 +66,13 @@ const selectionStart = ref(0);
 const selectionEnd = ref(0);
 let shortcutMenuTimer = 0;
 
-const composerEditable = computed(() => selectionStore.items.length > 0);
+const composerEditable = computed(() =>
+  selectionStore.items.length > 0 || connectAgentStore.taskAwaitingInput);
 const composerPlaceholder = computed(() => {
   if (!projectStore.current) return '请选择项目源码';
+  if (connectAgentStore.taskAwaitingInput) {
+    return connectAgentStore.pendingInteraction?.questions?.[0]?.question || '回答 Agent 的问题';
+  }
   if (!selectionStore.items.length) return '移动鼠标高亮页面区域，按空格键添加选区';
   if (modelStore.status === 'running') return '模型定位中，可点击停止';
   if (searchStore.showCandidatePicker) return '请选择候选文件后继续';

@@ -9,6 +9,18 @@ const {
   connectAgentOutputSchema,
 } = require('./task-prompt');
 
+test('free chat without a selection sends only the user message', () => {
+  const prompt = buildConnectAgentTaskPrompt({
+    userInstruction: '好无聊，讲个笑话',
+    pageUrl: 'https://example.test/data',
+    selectionBindings: [],
+    conversationMode: 'chat',
+  });
+
+  assert.equal(prompt, '好无聊，讲个笑话');
+  assert.doesNotMatch(prompt, /开发任务|运行地址|选区|最小验证/);
+});
+
 test('located task prompt contains only the task and a stable selection reference', () => {
   const prompt = buildConnectAgentTaskPrompt({
     userInstruction: '增加 ROI 列',

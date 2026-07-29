@@ -7984,6 +7984,19 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       );
     });
   }
+  function respondConnectAgentInteraction(providerId, projectRoot, taskId, interactionId, response) {
+    return __async(this, null, function* () {
+      return yield sourceServerJson(
+        `/api/connect-agents/${encodeURIComponent(providerId)}/tasks/${encodeURIComponent(taskId)}/interactions/${encodeURIComponent(interactionId)}`,
+        {
+          method: "POST",
+          body: { projectRoot, response },
+          timeoutMs: 15e3,
+          timeoutMessage: "提交 Agent 回答超时"
+        }
+      );
+    });
+  }
   const useConnectAgentStore = /* @__PURE__ */ defineStore("gocapture.connect-agent", () => {
     const providers = /* @__PURE__ */ ref([]);
     const loading = /* @__PURE__ */ ref(false);
@@ -7995,6 +8008,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
     const taskStartedAt = /* @__PURE__ */ ref(0);
     const taskFinishedAt = /* @__PURE__ */ ref(0);
     const taskController = /* @__PURE__ */ ref(null);
+    const pendingInteraction = /* @__PURE__ */ ref(null);
     const timeline = /* @__PURE__ */ ref([]);
     const timelineLoading = /* @__PURE__ */ ref(false);
     const timelineProjectRoot = /* @__PURE__ */ ref("");
@@ -8018,7 +8032,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       return providers.value.find((provider) => provider.projectThreadId) || providers.value.find((provider) => provider.connected) || null;
     });
     const pickerProvider = computed(() => providers.value.find((provider) => provider.id === pickerProviderId.value) || null);
-    const taskRunning = computed(() => taskStatus.value === "running");
+    const taskRunning = computed(() => taskStatus.value === "running" || taskStatus.value === "waiting-input");
+    const taskAwaitingInput = computed(() => taskStatus.value === "waiting-input" && !!pendingInteraction.value);
     function refreshProviders(refresh = false, projectRoot = "") {
       return __async(this, null, function* () {
         const root = String(projectRoot || "").trim();
@@ -8287,19 +8302,32 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       taskStartedAt.value = Date.now();
       taskFinishedAt.value = 0;
       taskController.value = controller;
+      pendingInteraction.value = null;
     }
     function applyTaskEvent(event) {
-      var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+      var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
       if (event == null ? void 0 : event.timelineMessage) upsertTimelineMessage(event.timelineMessage);
       if (event == null ? void 0 : event.task) task.value = __spreadValues(__spreadValues({}, task.value || {}), event.task);
-      if (((_a2 = event == null ? void 0 : event.event) == null ? void 0 : _a2.method) === "item/agentMessage/delta") {
+      const eventType = String(
+        (event == null ? void 0 : event.rawType) || ((_b = (_a2 = event == null ? void 0 : event.timelineMessage) == null ? void 0 : _a2.metadata) == null ? void 0 : _b.eventType) || ""
+      );
+      const interaction = (event == null ? void 0 : event.interaction) || ((_d = (_c = event == null ? void 0 : event.timelineMessage) == null ? void 0 : _c.metadata) == null ? void 0 : _d.interaction) || null;
+      const waitingForInput = eventType === "interaction-required" || ((_e = event == null ? void 0 : event.task) == null ? void 0 : _e.status) === "waiting-input";
+      if (interaction && waitingForInput) {
+        pendingInteraction.value = interaction;
+        taskStatus.value = "waiting-input";
+      } else if (eventType === "interaction-resolved") {
+        pendingInteraction.value = null;
+        taskStatus.value = "running";
+      }
+      if (((_f = event == null ? void 0 : event.event) == null ? void 0 : _f.method) === "item/agentMessage/delta") {
         task.value = __spreadProps(__spreadValues({}, task.value || {}), {
-          finalResponse: `${((_b = task.value) == null ? void 0 : _b.finalResponse) || ""}${((_d = (_c = event.event) == null ? void 0 : _c.params) == null ? void 0 : _d.delta) || ""}`
+          finalResponse: `${((_g = task.value) == null ? void 0 : _g.finalResponse) || ""}${((_i = (_h = event.event) == null ? void 0 : _h.params) == null ? void 0 : _i.delta) || ""}`
         });
       }
-      if (((_e = event == null ? void 0 : event.event) == null ? void 0 : _e.method) === "item/completed" && ((_h = (_g = (_f = event.event) == null ? void 0 : _f.params) == null ? void 0 : _g.item) == null ? void 0 : _h.type) === "agentMessage") {
+      if (((_j = event == null ? void 0 : event.event) == null ? void 0 : _j.method) === "item/completed" && ((_m = (_l = (_k = event.event) == null ? void 0 : _k.params) == null ? void 0 : _l.item) == null ? void 0 : _m.type) === "agentMessage") {
         const text = String(event.event.params.item.text || "");
-        if (text.length > String(((_i = task.value) == null ? void 0 : _i.finalResponse) || "").length) {
+        if (text.length > String(((_n = task.value) == null ? void 0 : _n.finalResponse) || "").length) {
           task.value = __spreadProps(__spreadValues({}, task.value || {}), { finalResponse: text });
         }
       }
@@ -8318,6 +8346,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       taskStatus.value = result.status === "completed" ? "completed" : "failed";
       taskFinishedAt.value = Number(result.finishedAt || Date.now());
       taskController.value = null;
+      pendingInteraction.value = null;
     }
     function failTask(error) {
       var _a2;
@@ -8327,6 +8356,32 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       taskStatus.value = ((_a2 = task.value) == null ? void 0 : _a2.status) === "cancelled" ? "cancelled" : "failed";
       taskFinishedAt.value = Date.now();
       taskController.value = null;
+      pendingInteraction.value = null;
+    }
+    function answerInteraction(answer) {
+      return __async(this, null, function* () {
+        const interaction = pendingInteraction.value;
+        const provider = activeProvider.value;
+        const value = String(answer || "").trim();
+        if (!interaction || !provider || !currentProjectRoot.value || !value) return false;
+        taskError.value = "";
+        try {
+          const result = yield respondConnectAgentInteraction(
+            provider.id,
+            currentProjectRoot.value,
+            interaction.taskId,
+            interaction.interactionId,
+            value
+          );
+          if (result.timelineMessage) upsertTimelineMessage(result.timelineMessage);
+          pendingInteraction.value = null;
+          taskStatus.value = "running";
+          return true;
+        } catch (error) {
+          taskError.value = (error == null ? void 0 : error.message) || "提交 Agent 回答失败";
+          return false;
+        }
+      });
     }
     function cancelTask() {
       var _a2;
@@ -8341,6 +8396,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       taskStartedAt.value = 0;
       taskFinishedAt.value = 0;
       taskController.value = null;
+      pendingInteraction.value = null;
     }
     return {
       providers,
@@ -8365,6 +8421,8 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       pickerProvider,
       activeProvider,
       taskRunning,
+      taskAwaitingInput,
+      pendingInteraction,
       projectSettings,
       settingsSaving,
       refreshProviders,
@@ -8384,6 +8442,7 @@ var __forAwait = (obj, it, method) => (it = obj[__knownSymbol("asyncIterator")])
       applyTaskEvent,
       completeTask,
       failTask,
+      answerInteraction,
       cancelTask,
       resetTask
     };
@@ -9875,13 +9934,13 @@ ${unwrappedProps}
     class: "mda-log-node-head"
   };
   const _hoisted_16$5 = { class: "mda-log-node-actor" };
-  const _hoisted_17$4 = { class: "mda-log-node-title" };
-  const _hoisted_18$4 = {
+  const _hoisted_17$5 = { class: "mda-log-node-title" };
+  const _hoisted_18$5 = {
     key: 2,
     class: "mda-message-log-item is-candidate-log"
   };
-  const _hoisted_19$4 = { class: "mda-log-file-label" };
-  const _hoisted_20$4 = ["onClick"];
+  const _hoisted_19$5 = { class: "mda-log-file-label" };
+  const _hoisted_20$5 = ["onClick"];
   const _hoisted_21$3 = {
     key: 3,
     class: "mda-message-log-pre"
@@ -10543,16 +10602,16 @@ ${unwrappedProps}
                                     ),
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_17$4,
+                                      _hoisted_17$5,
                                       toDisplayString(node.title),
                                       1
                                       /* TEXT */
                                     )
                                   ])),
-                                  isCandidateLog(node.raw) ? (openBlock(), createElementBlock("div", _hoisted_18$4, [
+                                  isCandidateLog(node.raw) ? (openBlock(), createElementBlock("div", _hoisted_18$5, [
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_19$4,
+                                      _hoisted_19$5,
                                       toDisplayString(candidatePrefix(node.raw)),
                                       1
                                       /* TEXT */
@@ -10561,7 +10620,7 @@ ${unwrappedProps}
                                       class: "mda-log-file-link",
                                       type: "button",
                                       onClick: ($event) => unref(commands).openSourceFile(candidateFile(node.raw))
-                                    }, toDisplayString(candidateFile(node.raw)), 9, _hoisted_20$4)
+                                    }, toDisplayString(candidateFile(node.raw)), 9, _hoisted_20$5)
                                   ])) : node.expandable && isNodeExpanded(message.id, logIndex, node.kind) ? (openBlock(), createElementBlock(
                                     "pre",
                                     _hoisted_21$3,
@@ -11979,19 +12038,19 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 0,
     class: "mda-composite-anchor"
   };
-  const _hoisted_17$3 = {
+  const _hoisted_17$4 = {
     key: 1,
     class: "mda-plan-what"
   };
-  const _hoisted_18$3 = {
+  const _hoisted_18$4 = {
     key: 2,
     class: "mda-plan-why"
   };
-  const _hoisted_19$3 = {
+  const _hoisted_19$4 = {
     key: 2,
     class: "mda-plan-block"
   };
-  const _hoisted_20$3 = ["onClick"];
+  const _hoisted_20$4 = ["onClick"];
   const _hoisted_21$2 = { class: "mda-composite-anchor" };
   const _hoisted_22$1 = { class: "mda-plan-block-title" };
   const _hoisted_23$1 = {
@@ -12332,14 +12391,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         )) : createCommentVNode("v-if", true),
                         target.whatToChange ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_17$3,
+                          _hoisted_17$4,
                           "改：" + toDisplayString(target.whatToChange),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         target.why ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_18$3,
+                          _hoisted_18$4,
                           "因：" + toDisplayString(target.why),
                           1
                           /* TEXT */
@@ -12350,7 +12409,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     /* KEYED_FRAGMENT */
                   ))
                 ])) : createCommentVNode("v-if", true),
-                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_19$3, [
+                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_19$4, [
                   _cache[12] || (_cache[12] = createBaseVNode(
                     "div",
                     { class: "mda-plan-block-title" },
@@ -12370,7 +12429,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           class: "mda-file-link",
                           type: "button",
                           onClick: ($event) => unref(commands).openSourceFile(item.file)
-                        }, toDisplayString(item.file), 9, _hoisted_20$3),
+                        }, toDisplayString(item.file), 9, _hoisted_20$4),
                         createBaseVNode(
                           "span",
                           _hoisted_21$2,
@@ -12604,6 +12663,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     setup(__props, { expose: __expose }) {
       useGoCaptureCommands();
       const composerStore = useComposerStore();
+      const connectAgentStore = useConnectAgentStore();
       const modelStore = useModelStore();
       const projectStore = useProjectStore();
       const searchStore = useSearchStore();
@@ -12617,9 +12677,13 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const shortcutActiveIndex = /* @__PURE__ */ ref(0);
       const selectionStart = /* @__PURE__ */ ref(0);
       const selectionEnd = /* @__PURE__ */ ref(0);
-      const composerEditable = computed(() => selectionStore.items.length > 0);
+      const composerEditable = computed(() => selectionStore.items.length > 0 || connectAgentStore.taskAwaitingInput);
       const composerPlaceholder = computed(() => {
+        var _a2, _b, _c;
         if (!projectStore.current) return "请选择项目源码";
+        if (connectAgentStore.taskAwaitingInput) {
+          return ((_c = (_b = (_a2 = connectAgentStore.pendingInteraction) == null ? void 0 : _a2.questions) == null ? void 0 : _b[0]) == null ? void 0 : _c.question) || "回答 Agent 的问题";
+        }
         if (!selectionStore.items.length) return "移动鼠标高亮页面区域，按空格键添加选区";
         if (modelStore.status === "running") return "模型定位中，可点击停止";
         if (searchStore.showCandidatePicker) return "请选择候选文件后继续";
@@ -13027,27 +13091,38 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     class: "mda-result-module-head"
   };
   const _hoisted_4$3 = { class: "mda-result-module-body" };
-  const _hoisted_5$3 = { class: "mda-composer" };
-  const _hoisted_6$3 = { class: "mda-composer-toolbar" };
-  const _hoisted_7$3 = { class: "mda-toolbar-left" };
-  const _hoisted_8$3 = ["title"];
-  const _hoisted_9$3 = { class: "mda-toolbar-right" };
-  const _hoisted_10$3 = ["title", "disabled"];
-  const _hoisted_11$3 = {
+  const _hoisted_5$3 = {
+    key: 0,
+    class: "mda-agent-interaction",
+    "aria-live": "polite"
+  };
+  const _hoisted_6$3 = { key: 0 };
+  const _hoisted_7$3 = {
+    key: 1,
+    class: "mda-agent-interaction-options"
+  };
+  const _hoisted_8$3 = ["title", "onClick"];
+  const _hoisted_9$3 = { class: "mda-composer" };
+  const _hoisted_10$3 = { class: "mda-composer-toolbar" };
+  const _hoisted_11$3 = { class: "mda-toolbar-left" };
+  const _hoisted_12$3 = ["title"];
+  const _hoisted_13$3 = { class: "mda-toolbar-right" };
+  const _hoisted_14$3 = ["title", "disabled"];
+  const _hoisted_15$3 = {
     key: 0,
     class: "mda-stop-icon"
   };
-  const _hoisted_12$3 = { key: 1 };
-  const _hoisted_13$3 = {
+  const _hoisted_16$3 = { key: 1 };
+  const _hoisted_17$3 = {
     key: 2,
     class: "mda-send-arrow"
   };
-  const _hoisted_14$3 = { class: "mda-route-inline" };
-  const _hoisted_15$3 = {
+  const _hoisted_18$3 = { class: "mda-route-inline" };
+  const _hoisted_19$3 = {
     key: 1,
     class: "mda-route-empty"
   };
-  const _hoisted_16$3 = {
+  const _hoisted_20$3 = {
     key: 1,
     class: "mda-toast"
   };
@@ -13055,7 +13130,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260730.011401.990";
+      const buildVersion = "20260730.025813.603";
       const commands = useGoCaptureCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
@@ -13076,15 +13151,30 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const modelAssistLoading = computed(() => modelStore.status === "running");
       const routeResolverTrace = computed(() => routeStore.resolverTrace);
       const toastText = computed(() => appUiStore.toastText);
+      const interactionQuestion = computed(() => {
+        var _a2, _b;
+        const interaction = connectAgentStore.pendingInteraction;
+        return ((_b = (_a2 = interaction == null ? void 0 : interaction.questions) == null ? void 0 : _a2[0]) == null ? void 0 : _b.question) || (interaction == null ? void 0 : interaction.title) || "Agent 需要你补充信息";
+      });
+      const interactionDescription = computed(() => {
+        var _a2, _b, _c, _d;
+        return ((_c = (_b = (_a2 = connectAgentStore.pendingInteraction) == null ? void 0 : _a2.questions) == null ? void 0 : _b[0]) == null ? void 0 : _c.header) || ((_d = connectAgentStore.pendingInteraction) == null ? void 0 : _d.description) || "";
+      });
+      const interactionOptions = computed(() => {
+        var _a2, _b, _c;
+        return ((_c = (_b = (_a2 = connectAgentStore.pendingInteraction) == null ? void 0 : _a2.questions) == null ? void 0 : _b[0]) == null ? void 0 : _c.options) || [];
+      });
       const composerCanSend = computed(() => {
         var _a2;
+        if (connectAgentStore.taskAwaitingInput) return composerStore.trimmedContent.length > 0;
         if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
         if (candidateLoading.value) return false;
         if (!project.value) return false;
         if (!((_a2 = connectAgentStore.activeProvider) == null ? void 0 : _a2.connected)) return false;
         if (connectAgentStore.activeProvider.requiresThreadBinding && !connectAgentStore.activeProvider.projectThreadId) return false;
-        if (!selectedItems.value.length) return false;
-        if (searchStore.showCandidatePicker) return searchStore.selectedCandidates.length > 0;
+        if (searchStore.showCandidatePicker && /@(?:\[)?选区/.test(composerStore.trimmedContent)) {
+          return searchStore.selectedCandidates.length > 0;
+        }
         return composerStore.trimmedContent.length > 0;
       });
       const routeHit = computed(() => {
@@ -13109,6 +13199,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       function copyRouteFilePath() {
         if (!routeFilePath.value) return;
         commands.copyText(routeFilePath.value);
+      }
+      function submitInteractionOption(answer) {
+        return __async(this, null, function* () {
+          if (!answer) return;
+          yield connectAgentStore.answerInteraction(answer);
+        });
       }
       return (_ctx, _cache) => {
         return openBlock(), createElementBlock("section", _hoisted_1$4, [
@@ -13146,7 +13242,53 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               [vShow, !(hasResultModule.value && resultModuleCollapsed.value)]
             ])
           ]),
-          createBaseVNode("div", _hoisted_5$3, [
+          unref(connectAgentStore).taskAwaitingInput ? (openBlock(), createElementBlock("section", _hoisted_5$3, [
+            _cache[5] || (_cache[5] = createBaseVNode(
+              "span",
+              { class: "mda-agent-interaction-step" },
+              "等待你的确认",
+              -1
+              /* CACHED */
+            )),
+            createBaseVNode(
+              "strong",
+              null,
+              toDisplayString(interactionQuestion.value),
+              1
+              /* TEXT */
+            ),
+            interactionDescription.value ? (openBlock(), createElementBlock(
+              "p",
+              _hoisted_6$3,
+              toDisplayString(interactionDescription.value),
+              1
+              /* TEXT */
+            )) : createCommentVNode("v-if", true),
+            interactionOptions.value.length ? (openBlock(), createElementBlock("div", _hoisted_7$3, [
+              (openBlock(true), createElementBlock(
+                Fragment,
+                null,
+                renderList(interactionOptions.value, (option) => {
+                  return openBlock(), createElementBlock("button", {
+                    key: option.label,
+                    type: "button",
+                    title: option.description || option.label,
+                    onClick: ($event) => submitInteractionOption(option.label)
+                  }, toDisplayString(option.label), 9, _hoisted_8$3);
+                }),
+                128
+                /* KEYED_FRAGMENT */
+              ))
+            ])) : createCommentVNode("v-if", true),
+            _cache[6] || (_cache[6] = createBaseVNode(
+              "span",
+              { class: "mda-agent-interaction-hint" },
+              "也可以在下方输入其他回答",
+              -1
+              /* CACHED */
+            ))
+          ])) : createCommentVNode("v-if", true),
+          createBaseVNode("div", _hoisted_9$3, [
             createVNode(
               _sfc_main$7,
               {
@@ -13157,8 +13299,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               512
               /* NEED_PATCH */
             ),
-            createBaseVNode("div", _hoisted_6$3, [
-              createBaseVNode("div", _hoisted_7$3, [
+            createBaseVNode("div", _hoisted_10$3, [
+              createBaseVNode("div", _hoisted_11$3, [
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-inline-text-btn",
@@ -13168,27 +13310,27 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 createBaseVNode("span", {
                   class: "mda-build-version",
                   title: `构建版本 ${unref(buildVersion)}`
-                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_8$3)
+                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_12$3)
               ]),
-              createBaseVNode("div", _hoisted_9$3, [
+              createBaseVNode("div", _hoisted_13$3, [
                 createBaseVNode("button", {
-                  class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value || unref(connectAgentStore).taskRunning }]),
+                  class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value || unref(connectAgentStore).taskRunning && !unref(connectAgentStore).taskAwaitingInput }]),
                   type: "button",
-                  title: modelAssistLoading.value || unref(connectAgentStore).taskRunning ? "停止当前任务" : "提交",
+                  title: unref(connectAgentStore).taskAwaitingInput ? "回答 Agent" : modelAssistLoading.value || unref(connectAgentStore).taskRunning ? "停止当前任务" : "提交",
                   disabled: !composerCanSend.value,
                   onClick: _cache[2] || (_cache[2] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
                 }, [
-                  modelAssistLoading.value || unref(connectAgentStore).taskRunning ? (openBlock(), createElementBlock("span", _hoisted_11$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_12$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_13$3))
-                ], 10, _hoisted_10$3)
+                  modelAssistLoading.value || unref(connectAgentStore).taskRunning && !unref(connectAgentStore).taskAwaitingInput ? (openBlock(), createElementBlock("span", _hoisted_15$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_16$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_17$3))
+                ], 10, _hoisted_14$3)
               ])
             ])
           ]),
-          createBaseVNode("div", _hoisted_14$3, [
+          createBaseVNode("div", _hoisted_18$3, [
             routeResolverTrace.value ? (openBlock(), createElementBlock(
               Fragment,
               { key: 0 },
               [
-                _cache[5] || (_cache[5] = createBaseVNode(
+                _cache[7] || (_cache[7] = createBaseVNode(
                   "span",
                   { class: "mda-route-label" },
                   "页面源码地址",
@@ -13206,7 +13348,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   toDisplayString(routeFilePath.value),
                   1
                   /* TEXT */
-                )) : (openBlock(), createElementBlock("span", _hoisted_15$3, "暂无命中")),
+                )) : (openBlock(), createElementBlock("span", _hoisted_19$3, "暂无命中")),
                 routeFilePath.value ? (openBlock(), createElementBlock("button", {
                   key: 2,
                   class: "mda-copy-icon",
@@ -13221,7 +13363,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             )) : createCommentVNode("v-if", true),
             toastText.value ? (openBlock(), createElementBlock(
               "span",
-              _hoisted_16$3,
+              _hoisted_20$3,
               toDisplayString(toastText.value),
               1
               /* TEXT */
@@ -14816,7 +14958,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const value = String(instruction || "");
       const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
       const activeId = store.activeId || ((_a2 = store.items[store.items.length - 1]) == null ? void 0 : _a2.uid) || "";
-      if (!matches.length || matches.some((match) => !match[1])) return activeId ? [activeId] : [];
+      if (!matches.length) return [];
+      if (matches.some((match) => !match[1])) return activeId ? [activeId] : [];
       return Array.from(new Set(matches.map((match) => {
         var _a3;
         return ((_a3 = store.items[Number(match[1]) - 1]) == null ? void 0 : _a3.uid) || "";
@@ -15317,7 +15460,8 @@ ${source}` : "",
       const value = String(text || "");
       const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
       const activeAsset = assets.find((asset) => asset.uid === selectionStore.activeId) || assets[assets.length - 1];
-      if (!matches.length || matches.some((match) => !match[1])) {
+      if (!matches.length) return [];
+      if (matches.some((match) => !match[1])) {
         return activeAsset ? [activeAsset] : [];
       }
       const indexes = /* @__PURE__ */ new Set();
@@ -16207,6 +16351,7 @@ ${source}` : "",
         currentLogs: connectAgentStore.taskLogs,
         taskStartedAt: connectAgentStore.taskStartedAt,
         taskFinishedAt: connectAgentStore.taskFinishedAt,
+        pendingInteraction: connectAgentStore.pendingInteraction,
         agentName: (activeAgent == null ? void 0 : activeAgent.name) || "开发 Agent"
       }));
       if (connectAgentStore.loading && !connectAgentStore.activeProvider) {
@@ -16391,6 +16536,7 @@ ${result.rawText}` : ""
     currentLogs,
     taskStartedAt,
     taskFinishedAt,
+    pendingInteraction,
     agentName
   }) {
     var _a2, _b, _c, _d, _e, _f;
@@ -16428,7 +16574,8 @@ ${result.rawText}` : ""
         });
       }
       const isCurrent = (currentTask == null ? void 0 : currentTask.taskId) === group.taskId;
-      const running = isCurrent && taskStatus === "running";
+      const running = isCurrent && (taskStatus === "running" || taskStatus === "waiting-input");
+      const waitingInput = isCurrent && taskStatus === "waiting-input";
       const result = group.result;
       const durationStartedAt = timestampOf((_c = group.request) == null ? void 0 : _c.createdAt) || timestampOf(group.firstAt) || (isCurrent ? Number(taskStartedAt || (currentTask == null ? void 0 : currentTask.startedAt) || 0) : 0);
       const durationFinishedAt = result ? timestampOf(result.createdAt) || Number(((_d = result == null ? void 0 : result.metadata) == null ? void 0 : _d.finishedAt) || 0) : isCurrent && taskStatus !== "running" ? Number(taskFinishedAt || (currentTask == null ? void 0 : currentTask.finishedAt) || 0) : 0;
@@ -16445,8 +16592,8 @@ ${result.rawText}` : ""
         id: `connect-agent-agent-${group.taskId}`,
         role: "agent",
         title: `${agentName} 开发任务`,
-        text: running ? `${agentName} 正在项目中执行修改和验证。` : (result == null ? void 0 : result.kind) === "error" ? `${agentName} 开发任务失败。` : result ? `${agentName} 已完成项目修改。` : `${agentName} 开发任务未完成。`,
-        pre: (result == null ? void 0 : result.text) || (!running && isCurrent ? (currentTask == null ? void 0 : currentTask.finalResponse) || "" : ""),
+        text: waitingInput ? `${agentName} 需要你补充信息后继续。` : running ? `${agentName} 正在项目中执行修改和验证。` : (result == null ? void 0 : result.kind) === "error" ? `${agentName} 开发任务失败。` : result ? `${agentName} 已完成项目修改。` : `${agentName} 开发任务未完成。`,
+        pre: waitingInput ? interactionPrompt(pendingInteraction) : (result == null ? void 0 : result.text) || (!running && isCurrent ? (currentTask == null ? void 0 : currentTask.finalResponse) || "" : ""),
         diffs: selectionDiffs,
         logs,
         createdAt: running ? earliestTimestamp([
@@ -16460,6 +16607,16 @@ ${result.rawText}` : ""
       });
     }
     return messages;
+  }
+  function interactionPrompt(interaction) {
+    if (!interaction) return "";
+    if (interaction.kind === "permission") {
+      return [interaction.title, interaction.description].filter(Boolean).join("\n");
+    }
+    return (Array.isArray(interaction.questions) ? interaction.questions : []).map((question) => {
+      const options = (Array.isArray(question.options) ? question.options : []).map((option) => option.label).filter(Boolean);
+      return [question.question, options.length ? `可选：${options.join(" / ")}` : ""].filter(Boolean).join("\n");
+    }).join("\n\n");
   }
   function uniqueLines(lines) {
     return [...new Set(lines.map((line) => String(line || "").trim()).filter(Boolean))];
@@ -16735,6 +16892,14 @@ ${result.rawText}` : ""
     function sendComposer() {
       return __async(this, null, function* () {
         var _a2;
+        if (connectAgentStore.taskAwaitingInput) {
+          const answer = composer.promptIntent.value.trim();
+          if (!answer) return;
+          if (yield connectAgentStore.answerInteraction(answer)) {
+            composer.resetPromptComposer();
+          }
+          return;
+        }
         if (connectAgentStore.taskRunning) {
           connectAgentStore.cancelTask();
           return;
@@ -16748,6 +16913,11 @@ ${result.rawText}` : ""
         if (!instruction) return;
         if (!((_a2 = connectAgentStore.activeProvider) == null ? void 0 : _a2.connected)) {
           appUiStore.setToast("请先关联 Codex 开发 Agent");
+          return;
+        }
+        if (!selection.referencedSelectionIds(instruction).length) {
+          connectAgentStore.resetTask();
+          yield runConnectedAgent(instruction, [], { freeChat: true });
           return;
         }
         if (yield reuseSelectionSourceContext(instruction)) return;
@@ -17098,7 +17268,7 @@ ${result.rawText}` : ""
         const controller = new AbortController();
         connectAgentStore.beginTask(controller);
         selection.filesConfirmed.value = bindings.length > 0;
-        search.appendProcessLog(bindings.length ? `Connect Agent 分流：DOM Locator 已完成，交给 ${provider.name}` : `Connect Agent 分流：本地事实准备完成后，由 ${provider.name} 自行定位并开发`);
+        search.appendProcessLog(options.freeChat ? `Connect Agent 分流：无选区，自由对话交给 ${provider.name}` : bindings.length ? `Connect Agent 分流：DOM Locator 已完成，交给 ${provider.name}` : `Connect Agent 分流：本地事实准备完成后，由 ${provider.name} 自行定位并开发`);
         try {
           const result = yield runConnectAgentTask(provider.id, {
             projectRoot: projectRoot(),
@@ -17106,7 +17276,8 @@ ${result.rawText}` : ""
             userInstruction,
             selectionBindings: bindings,
             selectionThumbnails: selection.selectionThumbnails(userInstruction),
-            searchPayload: options.searchPayload || null
+            searchPayload: options.searchPayload || null,
+            conversationMode: options.freeChat ? "chat" : "selection"
           }, {
             controller,
             onEvent: (event) => {
@@ -21835,6 +22006,55 @@ ${result.rawText}` : ""
 
 .mda-composer-options.is-compact {
   padding: 0 2px;
+}
+
+.mda-agent-interaction {
+  display: grid;
+  gap: 7px;
+  padding: 10px 2px 2px;
+  border-top: 1px solid #e4e7ec;
+  color: #101828;
+}
+
+.mda-agent-interaction-step {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.mda-agent-interaction strong {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mda-agent-interaction p,
+.mda-agent-interaction-hint {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mda-agent-interaction-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mda-agent-interaction-options button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #b2ccff;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #175cd3;
+  cursor: pointer;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-agent-interaction-options button:hover {
+  border-color: #84adff;
+  background: #dbeafe;
 }
 
 .mda-choice-list {

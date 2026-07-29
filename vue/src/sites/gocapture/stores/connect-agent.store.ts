@@ -7,7 +7,9 @@ import {
   listConnectAgentMessages,
   listConnectAgentThreads,
   loadConnectAgentSettings,
+  respondConnectAgentInteraction,
   saveConnectAgentSettings,
+  type ConnectAgentInteraction,
   type ConnectAgentProvider,
   type ConnectAgentProjectSettings,
   type ConnectAgentOptions,
@@ -21,12 +23,13 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
   const loading = ref(false);
   const connectionError = ref('');
   const task = ref<ConnectAgentTask | null>(null);
-  const taskStatus = ref<'idle' | 'running' | 'completed' | 'failed' | 'cancelled'>('idle');
+  const taskStatus = ref<'idle' | 'running' | 'waiting-input' | 'completed' | 'failed' | 'cancelled'>('idle');
   const taskLogs = ref<string[]>([]);
   const taskError = ref('');
   const taskStartedAt = ref(0);
   const taskFinishedAt = ref(0);
   const taskController = ref<AbortController | null>(null);
+  const pendingInteraction = ref<ConnectAgentInteraction | null>(null);
   const timeline = ref<ConnectAgentTimelineMessage[]>([]);
   const timelineLoading = ref(false);
   const timelineProjectRoot = ref('');
@@ -54,7 +57,10 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
   });
   const pickerProvider = computed(() =>
     providers.value.find(provider => provider.id === pickerProviderId.value) || null);
-  const taskRunning = computed(() => taskStatus.value === 'running');
+  const taskRunning = computed(() =>
+    taskStatus.value === 'running' || taskStatus.value === 'waiting-input');
+  const taskAwaitingInput = computed(() =>
+    taskStatus.value === 'waiting-input' && !!pendingInteraction.value);
 
   async function refreshProviders(refresh = false, projectRoot = '') {
     const root = String(projectRoot || '').trim();
@@ -341,11 +347,29 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     taskStartedAt.value = Date.now();
     taskFinishedAt.value = 0;
     taskController.value = controller;
+    pendingInteraction.value = null;
   }
 
   function applyTaskEvent(event: any) {
     if (event?.timelineMessage) upsertTimelineMessage(event.timelineMessage);
     if (event?.task) task.value = { ...(task.value || {}), ...event.task };
+    const eventType = String(
+      event?.rawType
+      || event?.timelineMessage?.metadata?.eventType
+      || ''
+    );
+    const interaction = event?.interaction
+      || event?.timelineMessage?.metadata?.interaction
+      || null;
+    const waitingForInput = eventType === 'interaction-required'
+      || event?.task?.status === 'waiting-input';
+    if (interaction && waitingForInput) {
+      pendingInteraction.value = interaction;
+      taskStatus.value = 'waiting-input';
+    } else if (eventType === 'interaction-resolved') {
+      pendingInteraction.value = null;
+      taskStatus.value = 'running';
+    }
     if (event?.event?.method === 'item/agentMessage/delta') {
       task.value = {
         ...(task.value || {}),
@@ -376,6 +400,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     taskStatus.value = result.status === 'completed' ? 'completed' : 'failed';
     taskFinishedAt.value = Number(result.finishedAt || Date.now());
     taskController.value = null;
+    pendingInteraction.value = null;
   }
 
   function failTask(error: unknown) {
@@ -385,6 +410,31 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     taskStatus.value = task.value?.status === 'cancelled' ? 'cancelled' : 'failed';
     taskFinishedAt.value = Date.now();
     taskController.value = null;
+    pendingInteraction.value = null;
+  }
+
+  async function answerInteraction(answer: string) {
+    const interaction = pendingInteraction.value;
+    const provider = activeProvider.value;
+    const value = String(answer || '').trim();
+    if (!interaction || !provider || !currentProjectRoot.value || !value) return false;
+    taskError.value = '';
+    try {
+      const result = await respondConnectAgentInteraction(
+        provider.id,
+        currentProjectRoot.value,
+        interaction.taskId,
+        interaction.interactionId,
+        value
+      );
+      if (result.timelineMessage) upsertTimelineMessage(result.timelineMessage);
+      pendingInteraction.value = null;
+      taskStatus.value = 'running';
+      return true;
+    } catch (error) {
+      taskError.value = (error as Error)?.message || '提交 Agent 回答失败';
+      return false;
+    }
   }
 
   function cancelTask() {
@@ -400,6 +450,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     taskStartedAt.value = 0;
     taskFinishedAt.value = 0;
     taskController.value = null;
+    pendingInteraction.value = null;
   }
 
   return {
@@ -425,6 +476,8 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     pickerProvider,
     activeProvider,
     taskRunning,
+    taskAwaitingInput,
+    pendingInteraction,
     projectSettings,
     settingsSaving,
     refreshProviders,
@@ -444,6 +497,7 @@ export const useConnectAgentStore = defineStore('gocapture.connect-agent', () =>
     applyTaskEvent,
     completeTask,
     failTask,
+    answerInteraction,
     cancelTask,
     resetTask
   };

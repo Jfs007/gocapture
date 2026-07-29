@@ -35,6 +35,21 @@ function createHarness({ method, pathname, search = '' }) {
       input.onEvent({ type: 'task-started', task: { taskId: 'task_test' } });
       return { taskId: 'task_test', status: 'completed' };
     },
+    async respondToInteraction(providerId, input) {
+      calls.push([
+        'respondToInteraction',
+        providerId,
+        input.project.path,
+        input.taskId,
+        input.interactionId,
+        input.response,
+      ]);
+      return {
+        taskId: input.taskId,
+        interactionId: input.interactionId,
+        status: 'running',
+      };
+    },
     async listBindableThreads(providerId, project) {
       calls.push(['listBindableThreads', providerId, project.path]);
       return {
@@ -218,6 +233,49 @@ test('connect-agent task route streams lifecycle and result', async () => {
   assert.ok(harness.streamEvents.some(event => event.type === 'task-started'));
   const resultEvent = harness.streamEvents.find(event => event.type === 'result');
   assert.equal(resultEvent.result.status, 'completed');
+});
+
+test('free chat skips Locator evidence preparation', async () => {
+  const harness = createHarness({
+    method: 'POST',
+    pathname: '/api/connect-agents/claude/tasks/stream',
+  });
+  harness.args.readBody = async () => ({
+    projectRoot: '/tmp/project',
+    conversationMode: 'chat',
+    userInstruction: '讲个笑话',
+    selectionBindings: [],
+  });
+
+  assert.equal(await handleConnectAgentRoutes(harness.args), true);
+  assert.equal(harness.calls[0][0], 'runTask');
+  assert.equal(harness.calls[0][3], undefined);
+  assert.equal(
+    harness.streamEvents.some(event => event.type === 'locator-evidence'),
+    false,
+  );
+});
+
+test('connect-agent interaction route resumes the active provider task', async () => {
+  const harness = createHarness({
+    method: 'POST',
+    pathname: '/api/connect-agents/claude/tasks/task_1/interactions/interaction_1',
+  });
+  harness.args.readBody = async () => ({
+    projectRoot: '/tmp/project',
+    response: '晚上 8 点',
+  });
+
+  assert.equal(await handleConnectAgentRoutes(harness.args), true);
+  assert.deepEqual(harness.calls, [[
+    'respondToInteraction',
+    'claude',
+    '/tmp/project',
+    'task_1',
+    'interaction_1',
+    '晚上 8 点',
+  ]]);
+  assert.equal(harness.result().body.status, 'running');
 });
 
 test('an id-only selection binding still prepares runtime locator evidence', async () => {

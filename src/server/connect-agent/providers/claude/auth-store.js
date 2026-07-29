@@ -21,30 +21,21 @@ function normalizeAuth(raw) {
 }
 
 function normalizeAuthState(raw) {
-  if (raw?.profiles && typeof raw.profiles === 'object') {
-    const profiles = Object.fromEntries(
+  const profiles = raw?.version === 2 && raw?.profiles && typeof raw.profiles === 'object'
+    ? Object.fromEntries(
       Object.entries(raw.profiles)
         .map(([backendId, auth]) => [
           backendId,
           normalizeAuth({ ...auth, backendId }),
         ])
         .filter(([, auth]) => auth.mode),
-    );
-    const requestedActive = String(raw.activeBackendId || '').trim();
-    const activeBackendId = profiles[requestedActive]
-      ? requestedActive
-      : (Object.keys(profiles)[0] || '');
-    return { version: 2, activeBackendId, profiles };
-  }
-  const migrated = normalizeAuth(raw || {});
-  const migratedBackendId = migrated.backendId || (migrated.mode ? 'inherit' : '');
-  return {
-    version: 2,
-    activeBackendId: migratedBackendId,
-    profiles: migrated.mode && migratedBackendId
-      ? { [migratedBackendId]: { ...migrated, backendId: migratedBackendId } }
-      : {},
-  };
+    )
+    : {};
+  const requestedActive = String(raw?.activeBackendId || '').trim();
+  const activeBackendId = profiles[requestedActive]
+    ? requestedActive
+    : (Object.keys(profiles)[0] || '');
+  return { version: 2, activeBackendId, profiles };
 }
 
 function loadClaudeAuthState() {
@@ -53,11 +44,6 @@ function loadClaudeAuthState() {
   } catch (error) {
     return normalizeAuthState({});
   }
-}
-
-function loadClaudeAuth() {
-  const state = loadClaudeAuthState();
-  return state.profiles[state.activeBackendId] || normalizeAuth({});
 }
 
 function loadClaudeAuthForBackend(backendId) {
@@ -109,7 +95,6 @@ module.exports = {
   listClaudeAuthBackendIds,
   normalizeAuth,
   normalizeAuthState,
-  loadClaudeAuth,
   loadClaudeAuthForBackend,
   loadClaudeAuthState,
   saveClaudeAuth,

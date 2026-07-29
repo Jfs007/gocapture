@@ -61,6 +61,14 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
   }
 
   async function sendComposer() {
+    if (connectAgentStore.taskAwaitingInput) {
+      const answer = composer.promptIntent.value.trim();
+      if (!answer) return;
+      if (await connectAgentStore.answerInteraction(answer)) {
+        composer.resetPromptComposer();
+      }
+      return;
+    }
     if (connectAgentStore.taskRunning) {
       connectAgentStore.cancelTask();
       return;
@@ -74,6 +82,11 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
     if (!instruction) return;
     if (!connectAgentStore.activeProvider?.connected) {
       appUiStore.setToast('请先关联 Codex 开发 Agent');
+      return;
+    }
+    if (!selection.referencedSelectionIds(instruction).length) {
+      connectAgentStore.resetTask();
+      await runConnectedAgent(instruction, [], { freeChat: true });
       return;
     }
     if (await reuseSelectionSourceContext(instruction)) return;
@@ -435,16 +448,21 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
   async function runConnectedAgent(
     userInstruction: string,
     bindings: any[],
-    options: { searchPayload?: Record<string, unknown> } = {}
+    options: {
+      searchPayload?: Record<string, unknown>;
+      freeChat?: boolean;
+    } = {}
   ) {
     const provider = connectAgentStore.activeProvider;
     if (!provider?.connected) return false;
     const controller = new AbortController();
     connectAgentStore.beginTask(controller);
     selection.filesConfirmed.value = bindings.length > 0;
-    search.appendProcessLog(bindings.length
-      ? `Connect Agent 分流：DOM Locator 已完成，交给 ${provider.name}`
-      : `Connect Agent 分流：本地事实准备完成后，由 ${provider.name} 自行定位并开发`);
+    search.appendProcessLog(options.freeChat
+      ? `Connect Agent 分流：无选区，自由对话交给 ${provider.name}`
+      : bindings.length
+        ? `Connect Agent 分流：DOM Locator 已完成，交给 ${provider.name}`
+        : `Connect Agent 分流：本地事实准备完成后，由 ${provider.name} 自行定位并开发`);
     try {
       const result = await runConnectAgentTask(provider.id, {
         projectRoot: projectRoot(),
@@ -452,7 +470,8 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
         userInstruction,
         selectionBindings: bindings,
         selectionThumbnails: selection.selectionThumbnails(userInstruction),
-        searchPayload: options.searchPayload || null
+        searchPayload: options.searchPayload || null,
+        conversationMode: options.freeChat ? 'chat' : 'selection'
       }, {
         controller,
         onEvent: event => {

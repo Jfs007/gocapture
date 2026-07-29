@@ -122,14 +122,14 @@ test('runtimeConfigToEnv maps any Anthropic-compatible brand without provider br
   assert.strictEqual(env.ANTHROPIC_MODEL, 'mistral-model');
 });
 
-test('runtime state migrates a legacy config and retains one profile per brand', () => {
-  const migrated = normalizeRuntimeState({
+test('runtime state accepts only the current profile format', () => {
+  const obsolete = normalizeRuntimeState({
     backendId: 'deepseek',
     model: 'deepseek-v4-flash',
   });
-  assert.strictEqual(migrated.version, 2);
-  assert.strictEqual(migrated.activeBackendId, 'deepseek');
-  assert.strictEqual(migrated.profiles.deepseek.model, 'deepseek-v4-flash');
+  assert.strictEqual(obsolete.version, 2);
+  assert.strictEqual(obsolete.activeBackendId, 'inherit');
+  assert.deepStrictEqual(Object.keys(obsolete.profiles), ['inherit']);
 
   const state = normalizeRuntimeState({
     version: 2,

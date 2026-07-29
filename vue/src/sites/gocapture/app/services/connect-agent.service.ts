@@ -134,6 +134,26 @@ export interface ConnectAgentTask {
   error: string;
 }
 
+export interface ConnectAgentInteraction {
+  interactionId: string;
+  taskId: string;
+  kind: 'question' | 'permission';
+  title: string;
+  description?: string;
+  toolName?: string;
+  questions?: Array<{
+    question: string;
+    header: string;
+    multiSelect: boolean;
+    options: Array<{
+      label: string;
+      description: string;
+      preview?: string;
+    }>;
+  }>;
+  input?: Record<string, unknown>;
+}
+
 export interface ProviderFileDiff {
   file: string;
   patch: string;
@@ -318,6 +338,26 @@ export async function runConnectAgentTask(
       timeoutMs: 30 * 60 * 1000,
       timeoutMessage: 'Agent 开发任务执行超时',
       abortMessage: 'Agent 开发任务已取消'
+    }
+  );
+}
+
+export async function respondConnectAgentInteraction(
+  providerId: string,
+  projectRoot: string,
+  taskId: string,
+  interactionId: string,
+  response: string | Record<string, unknown>
+): Promise<{ taskId: string; interactionId: string; status: string; timelineMessage?: ConnectAgentTimelineMessage }> {
+  return await sourceServerJson(
+    `/api/connect-agents/${encodeURIComponent(providerId)}`
+      + `/tasks/${encodeURIComponent(taskId)}`
+      + `/interactions/${encodeURIComponent(interactionId)}`,
+    {
+      method: 'POST',
+      body: { projectRoot, response },
+      timeoutMs: 15000,
+      timeoutMessage: '提交 Agent 回答超时'
     }
   );
 }

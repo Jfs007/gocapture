@@ -1928,6 +1928,55 @@
   padding: 0 2px;
 }
 
+.mda-agent-interaction {
+  display: grid;
+  gap: 7px;
+  padding: 10px 2px 2px;
+  border-top: 1px solid #e4e7ec;
+  color: #101828;
+}
+
+.mda-agent-interaction-step {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.mda-agent-interaction strong {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mda-agent-interaction p,
+.mda-agent-interaction-hint {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mda-agent-interaction-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mda-agent-interaction-options button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #b2ccff;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #175cd3;
+  cursor: pointer;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-agent-interaction-options button:hover {
+  border-color: #84adff;
+  background: #dbeafe;
+}
+
 .mda-choice-list {
   gap: 8px;
   max-height: 260px;

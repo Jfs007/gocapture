@@ -317,7 +317,8 @@ export function useSearchPrompt() {
     const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
     const activeAsset = assets.find(asset => asset.uid === selectionStore.activeId)
       || assets[assets.length - 1];
-    if (!matches.length || matches.some(match => !match[1])) {
+    if (!matches.length) return [];
+    if (matches.some(match => !match[1])) {
       return activeAsset ? [activeAsset] : [];
     }
     const indexes = new Set();

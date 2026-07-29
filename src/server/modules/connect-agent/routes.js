@@ -124,7 +124,7 @@ async function handleConnectAgentRoutes({
     sendStreamHeaders(res);
     try {
       const taskInput = { ...body };
-      if (!hasLocatedSelectionBindings(body.selectionBindings)) {
+      if (body.conversationMode !== 'chat' && !hasLocatedSelectionBindings(body.selectionBindings)) {
         const searchBody = body.searchPayload || body;
         const prepared = buildLocatorEvidencePackage(project, searchBody, {
           includeProjectStructure: false,
@@ -155,6 +155,22 @@ async function handleConnectAgentRoutes({
     } finally {
       if (!res.writableEnded) res.end();
     }
+    return true;
+  }
+
+  const interactionMatch = url.pathname.match(
+    /^\/api\/connect-agents\/([^/]+)\/tasks\/([^/]+)\/interactions\/([^/]+)$/,
+  );
+  if (interactionMatch && req.method === 'POST') {
+    const body = await readBody(req);
+    const project = projectContext.resolve(body.projectRoot);
+    const result = await connectAgent.respondToInteraction(interactionMatch[1], {
+      project,
+      taskId: interactionMatch[2],
+      interactionId: interactionMatch[3],
+      response: body.response,
+    });
+    sendJson(res, 200, { success: true, ...result });
     return true;
   }
 

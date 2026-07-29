@@ -74,7 +74,8 @@ export function createSelectionFacade(store: SelectionStore) {
     const value = String(instruction || '');
     const matches = Array.from(value.matchAll(/@(?:\[)?选区(?:(\d+))?(?:\])?/g));
     const activeId = store.activeId || store.items[store.items.length - 1]?.uid || '';
-    if (!matches.length || matches.some(match => !match[1])) return activeId ? [activeId] : [];
+    if (!matches.length) return [];
+    if (matches.some(match => !match[1])) return activeId ? [activeId] : [];
     return Array.from(new Set(matches
       .map(match => store.items[Number(match[1]) - 1]?.uid || '')
       .filter(Boolean)));

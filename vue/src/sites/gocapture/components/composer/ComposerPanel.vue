@@ -13,6 +13,28 @@
       </div>
     </div>
 
+    <section
+      v-if="connectAgentStore.taskAwaitingInput"
+      class="mda-agent-interaction"
+      aria-live="polite"
+    >
+      <span class="mda-agent-interaction-step">等待你的确认</span>
+      <strong>{{ interactionQuestion }}</strong>
+      <p v-if="interactionDescription">{{ interactionDescription }}</p>
+      <div v-if="interactionOptions.length" class="mda-agent-interaction-options">
+        <button
+          v-for="option in interactionOptions"
+          :key="option.label"
+          type="button"
+          :title="option.description || option.label"
+          @click="submitInteractionOption(option.label)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+      <span class="mda-agent-interaction-hint">也可以在下方输入其他回答</span>
+    </section>
+
     <div class="mda-composer">
       <ComposerInput ref="composerInputRef" />
       <div class="mda-composer-toolbar">
@@ -24,12 +46,16 @@
           <button
             class="mda-send-btn"
             type="button"
-            :class="{ 'is-stopping': modelAssistLoading || connectAgentStore.taskRunning }"
-            :title="modelAssistLoading || connectAgentStore.taskRunning ? '停止当前任务' : '提交'"
+            :class="{ 'is-stopping': modelAssistLoading || (connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput) }"
+            :title="connectAgentStore.taskAwaitingInput
+              ? '回答 Agent'
+              : modelAssistLoading || connectAgentStore.taskRunning
+                ? '停止当前任务'
+                : '提交'"
             :disabled="!composerCanSend"
             @click="commands.sendRequest"
           >
-            <span v-if="modelAssistLoading || connectAgentStore.taskRunning" class="mda-stop-icon" />
+            <span v-if="modelAssistLoading || (connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput)" class="mda-stop-icon" />
             <span v-else-if="candidateLoading">检索</span>
             <span v-else class="mda-send-arrow" />
           </button>
@@ -96,15 +122,29 @@ const project = computed(() => projectStore.current);
 const modelAssistLoading = computed(() => modelStore.status === 'running');
 const routeResolverTrace = computed(() => routeStore.resolverTrace);
 const toastText = computed(() => appUiStore.toastText);
+const interactionQuestion = computed(() => {
+  const interaction = connectAgentStore.pendingInteraction;
+  return interaction?.questions?.[0]?.question
+    || interaction?.title
+    || 'Agent 需要你补充信息';
+});
+const interactionDescription = computed(() =>
+  connectAgentStore.pendingInteraction?.questions?.[0]?.header
+  || connectAgentStore.pendingInteraction?.description
+  || '');
+const interactionOptions = computed(() =>
+  connectAgentStore.pendingInteraction?.questions?.[0]?.options || []);
 const composerCanSend = computed(() => {
+  if (connectAgentStore.taskAwaitingInput) return composerStore.trimmedContent.length > 0;
   if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
   if (candidateLoading.value) return false;
   if (!project.value) return false;
   if (!connectAgentStore.activeProvider?.connected) return false;
   if (connectAgentStore.activeProvider.requiresThreadBinding
     && !connectAgentStore.activeProvider.projectThreadId) return false;
-  if (!selectedItems.value.length) return false;
-  if (searchStore.showCandidatePicker) return searchStore.selectedCandidates.length > 0;
+  if (searchStore.showCandidatePicker && /@(?:\[)?选区/.test(composerStore.trimmedContent)) {
+    return searchStore.selectedCandidates.length > 0;
+  }
   return composerStore.trimmedContent.length > 0;
 });
 
@@ -129,6 +169,11 @@ function handleAssetInsert(asset) {
 function copyRouteFilePath() {
   if (!routeFilePath.value) return;
   commands.copyText(routeFilePath.value);
+}
+
+async function submitInteractionOption(answer) {
+  if (!answer) return;
+  await connectAgentStore.answerInteraction(answer);
 }
 
 </script>

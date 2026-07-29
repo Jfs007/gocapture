@@ -86,6 +86,23 @@ function createConnectAgentService(options = {}) {
     disconnect(providerId) {
       return requireProvider(providerId).disconnect();
     },
+    async respondToInteraction(providerId, input) {
+      const provider = requireProvider(providerId);
+      provider.requireCapability('humanInTheLoop', '处理用户交互');
+      configureProviderForProject(provider, input.project);
+      const result = await provider.respondToInteraction(input);
+      const timelineMessage = appendProjectMessage(input.project, providerId, {
+        taskId: String(input.taskId || ''),
+        role: 'user',
+        kind: 'interaction-response',
+        text: interactionResponseText(input.response),
+        status: 'answered',
+        metadata: {
+          interactionId: String(input.interactionId || ''),
+        },
+      });
+      return { ...result, timelineMessage };
+    },
     async runTask(providerId, input) {
       const provider = requireProvider(providerId);
       configureProviderForProject(provider, input.project);
@@ -136,6 +153,7 @@ function createConnectAgentService(options = {}) {
             metadata: {
               eventType: String(event?.rawType || event?.type || ''),
               method: String(event?.event?.method || ''),
+              ...(event?.interaction ? { interaction: event.interaction } : {}),
             },
           });
         }
@@ -163,7 +181,10 @@ function createConnectAgentService(options = {}) {
       const prompt = buildConnectAgentTaskPrompt({
         ...input,
       });
-      const initialInstructions = connectAgentInitialInstructions();
+      const activeSelectionIds = selectionIds(input);
+      const initialInstructions = activeSelectionIds.length
+        ? connectAgentInitialInstructions()
+        : '';
       if (stagedSelectionIds.length) {
         emitProviderEvent({
           type: 'selection-references-staged',
@@ -189,7 +210,9 @@ function createConnectAgentService(options = {}) {
         }),
         status: 'prepared',
         metadata: {
-          mode: input.locatorEvidence ? 'runtime-evidence' : 'located-source',
+          mode: activeSelectionIds.length
+            ? (input.locatorEvidence ? 'runtime-evidence' : 'located-source')
+            : 'free-chat',
           promptChars: prompt.length,
           reusedThread: !!storedSession?.threadId,
         },
@@ -197,7 +220,11 @@ function createConnectAgentService(options = {}) {
       emitTimelineMessage(promptContextMessage);
       emitProviderEvent({
         type: 'prompt-ready',
-        message: `Agent 输入已准备：${input.locatorEvidence ? '运行时事实模式' : '精确位置模式'}；${prompt.length} 字符`,
+        message: `Agent 输入已准备：${
+          activeSelectionIds.length
+            ? (input.locatorEvidence ? '运行时事实模式' : '精确位置模式')
+            : '自由对话模式'
+        }；${prompt.length} 字符`,
       });
       const persistThread = thread => {
         if (!thread?.threadId) return;
@@ -273,9 +300,9 @@ function createConnectAgentService(options = {}) {
         result?.changedFiles,
         taskId,
       );
-      const activeSelectionIds = new Set(selectionIds(input));
+      const activeSelectionIdSet = new Set(activeSelectionIds);
       const refreshedSelectionLocations = loadProjectSelectionLocations(input.project)
-        .filter(reference => activeSelectionIds.has(reference.selectionId));
+        .filter(reference => activeSelectionIdSet.has(reference.selectionId));
       if (refreshedSelectionLocations.length) {
         result.selectionLocations = refreshedSelectionLocations;
       }
@@ -317,6 +344,17 @@ function selectionIds(input) {
     ? input.locatorEvidence.selections
     : []).map(item => String(item?.selectionId || ''));
   return [...new Set([...bindings, ...evidence].filter(Boolean))];
+}
+
+function interactionResponseText(response) {
+  if (typeof response === 'string') return response.trim();
+  if (String(response?.answer || '').trim()) return String(response.answer).trim();
+  if (response?.answers && typeof response.answers === 'object') {
+    return Object.entries(response.answers)
+      .map(([question, answer]) => `${question}: ${answer}`)
+      .join('\n');
+  }
+  return response?.decision === 'deny' ? '拒绝' : '允许';
 }
 
 module.exports = {

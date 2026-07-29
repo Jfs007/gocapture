@@ -132,6 +132,7 @@ export function useChatMessages() {
       currentLogs: connectAgentStore.taskLogs,
       taskStartedAt: connectAgentStore.taskStartedAt,
       taskFinishedAt: connectAgentStore.taskFinishedAt,
+      pendingInteraction: connectAgentStore.pendingInteraction,
       agentName: activeAgent?.name || '开发 Agent'
     }));
 
@@ -354,6 +355,7 @@ function connectAgentTimelineMessages({
   currentLogs,
   taskStartedAt,
   taskFinishedAt,
+  pendingInteraction,
   agentName
 }: {
   records: any[];
@@ -362,6 +364,7 @@ function connectAgentTimelineMessages({
   currentLogs: string[];
   taskStartedAt: number;
   taskFinishedAt: number;
+  pendingInteraction: any;
   agentName: string;
 }) {
   const groups = new Map<string, {
@@ -407,7 +410,8 @@ function connectAgentTimelineMessages({
     }
 
     const isCurrent = currentTask?.taskId === group.taskId;
-    const running = isCurrent && taskStatus === 'running';
+    const running = isCurrent && (taskStatus === 'running' || taskStatus === 'waiting-input');
+    const waitingInput = isCurrent && taskStatus === 'waiting-input';
     const result = group.result;
     const durationStartedAt = timestampOf(group.request?.createdAt)
       || timestampOf(group.firstAt)
@@ -447,14 +451,18 @@ function connectAgentTimelineMessages({
       id: `connect-agent-agent-${group.taskId}`,
       role: 'agent',
       title: `${agentName} 开发任务`,
-      text: running
+      text: waitingInput
+        ? `${agentName} 需要你补充信息后继续。`
+        : running
         ? `${agentName} 正在项目中执行修改和验证。`
         : result?.kind === 'error'
           ? `${agentName} 开发任务失败。`
           : result
             ? `${agentName} 已完成项目修改。`
             : `${agentName} 开发任务未完成。`,
-      pre: result?.text || (!running && isCurrent ? currentTask?.finalResponse || '' : ''),
+      pre: waitingInput
+        ? interactionPrompt(pendingInteraction)
+        : result?.text || (!running && isCurrent ? currentTask?.finalResponse || '' : ''),
       diffs: selectionDiffs,
       logs,
       createdAt: running
@@ -472,6 +480,23 @@ function connectAgentTimelineMessages({
     });
   }
   return messages;
+}
+
+function interactionPrompt(interaction: any) {
+  if (!interaction) return '';
+  if (interaction.kind === 'permission') {
+    return [interaction.title, interaction.description].filter(Boolean).join('\n');
+  }
+  return (Array.isArray(interaction.questions) ? interaction.questions : [])
+    .map((question: any) => {
+      const options = (Array.isArray(question.options) ? question.options : [])
+        .map((option: any) => option.label)
+        .filter(Boolean);
+      return [question.question, options.length ? `可选：${options.join(' / ')}` : '']
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n\n');
 }
 
 function uniqueLines(lines: string[]) {

@@ -4,14 +4,14 @@ const assert = require('assert');
 const test = require('node:test');
 const { normalizeAuthState } = require('./auth-store');
 
-test('auth state migrates legacy credentials without exposing brands to each other', () => {
-  const migrated = normalizeAuthState({
+test('auth state accepts only the current profile format', () => {
+  const obsolete = normalizeAuthState({
     mode: 'apikey',
     backendId: 'deepseek',
     apiKey: 'sk-deepseek',
   });
-  assert.strictEqual(migrated.activeBackendId, 'deepseek');
-  assert.strictEqual(migrated.profiles.deepseek.apiKey, 'sk-deepseek');
+  assert.strictEqual(obsolete.activeBackendId, '');
+  assert.deepStrictEqual(obsolete.profiles, {});
 
   const state = normalizeAuthState({
     version: 2,

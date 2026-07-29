@@ -55,6 +55,10 @@ class AgentAdapter {
   async readThread() {
     this.requireCapability('threadBinding', '读取已有任务');
   }
+
+  async respondToInteraction() {
+    this.requireCapability('humanInTheLoop', '处理用户交互');
+  }
 }
 
 function normalizeManifest(raw) {
@@ -66,6 +70,7 @@ function normalizeManifest(raw) {
     threadBinding: false,
     requiresThreadBinding: false,
     modelBackendConfiguration: false,
+    humanInTheLoop: false,
     ...(raw?.capabilities || {}),
   };
   if (capabilities.requiresThreadBinding) capabilities.threadBinding = true;
