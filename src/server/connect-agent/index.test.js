@@ -68,6 +68,19 @@ test('connect service is driven by adapter capabilities instead of provider ids'
     JSON.stringify({ proxy: 'http://127.0.0.1:7890' }),
   );
   const adapter = new FakeAgent();
+  let taskInput;
+  adapter.runTask = async input => {
+    taskInput = input;
+    return {
+      taskId: input.taskId,
+      threadId: 'thread_1',
+      turnId: 'turn_1',
+      status: 'completed',
+      finalResponse: '{"summary":"done","selectionLocations":[]}',
+      changedFiles: [],
+      selectionLocations: [],
+    };
+  };
   const service = createConnectAgentService({
     registry: new AgentRegistry([adapter]),
   });
@@ -81,6 +94,43 @@ test('connect service is driven by adapter capabilities instead of provider ids'
 
   assert.equal(result.status, 'completed');
   assert.equal(adapter.proxy, 'http://127.0.0.1:7890');
+  assert.deepEqual(taskInput.allowedSelectionIds, []);
+});
+
+test('connect service limits Agent local tools to selections referenced by this task', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-agent-tools-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const adapter = new FakeAgent();
+  let taskInput;
+  adapter.runTask = async input => {
+    taskInput = input;
+    return {
+      taskId: input.taskId,
+      threadId: 'thread_1',
+      turnId: 'turn_1',
+      status: 'completed',
+      finalResponse: '{"summary":"done","selectionLocations":[]}',
+      changedFiles: [],
+      selectionLocations: [],
+    };
+  };
+  const service = createConnectAgentService({
+    registry: new AgentRegistry([adapter]),
+  });
+
+  await service.runTask('fake', {
+    project: { path: root },
+    userInstruction: '@selection_active 修改',
+    selectionBindings: [{
+      uid: 'selection_active',
+      binding: { targets: [] },
+    }, {
+      uid: '',
+      binding: { targets: [] },
+    }],
+  });
+
+  assert.deepEqual(taskInput.allowedSelectionIds, ['selection_active']);
 });
 
 test('any adapter can require a bound thread through its manifest', async t => {

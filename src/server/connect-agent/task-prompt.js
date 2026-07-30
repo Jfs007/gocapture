@@ -40,6 +40,11 @@ function buildConnectAgentTaskPrompt({
       '',
       '以下选区尚未定位。请把这些经过压缩的运行时 DOM 作为首轮定位证据：',
       JSON.stringify(runtimeEvidence, null, 2),
+      '',
+      'Evidence Gate：在调用任何源码读取、检索或项目扩展前，必须先对每个选区二选一：',
+      '- 当前 DOM 足以开始针对性源码验证：调用 accept_selection_evidence。',
+      '- 当前 DOM 缺少辨识所需的周围结构：立即调用 expand_selection_context，不要先做宽泛源码调查。',
+      '扩区只补充上下文，修改目标始终是原始选区；收到扩区结果后重新执行 Evidence Gate。',
       '完成需求时，同时返回每个选区实际对应的源码文件和精确行区间。不要把 DOM、路由或推理过程写入选区文件。',
     );
   }

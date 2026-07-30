@@ -10,6 +10,13 @@ const {
   loadProjectAgentSettings,
   saveProjectAgentSettings,
 } = require('../../connect-agent/project-settings');
+const {
+  deleteProjectMcp,
+  deleteProjectSkill,
+  listProjectExtensions,
+  saveProjectMcp,
+  saveProjectSkill,
+} = require('../../connect-agent/project-extensions');
 
 async function handleConnectAgentRoutes({
   req,
@@ -22,6 +29,58 @@ async function handleConnectAgentRoutes({
   sendStreamHeaders,
   writeStreamEvent,
 }) {
+  if (url.pathname === '/api/connect-agents/extensions' && req.method === 'GET') {
+    const projectRoot = String(url.searchParams.get('projectRoot') || '').trim();
+    const providerId = String(url.searchParams.get('providerId') || '').trim();
+    const project = projectContext.resolve(projectRoot);
+    const providers = await connectAgent.list();
+    const provider = providers.find(item => item.id === providerId)
+      || providers.find(item => item.connected)
+      || null;
+    sendJson(res, 200, {
+      success: true,
+      extensions: listProjectExtensions(project, provider),
+    });
+    return true;
+  }
+
+  if (
+    (url.pathname === '/api/connect-agents/extensions/mcp'
+      || url.pathname === '/api/connect-agents/extensions/skill')
+    && (req.method === 'POST' || req.method === 'DELETE')
+  ) {
+    const body = await readBody(req);
+    const project = projectContext.resolve(body.projectRoot);
+    const isMcp = url.pathname.endsWith('/mcp');
+    const result = req.method === 'POST'
+      ? (isMcp
+          ? saveProjectMcp(project, body.extension)
+          : saveProjectSkill(project, body.extension))
+      : (isMcp
+          ? deleteProjectMcp(project, body.name)
+          : deleteProjectSkill(project, body.name));
+    await connectAgent.reloadProjectExtensions(project);
+    const provider = (await connectAgent.list()).find(item => item.connected) || null;
+    sendJson(res, 200, {
+      success: true,
+      result,
+      extensions: listProjectExtensions(project, provider),
+    });
+    return true;
+  }
+
+  if (url.pathname === '/api/connect-agents/extensions/reload' && req.method === 'POST') {
+    const body = await readBody(req);
+    const project = projectContext.resolve(body.projectRoot);
+    await connectAgent.reloadProjectExtensions(project);
+    const provider = (await connectAgent.list()).find(item => item.connected) || null;
+    sendJson(res, 200, {
+      success: true,
+      extensions: listProjectExtensions(project, provider),
+    });
+    return true;
+  }
+
   if (url.pathname === '/api/connect-agents/settings' && req.method === 'GET') {
     const projectRoot = String(url.searchParams.get('projectRoot') || '').trim();
     const project = projectContext.resolve(projectRoot);
@@ -169,6 +228,22 @@ async function handleConnectAgentRoutes({
       taskId: interactionMatch[2],
       interactionId: interactionMatch[3],
       response: body.response,
+    });
+    sendJson(res, 200, { success: true, ...result });
+    return true;
+  }
+
+  const agentToolMatch = url.pathname.match(
+    /^\/api\/connect-agents\/([^/]+)\/tasks\/([^/]+)\/tools\/([^/]+)$/,
+  );
+  if (agentToolMatch && req.method === 'POST') {
+    const body = await readBody(req);
+    const project = projectContext.resolve(body.projectRoot);
+    const result = await connectAgent.respondToAgentTool(agentToolMatch[1], {
+      project,
+      taskId: agentToolMatch[2],
+      callId: agentToolMatch[3],
+      result: body.result,
     });
     sendJson(res, 200, { success: true, ...result });
     return true;

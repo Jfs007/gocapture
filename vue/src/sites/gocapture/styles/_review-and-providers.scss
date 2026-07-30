@@ -1,0 +1,666 @@
+.mda-diff-review {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1040px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 40px));
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 56px rgba(16, 24, 40, 0.22);
+}
+
+.mda-diff-review-body {
+  display: grid;
+  grid-template-columns: minmax(210px, 28%) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.mda-diff-file-list {
+  overflow: auto;
+  padding: 8px;
+  border-right: 1px solid #eaecf0;
+  background: #f9fafb;
+}
+
+.mda-diff-file-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #344054;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-diff-file-list button:hover,
+.mda-diff-file-list button.is-active {
+  background: #eaf2ff;
+  color: #175cd3;
+}
+
+.mda-diff-file-list button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.mda-diff-code {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.mda-diff-code > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.mda-diff-code > header button {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #175cd3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mda-diff-code > header span {
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.mda-diff-lines {
+  overflow: auto;
+  background: #fff;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.mda-diff-line {
+  display: grid;
+  grid-template-columns: 24px minmax(max-content, 1fr);
+  min-height: 20px;
+  color: #344054;
+}
+
+.mda-diff-line > span {
+  padding: 1px 6px;
+  color: #98a2b3;
+  text-align: center;
+  user-select: none;
+}
+
+.mda-diff-line code {
+  padding: 1px 10px;
+  white-space: pre;
+}
+
+.mda-diff-line.is-added {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.mda-diff-line.is-removed {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.mda-diff-line.is-hunk {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.mda-diff-line.is-meta {
+  color: #667085;
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  .mda-diff-review-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .mda-diff-file-list {
+    display: flex;
+    gap: 4px;
+    max-height: 110px;
+    border-right: 0;
+    border-bottom: 1px solid #eaecf0;
+  }
+
+  .mda-diff-file-list button {
+    flex: 0 0 min(260px, 80vw);
+  }
+}
+
+.mda-agent-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 18px 20px 6px;
+}
+
+.mda-agent-common-settings {
+  display: grid;
+  gap: 10px;
+  margin: 16px 20px 0;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.mda-agent-common-settings > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.mda-agent-common-settings strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.mda-agent-common-settings small {
+  color: #667085;
+  font-size: 10px;
+}
+
+.mda-agent-proxy-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.mda-agent-proxy-control input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+}
+
+.mda-agent-proxy-control input:focus {
+  border-color: #1677ff;
+  outline: 2px solid rgba(22, 119, 255, 0.12);
+}
+
+.mda-agent-proxy-control button {
+  min-width: 58px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+}
+
+.mda-agent-proxy-control button:hover:not(:disabled) {
+  border-color: #98a2b3;
+  background: #f2f4f7;
+}
+
+.mda-agent-proxy-control button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.mda-agent-provider-shell {
+  position: relative;
+  min-width: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.mda-agent-provider-shell:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-agent-provider-shell.is-selected {
+  border-color: #1677ff;
+  background: #f5f9ff;
+}
+
+.mda-agent-provider-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 76px;
+  padding: 11px;
+  border: 0;
+  background: transparent;
+  color: #344054;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-agent-provider-card:hover:not(:disabled) {
+  background: rgba(242, 244, 247, 0.72);
+}
+
+.mda-agent-provider-card:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.mda-agent-provider-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 6px;
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.mda-model-brand-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  line-height: 1;
+}
+
+.mda-model-brand-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mda-model-brand-icon b {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2f6;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.mda-project-config-title,
+.mda-provider-mode-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mda-provider-mode-title > span:not(.mda-provider-brand-select) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-agent-provider-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.mda-agent-provider-main strong,
+.mda-agent-provider-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-agent-provider-main strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-agent-provider-main small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.mda-agent-provider-state {
+  grid-column: 2;
+  color: #667085;
+  font-size: 10px;
+}
+
+.mda-agent-provider-state.is-connected {
+  color: #067647;
+}
+
+.mda-agent-provider-config {
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  border: 0;
+  border-top: 1px solid #eaecf0;
+  background: transparent;
+  color: #175cd3;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+}
+
+.mda-agent-provider-config:hover:not(:disabled) {
+  background: #eff8ff;
+}
+
+.mda-provider-config-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 56px rgba(16, 24, 40, 0.22);
+}
+
+.mda-provider-config-body {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.mda-provider-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mda-provider-mode-options legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-provider-mode-options label {
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.mda-provider-mode-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mda-provider-mode-options label > span {
+  display: grid;
+  min-height: 72px;
+  align-content: start;
+  gap: 5px;
+  padding: 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.mda-provider-mode-options input:checked + span {
+  border-color: #1677ff;
+  background: #f5f9ff;
+  box-shadow: inset 0 0 0 1px #1677ff;
+}
+
+.mda-provider-mode-options input:focus-visible + span {
+  outline: 2px solid #84adff;
+  outline-offset: 2px;
+}
+
+.mda-provider-mode-options strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-provider-mode-options small {
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mda-provider-brand-select {
+  position: relative;
+  display: inline-grid;
+  min-width: 18px;
+  margin-left: auto;
+}
+
+.mda-provider-brand-select select {
+  position: absolute;
+  inset: -8px -5px -8px -120px;
+  width: 143px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.mda-provider-brand-select i {
+  width: 0;
+  height: 0;
+  border-top: 5px solid #667085;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  pointer-events: none;
+}
+
+.mda-provider-brand-select:focus-within i {
+  border-top-color: #1677ff;
+}
+
+.mda-provider-mode-explanation {
+  margin: -6px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid #84adff;
+  background: #f5f9ff;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.mda-provider-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mda-provider-config-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mda-provider-config-field > span {
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-provider-config-field input,
+.mda-provider-config-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.mda-provider-config-field input:focus,
+.mda-provider-config-field select:focus {
+  border-color: #1677ff;
+  outline: 2px solid rgba(22, 119, 255, 0.12);
+}
+
+.mda-provider-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #eaecf0;
+}
+
+.mda-provider-config-actions button {
+  min-width: 76px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mda-provider-config-actions button.is-primary {
+  border-color: #1677ff;
+  background: #1677ff;
+  color: #fff;
+}
+
+.mda-provider-config-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.mda-agent-provider-note {
+  margin: 16px 20px 20px;
+  padding: 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 560px) {
+  .mda-agent-provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-provider-mode-options,
+  .mda-provider-config-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-agent-proxy-control {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mda-thread-group {
+  padding: 18px 20px 4px;
+}
+
+.mda-thread-group:last-of-type {
+  padding-bottom: 20px;
+}
+
+.mda-thread-group h3 {
+  margin: 0 0 8px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.mda-thread-list {
+  display: grid;
+  gap: 2px;
+}
+
+.mda-thread-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #101828;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-thread-row:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+
+.mda-thread-row:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.mda-thread-row-main,
+.mda-thread-row-meta {
+  display: grid;
+  min-width: 0;
+}
+
+.mda-thread-row-main {
+  gap: 4px;
+}
+
+.mda-thread-row-main strong,
+.mda-thread-row-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-thread-row-main strong {
+  font-size: 14px;
+}
+
+.mda-thread-row-main span,
+.mda-thread-row-meta time {
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-thread-row-meta {
+  gap: 4px;
+  justify-items: end;
+}
+
+.mda-thread-row-meta > span {
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-thread-group-empty {
+  margin: 0;
+  padding: 14px 10px;
+  color: #98a2b3;
+  font-size: 13px;
+}

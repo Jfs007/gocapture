@@ -1,0 +1,1284 @@
+/* Claude Code 授权表单 */
+.mda-cca-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin: 4px 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.03);
+}
+.mda-cca-tabs {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+}
+.mda-cca-tab {
+  flex: 1;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.6);
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mda-cca-tab.is-active {
+  background: #fff;
+  color: var(--primary-color, #0091ff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  font-weight: 600;
+}
+.mda-cca-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.mda-cca-input:focus {
+  border-color: var(--primary-color, #0091ff);
+}
+.mda-cca-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.5);
+}
+.mda-cca-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.mda-cca-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.mda-cca-btn.is-primary {
+  background: var(--primary-color, #0091ff);
+  color: #fff;
+}
+.mda-cca-btn.is-ghost {
+  background: transparent;
+  color: rgba(15, 23, 42, 0.55);
+}
+.mda-cca-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mda-tool-icon-btn,
+.mda-send-btn {
+  flex: 0 0 auto;
+}
+
+.mda-tool-icon-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.mda-tool-icon-btn::before,
+.mda-tool-icon-btn::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.mda-tool-icon-btn::after {
+  transform: rotate(90deg);
+}
+
+.mda-tool-icon-btn:hover {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.mda-tool-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mda-assist-chip,
+.mda-inline-text-btn,
+.mda-model-trigger {
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #344054;
+  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-assist-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px;
+  color: #344054;
+  cursor: pointer;
+}
+
+.mda-assist-chip.is-active {
+  color: #1d87f5;
+}
+
+.mda-assist-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mda-chip-shield {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.mda-chip-shield::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 3px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(38deg);
+}
+
+.mda-inline-text-btn {
+  max-width: 90px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 31px;
+}
+
+.mda-inline-text-btn:hover {
+  color: #101828;
+}
+
+.mda-project-config-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mda-project-config-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  min-height: 68px;
+  padding: 11px 13px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #475467;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-project-config-card:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-project-config-card.is-agent-primary {
+  border-left: 3px solid #1677ff;
+  background: #f8fbff;
+}
+
+.mda-project-config-main {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.mda-project-config-card strong,
+.mda-project-config-card small,
+.mda-project-config-card em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-project-config-card strong {
+  color: #101828;
+  font-size: 12px;
+}
+
+.mda-project-config-card small {
+  color: #667085;
+  font-size: 10px;
+}
+
+.mda-project-config-card em {
+  color: #667085;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.mda-project-config-card.is-agent-primary em {
+  color: #1677ff;
+}
+
+.mda-locator-optional-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-locator-optional-row > span:first-child {
+  display: inline-flex;
+  gap: 7px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mda-locator-optional-row strong {
+  color: #475467;
+  font-size: 11px;
+}
+
+.mda-locator-optional-row small {
+  overflow: hidden;
+  color: #98a2b3;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-locator-optional-row b {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.mda-locator-optional-row:hover strong,
+.mda-locator-optional-row:hover b {
+  color: #175cd3;
+}
+
+.mda-project-config-card b {
+  color: #1677ff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mda-locator-card-help {
+  position: relative;
+  display: inline-flex;
+  grid-column: 1 / -1;
+  justify-self: end;
+  align-items: center;
+  color: #1677ff;
+  font-size: 11px;
+  font-weight: 400;
+  cursor: help;
+  outline: none;
+}
+
+.mda-locator-card-help:hover {
+  color: #0958d9;
+  text-decoration: underline;
+}
+
+.mda-locator-help-tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  width: min(300px, calc(100vw - 48px));
+  padding: 9px 11px;
+  border-radius: 6px;
+  background: #101828;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.mda-locator-card-help:hover .mda-locator-help-tip,
+.mda-locator-optional-row:focus-visible .mda-locator-help-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mda-build-version {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 31px;
+  color: #98a2b3;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.mda-model-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.mda-model-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 160px;
+  min-width: 0;
+  padding: 0 2px;
+  color: #101828;
+  cursor: pointer;
+}
+
+.mda-model-trigger.is-active {
+  color: #1d4ed8;
+}
+
+.mda-model-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mda-model-trigger strong,
+.mda-model-trigger em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-model-trigger strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mda-model-trigger em {
+  color: #667085;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.mda-model-trigger i {
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid #667085;
+  border-bottom: 2px solid #667085;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.mda-model-dropdown {
+  position: absolute;
+  right: -8px;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  display: grid;
+  gap: 4px;
+  width: 220px;
+  padding: 10px;
+  border: 1px solid #e4e7ec;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.mda-model-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #101828;
+  cursor: pointer;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  text-align: left;
+}
+
+.mda-model-option:hover,
+.mda-model-option.is-selected {
+  background: #f5f7fb;
+}
+
+.mda-model-option.is-selected::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 6px;
+  height: 10px;
+  margin-left: 4px;
+  border-right: 2px solid #111827;
+  border-bottom: 2px solid #111827;
+  transform: rotate(45deg);
+}
+
+.mda-model-option span,
+.mda-model-option em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-model-option span {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mda-model-option em {
+  color: #667085;
+  font-style: normal;
+}
+
+.mda-model-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: #eceff3;
+}
+
+.mda-send-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #161b22;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-send-arrow {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.mda-send-arrow::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.mda-send-arrow::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  transform: rotate(45deg);
+}
+
+.mda-send-btn:not(:disabled):hover {
+  background: #1f2937;
+}
+
+.mda-send-btn.is-stopping {
+  border-color: #101828;
+  background: #101828;
+  color: #ffffff;
+  opacity: 0.72;
+}
+
+.mda-send-btn.is-stopping:not(:disabled):hover {
+  background: #101828;
+  opacity: 0.86;
+}
+
+.mda-stop-icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: currentColor;
+}
+
+.mda-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 460px) {
+  .mda-composer-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mda-toolbar-left,
+  .mda-toolbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mda-model-trigger {
+    max-width: 140px;
+  }
+
+  .mda-model-dropdown {
+    right: 0;
+    width: min(220px, calc(100vw - 40px));
+  }
+}
+
+.mda-floating-note {
+  border-color: #d0d5dd;
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.22);
+}
+
+.mda-floating-textarea {
+  border-color: #d0d5dd;
+  border-radius: 9px;
+}
+
+.mda-floating-textarea:focus {
+  border-color: #101828;
+  box-shadow: 0 0 0 3px rgba(16, 24, 40, 0.1);
+}
+
+.mda-settings-trigger {
+  flex: 0 0 auto;
+  font-size: 16px;
+}
+
+.mda-memory-shell {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #f7f8fa;
+  color: #1f2328;
+}
+
+.mda-memory-head {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid #d8dee6;
+  background: #ffffff;
+}
+
+.mda-memory-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.mda-memory-head strong {
+  font-size: 14px;
+}
+
+.mda-memory-head span {
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-memory-close {
+  font-size: 21px;
+}
+
+.mda-memory-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid #d8dee6;
+  background: #ffffff;
+}
+
+.mda-memory-tabs button {
+  min-width: 0;
+  height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mda-memory-tabs button:hover {
+  color: #111827;
+  background: #f8fafc;
+}
+
+.mda-memory-tabs button.is-active {
+  border-bottom-color: #2563eb;
+  color: #111827;
+  font-weight: 700;
+}
+
+.mda-memory-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
+.mda-memory-feedback {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid #abefc6;
+  border-radius: 6px;
+  background: #ecfdf3;
+  color: #067647;
+  font-size: 12px;
+}
+
+.mda-memory-feedback.is-error {
+  border-color: #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.mda-memory-state,
+.mda-memory-empty {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 180px;
+  padding: 24px;
+  color: #667085;
+  text-align: center;
+}
+
+.mda-memory-state.is-error {
+  color: #b42318;
+}
+
+.mda-memory-state button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.mda-memory-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mda-memory-field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mda-memory-field > span {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mda-memory-field small {
+  color: #98a2b3;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.mda-memory-field input,
+.mda-memory-field select,
+.mda-memory-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2937;
+  outline: none;
+  font: inherit;
+}
+
+.mda-memory-field input,
+.mda-memory-field select {
+  height: 34px;
+  padding: 0 9px;
+}
+
+.mda-memory-field textarea {
+  min-height: 66px;
+  padding: 8px 9px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.mda-memory-field textarea.is-code {
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-memory-field input:focus,
+.mda-memory-field select:focus,
+.mda-memory-field textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.mda-memory-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mda-memory-advanced {
+  border-top: 1px solid #e4e7ec;
+  padding-top: 10px;
+}
+
+.mda-memory-advanced summary {
+  cursor: pointer;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-memory-advanced[open] {
+  display: grid;
+  gap: 12px;
+}
+
+.mda-memory-advanced[open] summary {
+  margin-bottom: 2px;
+}
+
+.mda-memory-actions {
+  position: sticky;
+  bottom: -14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0 14px;
+  background: #f7f8fa;
+}
+
+.mda-memory-actions button {
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.mda-memory-actions button.is-primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.mda-memory-actions button.is-danger {
+  border-color: #fda29b;
+  color: #b42318;
+}
+
+.mda-memory-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.mda-locator-settings {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.mda-locator-choice {
+  display: grid;
+  gap: 6px;
+}
+
+.mda-locator-choice-label {
+  margin-bottom: 2px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mda-locator-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mda-locator-option:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-locator-option.is-selected {
+  border-color: #1677ff;
+  background: #f5f9ff;
+}
+
+.mda-locator-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 6px;
+}
+
+.mda-locator-option-edit {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  align-self: center;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #475467;
+  cursor: pointer;
+}
+
+.mda-locator-option-edit:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+  color: #101828;
+}
+
+.mda-locator-option > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.mda-locator-option strong,
+.mda-locator-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-locator-option strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-locator-option small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.mda-locator-radio {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #98a2b3;
+  border-radius: 50%;
+}
+
+.mda-locator-option.is-selected .mda-locator-radio {
+  border-color: #1677ff;
+}
+
+.mda-locator-option.is-selected .mda-locator-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #1677ff;
+}
+
+.mda-locator-settings-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.mda-locator-settings-intro strong {
+  color: #101828;
+  font-size: 15px;
+}
+
+.mda-locator-settings-intro p {
+  max-width: 620px;
+  margin: 5px 0 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mda-locator-settings-intro > span {
+  flex: 0 0 auto;
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-locator-settings-intro > span.is-enabled {
+  color: #067647;
+}
+
+.mda-locator-add-row {
+  display: flex;
+}
+
+.mda-locator-add-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  background: transparent;
+  color: #1677ff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mda-locator-add-row button:hover {
+  color: #0958d9;
+  background: #f5f9ff;
+}
+
+.mda-memory-section-title {
+  margin-top: 4px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.mda-memory-tool,
+.mda-memory-provider {
+  display: grid;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.mda-memory-tool > div,
+.mda-memory-provider > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mda-memory-tool strong,
+.mda-memory-provider strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.mda-memory-tool small,
+.mda-memory-provider small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.mda-memory-tool p,
+.mda-memory-provider p {
+  margin: 0;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mda-agent-capability-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.mda-agent-capability-head strong {
+  color: #101828;
+  font-size: 15px;
+}
+
+.mda-agent-capability-head p {
+  max-width: 640px;
+  margin: 5px 0 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mda-agent-capability-head button,
+.mda-agent-capability-title > button {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mda-agent-capability-head button:hover,
+.mda-agent-capability-title > button:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.mda-agent-capability-head button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.mda-agent-capabilities {
+  display: grid;
+  gap: 28px;
+  margin-top: 22px;
+}
+
+.mda-agent-capability-section {
+  display: grid;
+  gap: 10px;
+}
+
+.mda-agent-capability-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mda-agent-capability-title > div {
+  display: grid;
+  gap: 3px;
+}
+
+.mda-agent-capability-title strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-agent-capability-title span,
+.mda-agent-capability-title small,
+.mda-agent-capability-title em {
+  color: #667085;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.mda-agent-capability-title em.is-active {
+  color: #067647;
+}
+
+.mda-agent-capability-title code {
+  color: #475467;
+  font: inherit;
+}
+
+.mda-agent-capability-list {
+  overflow: hidden;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mda-agent-capability-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 58px;
+  padding: 11px 13px;
+}
+
+.mda-agent-capability-item + .mda-agent-capability-item {
+  border-top: 1px solid #eaecf0;
+}
+
+.mda-agent-capability-item > div:first-child {
+  min-width: 0;
+}
+
+.mda-agent-capability-item strong {
+  display: block;
+  overflow: hidden;
+  color: #101828;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-agent-capability-item p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-agent-capability-item > small,
+.mda-agent-capability-actions small {
+  flex: 0 0 auto;
+  color: #98a2b3;
+  font-size: 10px;
+}
+
+.mda-agent-capability-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mda-agent-capability-actions button {
+  padding: 3px 5px;
+  border: 0;
+  background: transparent;
+  color: #1677ff;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.mda-agent-capability-actions button.is-danger {
+  color: #d92d20;
+}
+
+.mda-agent-capability-empty {
+  padding: 18px;
+  border: 1px dashed #d0d5dd;
+  border-radius: 8px;
+  color: #98a2b3;
+  font-size: 12px;
+  text-align: center;
+}
+
+.mda-extension-editor {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.mda-extension-form {
+  display: grid;
+  gap: 14px;
+}
+
+.mda-extension-form label {
+  display: grid;
+  gap: 6px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.mda-extension-form label > span {
+  font-weight: 650;
+}
+
+.mda-extension-form label small {
+  color: #98a2b3;
+  font-weight: 400;
+}
+
+.mda-extension-form textarea.mda-model-input {
+  height: auto;
+  padding: 9px 11px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.mda-extension-form .is-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-memory-project-note {
+  margin-bottom: 10px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-memory-project-doc {
+  min-height: 240px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mda-chat-body {
+  height: calc(100vh - 52px);
+}

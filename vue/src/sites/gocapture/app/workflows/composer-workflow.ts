@@ -5,7 +5,10 @@ import {
 } from '../services/selection-source-context';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
-import { runConnectAgentTask } from '../services/connect-agent.service';
+import {
+  respondConnectAgentTool,
+  runConnectAgentTask
+} from '../services/connect-agent.service';
 import type { GoCaptureRuntimeState } from '../runtime/context';
 import { PRODUCT_NAME } from '../config/product';
 import type { SelectionSourceBinding } from '../types/selection.types';
@@ -20,6 +23,7 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
   // 原始选区 DOM 身份的快照（扩区前抓取，全程保留）。用于把「用户到底选了什么」传给变更计划 LLM——
   // 否则扩区后 selectedItems 变成整行、¥3 这类无锚点选区身份就彻底丢了，LLM 只能在区域里瞎猜。
   let lastOriginSelections: any[] = [];
+  const activeAgentToolCalls = new Set<string>();
   // 从祖先链提取「稳定容器标识」，说明选区落在哪（如所在列 data-col-key=cost → 源码列配置 key:'cost'）。
   // 通用机制：任何祖先上形如业务标识符的 data-*/id/name 值都算，排除运行时/框架内部值。
   function ancestorContainerAnchors(el: any): string[] {
@@ -476,6 +480,13 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
         controller,
         onEvent: event => {
           connectAgentStore.applyTaskEvent(event);
+          const eventType = String(event?.rawType || event?.type || '');
+          const capability = event?.capability
+            || event?.timelineMessage?.metadata?.capability
+            || null;
+          if (eventType === 'agent-tool-required' && capability?.callId) {
+            void fulfillAgentTool(provider.id, capability);
+          }
           if (event?.type === 'locator-evidence' && event.evidence?.route) {
             route.applyRouteResolverTrace({
               pagePath: event.evidence.route.pagePath,
@@ -498,6 +509,125 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
       appUiStore.setToast((error as Error)?.message || `${provider.name} 开发任务失败`);
     }
     return true;
+  }
+
+  async function fulfillAgentTool(providerId: string, capability: any) {
+    const callId = String(capability?.callId || '').trim();
+    const selectionId = String(capability?.input?.selectionId || '').trim();
+    if (!callId || !selectionId || activeAgentToolCalls.has(callId)) return;
+    activeAgentToolCalls.add(callId);
+    let result: Record<string, unknown>;
+    try {
+      const before = selectionSnapshotById(selectionId);
+      if (!before.uid) throw new Error('Agent 请求的选区不在本轮页面资产中');
+      const beforePayload: any = prompt.searchPayload({ expandedRetry: true });
+      const originalSelection = selectionFromPayload(beforePayload, selectionId);
+      const targetSelection = originalSelection?.originalElement
+        ? {
+            ...originalSelection,
+            element: originalSelection.originalElement
+          }
+        : originalSelection;
+      search.appendProcessLog?.(
+        `Agent Tool：扩大选区 ${selectionId}；原因：${capability?.input?.reason || '当前证据不足'}`
+      );
+      await selection.expandSelection(selectionId);
+      const changed = await waitForSelectionSnapshotChange(before);
+      const payload: any = prompt.searchPayload({ expandedRetry: true });
+      const expandedSelection = selectionFromPayload(payload, selectionId);
+      result = {
+        success: changed,
+        selectionId,
+        pageUrl: String(payload?.pageUrl || state.currentPageHref.value || ''),
+        pagePath: String(payload?.pagePath || ''),
+        targetSelection,
+        expandedContext: markOriginalSelection(
+          expandedSelection,
+          targetSelection,
+          selectionId
+        ),
+        targetContract: [
+          'The user request applies only to targetSelection.',
+          'expandedContext is location evidence only and must not replace or broaden the target.',
+          'When markerEmbedded is true, the original target is enclosed by',
+          'GOCAPTURE_ORIGINAL_SELECTION_START/END comments inside the expanded markup.'
+        ].join(' '),
+        message: changed
+          ? 'The browser context was expanded while the original modification target was preserved.'
+          : 'The browser selection could not be expanded further.'
+      };
+      search.appendProcessLog?.(
+        changed
+          ? `Agent Tool：选区 ${selectionId} 扩区完成，事实已返回 Agent`
+          : `Agent Tool：选区 ${selectionId} 已无法继续扩区`
+      );
+    } catch (error) {
+      result = {
+        success: false,
+        selectionId,
+        error: (error as Error)?.message || String(error)
+      };
+    }
+    try {
+      await respondConnectAgentTool(
+        providerId,
+        projectRoot(),
+        capability.taskId,
+        callId,
+        result
+      );
+    } catch (error) {
+      search.appendProcessLog?.(
+        `Agent Tool 返回失败：${(error as Error)?.message || String(error)}`
+      );
+    } finally {
+      activeAgentToolCalls.delete(callId);
+    }
+  }
+
+  function selectionFromPayload(payload: any, selectionId: string) {
+    return (Array.isArray(payload?.selections) ? payload.selections : [])
+      .find((item: any) => String(item?.uid || item?.selectionId || '') === selectionId)
+      || null;
+  }
+
+  function markOriginalSelection(expanded: any, target: any, selectionId: string) {
+    if (!expanded) return {
+      markerEmbedded: false,
+      selection: null
+    };
+    const expandedElement = expanded.element || {};
+    const targetElement = target?.element || {};
+    const targetMarkup = String(
+      targetElement.rawOuterHtml
+      || targetElement.outerHtml
+      || ''
+    );
+    const markerStart = `<!-- GOCAPTURE_ORIGINAL_SELECTION_START ${selectionId} -->`;
+    const markerEnd = `<!-- GOCAPTURE_ORIGINAL_SELECTION_END ${selectionId} -->`;
+    let markerEmbedded = false;
+    const markedElement = { ...expandedElement };
+    for (const key of ['rawOuterHtml', 'outerHtml']) {
+      const markup = String(expandedElement?.[key] || '');
+      if (!targetMarkup || !markup.includes(targetMarkup)) continue;
+      markedElement[key] = markup.replace(
+        targetMarkup,
+        `${markerStart}${targetMarkup}${markerEnd}`
+      );
+      markerEmbedded = true;
+    }
+    return {
+      markerEmbedded,
+      marker: {
+        selectionId,
+        start: markerStart,
+        end: markerEnd
+      },
+      selection: {
+        ...expanded,
+        element: markedElement
+      }
+    };
   }
 
   return {

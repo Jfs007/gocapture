@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const { normalizeAgentEvent } = require('./core/agent-event');
+const { createProjectExtensionSession } = require('./core/project-extension-session');
 const { createDefaultAgentRegistry } = require('./providers');
 const { appendProjectMessage } = require('./message-store');
 const {
@@ -50,6 +51,11 @@ function createConnectAgentService(options = {}) {
     },
     async inspect(providerId) {
       return requireProvider(providerId).inspect();
+    },
+    async reloadProjectExtensions(project) {
+      await Promise.all(registry.values().map(provider => (
+        provider.reloadProjectExtensions?.(project)
+      )));
     },
     projectSession(providerId, project) {
       return loadProjectAgentSession(project, providerId);
@@ -103,6 +109,13 @@ function createConnectAgentService(options = {}) {
       });
       return { ...result, timelineMessage };
     },
+    async respondToAgentTool(providerId, input) {
+      const provider = requireProvider(providerId);
+      provider.requireCapability('externalTools', '处理本地工具调用');
+      configureProviderForProject(provider, input.project);
+      const result = await provider.respondToAgentTool(input);
+      return result;
+    },
     async runTask(providerId, input) {
       const provider = requireProvider(providerId);
       configureProviderForProject(provider, input.project);
@@ -154,6 +167,7 @@ function createConnectAgentService(options = {}) {
               eventType: String(event?.rawType || event?.type || ''),
               method: String(event?.event?.method || ''),
               ...(event?.interaction ? { interaction: event.interaction } : {}),
+              ...(event?.capability ? { capability: event.capability } : {}),
             },
           });
         }
@@ -238,13 +252,31 @@ function createConnectAgentService(options = {}) {
         }
       };
       let result;
+      let projectExtensions = null;
+      const evidenceGateSelectionIds = (Array.isArray(input.locatorEvidence?.selections)
+        ? input.locatorEvidence.selections
+        : [])
+        .map(selection => String(selection?.selectionId || '').trim())
+        .filter(selectionId => activeSelectionIds.includes(selectionId));
       try {
+        projectExtensions = await createProjectExtensionSession(input.project, {
+          onEvent: emitProviderEvent,
+        });
+        if (projectExtensions.definitions.length) {
+          emitProviderEvent({
+            type: 'agent-extensions-ready',
+            message: `Agent 项目扩展已加载：${projectExtensions.definitions.length} 个`,
+          });
+        }
         result = await provider.runTask({
           taskId,
           cwd: input.project.path,
           prompt,
           initialInstructions,
           outputSchema,
+          allowedSelectionIds: activeSelectionIds,
+          evidenceGateSelectionIds,
+          projectExtensions,
           threadId: storedSession?.threadId || '',
           onThread: persistThread,
           onEvent: event => {
@@ -279,6 +311,8 @@ function createConnectAgentService(options = {}) {
         });
         emitTimelineMessage(errorMessage);
         throw error;
+      } finally {
+        await projectExtensions?.close?.().catch(() => {});
       }
       if (Array.isArray(result?.selectionLocations) && result.selectionLocations.length) {
         try {

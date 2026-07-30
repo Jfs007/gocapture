@@ -64,6 +64,7 @@ export const useSelectionStore = defineStore('gocapture.selection', () => {
       createdAt: Number(raw?.createdAt || raw?.capturedAt || previous?.createdAt || Date.now()),
       pageBindingId: raw?.pageBindingId || (raw as any)?.workspaceId || previous?.pageBindingId || '',
       element,
+      originalElement: raw?.originalElement || previous?.originalElement || element,
       asset: raw?.asset || element,
       sourceLocate: raw?.sourceLocate || raw?.sourceEvidence || element.sourceLocate || null,
       sourceBinding: raw?.sourceBinding || previous?.sourceBinding || null,

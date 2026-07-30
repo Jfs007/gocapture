@@ -154,6 +154,17 @@ export interface ConnectAgentInteraction {
   input?: Record<string, unknown>;
 }
 
+export interface ConnectAgentToolCall {
+  callId: string;
+  taskId: string;
+  name: string;
+  input: {
+    selectionId: string;
+    reason?: string;
+  };
+  attempt: number;
+}
+
 export interface ProviderFileDiff {
   file: string;
   patch: string;
@@ -358,6 +369,26 @@ export async function respondConnectAgentInteraction(
       body: { projectRoot, response },
       timeoutMs: 15000,
       timeoutMessage: '提交 Agent 回答超时'
+    }
+  );
+}
+
+export async function respondConnectAgentTool(
+  providerId: string,
+  projectRoot: string,
+  taskId: string,
+  callId: string,
+  result: Record<string, unknown>
+): Promise<{ taskId: string; callId: string; status: string }> {
+  return await sourceServerJson(
+    `/api/connect-agents/${encodeURIComponent(providerId)}`
+      + `/tasks/${encodeURIComponent(taskId)}`
+      + `/tools/${encodeURIComponent(callId)}`,
+    {
+      method: 'POST',
+      body: { projectRoot, result },
+      timeoutMs: 15000,
+      timeoutMessage: '返回 Agent 本地工具结果超时'
     }
   );
 }

@@ -1,0 +1,550 @@
+.mda-settings-page,
+.mda-settings-page .mda-memory-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  background: #ffffff;
+  color: #1f2328;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-memory-shell.is-page {
+  position: fixed;
+  z-index: 1;
+  background: #ffffff;
+}
+
+.mda-settings-layout {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.mda-memory-shell:not(.is-page) .mda-settings-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+.mda-settings-sidebar {
+  flex: 0 0 270px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  padding: 16px 12px;
+  border-right: 1px solid #eceff3;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.mda-settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  text-align: left;
+  font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-back:hover {
+  background: #e6ebf2;
+  color: #101828;
+}
+
+.mda-settings-search {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 10px 0 18px;
+}
+
+.mda-settings-search .xicon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  color: #98a2b3;
+  transform: translateY(-50%);
+}
+
+.mda-settings-search input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 12px 0 32px;
+  border: 1px solid #d8dee6;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #667085;
+  outline: none;
+  font: 13px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-group-label {
+  margin: 14px 10px 8px;
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-settings-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #344054;
+  cursor: pointer;
+  text-align: left;
+  font: 13px/34px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-nav:hover,
+.mda-settings-nav.is-active {
+  background: #eef2f6;
+  color: #101828;
+}
+
+.mda-settings-nav.is-active {
+  font-weight: 700;
+}
+
+.mda-settings-nav > span {
+  min-width: 0;
+}
+
+.mda-settings-nav .xicon {
+  flex: 0 0 auto;
+}
+
+.mda-settings-nav > small {
+  margin-left: auto;
+  color: #98a2b3;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.mda-settings-nav.is-coming-soon:hover {
+  color: #667085;
+}
+
+.mda-settings-back .xicon {
+  flex: 0 0 auto;
+}
+
+.mda-settings-main {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.mda-settings-toast {
+  position: absolute;
+  right: 24px;
+  bottom: 22px;
+  z-index: 10;
+  max-width: min(360px, calc(100% - 48px));
+  padding: 9px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #101828;
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.2);
+  font-size: 12px;
+}
+
+.mda-settings-main-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 92px;
+  padding: 22px 28px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.mda-settings-main-head div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mda-settings-main-head span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.mda-settings-main-head strong {
+  color: #101828;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.mda-settings-main-head em {
+  overflow: hidden;
+  color: #98a2b3;
+  font-style: normal;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-settings-primary {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #101828;
+  border-radius: 10px;
+  background: #101828;
+  color: #ffffff;
+  cursor: pointer;
+  font: 13px/32px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-weight: 700;
+}
+
+.mda-settings-primary:hover {
+  background: #1d2939;
+}
+
+.mda-memory-shell.is-page .mda-memory-body {
+  width: min(860px, calc(100vw - 340px));
+  padding: 28px;
+}
+
+.mda-memory-shell.is-page .mda-memory-form {
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.mda-memory-shell.is-page .mda-memory-field input,
+.mda-memory-shell.is-page .mda-memory-field select {
+  height: 38px;
+}
+
+.mda-memory-shell.is-page .mda-memory-tool,
+.mda-memory-shell.is-page .mda-memory-provider {
+  border-radius: 10px;
+}
+
+.mda-settings-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.mda-settings-asset {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.mda-settings-asset:hover {
+  border-color: #98a2b3;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
+  transform: translateY(-1px);
+}
+
+.mda-settings-asset:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.mda-settings-asset-thumb {
+  width: 84px;
+  height: 84px;
+  border-radius: 8px;
+  background: #f2f4f7 center center / contain no-repeat;
+  color: #667085;
+  display: grid;
+  place-items: center;
+  font: 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-settings-asset-thumb.is-empty {
+  background-image: linear-gradient(135deg, #eef2ff, #e2e8f0);
+}
+
+.mda-settings-asset-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.mda-settings-asset-main strong {
+  color: #101828;
+  font-size: 13px;
+}
+
+.mda-settings-asset-main span,
+.mda-settings-asset-main code {
+  min-width: 0;
+  overflow: hidden;
+  color: #667085;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-settings-asset-main code {
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-asset-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, 0.48);
+}
+
+.mda-asset-detail {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24);
+}
+
+.mda-asset-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.mda-asset-detail-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mda-asset-detail-head strong {
+  color: #101828;
+  font-size: 17px;
+}
+
+.mda-asset-detail-head code {
+  overflow: hidden;
+  color: #667085;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-asset-detail-head > button {
+  flex: 0 0 auto;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #475467;
+  cursor: pointer;
+}
+
+.mda-asset-detail-head > button:hover {
+  color: #101828;
+}
+
+.mda-asset-detail-body {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 0.9fr);
+  gap: 24px;
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+}
+
+.mda-asset-detail-preview {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mda-asset-detail-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 560px;
+  object-fit: contain;
+}
+
+.mda-asset-detail-preview-empty {
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+.mda-asset-detail-info {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+}
+
+.mda-asset-detail-info section {
+  min-width: 0;
+}
+
+.mda-asset-detail-info h3 {
+  margin: 0 0 12px;
+  color: #101828;
+  font-size: 14px;
+}
+
+.mda-asset-detail-info dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.mda-asset-detail-info dl > div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.mda-asset-detail-info dt {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.mda-asset-detail-info dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #344054;
+  font-size: 12px;
+}
+
+.mda-asset-detail-info dd code,
+.mda-asset-source code {
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-asset-markup {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.mda-asset-markup > span {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.mda-asset-markup pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #344054;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mda-asset-source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mda-asset-source {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid #eaecf0;
+}
+
+.mda-asset-source:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.mda-asset-source code {
+  overflow-wrap: anywhere;
+  color: #175cd3;
+}
+
+.mda-asset-source span,
+.mda-asset-source-empty {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .mda-settings-sidebar {
+    flex-basis: 210px;
+  }
+
+  .mda-memory-shell.is-page .mda-memory-body {
+    width: auto;
+    padding: 18px;
+  }
+
+  .mda-asset-detail-modal {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .mda-asset-detail {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+  }
+
+  .mda-asset-detail-body {
+    grid-template-columns: 1fr;
+  }
+
+  .mda-asset-detail-preview {
+    min-height: 220px;
+  }
+}

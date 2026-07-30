@@ -15,24 +15,29 @@
 
     <section
       v-if="connectAgentStore.taskAwaitingInput"
-      class="mda-agent-interaction"
+      class="mda-composer-options mda-plan mda-agent-confirm"
       aria-live="polite"
     >
-      <span class="mda-agent-interaction-step">等待你的确认</span>
-      <strong>{{ interactionQuestion }}</strong>
-      <p v-if="interactionDescription">{{ interactionDescription }}</p>
-      <div v-if="interactionOptions.length" class="mda-agent-interaction-options">
+      <div class="mda-option-title">待确认</div>
+      <div class="mda-plan-block">
+        <div class="mda-plan-block-title">Agent 需要补充信息</div>
+        <div class="mda-plan-line mda-agent-confirm-question">{{ interactionQuestion }}</div>
+        <div v-if="interactionDescription" class="mda-plan-why">{{ interactionDescription }}</div>
+      </div>
+      <div v-if="interactionOptions.length" class="mda-agent-confirm-options">
         <button
           v-for="option in interactionOptions"
           :key="option.label"
+          class="mda-agent-confirm-option"
           type="button"
           :title="option.description || option.label"
           @click="submitInteractionOption(option.label)"
         >
-          {{ option.label }}
+          <strong>{{ option.label }}</strong>
+          <span v-if="option.description">{{ option.description }}</span>
         </button>
       </div>
-      <span class="mda-agent-interaction-hint">也可以在下方输入其他回答</span>
+      <div class="mda-plan-line mda-agent-confirm-hint">也可以在下方输入其他回答</div>
     </section>
 
     <div class="mda-composer">

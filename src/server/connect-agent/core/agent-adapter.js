@@ -21,6 +21,8 @@ class AgentAdapter {
 
   configureProject() {}
 
+  async reloadProjectExtensions() {}
+
   supports(capability) {
     return !!this.capabilities[capability];
   }
@@ -59,6 +61,10 @@ class AgentAdapter {
   async respondToInteraction() {
     this.requireCapability('humanInTheLoop', '处理用户交互');
   }
+
+  async respondToAgentTool() {
+    this.requireCapability('externalTools', '处理本地工具调用');
+  }
 }
 
 function normalizeManifest(raw) {
@@ -71,6 +77,7 @@ function normalizeManifest(raw) {
     requiresThreadBinding: false,
     modelBackendConfiguration: false,
     humanInTheLoop: false,
+    externalTools: false,
     ...(raw?.capabilities || {}),
   };
   if (capabilities.requiresThreadBinding) capabilities.threadBinding = true;

@@ -98,6 +98,7 @@ test('Claude Agent SDK keeps one project runtime and completes sequential tasks'
   });
 
   assert.equal(fake.calls.length, 1);
+  assert.equal(fake.calls[0].options.mcpServers, undefined);
   assert.equal(first.threadId, 'session-project');
   assert.equal(first.finalResponse, '完成 1');
   assert.deepEqual(first.changedFiles, ['title.txt']);
@@ -222,6 +223,40 @@ test('AskUserQuestion waits for a GoCapture response before the task continues',
     '明天几点提醒？': '晚上 8 点',
   });
   assert.equal(result.status, 'completed');
+  client.close();
+});
+
+test('Claude Evidence Gate denies native source tools before the Agent chooses a path', async t => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-claude-gate-'));
+  t.after(() => fs.rmSync(project, { recursive: true, force: true }));
+  let toolResult;
+  const fake = createFakeSdk(async ({ options, output }) => {
+    toolResult = await options.canUseTool('Read', {
+      file_path: path.join(project, 'src', 'View.vue'),
+    }, {
+      toolUseID: 'tool_read',
+    });
+    output.push({
+      type: 'result',
+      subtype: 'success',
+      is_error: false,
+      session_id: 'gate-session',
+      result: '{"summary":"等待 Gate","selectionLocations":[]}',
+    });
+  });
+  const client = connectedClient(fake.queryFactory);
+
+  await client.runTask({
+    taskId: 'gate-task',
+    cwd: project,
+    prompt: '定位选区',
+    allowedSelectionIds: ['selection_1'],
+    evidenceGateSelectionIds: ['selection_1'],
+  });
+
+  assert.equal(toolResult.behavior, 'deny');
+  assert.match(toolResult.message, /accept_selection_evidence/);
+  assert.match(toolResult.message, /expand_selection_context/);
   client.close();
 });
 

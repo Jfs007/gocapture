@@ -22,6 +22,9 @@ function createHarness({ method, pathname, search = '' }) {
       calls.push(['inspect', providerId]);
       return { id: providerId, state: 'disconnected' };
     },
+    async reloadProjectExtensions(project) {
+      calls.push(['reloadProjectExtensions', project.path]);
+    },
     async connect(providerId) {
       calls.push(['connect', providerId]);
       return { id: providerId, state: 'connected' };
@@ -47,6 +50,21 @@ function createHarness({ method, pathname, search = '' }) {
       return {
         taskId: input.taskId,
         interactionId: input.interactionId,
+        status: 'running',
+      };
+    },
+    async respondToAgentTool(providerId, input) {
+      calls.push([
+        'respondToAgentTool',
+        providerId,
+        input.project.path,
+        input.taskId,
+        input.callId,
+        input.result,
+      ]);
+      return {
+        taskId: input.taskId,
+        callId: input.callId,
         status: 'running',
       };
     },
@@ -174,6 +192,39 @@ test('connect-agent selection routes restore and explicitly delete project refer
   assert.equal(fs.existsSync(path.join(directory, 'selection_1.json')), false);
 });
 
+test('connect-agent extension routes install and reload project Skills', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gocapture-extension-route-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const installHarness = createHarness({
+    method: 'POST',
+    pathname: '/api/connect-agents/extensions/skill',
+  });
+  installHarness.args.readBody = async () => ({
+    projectRoot: root,
+    extension: {
+      name: 'review',
+      description: 'Review changes',
+      instructions: 'Review the edited source.',
+    },
+  });
+
+  assert.equal(await handleConnectAgentRoutes(installHarness.args), true);
+  assert.equal(installHarness.result().body.extensions.skills[0].name, 'review');
+  assert.ok(fs.existsSync(path.join(root, '.gocapture', 'skills', 'review', 'SKILL.md')));
+  assert.deepEqual(installHarness.calls.slice(-2), [
+    ['reloadProjectExtensions', root],
+    ['list', undefined],
+  ]);
+
+  const listHarness = createHarness({
+    method: 'GET',
+    pathname: '/api/connect-agents/extensions',
+    search: `?projectRoot=${encodeURIComponent(root)}`,
+  });
+  assert.equal(await handleConnectAgentRoutes(listHarness.args), true);
+  assert.equal(listHarness.result().body.extensions.skills[0].instructions, 'Review the edited source.');
+});
+
 test('connect-agent connect route delegates to the selected provider', async () => {
   const harness = createHarness({
     method: 'POST',
@@ -274,6 +325,36 @@ test('connect-agent interaction route resumes the active provider task', async (
     'task_1',
     'interaction_1',
     '晚上 8 点',
+  ]]);
+  assert.equal(harness.result().body.status, 'running');
+});
+
+test('connect-agent local tool route returns browser facts to the active task', async () => {
+  const harness = createHarness({
+    method: 'POST',
+    pathname: '/api/connect-agents/claude/tasks/task_1/tools/tool_1',
+  });
+  harness.args.readBody = async () => ({
+    projectRoot: '/tmp/project',
+    result: {
+      success: true,
+      selectionId: 'selection_1',
+      selection: { element: { text: 'expanded' } },
+    },
+  });
+
+  assert.equal(await handleConnectAgentRoutes(harness.args), true);
+  assert.deepEqual(harness.calls, [[
+    'respondToAgentTool',
+    'claude',
+    '/tmp/project',
+    'task_1',
+    'tool_1',
+    {
+      success: true,
+      selectionId: 'selection_1',
+      selection: { element: { text: 'expanded' } },
+    },
   ]]);
   assert.equal(harness.result().body.status, 'running');
 });

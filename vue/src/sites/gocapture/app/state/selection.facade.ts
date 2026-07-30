@@ -45,6 +45,7 @@ export function createSelectionFacade(store: SelectionStore) {
       index: index + 1,
       token: `@选区${index + 1}`,
       element: item.element,
+      originalElement: item.originalElement || item.element,
       asset: item.asset || null,
       sourceLocate: item.sourceLocate || item.element?.sourceLocate || null,
       thumbnailCaptured: !!item.thumbnailUrl

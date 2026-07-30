@@ -218,6 +218,10 @@ test('an unlocated selection sends compressed DOM directly to the Agent', () => 
   assert.doesNotMatch(prompt, /@选区\d+/);
   assert.doesNotMatch(prompt, /登录页的提交按钮/);
   assert.match(prompt, /large DOM evidence/);
+  assert.match(prompt, /Evidence Gate/);
+  assert.match(prompt, /accept_selection_evidence/);
+  assert.match(prompt, /expand_selection_context/);
+  assert.match(prompt, /不要先做宽泛源码调查/);
   assert.doesNotMatch(prompt, /位置文件：/);
 });
 

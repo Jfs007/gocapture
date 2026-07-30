@@ -12,6 +12,7 @@ const { loadProjectlessThreadIds } = require('./desktop-state');
 const { PRODUCT_NAME } = require('../../../core/product-brand');
 const { applyStructuredTaskResult } = require('../../structured-task-result');
 const { AgentAdapter } = require('../../core/agent-adapter');
+const { AgentToolSession } = require('../../core/agent-tool-session');
 const { MODEL_PROTOCOLS, listModelBackends } = require('../../core/model-backends');
 const {
   publicFileDiffs,
@@ -34,6 +35,7 @@ class CodexAppServerClient extends AgentAdapter {
         threadBinding: true,
         requiresThreadBinding: true,
         modelBackendConfiguration: false,
+        externalTools: true,
       },
       modelProtocols: [MODEL_PROTOCOLS.OPENAI_RESPONSES],
       // Codex App Server currently owns its model-provider configuration.
@@ -50,6 +52,7 @@ class CodexAppServerClient extends AgentAdapter {
     this.pending = new Map();
     this.subscribers = new Set();
     this.tasks = new Map();
+    this.dynamicToolThreads = new Set();
     this.requestId = 0;
     this.state = 'disconnected';
     this.lastError = '';
@@ -108,6 +111,9 @@ class CodexAppServerClient extends AgentAdapter {
           title: PRODUCT_NAME,
           version: '1.0.0',
         },
+        capabilities: {
+          experimentalApi: true,
+        },
       }, INITIALIZE_TIMEOUT_MS);
       this.notify('initialized', {});
       this.state = 'connected';
@@ -129,6 +135,11 @@ class CodexAppServerClient extends AgentAdapter {
 
   close() {
     this.stopProcess();
+  }
+
+  async reloadProjectExtensions() {
+    if (this.tasks.size) throw new Error('Codex 正在执行任务，完成后再重新加载扩展');
+    this.dynamicToolThreads.clear();
   }
 
   isConnected() {
@@ -209,6 +220,9 @@ class CodexAppServerClient extends AgentAdapter {
     prompt,
     initialInstructions = '',
     outputSchema,
+    allowedSelectionIds = [],
+    evidenceGateSelectionIds = [],
+    projectExtensions = null,
     threadId = '',
     onThread = () => {},
     onEvent = () => {},
@@ -234,6 +248,16 @@ class CodexAppServerClient extends AgentAdapter {
       changedFiles: new Set(),
       fileDiffs: new Map(),
     };
+    task.agentTools = new AgentToolSession({
+      taskId,
+      allowedSelectionIds,
+      evidenceGateSelectionIds,
+      extensions: projectExtensions,
+      onEvent: event => onEvent({
+        ...event,
+        task: publicTask(task),
+      }),
+    });
     this.tasks.set(taskId, task);
     onEvent({
       type: 'task-started',
@@ -245,16 +269,29 @@ class CodexAppServerClient extends AgentAdapter {
     let abortHandler = null;
     try {
       const resumedThreadId = String(threadId || '').trim();
+      const dynamicTools = codexDynamicTools(task.agentTools.definitions());
       let threadResult;
       let resumed = false;
       if (resumedThreadId) {
         try {
-          threadResult = await this.request('thread/resume', {
-            threadId: resumedThreadId,
-            cwd,
-            approvalPolicy: 'never',
-            sandbox: 'workspace-write',
-          }, REQUEST_TIMEOUT_MS);
+          if (dynamicTools.length && !this.dynamicToolThreads.has(resumedThreadId)) {
+            threadResult = await this.request('thread/fork', {
+              threadId: resumedThreadId,
+              cwd,
+              approvalPolicy: 'never',
+              sandbox: 'workspace-write',
+              ephemeral: false,
+              threadSource: 'user',
+              dynamicTools,
+            }, REQUEST_TIMEOUT_MS);
+          } else {
+            threadResult = await this.request('thread/resume', {
+              threadId: resumedThreadId,
+              cwd,
+              approvalPolicy: 'never',
+              sandbox: 'workspace-write',
+            }, REQUEST_TIMEOUT_MS);
+          }
           resumed = true;
         } catch (error) {
           onEvent({
@@ -272,10 +309,12 @@ class CodexAppServerClient extends AgentAdapter {
           serviceName: 'gocapture',
           ephemeral: false,
           threadSource: 'user',
+          ...(dynamicTools.length ? { dynamicTools } : {}),
         }, REQUEST_TIMEOUT_MS);
       }
       task.threadId = String(threadResult?.thread?.id || '');
       if (!task.threadId) throw new Error(`Codex thread/${resumed ? 'resume' : 'start'} 未返回 threadId`);
+      if (dynamicTools.length) this.dynamicToolThreads.add(task.threadId);
       if (!resumed) {
         const threadName = buildThreadName(cwd, this.now());
         try {
@@ -400,8 +439,15 @@ class CodexAppServerClient extends AgentAdapter {
     } finally {
       unsubscribe();
       if (abortHandler) signal?.removeEventListener?.('abort', abortHandler);
+      task.agentTools?.close(new Error('Agent 任务已结束'));
       this.tasks.delete(taskId);
     }
+  }
+
+  async respondToAgentTool({ taskId, callId, result }) {
+    const task = this.tasks.get(String(taskId || ''));
+    if (!task) throw new Error('该 Agent 任务已结束或不存在');
+    return task.agentTools.respond(callId, result);
   }
 
   subscribe(listener) {
@@ -448,6 +494,10 @@ class CodexAppServerClient extends AgentAdapter {
       return;
     }
     if (message.method && message.id != null) {
+      if (message.method === 'item/tool/call') {
+        void this.handleDynamicToolCall(message);
+        return;
+      }
       this.rejectServerRequest(message);
       return;
     }
@@ -461,6 +511,54 @@ class CodexAppServerClient extends AgentAdapter {
       return;
     }
     pending.resolve(message.result);
+  }
+
+  async handleDynamicToolCall(message) {
+    const params = message.params || {};
+    const task = [...this.tasks.values()].find(item => (
+      item.threadId === String(params.threadId || '')
+      && (!item.turnId || item.turnId === String(params.turnId || ''))
+    ));
+    if (!task || !task.agentTools.definitions().some(tool => tool.name === String(params.tool || ''))) {
+      this.write({
+        id: message.id,
+        result: {
+          contentItems: [{
+            type: 'inputText',
+            text: 'The requested GoCapture tool is unavailable for this task.',
+          }],
+          success: false,
+        },
+      });
+      return;
+    }
+    try {
+      const result = await task.agentTools.request(
+        params.tool,
+        params.arguments || {},
+      );
+      this.write({
+        id: message.id,
+        result: {
+          contentItems: [{
+            type: 'inputText',
+            text: JSON.stringify(result),
+          }],
+          success: true,
+        },
+      });
+    } catch (error) {
+      this.write({
+        id: message.id,
+        result: {
+          contentItems: [{
+            type: 'inputText',
+            text: error?.message || String(error),
+          }],
+          success: false,
+        },
+      });
+    }
   }
 
   rejectServerRequest(message) {
@@ -574,6 +672,15 @@ function normalizeThreadStatus(status) {
   if (typeof status === 'string') return status;
   if (status && typeof status === 'object') return Object.keys(status)[0] || '';
   return '';
+}
+
+function codexDynamicTools(definitions) {
+  return (Array.isArray(definitions) ? definitions : []).map(definition => ({
+    name: definition.name,
+    description: definition.description,
+    inputSchema: definition.inputSchema,
+    deferLoading: false,
+  }));
 }
 
 function padTimePart(value) {

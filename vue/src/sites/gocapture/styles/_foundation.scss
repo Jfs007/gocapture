@@ -1,0 +1,1452 @@
+:host {
+  all: initial;
+  color-scheme: light;
+}
+
+.mda-root,
+.mda-root * {
+  box-sizing: border-box;
+}
+
+.mda-root {
+  position: fixed;
+  inset: 0;
+  background: #f7f8fa;
+  pointer-events: auto;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-panel {
+  /* position: fixed; */
+  position: relative;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  background: #f7f8fa;
+  color: #1f2328;
+  border-left: 0;
+  box-shadow: none;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.mda-project-checking {
+  position: absolute;
+  inset: 56px 0 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(247, 248, 250, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.mda-project-checking-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(360px, 92%);
+  padding: 16px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.16);
+}
+
+.mda-project-checking-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #dbe4ef;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: mda-spin 0.8s linear infinite;
+  flex: 0 0 auto;
+}
+
+.mda-project-checking-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+.mda-project-checking-text {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes mda-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mda-floating-note {
+  position: fixed;
+  z-index: 2147483647;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.55);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+  pointer-events: auto;
+  cursor: auto;
+}
+
+.mda-selection-highlight {
+  position: fixed;
+  z-index: 2147483643;
+  border: 2px solid rgba(37, 99, 235, 0.88);
+  border-radius: 4px;
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(37, 99, 235, 0.12);
+  pointer-events: none;
+}
+
+.mda-selection-highlight.has-note {
+  border-color: rgba(22, 163, 74, 0.9);
+  background: rgba(22, 163, 74, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 4px rgba(22, 163, 74, 0.13);
+}
+
+.mda-selection-highlight.is-editing {
+  border-color: #111827;
+  background: rgba(17, 24, 39, 0.08);
+  box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px rgba(17, 24, 39, 0.16);
+}
+
+.mda-change-badge {
+  position: fixed;
+  z-index: 2147483645;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #ffffff;
+  font: 12px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.28);
+  cursor: pointer;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.mda-change-badge:hover {
+  background: #15803d;
+}
+
+.mda-floating-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-floating-textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-floating-textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.mda-head {
+  position: relative;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 88px 0 14px;
+  background: #ffffff;
+  border-bottom: 1px solid #d8dee6;
+  cursor: default;
+  user-select: none;
+}
+
+.mda-head-main {
+  min-width: 0;
+}
+
+.mda-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #15191f;
+}
+
+.mda-subtitle {
+  margin-top: 1px;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.mda-icon {
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 26px;
+}
+
+.mda-icon:hover {
+  background: #eef2f6;
+  border-color: #d8dee6;
+  color: #111827;
+}
+
+.mda-head-actions {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 3;
+}
+
+.mda-head-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.mda-head-icon:hover {
+  background: #eef2f6;
+  color: #111827;
+}
+
+.mda-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  height: calc(100vh - 56px);
+  padding: 12px;
+  overflow: auto;
+}
+
+.mda-chat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.mda-chat-thread {
+  flex: 1 1 auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+.mda-chat-message {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.mda-chat-message.is-user {
+  grid-template-columns: minmax(0, 1fr) 32px;
+}
+
+.mda-chat-message.is-user .mda-message-avatar {
+  grid-column: 2;
+  grid-row: 1;
+  background: #2563eb;
+}
+
+.mda-chat-message.is-user .mda-message-bubble {
+  grid-column: 1;
+  justify-self: end;
+  max-width: 86%;
+  background: #e8f0ff;
+  border-color: #b8cdfb;
+}
+
+.mda-chat-message.is-agent .mda-message-avatar {
+  background: #0f766e;
+  font-size: 11px;
+}
+
+.mda-chat-message.is-agent .mda-message-bubble {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+.mda-message-avatar {
+  width: 34px;
+  height: 24px;
+  border-radius: 6px;
+  background: #111827;
+  color: #ffffff;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.mda-message-bubble {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mda-message-title {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.mda-message-text {
+  color: #4b5563;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.mda-message-pre {
+  max-height: 280px;
+  margin: 0;
+  padding: 9px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e5edf7;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.mda-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mda-composer-wrap {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid #d8dee6;
+  background: #ffffff;
+}
+
+.mda-composer-options {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.mda-composite {
+  background: #f2f7ff;
+  border-color: #c7dbf5;
+}
+
+.mda-composite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mda-composite-tag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+}
+
+.mda-composite-tag.mda-composite-render {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mda-composite-anchor {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.mda-composite-line {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.mda-plan {
+  background: #f6fdf7;
+  border-color: #c7e8cf;
+}
+
+/* 修改计划正文限高滚动，避免内容过长挡住聊天区与输入框 */
+.mda-plan-body {
+  display: grid;
+  gap: 8px;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+
+/* 「定位与修改计划」整块模块：一个头部、一个收起开关，整块折叠 */
+.mda-result-module {
+  display: grid;
+  gap: 8px;
+}
+
+.mda-result-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 0;
+}
+
+.mda-result-module-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.mda-result-module-body {
+  display: grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.mda-plan-summary {
+  font-size: 12px;
+  color: #14532d;
+  font-weight: 600;
+}
+
+.mda-plan-block {
+  display: grid;
+  gap: 4px;
+}
+
+.mda-plan-block-title {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.mda-plan-target {
+  display: grid;
+  gap: 2px;
+  padding: 4px 6px;
+  border-left: 2px solid #86efac;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.mda-plan-what,
+.mda-plan-why {
+  font-size: 12px;
+  color: #334155;
+}
+
+.mda-plan-why {
+  color: #94a3b8;
+}
+
+.mda-plan-line {
+  font-size: 12px;
+  color: #475569;
+}
+
+.mda-plan-check {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: start;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #334155;
+  cursor: pointer;
+}
+
+.mda-plan-check input {
+  width: 14px;
+  height: 14px;
+  margin: 1px 0 0;
+}
+
+.mda-plan-check.is-checked {
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.mda-plan-check.is-checked span {
+  text-decoration: line-through;
+}
+
+.mda-composer-options.is-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.mda-model-select {
+  max-width: 154px;
+  height: 26px;
+  min-width: 0;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-model-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.mda-model-editor {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: hidden;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24);
+  outline: none;
+}
+
+.mda-model-editor-head,
+.mda-model-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mda-model-editor-head {
+  flex: 0 0 auto;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.mda-model-editor-head strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.mda-model-editor-head p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mda-model-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font: 24px/1 Arial, sans-serif;
+}
+
+.mda-model-close:hover {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.mda-model-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+
+.mda-model-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.mda-model-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: #667085;
+  font-size: 11px;
+}
+
+.mda-model-grid label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.mda-model-input {
+  width: 100%;
+  height: 30px;
+  min-width: 0;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  font: 12px/28px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-model-input:focus,
+.mda-model-select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.mda-model-hint {
+  margin: 12px 0 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mda-model-actions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  border-top: 1px solid #eaecf0;
+  background: #f9fafb;
+}
+
+.mda-model-actions .mda-model-delete {
+  margin-right: auto;
+  color: #b42318;
+}
+
+.mda-model-actions button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.mda-model-actions button.is-primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+@media (max-width: 520px) {
+  .mda-model-modal {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .mda-model-editor {
+    max-height: calc(100vh - 24px);
+  }
+
+  .mda-model-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mda-model-grid label.is-wide {
+    grid-column: auto;
+  }
+}
+
+.mda-option-title {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-option-desc {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mda-choice-list {
+  display: grid;
+  gap: 7px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.mda-choice-card {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.mda-choice-card.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.mda-choice-check {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  color: #111827;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-choice-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.mda-choice-check span,
+.mda-file-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-file-link {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.mda-file-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.mda-choice-meta {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.mda-route-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.mda-route-label {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.mda-route-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-route-file:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.mda-route-empty {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.mda-copy-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mda-copy-icon::before,
+.mda-copy-icon::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 10px;
+  border: 1.5px solid #667085;
+  border-radius: 2px;
+}
+
+.mda-copy-icon::before {
+  top: 4px;
+  left: 7px;
+  background: #ffffff;
+}
+
+.mda-copy-icon::after {
+  top: 7px;
+  left: 4px;
+  background: #ffffff;
+}
+
+.mda-copy-icon:hover {
+  background: #f2f4f7;
+}
+
+.mda-copy-icon:hover::before,
+.mda-copy-icon:hover::after {
+  border-color: #101828;
+}
+
+.mda-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.mda-composer-input {
+  width: 100%;
+  height: 38px;
+  min-width: 0;
+  border: 1px solid #cfd7e2;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  font: 13px/38px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-send-btn {
+  height: 38px;
+  padding: 0 13px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mda-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mda-agent-body {
+  gap: 12px;
+}
+
+.mda-agent-thread {
+  display: grid;
+  gap: 10px;
+}
+
+.mda-agent-message {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mda-agent-avatar {
+  width: 34px;
+  height: 24px;
+  border-radius: 6px;
+  background: #111827;
+  color: #ffffff;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.mda-agent-content {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mda-agent-title {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.mda-agent-text {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.mda-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mda-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mda-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mda-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mda-section-desc {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.mda-toolbar,
+.mda-copy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mda-btn {
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #263241;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 30px;
+  white-space: nowrap;
+}
+
+.mda-btn:hover {
+  background: #f1f5f9;
+}
+
+.mda-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.mda-btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.mda-btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.mda-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 99px;
+  background: #9ca3af;
+}
+
+.mda-dot.is-active {
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
+}
+
+.mda-file-input {
+  display: none;
+}
+
+.mda-empty {
+  min-height: 48px;
+  padding: 10px;
+  border: 1px dashed #cfd7e2;
+  border-radius: 6px;
+  color: #6b7280;
+  background: #f8fafc;
+  font-size: 12px;
+}
+
+.mda-project {
+  display: grid;
+  gap: 6px;
+}
+
+.mda-project-name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.mda-project-meta {
+  color: #5b6573;
+  font-size: 12px;
+}
+
+.mda-project-path {
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+.mda-warning {
+  padding: 8px 10px;
+  border: 1px solid #f4c27a;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+}
+
+.mda-request-summary {
+  color: #5b6573;
+  font-size: 12px;
+}
+
+.mda-search-input {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.mda-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.mda-check-row input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.mda-candidate-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mda-candidate-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.mda-candidate-card.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.mda-candidate-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.mda-candidate-check {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+}
+
+.mda-candidate-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.mda-candidate-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #111827;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-candidate-head span {
+  height: 22px;
+  min-width: 34px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  text-align: center;
+  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-candidate-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mda-candidate-stage {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.mda-candidate-reasons span {
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #394454;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.mda-candidate-snippet,
+.mda-candidate-log {
+  max-height: 150px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e5edf7;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.mda-log-file-label {
+  flex: none;
+}
+
+.mda-log-file-link {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-log-file-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.mda-link-btn {
+  justify-self: start;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font: 12px/24px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-link-btn:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.mda-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mda-tag {
+  max-width: 180px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #394454;
+  font: 12px/24px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-info {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mda-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.mda-row:last-child {
+  border-bottom: 0;
+}
+
+.mda-row span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.mda-row strong {
+  min-width: 0;
+  color: #1f2937;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mda-selection-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mda-selection-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.mda-selection-card:hover {
+  border-color: #9db8f8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.mda-selection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mda-selection-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mda-inline-badge {
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-mini-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #cfd7e2;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.mda-mini-btn:hover {
+  background: #f1f5f9;
+  color: #111827;
+}
+
+.mda-selection-meta {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px;
+  color: #5b6573;
+  font-size: 12px;
+}
+
+.mda-selection-meta span {
+  font-weight: 700;
+}
+
+.mda-selection-meta strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1f2937;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.mda-selection-text {
+  max-height: 44px;
+  overflow: auto;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.mda-note {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.mda-textarea,
+.mda-prompt {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  border: 1px solid #cfd7e2;
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+.mda-textarea:focus,
+.mda-prompt:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.mda-prompt {
+  min-height: 230px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.mda-toast {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #047857;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

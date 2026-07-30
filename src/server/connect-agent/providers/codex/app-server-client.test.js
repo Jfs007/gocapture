@@ -142,6 +142,15 @@ function notify(child, method, params) {
   child.stdout.write(`${JSON.stringify({ method, params })}\n`);
 }
 
+async function waitFor(predicate, attempts = 30) {
+  for (let index = 0; index < attempts; index += 1) {
+    const value = predicate();
+    if (value) return value;
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  throw new Error('Timed out waiting for condition');
+}
+
 test('Codex App Server task streams thread, turn, events and final result', async () => {
   const child = fakeAppServer();
   const client = new CodexAppServerClient({
@@ -181,6 +190,85 @@ test('Codex App Server task streams thread, turn, events and final result', asyn
   client.close();
 });
 
+test('Codex dynamic selection tool waits for browser facts before continuing', async () => {
+  const child = fakeAppServer();
+  child.stdin.removeAllListeners('data');
+  const requests = [];
+  child.stdin.on('data', chunk => {
+    for (const line of String(chunk).trim().split('\n').filter(Boolean)) {
+      const message = JSON.parse(line);
+      requests.push(message);
+      if (message.method === 'initialize') {
+        respond(child, message.id, {});
+      } else if (message.method === 'thread/start') {
+        respond(child, message.id, { thread: { id: 'thread_tool' } });
+      } else if (message.method === 'thread/name/set') {
+        respond(child, message.id, {});
+      } else if (message.method === 'turn/start') {
+        respond(child, message.id, { turn: { id: 'turn_tool', status: 'inProgress' } });
+        setImmediate(() => {
+          child.stdout.write(`${JSON.stringify({
+            method: 'item/tool/call',
+            id: 900,
+            params: {
+              threadId: 'thread_tool',
+              turnId: 'turn_tool',
+              callId: 'codex_call_1',
+              namespace: null,
+              tool: 'expand_selection_context',
+              arguments: {
+                selectionId: 'selection_1',
+                reason: 'missing parent',
+              },
+            },
+          })}\n`);
+        });
+      } else if (message.id === 900) {
+        notify(child, 'turn/completed', {
+          threadId: 'thread_tool',
+          turn: { id: 'turn_tool', status: 'completed' },
+        });
+      }
+    }
+  });
+  const client = new CodexAppServerClient({
+    inspectCli: async () => ({
+      installed: true,
+      authenticated: true,
+      executable: 'codex',
+      version: '0.132.0',
+    }),
+    spawnAppServer: () => child,
+  });
+  const events = [];
+  const pending = client.runTask({
+    taskId: 'task_tool',
+    cwd: '/tmp/project',
+    prompt: '定位选区',
+    allowedSelectionIds: ['selection_1'],
+    onEvent: event => events.push(event),
+  });
+  await waitFor(() => events.find(event => event.type === 'agent-tool-required'));
+  const required = events.find(event => event.type === 'agent-tool-required');
+  await client.respondToAgentTool({
+    taskId: 'task_tool',
+    callId: required.capability.callId,
+    result: {
+      success: true,
+      selectionId: 'selection_1',
+      selection: { element: { text: 'expanded' } },
+    },
+  });
+  await pending;
+
+  const start = requests.find(request => request.method === 'thread/start');
+  assert.equal(start.params.dynamicTools[0].name, 'expand_selection_context');
+  const toolResponse = requests.find(request => request.id === 900 && !request.method);
+  assert.equal(toolResponse.result.success, true);
+  assert.match(toolResponse.result.contentItems[0].text, /expanded/);
+  client.close();
+});
+
 test('Codex App Server resumes a project thread before starting the next turn', async () => {
   const child = fakeAppServer();
   const requests = [];
@@ -215,6 +303,52 @@ test('Codex App Server resumes a project thread before starting the next turn', 
   assert.equal(requests.some(request => request.method === 'thread/start'), false);
   assert.ok(events.some(event => event.type === 'thread-resumed'));
   assert.deepEqual(savedThreads, [{ threadId: 'thread_test', resumed: true }]);
+  client.close();
+});
+
+test('Codex forks an older bound thread once to attach selection tools', async () => {
+  const child = fakeAppServer();
+  const requests = [];
+  child.stdin.removeAllListeners('data');
+  child.stdin.on('data', chunk => {
+    for (const line of String(chunk).trim().split('\n').filter(Boolean)) {
+      const message = JSON.parse(line);
+      requests.push(message);
+      if (message.method === 'initialize') {
+        respond(child, message.id, {});
+      } else if (message.method === 'thread/fork') {
+        respond(child, message.id, { thread: { id: 'thread_with_tools' } });
+      } else if (message.method === 'turn/start') {
+        respond(child, message.id, { turn: { id: 'turn_tool_fork', status: 'inProgress' } });
+        setImmediate(() => notify(child, 'turn/completed', {
+          threadId: 'thread_with_tools',
+          turn: { id: 'turn_tool_fork', status: 'completed' },
+        }));
+      }
+    }
+  });
+  const client = new CodexAppServerClient({
+    inspectCli: async () => ({
+      installed: true,
+      authenticated: true,
+      executable: 'codex',
+      version: '0.132.0',
+    }),
+    spawnAppServer: () => child,
+  });
+  const threads = [];
+  await client.runTask({
+    cwd: '/tmp/project',
+    prompt: '继续定位',
+    threadId: 'thread_old',
+    allowedSelectionIds: ['selection_1'],
+    onThread: thread => threads.push(thread),
+  });
+
+  const fork = requests.find(request => request.method === 'thread/fork');
+  assert.equal(fork.params.threadId, 'thread_old');
+  assert.equal(fork.params.dynamicTools[0].name, 'expand_selection_context');
+  assert.deepEqual(threads, [{ threadId: 'thread_with_tools', resumed: true }]);
   client.close();
 });
 

@@ -1648,6 +1648,7 @@
         pageBindingId: BOOT.workspaceId || this.pageSessionId || '',
         element: info,
         info,
+        originalElement: info,
         asset: null,
         assetInfo: null,
         sourceLocate,

@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import { createGoCaptureBootstrap } from './app/runtime/bootstrap';
-import styles from './styles/style.css?inline';
+import styles from './styles/index.scss?inline';
 
 (function bootstrapGoCaptureSidePanel() {
   const APP_KEY = '__GOCAPTURE_DEV_ASSISTANT__';

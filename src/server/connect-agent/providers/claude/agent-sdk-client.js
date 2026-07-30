@@ -3,7 +3,11 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { z } = require('zod');
 const { AgentAdapter } = require('../../core/agent-adapter');
+const {
+  AgentToolSession,
+} = require('../../core/agent-tool-session');
 const {
   MODEL_PROTOCOLS,
   assertModelBackendCompatible,
@@ -62,6 +66,7 @@ class ClaudeAgentSdkClient extends AgentAdapter {
         requiresThreadBinding: false,
         modelBackendConfiguration: true,
         humanInTheLoop: true,
+        externalTools: true,
       },
       modelProtocols: [MODEL_PROTOCOLS.ANTHROPIC_MESSAGES],
       modelBackends: CLAUDE_MODEL_BACKENDS,
@@ -288,6 +293,15 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     this.stopAllTasks('Claude Agent SDK 服务已关闭');
   }
 
+  async reloadProjectExtensions(project) {
+    const runner = this.runners.get(String(project?.path || project?.projectRoot || ''));
+    if (!runner) return;
+    if (runner.active || runner.pending.length) {
+      throw new Error('Claude Code 正在执行任务，完成后再重新加载扩展');
+    }
+    this.resetRunner(runner);
+  }
+
   isConnected() {
     return this.state === 'connected';
   }
@@ -335,6 +349,9 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     prompt,
     initialInstructions = '',
     outputSchema,
+    allowedSelectionIds = [],
+    evidenceGateSelectionIds = [],
+    projectExtensions = null,
     threadId = '',
     onThread = () => {},
     onEvent = () => {},
@@ -391,6 +408,16 @@ class ClaudeAgentSdkClient extends AgentAdapter {
         timeoutId: null,
         onAbort: null,
         interactions: new Map(),
+        agentTools: new AgentToolSession({
+          taskId,
+          allowedSelectionIds,
+          evidenceGateSelectionIds,
+          extensions: projectExtensions,
+          onEvent: event => onEvent({
+            ...event,
+            task: publicTask(task),
+          }),
+        }),
       };
       entry.onAbort = () => this.cancelEntry(runner, entry);
       if (signal?.aborted) {
@@ -418,6 +445,7 @@ class ClaudeAgentSdkClient extends AgentAdapter {
         pending: [],
         sessionId: String(this.sessions.get(cwd) || ''),
         instructionsSent: !!this.sessions.get(cwd),
+        toolSignature: '',
       };
       this.runners.set(cwd, runner);
     }
@@ -431,7 +459,7 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     runner.generation = generation;
     const queryHandle = await this.createQuery({
       prompt: input,
-      options: this.queryOptions(runner),
+      options: await this.queryOptions(runner),
     });
     runner.input = input;
     runner.query = queryHandle;
@@ -439,8 +467,9 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     return true;
   }
 
-  queryOptions(runner) {
+  async queryOptions(runner) {
     const model = this.runtimeConfig.model || this.model || undefined;
+    const mcpServers = await this.agentToolServers(runner);
     return {
       cwd: runner.cwd,
       env: this.claudeEnv(),
@@ -451,6 +480,7 @@ class ClaudeAgentSdkClient extends AgentAdapter {
       persistSession: true,
       settingSources: ['user', 'project', 'local'],
       tools: { type: 'preset', preset: 'claude_code' },
+      ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
       systemPrompt: {
         type: 'preset',
         preset: 'claude_code',
@@ -472,12 +502,54 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     };
   }
 
+  async agentToolServers(runner) {
+    const definitions = runner.active?.agentTools?.definitions?.() || [];
+    if (!definitions.length) return {};
+    const sdk = await this.sdk();
+    if (typeof sdk.createSdkMcpServer !== 'function' || typeof sdk.tool !== 'function') {
+      throw new Error('当前 Claude Agent SDK 不支持进程内工具');
+    }
+    const tools = definitions.map(definition => sdk.tool(
+      definition.name,
+      definition.description,
+      zodShapeForJsonSchema(definition.inputSchema),
+      async input => {
+        const entry = runner.active;
+        if (!entry || entry.settled) throw new Error('GoCapture task is no longer active.');
+        const result = await entry.agentTools.request(definition.name, input, entry.signal);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result),
+          }],
+        };
+      },
+      { alwaysLoad: true },
+    ));
+    return {
+      gocapture: sdk.createSdkMcpServer({
+        name: 'gocapture',
+        version: '1.0.0',
+        tools,
+        alwaysLoad: true,
+      }),
+    };
+  }
+
   async handleToolInteraction(runner, toolName, input = {}, options = {}) {
     const entry = runner.active;
     if (!entry || entry.settled) {
       return {
         behavior: 'deny',
         message: 'GoCapture task is no longer active.',
+        toolUseID: options.toolUseID,
+      };
+    }
+    const evidenceDenial = entry.agentTools.nativeToolDenial(toolName);
+    if (evidenceDenial) {
+      return {
+        behavior: 'deny',
+        message: evidenceDenial,
         toolUseID: options.toolUseID,
       };
     }
@@ -586,6 +658,12 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     };
   }
 
+  async respondToAgentTool({ taskId, callId, result }) {
+    const entry = this.tasks.get(String(taskId || ''));
+    if (!entry) throw new Error('该 Agent 任务已结束或不存在');
+    return entry.agentTools.respond(callId, result);
+  }
+
   async pumpRunner(runner) {
     if (runner.active || !runner.pending.length) return;
     const entry = runner.pending.shift();
@@ -604,7 +682,12 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     }, TASK_TIMEOUT_MS);
 
     try {
+      const toolSignature = agentToolSignature(entry.agentTools);
+      if (runner.query && runner.toolSignature !== toolSignature) {
+        this.resetRunner(runner);
+      }
       const started = await this.ensureRunner(runner);
+      runner.toolSignature = toolSignature;
       entry.onEvent({
         type: started ? 'runtime-started' : 'runtime-reused',
         task: publicTask(entry.task),
@@ -698,6 +781,7 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     runner.input = null;
     runner.reader = null;
     runner.generation += 1;
+    runner.toolSignature = '';
     if (!runner.sessionId) runner.instructionsSent = false;
     if (runner.active) {
       const entry = runner.active;
@@ -711,6 +795,7 @@ class ClaudeAgentSdkClient extends AgentAdapter {
     if (entry.settled) return;
     entry.settled = true;
     rejectInteractions(entry, new Error('Agent 任务已结束'));
+    entry.agentTools?.close(new Error('Agent 任务已结束'));
     clearTimeout(entry.timeoutId);
     entry.signal?.removeEventListener?.('abort', entry.onAbort);
     this.tasks.delete(entry.task.taskId);
@@ -785,6 +870,13 @@ class ClaudeAgentSdkClient extends AgentAdapter {
   }
 }
 
+function agentToolSignature(agentTools) {
+  return JSON.stringify((agentTools?.definitions?.() || []).map(definition => ({
+    name: definition.name,
+    inputSchema: definition.inputSchema,
+  })));
+}
+
 class AsyncMessageQueue {
   constructor() {
     this.items = [];
@@ -837,6 +929,32 @@ function buildTaskPrompt(runner, entry) {
     prompt = `${prompt}\n\n最终只返回符合以下 JSON Schema 的 JSON：\n${JSON.stringify(entry.outputSchema)}`;
   }
   return prompt;
+}
+
+function zodShapeForJsonSchema(schema = {}) {
+  const properties = schema?.properties && typeof schema.properties === 'object'
+    ? schema.properties
+    : {};
+  const required = new Set(Array.isArray(schema?.required) ? schema.required : []);
+  return Object.fromEntries(Object.entries(properties).map(([key, definition]) => {
+    let value = zodForJsonSchema(definition);
+    if (!required.has(key)) value = value.optional();
+    return [key, value];
+  }));
+}
+
+function zodForJsonSchema(schema = {}) {
+  if (Array.isArray(schema?.enum) && schema.enum.length) {
+    return z.enum(schema.enum.map(String));
+  }
+  if (Array.isArray(schema?.anyOf) || Array.isArray(schema?.oneOf)) return z.any();
+  if (schema?.type === 'string') return z.string();
+  if (schema?.type === 'integer') return z.number().int();
+  if (schema?.type === 'number') return z.number();
+  if (schema?.type === 'boolean') return z.boolean();
+  if (schema?.type === 'array') return z.array(zodForJsonSchema(schema.items || {}));
+  if (schema?.type === 'object') return z.record(z.string(), z.any());
+  return z.any();
 }
 
 function normalizeQuestions(questions) {

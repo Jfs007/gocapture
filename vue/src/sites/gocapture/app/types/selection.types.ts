@@ -73,6 +73,7 @@ export interface SelectionAsset {
   createdAt?: number;
   pageBindingId?: string;
   element: ElementInfo;
+  originalElement?: ElementInfo | null;
   asset?: ElementInfo | null;
   sourceLocate?: unknown;
   sourceBinding?: SelectionSourceBinding | null;
@@ -86,6 +87,7 @@ export interface RuntimeSelectionPayload {
   capturedAt?: number;
   pageBindingId?: string;
   element?: ElementInfo;
+  originalElement?: ElementInfo;
   info?: ElementInfo;
   asset?: ElementInfo;
   sourceLocate?: unknown;
