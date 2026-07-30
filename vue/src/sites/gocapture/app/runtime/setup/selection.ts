@@ -1,6 +1,5 @@
 import { useSelectionStore } from '../../../stores/selection.store';
 import { useComposerStore } from '../../../stores/composer.store';
-import { useModelStore } from '../../../stores/model.store';
 import { useSearchStore } from '../../../stores/search.store';
 import { createClearSelectionsUseCase } from '../../usecases/clear-selections.usecase';
 import { createExpandSelectionUseCase } from '../../usecases/expand-selection.usecase';
@@ -18,7 +17,6 @@ export function setupSelectionRuntime(options: SelectionRuntimeOptions) {
   const selectionStore = useSelectionStore();
   const composerStore = useComposerStore();
   const searchStore = useSearchStore();
-  const modelStore = useModelStore();
   const selection: any = createSelectionFacade(selectionStore);
   const deps: SelectionCommandDeps = {
     bridge: { sendCommand: options.sendCommand },
@@ -31,7 +29,6 @@ export function setupSelectionRuntime(options: SelectionRuntimeOptions) {
       resetCandidateState: () => {
         selectionStore.filesConfirmed = false;
         searchStore.reset();
-        modelStore.reset();
         composerStore.setFinalPrompt('');
       },
       getComposerContent: () => composerStore.content || '',

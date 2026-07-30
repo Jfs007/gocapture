@@ -8,7 +8,6 @@ import { normalizeSourceServerProject, sourceServerJson, sourceServerNdjson } fr
 import { useProjectStore } from '../../stores/project.store';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useComposerStore } from '../../stores/composer.store';
-import { useModelStore } from '../../stores/model.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 
@@ -16,7 +15,6 @@ export function useSourceProject({ currentPageHref }) {
   const projectStore = useProjectStore();
   const appUiStore = useAppUiStore();
   const composerStore = useComposerStore();
-  const modelStore = useModelStore();
   const searchStore = useSearchStore();
   const selectionStore = useSelectionStore();
   const {
@@ -66,28 +64,6 @@ export function useSourceProject({ currentPageHref }) {
     }
   }
 
-  function projectInterpreterAdapter() {
-    if (!modelStore.selectedModelId) return null;
-    return modelStore.configs.find(item => item.id === modelStore.selectedModelId) || null;
-  }
-
-  async function runProjectInterpreter(path: string, fallbackProject: any) {
-    const adapter = projectInterpreterAdapter();
-    if (fallbackProject?.context?.interpreted) return fallbackProject;
-    if (!adapter) return fallbackProject;
-    sourceServiceMessage.value = '正在大致了解项目：读取配置、目录结构并生成 Project.md...';
-    const result = await sourceServerNdjson('/api/source/interpret/stream', {
-      method: 'POST',
-      body: { path, adapter },
-      timeoutMs: Math.max(Number((adapter as any).timeoutMs || 120000) * 3 + 30000, 240000),
-      timeoutMessage: 'Project Interpreter 执行超时，请检查模型配置或稍后重试',
-      onEvent(event) {
-        if (event.type === 'log' && event.log) sourceServiceMessage.value = event.log;
-      }
-    });
-    return (result as any)?.project || fallbackProject;
-  }
-
   function resetAfterProjectChange(options = {}) {
     const preserveUi = !!options.preserveUi;
     if (!preserveUi) {
@@ -99,7 +75,6 @@ export function useSourceProject({ currentPageHref }) {
       composerStore.clearContent();
     }
     searchStore.reset();
-    modelStore.reset();
   }
 
   async function restoreSavedProject() {
@@ -121,8 +96,6 @@ export function useSourceProject({ currentPageHref }) {
         timeoutMessage: '恢复源码路径超时，请重新选择项目源码'
       });
       projectStore.setProject(normalizeSourceServerProject(data.project || {}));
-      const interpretedProject = await runProjectInterpreter(path, data.project || {});
-      projectStore.setProject(normalizeSourceServerProject(interpretedProject || {}));
       projectStore.setServiceStatus('connected');
       resetAfterProjectChange({ preserveUi: true });
       appUiStore.setToast(`已恢复 ${project.value.name}`);
@@ -152,9 +125,6 @@ export function useSourceProject({ currentPageHref }) {
     projectStore.setProject(normalizeSourceServerProject(selectedProject));
     await rememberProjectPath(project.value);
     resetAfterProjectChange();
-    const interpretedProject = await runProjectInterpreter(selectedProject.path, selectedProject);
-    projectStore.setProject(normalizeSourceServerProject(interpretedProject || {}));
-    await rememberProjectPath(project.value);
     projectStore.setServiceStatus('connected');
     appUiStore.setToast(`已关联 ${project.value.name}`);
   }

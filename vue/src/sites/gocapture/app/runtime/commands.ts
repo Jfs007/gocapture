@@ -19,17 +19,6 @@ export interface GoCaptureCommands {
   toggleCandidateDetail(hit: any): void;
   setIncludeApiEvidence(value: boolean): void;
   onSearchOptionChange(): void;
-  openModelEditor(model?: any): void;
-  openProviderModelEditor(provider: string): void;
-  closeModelEditor(): void;
-  saveModelForm(): void;
-  removeSelectedModel(): void;
-  setSelectedModel(id: string): void;
-  selectModelAndEnable(id: string): void;
-  disableModelAssist(): void;
-  setUseModelAssist(value: boolean): void;
-  resetModelAssist(): void;
-  stopModelAssist(): void;
 }
 
 const GOCAPTURE_COMMANDS_KEY = Symbol('gocapture.commands');

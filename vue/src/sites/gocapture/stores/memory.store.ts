@@ -35,22 +35,15 @@ export const useMemoryStore = defineStore('gocapture.memory', () => {
     message.value = '';
     try {
       const projectPath = projectStore.current.path;
-      const [result, extensionResult] = await Promise.all([
-        sourceServerJson('/api/memory/read', {
-          method: 'POST',
-          body: { projectPath },
-          timeoutMs: 10000,
-          timeoutMessage: '读取记忆超时，请确认本地源码服务可用'
-        }),
-        sourceServerJson(`/api/connect-agents/extensions?projectRoot=${encodeURIComponent(projectPath)}`, {
-          timeoutMs: 10000,
-          timeoutMessage: '读取 Agent 扩展超时'
-        })
-      ]);
-      snapshot.value = result.memory || null;
+      // 经验/记忆系统已下线：只读取关联 Agent 的扩展能力（MCP / Skills）。
+      const extensionResult = await sourceServerJson(
+        `/api/connect-agents/extensions?projectRoot=${encodeURIComponent(projectPath)}`,
+        { timeoutMs: 10000, timeoutMessage: '读取 Agent 扩展超时' }
+      );
+      snapshot.value = null;
       extensions.value = extensionResult.extensions || null;
     } catch (cause: any) {
-      error.value = cause?.message || '读取记忆失败';
+      error.value = cause?.message || '读取 Agent 扩展失败';
     } finally {
       loading.value = false;
     }

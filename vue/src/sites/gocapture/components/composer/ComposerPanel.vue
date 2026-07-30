@@ -51,16 +51,16 @@
           <button
             class="mda-send-btn"
             type="button"
-            :class="{ 'is-stopping': modelAssistLoading || (connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput) }"
+            :class="{ 'is-stopping': connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput }"
             :title="connectAgentStore.taskAwaitingInput
               ? '回答 Agent'
-              : modelAssistLoading || connectAgentStore.taskRunning
+              : connectAgentStore.taskRunning
                 ? '停止当前任务'
                 : '提交'"
             :disabled="!composerCanSend"
             @click="commands.sendRequest"
           >
-            <span v-if="modelAssistLoading || (connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput)" class="mda-stop-icon" />
+            <span v-if="connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput" class="mda-stop-icon" />
             <span v-else-if="candidateLoading">检索</span>
             <span v-else class="mda-send-arrow" />
           </button>
@@ -95,7 +95,6 @@ import { useGoCaptureCommands } from '../../app/runtime/commands';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useComposerStore } from '../../stores/composer.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
-import { useModelStore } from '../../stores/model.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useRouteStore } from '../../stores/route.store';
 import { useSearchStore } from '../../stores/search.store';
@@ -111,7 +110,6 @@ const commands = useGoCaptureCommands();
 const appUiStore = useAppUiStore();
 const composerStore = useComposerStore();
 const connectAgentStore = useConnectAgentStore();
-const modelStore = useModelStore();
 const projectStore = useProjectStore();
 const routeStore = useRouteStore();
 const searchStore = useSearchStore();
@@ -124,7 +122,6 @@ const hasResultModule = computed(() =>
   (searchStore.candidates?.length || 0) > 0 || !!searchStore.composite || !!searchStore.changePlan);
 const selectedItems = computed(() => selectionStore.items);
 const project = computed(() => projectStore.current);
-const modelAssistLoading = computed(() => modelStore.status === 'running');
 const routeResolverTrace = computed(() => routeStore.resolverTrace);
 const toastText = computed(() => appUiStore.toastText);
 const interactionQuestion = computed(() => {
@@ -141,7 +138,7 @@ const interactionOptions = computed(() =>
   connectAgentStore.pendingInteraction?.questions?.[0]?.options || []);
 const composerCanSend = computed(() => {
   if (connectAgentStore.taskAwaitingInput) return composerStore.trimmedContent.length > 0;
-  if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
+  if (connectAgentStore.taskRunning) return true;
   if (candidateLoading.value) return false;
   if (!project.value) return false;
   if (!connectAgentStore.activeProvider?.connected) return false;

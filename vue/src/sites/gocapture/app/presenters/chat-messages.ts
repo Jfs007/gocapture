@@ -1,7 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useComposerStore } from '../../stores/composer.store';
-import { useModelStore } from '../../stores/model.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
@@ -10,20 +9,12 @@ import { useSearchPrompt } from '../prompt/search-prompt';
 
 export function useChatMessages() {
   const composerStore = useComposerStore();
-  const modelStore = useModelStore();
   const projectStore = useProjectStore();
   const searchStore = useSearchStore();
   const selectionStore = useSelectionStore();
   const connectAgentStore = useConnectAgentStore();
   const prompt = useSearchPrompt();
   const { finalPrompt: promptText } = storeToRefs(composerStore);
-  const {
-    error: modelAssistError,
-    logs: modelAssistLogs,
-    result: modelAssistResult,
-    startedAt: modelAssistStartedAt,
-    finishedAt: modelAssistFinishedAt
-  } = storeToRefs(modelStore);
   const {
     current: project,
     serviceStatus: sourceServiceStatus,
@@ -55,7 +46,6 @@ export function useChatMessages() {
     assetInfo: item.asset || item.element || {},
     thumbnailUrl: item.thumbnailUrl || ''
   })));
-  const modelAssistLoading = computed(() => modelStore.status === 'running');
   const { selectionChatSummary, searchLogLines } = prompt;
   const sourceServiceText = computed(() => {
     if (sourceServiceStatus.value === 'loading') return sourceServiceMessage.value || '正在连接本地源码服务...';
@@ -70,8 +60,8 @@ export function useChatMessages() {
       selectionCreatedAt: latestSelectionTimestamp(selectionStore.items),
       searchStartedAt: Number(searchStartedAt?.value || 0),
       searchFinishedAt: Number(searchFinishedAt?.value || 0),
-      modelStartedAt: Number(modelAssistStartedAt?.value || 0),
-      modelFinishedAt: Number(modelAssistFinishedAt?.value || 0)
+      modelStartedAt: 0,
+      modelFinishedAt: 0
     });
     if (!project.value) {
       messages.push({
@@ -116,11 +106,7 @@ export function useChatMessages() {
         agentBound
           ? `项目 Thread：${projectThreadId || '首次任务时建立'}`
           : '',
-        agentBound
-          ? modelStore.selectedModel
-            ? `Locator：${modelStore.selectedModel.name}`
-            : 'Locator：由开发 Agent 处理'
-          : ''
+        agentBound ? 'Locator：由开发 Agent 处理' : ''
       ].filter(Boolean).join('\n'),
       action: agentBound ? 'agent-settings' : 'connect-agent'
     };
@@ -215,73 +201,6 @@ export function useChatMessages() {
         durationFinishedAt: searchFinishedAt?.value || 0,
         durationActive: false,
         logExpanded: false
-      });
-    }
-
-    if (modelAssistLoading?.value) {
-      messages.push({
-        id: 'model-locating',
-        role: 'agent',
-        title: '模型定位',
-        text: '正在让模型阅读本地预检索结果和候选文件内容，进一步判断应修改的源码文件。',
-        logs: modelAssistLogs?.value || [],
-        durationStartedAt: modelAssistStartedAt?.value || 0,
-        durationFinishedAt: modelAssistFinishedAt?.value || 0,
-        durationActive: true,
-        logExpanded: true
-      });
-    } else if (modelAssistResult?.value) {
-      const result: any = modelAssistResult.value;
-      const targets = (result.modelItems || result.targetFiles || []);
-      const targetLogs = targets
-        .slice(0, 5)
-        .flatMap((item: any, index: number) => {
-          const locateLevel = item.locateLevel || item.modelLocateLevel || 'exact';
-          const fileOnly = !!(item.fileOnly || item.modelFileOnly || locateLevel === 'file');
-          const selectionFallback = !!(item.selectionFallback || item.modelSelectionFallback || item.snippetSource === 'selection-fallback' || item.modelSnippetSource === 'selection-fallback');
-          const snippetVerified = item.snippetVerified !== false && item.modelSnippetVerified !== false;
-          return [
-            `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ''}${item.exists === false ? ' · 文件不存在' : ''}`,
-            fileOnly
-              ? '定位结果: 文件命中'
-              : selectionFallback
-                ? '定位层级: direction；源码不足，使用选区兜底'
-                : `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? '；片段未逐字验证，已降级为源码方向' : ''}`,
-            item.codeSnippet ? `${selectionFallback ? '选区兜底' : snippetVerified ? 'code片段' : '源码方向片段'}: ${item.codeSnippet}` : '',
-            item.directionGuess ? `推测方向: ${item.directionGuess}` : '',
-            item.prompt ? `提示词: ${item.prompt}` : (item.reason || '-')
-          ].filter(Boolean);
-        });
-      messages.push({
-        id: 'model-result',
-        role: 'agent',
-        title: `模型定位 · ${result.adapter?.name || '模型'}`,
-        text: result.stopped
-          ? '模型定位已手动停止。'
-          : targets.length
-            ? '模型已定位到修改点，可继续生成最终提示词。'
-            : '模型未定位到可用修改点。',
-        logs: [
-          ...(result.logs || []),
-          ...targetLogs,
-          !targetLogs.length && result.rawText ? `模型原始返回:\n${result.rawText}` : ''
-        ].filter(Boolean),
-        durationStartedAt: modelAssistStartedAt?.value || 0,
-        durationFinishedAt: modelAssistFinishedAt?.value || 0,
-        durationActive: false,
-        logExpanded: true
-      });
-    } else if (modelAssistError?.value) {
-      messages.push({
-        id: 'model-error',
-        role: 'agent',
-        title: '模型定位失败',
-        text: modelAssistError.value,
-        logs: modelAssistLogs?.value || [],
-        durationStartedAt: modelAssistStartedAt?.value || 0,
-        durationFinishedAt: modelAssistFinishedAt?.value || 0,
-        durationActive: false,
-        logExpanded: true
       });
     }
 

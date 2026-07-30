@@ -10,7 +10,6 @@ import { useComposerStore } from '../../stores/composer.store';
 import { createComposerFacade } from '../state/composer.facade';
 import { setupSelectionRuntime } from './setup/selection';
 import { setupPromptRuntime } from './setup/prompt';
-import { setupModelRuntime } from './setup/model';
 import { setupChatRuntime } from './setup/chat';
 import type { GoCaptureRuntimeContext, GoCaptureRuntimeState } from './context';
 
@@ -22,7 +21,6 @@ export function createGoCaptureRuntimeState(runtime: GoCaptureRuntimeContext): G
   useSidePanelUiPersistence(currentPageHref);
   let search: any = null;
   let bridge: any = null;
-  let model: any = null;
 
   const source = useSourceProject({ currentPageHref });
   const selection: any = setupSelectionRuntime({
@@ -74,7 +72,6 @@ export function createGoCaptureRuntimeState(runtime: GoCaptureRuntimeContext): G
   });
 
   const prompt = setupPromptRuntime();
-  model = setupModelRuntime();
   const message = setupChatRuntime();
 
   return {
@@ -88,7 +85,6 @@ export function createGoCaptureRuntimeState(runtime: GoCaptureRuntimeContext): G
     composer,
     bridge,
     prompt,
-    model,
     message
   };
 }

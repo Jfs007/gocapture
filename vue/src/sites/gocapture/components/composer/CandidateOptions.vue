@@ -115,12 +115,10 @@
 import { computed, ref, watch } from 'vue';
 import { candidateDetailTitle, candidateLogText, candidateStageLabel } from '../../app/presenters/candidate-presenter';
 import { useGoCaptureCommands } from '../../app/runtime/commands';
-import { useModelStore } from '../../stores/model.store';
 import { useSearchStore } from '../../stores/search.store';
 
 const commands = useGoCaptureCommands();
 const searchStore = useSearchStore();
-const modelStore = useModelStore();
 const showCandidatePicker = computed(() => searchStore.showCandidatePicker);
 const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
 const candidateHits = computed(() => searchStore.candidates);
@@ -151,12 +149,7 @@ const openQuestionItems = computed(() => openQuestions.value
   .filter(item => item.text));
 const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
 const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
-const modelAssistLoading = computed(() => modelStore.status === 'running');
 const collapsed = ref(false);
-
-watch(modelAssistLoading, value => {
-  if (value) collapsed.value = true;
-});
 
 watch(openQuestions, questions => {
   const allowed = new Set(questions.map(planLineText).filter(Boolean));

@@ -1,10 +1,47 @@
 'use strict';
 
 const crypto = require('crypto');
+const { compressDomMarkup } = require('../../dom');
 
 const ACCEPT_SELECTION_EVIDENCE = 'accept_selection_evidence';
 const EXPAND_SELECTION_CONTEXT = 'expand_selection_context';
 const DEFAULT_MAX_CALLS = 5;
+// 扩区结果回传给 Agent 前压缩/去重并封顶：浏览器可能回传很大的 DOM，
+// 未压缩会撞破 Agent 工具结果上限、被转存文件，逼模型反复读文件浪费大量轮次。
+const MAX_EXPAND_MARKUP_CHARS = 30000;
+
+// 扩区 markup 封顶。选区元数据已在前端剔除，正常扩区的 markup 很小（几 KB），
+// 直接原样透传——绝不能去重同构兄弟：表格各列结构相同但内容不同，
+// 折叠会把"目标到底在哪一列"的辨识信息抹掉，逼模型反复再扩区。
+// 仅当 markup 过大（深层容器/超长列表扩区）才用 compressDomMarkup 折叠兜底、避免撑爆工具结果上限。
+function shapeExpandResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  const raw = String(result.expandedMarkup || '');
+  if (!raw || raw.length <= MAX_EXPAND_MARKUP_CHARS) return result;
+  const compressed = compressDomMarkup(raw);
+  return {
+    ...result,
+    expandedMarkup: String(compressed.markup || raw).slice(0, MAX_EXPAND_MARKUP_CHARS),
+  };
+}
+
+// 每一轮扩区后，把「实际喂给 Agent 的定位 DOM」写进日志：含原始选区标记状态 + 内容（截断展示）。
+const MAX_FEED_LOG_CHARS = 4000;
+function describeExpandFeed(call, shaped) {
+  const selectionId = call?.input?.selectionId || '';
+  const markup = String(shaped?.expandedMarkup || '');
+  const shown = markup.length > MAX_FEED_LOG_CHARS
+    ? `${markup.slice(0, MAX_FEED_LOG_CHARS)}\n…（已截断，共 ${markup.length} 字符）`
+    : markup;
+  return [
+    `选区 ${selectionId} 扩区完成（第 ${call?.attempt || 1} 次），已把下方定位 DOM 返回 Agent`,
+    `原始选区标记：${shaped?.markerEmbedded
+      ? '已用 <gocapture-original-selection> 包裹（防止 Agent 把相邻兄弟当成选区去定位）'
+      : '未匹配到原始选区，未标记'}`,
+    '喂入 Agent 的定位 DOM：',
+    shown || '（空）',
+  ].join('\n');
+}
 
 const AGENT_TOOL_DEFINITIONS = Object.freeze([
   Object.freeze({
@@ -213,7 +250,10 @@ class AgentToolSession {
     this.onEvent({
       type: 'agent-tool-required',
       capability: call,
-      message: `Agent 请求扩大选区 ${selectionId}（第 ${this.callCount} 次）`,
+      message: [
+        `Agent 判定当前 DOM 为弱线索、不足以定位源码，请求扩区 ${selectionId}（第 ${this.callCount} 次）`,
+        `理由：${call.input.reason || '当前证据不足'}`,
+      ].join('\n'),
     });
     return new Promise((resolve, reject) => {
       const abort = () => {
@@ -239,11 +279,15 @@ class AgentToolSession {
     const pending = this.pending.get(String(callId || ''));
     if (!pending) throw new Error('该 Agent 本地工具调用已结束或不存在');
     this.pending.delete(pending.call.callId);
-    pending.resolve(result);
+    const isExpand = pending.call.name === EXPAND_SELECTION_CONTEXT;
+    const shaped = isExpand ? shapeExpandResult(result) : result;
+    pending.resolve(shaped);
     this.onEvent({
       type: 'agent-tool-resolved',
       capability: pending.call,
-      message: `选区 ${pending.call.input.selectionId} 已扩大，Agent 继续调查`,
+      message: isExpand
+        ? describeExpandFeed(pending.call, shaped)
+        : `选区 ${pending.call.input.selectionId} 已扩大，Agent 继续调查`,
     });
     return {
       taskId: this.taskId,

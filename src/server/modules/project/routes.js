@@ -48,34 +48,6 @@ async function handleProjectRoutes({
     return true;
   }
 
-  if (req.method === 'POST' && url.pathname === '/api/source/interpret/stream') {
-    const body = await readBody(req);
-    const selectedPath = body.path || projectContext.get()?.path;
-    if (!selectedPath) throw new Error('No project selected.');
-    if (!body.adapter) throw new Error('Project Interpreter 需要模型配置。');
-    sendStreamHeaders(res);
-    const controller = new AbortController();
-    let finished = false;
-    req.on('close', () => {
-      if (!finished) controller.abort();
-    });
-    try {
-      const project = await projectContext.bind(selectedPath, {
-        adapter: body.adapter,
-        signal: controller.signal,
-        onLog: log => writeStreamEvent(res, { type: 'log', log }),
-      });
-      finished = true;
-      writeStreamEvent(res, { type: 'result', result: { project } });
-      res.end();
-    } catch (error) {
-      finished = true;
-      writeStreamEvent(res, { type: 'error', error: error.message || String(error) });
-      res.end();
-    }
-    return true;
-  }
-
   if (req.method === 'POST' && url.pathname === '/api/route/resolve') {
     const project = projectContext.requireCurrent();
     const body = await readBody(req);

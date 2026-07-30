@@ -41,8 +41,7 @@ export function usePageRequests() {
       return url.pathname === '/health'
         || url.pathname.startsWith('/api/source/')
         || url.pathname.startsWith('/api/route/')
-        || url.pathname.startsWith('/api/model/')
-        || url.pathname.startsWith('/api/search');
+        || url.pathname.startsWith('/api/connect-agents');
     } catch (error) {
       return false;
     }

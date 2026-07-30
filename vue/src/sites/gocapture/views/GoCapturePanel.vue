@@ -85,7 +85,6 @@
           </div>
         </div>
       </div>
-      <McpStatusPanel :visible="mcpPanelOpen" @close="appUiStore.setMcpPanelOpen(false)" />
     </section>
   </main>
 </template>
@@ -94,7 +93,6 @@
 import ChatThread from '../components/chat/ChatThread.vue';
 import ComposerPanel from '../components/composer/ComposerPanel.vue';
 import GoCaptureIcon from '../components/common/GoCaptureIcon.vue';
-import McpStatusPanel from '../components/mcp/McpStatusPanel.vue';
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { createGoCaptureRuntime } from '../app/runtime/create-runtime';

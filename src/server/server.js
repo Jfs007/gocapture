@@ -5,7 +5,6 @@ const {
 } = require('./core/config');
 const { createBridge } = require('./bridge');
 const { createConnectAgentService } = require('./connect-agent');
-const { handleAgentHostRoutes } = require('./agent-host/http-routes');
 const { readBody } = require('./http/body');
 const {
   sendJson,
@@ -14,11 +13,9 @@ const {
 } = require('./http/response');
 const { handleBridgeRoutes } = require('./modules/bridge/routes');
 const { handleConnectAgentRoutes } = require('./modules/connect-agent/routes');
-const { handleModelRoutes } = require('./modules/model/routes');
 const { handleProjectRoutes } = require('./modules/project/routes');
 const { createProjectContext } = require('./modules/project/project-context');
 const { handleRegistryRoutes } = require('./modules/registry/routes');
-const { handleSearchRoutes } = require('./modules/search/routes');
 const { handleUpdateRoutes } = require('./modules/update/routes');
 const { handleUiRequest } = require('./ui/serve-ui');
 
@@ -44,19 +41,6 @@ function createSourceServer() {
         res,
         url,
         sendJson,
-      })) {
-        return;
-      }
-
-      if (await handleAgentHostRoutes({
-        req,
-        res,
-        url,
-        readBody,
-        sendJson,
-        sendStreamHeaders,
-        writeStreamEvent,
-        resolveProject: projectContext.resolve,
       })) {
         return;
       }
@@ -97,32 +81,6 @@ function createSourceServer() {
       }
 
       if (await handleProjectRoutes({
-        req,
-        res,
-        url,
-        projectContext,
-        readBody,
-        sendJson,
-        sendStreamHeaders,
-        writeStreamEvent,
-      })) {
-        return;
-      }
-
-      if (await handleSearchRoutes({
-        req,
-        res,
-        url,
-        projectContext,
-        readBody,
-        sendJson,
-        sendStreamHeaders,
-        writeStreamEvent,
-      })) {
-        return;
-      }
-
-      if (await handleModelRoutes({
         req,
         res,
         url,

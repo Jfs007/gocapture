@@ -13,10 +13,8 @@ import type { GoCaptureRuntimeState } from '../runtime/context';
 import { PRODUCT_NAME } from '../config/product';
 import type { SelectionSourceBinding } from '../types/selection.types';
 
-const MAX_AUTO_EXPAND_ATTEMPTS = 5;
-
 export function createComposerWorkflow(state: GoCaptureRuntimeState) {
-  const { source, route, search, selection, composer, model, prompt } = state;
+  const { source, route, search, selection, composer, prompt } = state;
   const appUiStore = useAppUiStore();
   const connectAgentStore = useConnectAgentStore();
 
@@ -77,15 +75,11 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
       connectAgentStore.cancelTask();
       return;
     }
-    if (model.modelAssistLoading.value) {
-      model.stopModelAssist();
-      return;
-    }
     if (!source.project.value) return;
     const instruction = composer.promptIntent.value.trim();
     if (!instruction) return;
     if (!connectAgentStore.activeProvider?.connected) {
-      appUiStore.setToast('请先关联 Codex 开发 Agent');
+      appUiStore.setToast('请先关联开发 Agent');
       return;
     }
     if (!selection.referencedSelectionIds(instruction).length) {
@@ -94,16 +88,8 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
       return;
     }
     if (await reuseSelectionSourceContext(instruction)) return;
-    if (search.showCandidatePicker.value) {
-      await runModelAssistForCandidates(instruction);
-      return;
-    }
     if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
-    if (!model.selectedModel.value) {
-      await runConnectedAgentFromLocalEvidence(instruction);
-      return;
-    }
-    await searchCandidateFiles();
+    await runConnectedAgentFromLocalEvidence(instruction);
   }
 
   async function runConnectedAgentFromLocalEvidence(instruction: string) {
@@ -122,222 +108,10 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
     search.searchFinishedAt.value = Date.now();
   }
 
-  async function searchCandidateFiles() {
-    search.candidateLoading.value = true;
-    search.candidateError.value = '';
-    search.serverNeedsMoreEvidence.value = false;
-    search.modelAssistAttempted.value = false;
-    model.resetModelAssist();
-    selection.filesConfirmed.value = false;
-    try {
-      if (!route.sameRouteTracePage(route.routeResolverTrace.value)) {
-        await route.resolveCurrentPageRoute();
-      }
-
-      search.searchRunning.value = true;
-      search.searchStartedAt.value = Date.now();
-      search.searchFinishedAt.value = 0;
-      search.processLogs.value = [];
-      search.agentUsed.value = false;
-      connectAgentStore.resetTask();
-
-      const timeoutMs = search.includeApiEvidence.value ? 30000 : 12000;
-      const data = await runSearchWithOptionalRetry(timeoutMs);
-      search.candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
-      search.compositeResult.value = data.composite || null;
-      route.applyRouteResolverTrace(data.routeResolver || null);
-      search.apiTrace.value = data.apiTrace || null;
-      search.i18nTrace.value = data.i18nTrace || null;
-      search.definitionTrace.value = data.definitionTrace || null;
-      search.serverNeedsMoreEvidence.value = !!(data.needsMoreEvidence || data.needMoreDom || data.agent?.needMoreDom);
-
-      if (!search.candidateHits.value.length) {
-        search.selectedCandidatePaths.value = [];
-        if (search.serverNeedsMoreEvidence.value) {
-          search.candidateError.value = '自动扩区后仍证据不足，未能定位源码。';
-        } else {
-          search.candidateError.value = '未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。';
-        }
-      } else {
-        search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
-        search.expandedCandidatePath.value = '';
-        appUiStore.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
-      }
-
-      // DOM Agent 已经在内部用模型完成定位并收敛，就不再走老的「模型定位/model-assist」那一步
-      //（那是没有 agent 之前用来从候选里挑文件、读源码发给模型的流程，现已完全冗余）。
-      if (data.agent?.enabled && search.candidateHits.value.length) {
-        const instruction = composer.promptIntent.value.trim();
-        const resolvedComposite = data.agent?.status === 'resolved' && !!data.composite?.render;
-        if (resolvedComposite) {
-          // DOM Agent 已定位并收敛：不再重复定位，直接进入「变更规划」——
-          // files 是一个已确认的协作组合，不是需要用户互斥选择的多个答案。
-          search.selectedCandidatePaths.value = search.candidateHits.value.map((hit: any) => hit.file);
-          selection.filesConfirmed.value = true;
-          bindResolvedSelectionContext(instruction, data);
-          await runChangePlanForResolved(instruction);
-        }
-        // Agent 未 resolved 时才保留候选选择器，不把协作组合降级成“多个候选待确认”。
-        return search.candidateHits.value;
-      }
-
-      if (shouldAutoRunModelAssist(search.candidateHits.value)) {
-        const modelHandled = await runModelAssistForCandidates(composer.promptIntent.value.trim());
-        if (modelHandled) return model.modelAssistResult.value?.stopped ? [] : search.candidateHits.value;
-      }
-      return search.candidateHits.value;
-    } catch (error: any) {
-      search.selectedCandidatePaths.value = [];
-      search.candidateError.value = `${error.message || error}。`;
-      return [];
-    } finally {
-      search.candidateLoading.value = false;
-    }
-  }
-
   // 直接从「当前选区 DOM」提取原始选区的稳定锚点——不依赖 Planner 是否成计划。
   // 因为像 ¥3/查看/cost 这种，Planner 常判为 need-more-context（无计划），若从计划取就永远丢了。
   // 用途：① 扩区收敛后回到用户最初选的那处做细定位；② 校验最终文件是否真的与原始选区有渲染/引用关系。
-  function originAnchorsFromSelection(instruction: string): string[] {
-    const items = selection.selectedItems?.value || [];
-    const [uid = ''] = selection.referencedSelectionIds(instruction);
-    const selected: any = items.find((item: any) => item.uid === uid);
-    const el: any = selected?.element || selected?.info || {};
-    const anchors: string[] = [];
-    const markup = String(el.rawOuterHtml || el.outerHtml || '');
-    for (const match of markup.matchAll(/\bdata-(?!v-)[\w-]+="([^"]{2,})"/g)) {
-      const value = String(match[1] || '').trim();
-      if (value && !/^__.*__$/.test(value) && !/^[\d.]+$/.test(value)) anchors.push(value);
-    }
-    for (const word of String(el.text || '').split(/\s+/)) {
-      const token = word.trim();
-      if (token.length >= 2 && token.length <= 12
-        && !/^[¥$]?[\d.,:：/%\-]+$/.test(token) && !/^ID[:：]/i.test(token)) anchors.push(token);
-    }
-    for (const cls of String(el.className || '').split(/\s+/)) {
-      const token = cls.trim();
-      if (token && !/^(n-|el-|ivu-|ant-|van-|flex|grid|is-|has-|mt-|mb-|ml-|mr-|w-|h-|p-|m-)/.test(token)) anchors.push(token);
-    }
-    return Array.from(new Set(anchors)).slice(0, 6);
-  }
-
-  async function runSearchWithOptionalRetry(timeoutMs: number) {
-    try {
-      // 原始选区锚点 = 用户「最初选中」那个元素的锚点，只在扩区前(轮1)抓取一次，全程保持。
-      // 绝不能在扩区后重抓：扩区后的选区已包含兄弟/父级节点，重抓会把兄弟(如与 ¥3 并排的「查看」)
-      // 误当成原始选区锚点，导致细定位把选区钉到一个用户没选的相邻元素上。
-      // 轮1为空(原始选区本就没有字面锚点，如纯运行时数值)时就保持空——这是「本地无法确定」的诚实信号，
-      // 交给带原始选区 DOM 快照的变更计划去做结构对齐。
-      const focusAnchors = originAnchorsFromSelection(composer.promptIntent.value);
-      lastOriginSelections = captureOriginSelections(composer.promptIntent.value);
-      let firstPass = await runSearchRequest(prompt.searchPayload(), timeoutMs, '第 1 轮：原始选区检索');
-      for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
-        const expanded = await expandReferencedSelectionForMoreEvidence(
-          attempt,
-          composer.promptIntent.value,
-        );
-        if (!expanded) break;
-        const retryState: any = buildAgentRetryState(firstPass, attempt);
-        if (focusAnchors.length) retryState.focusAnchors = focusAnchors;
-        firstPass = await runSearchRequest(prompt.searchPayload({
-          agentState: retryState
-        }), timeoutMs, `第 ${attempt + 1} 轮：自动扩区后继续检索`);
-      }
-      const firstHits = Array.isArray(firstPass?.hits) ? firstPass.hits : [];
-      if (firstPass?.agent?.enabled) return firstPass;
-      if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
-      const secondPass = await runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs, '扩展上下文兜底检索');
-      const secondHits = Array.isArray(secondPass?.hits) ? secondPass.hits : [];
-      return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
-    } finally {
-      search.searchFinishedAt.value = Date.now();
-      search.searchRunning.value = false;
-    }
-  }
-
   // DOM Agent 定位收敛后启动唯一的 LangChain Planning Agent；Recon/Experience/Skills/MCP 均由 Agent 按需选用。
-  async function runChangePlanForResolved(instruction: string) {
-    const bindings = selection.reusableSourceBindings(instruction, projectRoot());
-    if (!bindings.length) {
-      prompt.generatePrompt({ userInstruction: instruction });
-      return;
-    }
-    if (await runConnectedAgent(instruction, bindings)) return;
-    // 模型不可用：退回纯文本提示词，不产出结构化计划。
-    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
-      prompt.generatePrompt({ userInstruction: instruction });
-      return;
-    }
-    search.modelAssistAttempted.value = true;
-    const modelResult: any = await model.runSelectionContextAssist({ userInstruction: instruction, selectionBindings: bindings });
-    if (modelResult?.stopped) return;
-    search.changePlanResult.value = modelResult?.changePlan
-      || (search.candidateHits.value[0] as any)?.modelChangePlan
-      || null;
-    prompt.generatePrompt({ userInstruction: instruction });
-  }
-
-  async function runSearchRequest(body: unknown, timeoutMs: number, label = '') {
-    if (label) search.appendProcessLog(`检索请求开始：${label}`);
-    return await sourceServerNdjson('/api/search/stream', {
-      method: 'POST',
-      body: {
-        ...(body as Record<string, unknown>),
-        projectRoot: projectRoot(),
-        adapter: model.selectedModel.value || null
-      },
-      timeoutMs: Math.max(timeoutMs, Number(model.selectedModel.value?.timeoutMs || 120000) * 2 + 5000),
-      timeoutMessage: search.includeApiEvidence.value
-        ? '源码检索超时，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试'
-        : '源码检索超时，请确认项目源码目录是否选错，或补充关键词后重试',
-      onEvent(event) {
-        if (event.type === 'log' && event.log) {
-          search.appendProcessLog(event.log);
-          if (String(event.log).startsWith('DOM Agent 触发判断：启用')) {
-            search.agentUsed.value = true;
-          }
-        }
-      }
-    });
-  }
-
-  async function runModelAssistForCandidates(userInstruction: string) {
-    if (!search.candidateHits.value.length) return false;
-    search.modelAssistAttempted.value = true;
-    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
-      const text = modelAssistUnavailableText();
-      search.candidateError.value = text;
-      appUiStore.setToast(text);
-      return true;
-    }
-    const modelResult = await model.runModelAssist();
-    if (modelResult?.stopped) return true;
-    if (hasUsableModelResult(modelResult)) {
-      selection.filesConfirmed.value = true;
-      bindResolvedSelectionContext(userInstruction);
-      prompt.generatePrompt({ userInstruction });
-      return true;
-    }
-    return false;
-  }
-
-  async function expandReferencedSelectionForMoreEvidence(attempt: number, instruction: string) {
-    const items = selection.selectedItems?.value || [];
-    const [uid = ''] = selection.referencedSelectionIds(instruction);
-    const before = selectionSnapshotById(uid);
-    if (!uid || typeof selection.expandSelection !== 'function') return false;
-    search.appendProcessLog?.(`证据不足：自动扩大当前选区 ${uid}（第 ${attempt} 次）`);
-    await selection.expandSelection(uid);
-    const changed = await waitForSelectionSnapshotChange(before);
-    if (changed) {
-      search.appendProcessLog?.('自动扩区完成：选区对象已更新，继续检索');
-      appUiStore.setToast('已自动扩大当前选区并继续检索');
-      return true;
-    }
-    search.appendProcessLog?.('自动扩区停止：未检测到选区变化');
-    return false;
-  }
-
   function selectionSnapshotById(uid: string) {
     const items = selection.selectedItems?.value || [];
     return latestSelectionSnapshotFromItems(items.filter((item: any) => item.uid === uid));
@@ -355,53 +129,8 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
     return false;
   }
 
-  function modelAssistUnavailableText() {
-    if (!model.selectedModel.value) return '模型定位未启用：请先在输入框模型菜单里选择或配置模型。';
-    if (!source.project.value || source.project.value.source !== 'source-server') {
-      return '模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。';
-    }
-    return '模型定位不可用：请检查模型配置。';
-  }
-
   function projectRoot() {
     return String(source.project.value?.path || source.project.value?.root || '').trim();
-  }
-
-  function bindResolvedSelectionContext(userInstruction: string, searchResult: any = null) {
-    const ids = selection.referencedSelectionIds(userInstruction);
-    if (ids.length !== 1) return;
-    const selected = search.selectedCandidateHits.value.length
-      ? search.selectedCandidateHits.value
-      : search.candidateHits.value.slice(0, 1);
-    const targets = sourceTargetsFromCandidates(selected);
-    const root = projectRoot();
-    if (!root || !targets.length) return;
-    selection.bindSourceContext(ids, {
-      projectRoot: root,
-      designRequirement: userInstruction,
-      targets,
-      investigation: sourceInvestigationFromResult(searchResult),
-      originSelections: lastOriginSelections,
-      resolvedAt: Date.now()
-    } satisfies SelectionSourceBinding);
-    search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map(target => target.file).join('、')}`);
-  }
-
-  function sourceInvestigationFromResult(result: any) {
-    const locator = result?.agent?.locator || result?.agent || null;
-    if (!locator || locator.status !== 'resolved') return null;
-    return {
-      status: 'resolved',
-      reason: String(locator.reason || ''),
-      coveredDom: Array.isArray(locator.coveredDom) ? locator.coveredDom.map(String) : [],
-      missingEvidence: Array.isArray(locator.missingEvidence) ? locator.missingEvidence.map(String) : [],
-      relations: (Array.isArray(locator.relations) ? locator.relations : []).map((relation: any) => ({
-        from: String(relation?.from || ''),
-        to: String(relation?.to || ''),
-        type: String(relation?.type || 'related'),
-        evidence: String(relation?.evidence || '')
-      })).filter((relation: any) => relation.from && relation.to)
-    };
   }
 
   async function reuseSelectionSourceContext(userInstruction: string) {
@@ -419,34 +148,14 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
     search.candidateLoading.value = false;
     search.searchStartedAt.value = Date.now();
     search.searchFinishedAt.value = 0;
-    search.modelAssistAttempted.value = true;
     selection.filesConfirmed.value = false;
     if (await runConnectedAgent(userInstruction, bindings)) {
       search.searchFinishedAt.value = Date.now();
       selection.filesConfirmed.value = true;
       return true;
     }
-    if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
-      const text = modelAssistUnavailableText();
-      search.candidateError.value = text;
-      search.searchFinishedAt.value = Date.now();
-      appUiStore.setToast(text);
-      return true;
-    }
-    const modelResult = await model.runSelectionContextAssist({
-      userInstruction,
-      selectionBindings: bindings
-    });
     search.searchFinishedAt.value = Date.now();
-    if (modelResult?.stopped) return true;
-    if (hasUsableModelResult(modelResult)) {
-      selection.filesConfirmed.value = true;
-      prompt.generatePrompt({ userInstruction });
-      appUiStore.setToast('已复用选区源码上下文并完成模型增强');
-      return true;
-    }
-    search.candidateError.value = model.modelAssistError.value || '选区源码上下文增强失败，请重试。';
-    return true;
+    return false;
   }
 
   async function runConnectedAgent(
@@ -535,23 +244,27 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
       const changed = await waitForSelectionSnapshotChange(before);
       const payload: any = prompt.searchPayload({ expandedRetry: true });
       const expandedSelection = selectionFromPayload(payload, selectionId);
+      const marked = markOriginalSelection(expandedSelection, targetSelection, selectionId);
+      const targetElement: any = targetSelection?.element || {};
+      // 只回传定位需要的精简事实：目标身份 + 带标记的扩区 markup。
+      // 绝不回传整个选区对象（ancestors / subtree / computedStyle 等元数据会膨胀到数百 KB，
+      // 撞破 Agent 工具结果上限被转存文件，逼模型反复读文件浪费大量轮次）。
       result = {
         success: changed,
         selectionId,
         pageUrl: String(payload?.pageUrl || state.currentPageHref.value || ''),
         pagePath: String(payload?.pagePath || ''),
-        targetSelection,
-        expandedContext: markOriginalSelection(
-          expandedSelection,
-          targetSelection,
-          selectionId
-        ),
-        targetContract: [
-          'The user request applies only to targetSelection.',
-          'expandedContext is location evidence only and must not replace or broaden the target.',
-          'When markerEmbedded is true, the original target is enclosed by',
-          'GOCAPTURE_ORIGINAL_SELECTION_START/END comments inside the expanded markup.'
-        ].join(' '),
+        target: {
+          tag: String(targetElement.tag || targetElement.tagName || ''),
+          selector: String(targetElement.selector || ''),
+          text: String(targetElement.text || '')
+        },
+        markerEmbedded: marked.markerEmbedded,
+        expandedMarkup: marked.markup,
+        note: [
+          '修改目标只有 target：即被 <gocapture-original-selection> 包裹的那个节点。',
+          'expandedMarkup 的其余部分仅是用于定位的周围上下文，不要当作选区，也不要据此扩大改动范围。'
+        ].join(''),
         message: changed
           ? 'The browser context was expanded while the original modification target was preserved.'
           : 'The browser selection could not be expanded further.'
@@ -591,83 +304,33 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
       || null;
   }
 
+  // 在「扩区后的 markup」里，把「原始选区那段 markup」用元素标签包起来标记出来。
+  // 用元素（而非 HTML 注释）：服务端会用 compressDomMarkup 压缩/去重，注释会被解析器丢弃，元素能存活。
+  // 返回精简字符串，不带任何选区元数据。
   function markOriginalSelection(expanded: any, target: any, selectionId: string) {
-    if (!expanded) return {
-      markerEmbedded: false,
-      selection: null
-    };
-    const expandedElement = expanded.element || {};
+    const expandedElement = expanded?.element || {};
     const targetElement = target?.element || {};
-    const targetMarkup = String(
-      targetElement.rawOuterHtml
-      || targetElement.outerHtml
-      || ''
-    );
-    const markerStart = `<!-- GOCAPTURE_ORIGINAL_SELECTION_START ${selectionId} -->`;
-    const markerEnd = `<!-- GOCAPTURE_ORIGINAL_SELECTION_END ${selectionId} -->`;
-    let markerEmbedded = false;
-    const markedElement = { ...expandedElement };
-    for (const key of ['rawOuterHtml', 'outerHtml']) {
-      const markup = String(expandedElement?.[key] || '');
-      if (!targetMarkup || !markup.includes(targetMarkup)) continue;
-      markedElement[key] = markup.replace(
-        targetMarkup,
-        `${markerStart}${targetMarkup}${markerEnd}`
-      );
-      markerEmbedded = true;
+    const expandedMarkup = String(expandedElement.rawOuterHtml || expandedElement.outerHtml || '');
+    const targetMarkup = String(targetElement.rawOuterHtml || targetElement.outerHtml || '');
+    if (!expandedMarkup) return { markerEmbedded: false, markup: targetMarkup };
+    if (!targetMarkup || !expandedMarkup.includes(targetMarkup)) {
+      return { markerEmbedded: false, markup: expandedMarkup };
     }
     return {
-      markerEmbedded,
-      marker: {
-        selectionId,
-        start: markerStart,
-        end: markerEnd
-      },
-      selection: {
-        ...expanded,
-        element: markedElement
-      }
+      markerEmbedded: true,
+      markup: expandedMarkup.replace(
+        targetMarkup,
+        `<gocapture-original-selection data-selection-id="${selectionId}">${targetMarkup}</gocapture-original-selection>`
+      )
     };
   }
 
   return {
-    sendComposer,
-    searchCandidateFiles,
-    runModelAssistForCandidates
+    sendComposer
   };
 }
 
 // 从一次检索结果里取「原始选区的稳定锚点」候选（用于扩区全程保持的 focusAnchors）。
-function buildAgentRetryState(previousResult: any, attempt: number) {
-  const agent = previousResult?.agent || {};
-  const inspectionCandidates = Array.isArray(agent?.inspection?.candidates)
-    ? agent.inspection.candidates
-    : [];
-  return {
-    expansionRetry: true,
-    expansionRoundsUsed: attempt,
-    previousPlan: agent?.plan || null,
-    previousCandidates: inspectionCandidates.slice(0, 8).map((item: any) => ({
-      file: item?.file || '',
-      score: item?.score || 0,
-      matchedGroups: Array.isArray(item?.matchedGroups)
-        ? item.matchedGroups.map((group: any) => ({
-          keywords: Array.isArray(group?.keywords) ? group.keywords : [],
-          source: group?.source || '',
-          range: group?.range || ''
-        }))
-        : []
-    })),
-    previousReason: agent?.evidence?.reason || ''
-  };
-}
-
-function shouldAutoExpandSearch(result: any) {
-  const hits = Array.isArray(result?.hits) ? result.hits : [];
-  if (hits.length) return false;
-  return !!(result?.needsMoreEvidence || result?.needMoreDom || result?.agent?.needMoreDom);
-}
-
 function latestSelectionSnapshotFromItems(items: any[]) {
   const latest = items[items.length - 1];
   if (!latest?.uid) return { uid: '', signature: '' };
@@ -692,47 +355,4 @@ function latestSelectionSnapshotFromItems(items: any[]) {
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function hasUsableModelResult(result: any) {
-  return (result?.modelItems || result?.targetFiles || []).some((item: any) => {
-    return item && item.exists !== false && (item.path || item.file);
-  });
-}
-
-function shouldAutoRunModelAssist(hits: any[]) {
-  const list = Array.isArray(hits) ? hits : [];
-  return list.length > 0;
-}
-
-function hasStrongSearchEvidence(hits: any[]) {
-  const list = Array.isArray(hits) ? hits : [];
-  return list.some(hit => {
-    if (!hit) return false;
-    if (hit.preciseEvidence || hit.uniqueMatchText || hit.uniqueSnippet) return true;
-    if (Number(hit.exactMatchCount || 0) === 1 && Number(hit.contextScore || 0) >= 18) return true;
-    if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
-    if (Number(hit.contextScore || 0) >= 32 && (hit.contextReasons || []).length >= 2) return true;
-    return false;
-  });
-}
-
-function shouldRetryExpandedSearch(hits: any[]) {
-  const list = Array.isArray(hits) ? hits : [];
-  if (list.length < 2) return false;
-  if (hasStrongSearchEvidence(list)) return false;
-  if (list.length >= 6) return true;
-  const exactLikeHits = list.filter(hit => hit?.exactMatchText || hit?.uniqueMatchText).length;
-  return exactLikeHits <= 1;
-}
-
-function isBetterSearchResult(nextHits: any[], currentHits: any[]) {
-  const next = Array.isArray(nextHits) ? nextHits : [];
-  const current = Array.isArray(currentHits) ? currentHits : [];
-  if (!next.length) return false;
-  const nextStrong = hasStrongSearchEvidence(next);
-  const currentStrong = hasStrongSearchEvidence(current);
-  if (nextStrong !== currentStrong) return nextStrong;
-  if (next.length !== current.length) return next.length < current.length;
-  return Number(next[0]?.score || 0) > Number(current[0]?.score || 0);
 }

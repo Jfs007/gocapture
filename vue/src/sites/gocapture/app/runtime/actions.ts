@@ -5,7 +5,7 @@ import { useAppUiStore } from '../../stores/app-ui.store';
 import type { GoCaptureActions, GoCaptureRuntimeState } from './context';
 
 export function createGoCaptureActions(state: GoCaptureRuntimeState): GoCaptureActions {
-  const { api, currentPageHref, source, search, selection, composer, model } = state;
+  const { api, currentPageHref, source, search, selection } = state;
   const workflow = createComposerWorkflow(state);
 
   return {
@@ -26,18 +26,7 @@ export function createGoCaptureActions(state: GoCaptureRuntimeState): GoCaptureA
     setIncludeApiEvidence: (value: boolean) => {
       search.includeApiEvidence.value = !!value;
     },
-    onSearchOptionChange: () => search.clearCandidateState(),
-    openModelEditor: model.openModelEditor,
-    openProviderModelEditor: model.openProviderModelEditor,
-    closeModelEditor: model.closeModelEditor,
-    saveModelForm: model.saveModelForm,
-    removeSelectedModel: model.removeSelectedModel,
-    setSelectedModel: model.setSelectedModel,
-    selectModelAndEnable: model.selectModelAndEnable,
-    disableModelAssist: model.disableModelAssist,
-    setUseModelAssist: model.setUseModelAssist,
-    resetModelAssist: model.resetModelAssist,
-    stopModelAssist: model.stopModelAssist
+    onSearchOptionChange: () => search.clearCandidateState()
   };
 }
 

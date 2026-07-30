@@ -9041,7 +9041,7 @@ ${unwrappedProps}
       ]);
     }
   });
-  const _hoisted_1$p = {
+  const _hoisted_1$o = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9051,7 +9051,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$p,
+        _hoisted_1$o,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9085,7 +9085,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$o = {
+  const _hoisted_1$n = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9095,7 +9095,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$o,
+        _hoisted_1$n,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "rect",
@@ -9147,7 +9147,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$n = {
+  const _hoisted_1$m = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9157,7 +9157,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$n,
+        _hoisted_1$m,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9191,7 +9191,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$m = {
+  const _hoisted_1$l = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9201,7 +9201,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$m,
+        _hoisted_1$l,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9235,7 +9235,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$l = {
+  const _hoisted_1$k = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9245,7 +9245,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$l,
+        _hoisted_1$k,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9279,7 +9279,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$k = {
+  const _hoisted_1$j = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9289,7 +9289,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$k,
+        _hoisted_1$j,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9305,7 +9305,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$j = {
+  const _hoisted_1$i = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9315,7 +9315,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$j,
+        _hoisted_1$i,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9377,7 +9377,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$i = {
+  const _hoisted_1$h = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9387,7 +9387,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$i,
+        _hoisted_1$h,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "rect",
@@ -9425,7 +9425,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$h = {
+  const _hoisted_1$g = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9435,7 +9435,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$h,
+        _hoisted_1$g,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9469,7 +9469,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$g = {
+  const _hoisted_1$f = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9479,7 +9479,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$g,
+        _hoisted_1$f,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9524,7 +9524,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$f = {
+  const _hoisted_1$e = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9532,10 +9532,10 @@ ${unwrappedProps}
   const ImagesOutline = /* @__PURE__ */ defineComponent({
     name: "ImagesOutline",
     render: function render2(_ctx, _cache) {
-      return openBlock(), createElementBlock("svg", _hoisted_1$f, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
+      return openBlock(), createElementBlock("svg", _hoisted_1$e, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M432 112V96a48.14 48.14 0 0 0-48-48H64a48.14 48.14 0 0 0-48 48v256a48.14 48.14 0 0 0 48 48h16" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></path><rect x="96" y="128" width="400" height="336" rx="45.99" ry="45.99" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="32"></rect><ellipse cx="372.92" cy="219.64" rx="30.77" ry="30.55" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32"></ellipse><path d="M342.15 372.17L255 285.78a30.93 30.93 0 0 0-42.18-1.21L96 387.64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path><path d="M265.23 464l118.59-117.73a31 31 0 0 1 41.46-1.87L496 402.91" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"></path>', 5)]));
     }
   });
-  const _hoisted_1$e = {
+  const _hoisted_1$d = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9543,10 +9543,10 @@ ${unwrappedProps}
   const LogoCodepen = /* @__PURE__ */ defineComponent({
     name: "LogoCodepen",
     render: function render2(_ctx, _cache) {
-      return openBlock(), createElementBlock("svg", _hoisted_1$e, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M241.24 303.94c-15.32-10.36-30.74-20.57-46.06-30.93c-2-1.38-3.43-1.48-5.5 0l-38.88 26.12C182 319.9 244 361.32 244 361.32v-53.79c0-1.22-1.55-2.78-2.76-3.59z" fill="currentColor"></path><path d="M195.09 240.67q23.19-15.24 46.11-30.86a7.54 7.54 0 0 0 2.8-5.34v-51.7s-62 41.12-93.26 61.94c13.7 9.16 26.67 17.91 39.78 26.44c1.02.66 3.4.28 4.57-.48z" fill="currentColor"></path><path d="M269.84 209.35q23.71 16.07 47.63 31.82a4.3 4.3 0 0 0 3.83 0l39.76-26.47L268 152.48v53.35a4.79 4.79 0 0 0 1.84 3.52z" fill="currentColor"></path><path d="M258.11 230.37a5.27 5.27 0 0 0-4.74.17c-4.82 3-9.47 6.2-14.17 9.35c-8.25 5.53-25.35 17-25.35 17l38.84 25.86a6.18 6.18 0 0 0 6.26.11l39-26s-34.07-22.66-39.84-26.49z" fill="currentColor"></path><path d="M141 237.12v39.61l29.62-19.84L141 237.12z" fill="currentColor"></path><path d="M256 32C132.29 32 32 132.29 32 256s100.29 224 224 224s224-100.29 224-224S379.71 32 256 32zm139 265c0 5.78-2.65 9.86-7.51 13.09q-61.71 41-123.29 82.19c-5.85 3.92-11.17 3.75-17-.14q-61.17-41-122.63-81.67c-5.11-3.39-7.59-7.56-7.59-13.73V217c0-6.14 2.52-10.34 7.62-13.72c40.91-27.13 81.94-54.36 122.73-81.68c5.82-3.89 11.09-4 16.94-.09q61.54 41.21 123.26 82.19c4.68 3.11 7.45 6.95 7.45 12.66z" fill="currentColor"></path><path d="M316.25 273.23q-22.59 15.34-45.39 30.34c-2.41 1.58-2.89 3.31-2.86 6.19v51.34l93-62l-38.53-25.88c-2.3-1.61-3.89-1.57-6.22.01z" fill="currentColor"></path><path d="M370 276.68v-39.62l-29.59 19.87L370 276.68z" fill="currentColor"></path>', 8)]));
+      return openBlock(), createElementBlock("svg", _hoisted_1$d, _cache[0] || (_cache[0] = [createStaticVNode('<path d="M241.24 303.94c-15.32-10.36-30.74-20.57-46.06-30.93c-2-1.38-3.43-1.48-5.5 0l-38.88 26.12C182 319.9 244 361.32 244 361.32v-53.79c0-1.22-1.55-2.78-2.76-3.59z" fill="currentColor"></path><path d="M195.09 240.67q23.19-15.24 46.11-30.86a7.54 7.54 0 0 0 2.8-5.34v-51.7s-62 41.12-93.26 61.94c13.7 9.16 26.67 17.91 39.78 26.44c1.02.66 3.4.28 4.57-.48z" fill="currentColor"></path><path d="M269.84 209.35q23.71 16.07 47.63 31.82a4.3 4.3 0 0 0 3.83 0l39.76-26.47L268 152.48v53.35a4.79 4.79 0 0 0 1.84 3.52z" fill="currentColor"></path><path d="M258.11 230.37a5.27 5.27 0 0 0-4.74.17c-4.82 3-9.47 6.2-14.17 9.35c-8.25 5.53-25.35 17-25.35 17l38.84 25.86a6.18 6.18 0 0 0 6.26.11l39-26s-34.07-22.66-39.84-26.49z" fill="currentColor"></path><path d="M141 237.12v39.61l29.62-19.84L141 237.12z" fill="currentColor"></path><path d="M256 32C132.29 32 32 132.29 32 256s100.29 224 224 224s224-100.29 224-224S379.71 32 256 32zm139 265c0 5.78-2.65 9.86-7.51 13.09q-61.71 41-123.29 82.19c-5.85 3.92-11.17 3.75-17-.14q-61.17-41-122.63-81.67c-5.11-3.39-7.59-7.56-7.59-13.73V217c0-6.14 2.52-10.34 7.62-13.72c40.91-27.13 81.94-54.36 122.73-81.68c5.82-3.89 11.09-4 16.94-.09q61.54 41.21 123.26 82.19c4.68 3.11 7.45 6.95 7.45 12.66z" fill="currentColor"></path><path d="M316.25 273.23q-22.59 15.34-45.39 30.34c-2.41 1.58-2.89 3.31-2.86 6.19v51.34l93-62l-38.53-25.88c-2.3-1.61-3.89-1.57-6.22.01z" fill="currentColor"></path><path d="M370 276.68v-39.62l-29.59 19.87L370 276.68z" fill="currentColor"></path>', 8)]));
     }
   });
-  const _hoisted_1$d = {
+  const _hoisted_1$c = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9556,7 +9556,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$d,
+        _hoisted_1$c,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9590,7 +9590,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$c = {
+  const _hoisted_1$b = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9600,7 +9600,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$c,
+        _hoisted_1$b,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9633,7 +9633,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _hoisted_1$b = {
+  const _hoisted_1$a = {
     xmlns: "http://www.w3.org/2000/svg",
     "xmlns:xlink": "http://www.w3.org/1999/xlink",
     viewBox: "0 0 512 512"
@@ -9643,7 +9643,7 @@ ${unwrappedProps}
     render: function render2(_ctx, _cache) {
       return openBlock(), createElementBlock(
         "svg",
-        _hoisted_1$b,
+        _hoisted_1$a,
         _cache[0] || (_cache[0] = [
           createBaseVNode(
             "path",
@@ -9663,7 +9663,7 @@ ${unwrappedProps}
       );
     }
   });
-  const _sfc_main$c = /* @__PURE__ */ defineComponent({
+  const _sfc_main$b = /* @__PURE__ */ defineComponent({
     __name: "GoCaptureIcon",
     props: {
       name: {},
@@ -9774,9 +9774,9 @@ ${unwrappedProps}
       text: normalized.slice(0, 2).toUpperCase() || "AI"
     };
   }
-  const _hoisted_1$a = ["innerHTML"];
-  const _hoisted_2$9 = { key: 1 };
-  const _sfc_main$b = {
+  const _hoisted_1$9 = ["innerHTML"];
+  const _hoisted_2$8 = { key: 1 };
+  const _sfc_main$a = {
     __name: "ModelBrandIcon",
     props: {
       name: { type: String, default: "" },
@@ -9798,9 +9798,9 @@ ${unwrappedProps}
               key: 0,
               viewBox: "0 0 24 24",
               innerHTML: brand.value.body
-            }, null, 8, _hoisted_1$a)) : (openBlock(), createElementBlock(
+            }, null, 8, _hoisted_1$9)) : (openBlock(), createElementBlock(
               "b",
-              _hoisted_2$9,
+              _hoisted_2$8,
               toDisplayString(brand.value.text),
               1
               /* TEXT */
@@ -9812,19 +9812,19 @@ ${unwrappedProps}
       };
     }
   };
-  const _hoisted_1$9 = { class: "mda-thread-group" };
-  const _hoisted_2$8 = {
+  const _hoisted_1$8 = { class: "mda-thread-group" };
+  const _hoisted_2$7 = {
     key: 0,
     class: "mda-thread-list"
   };
-  const _hoisted_3$8 = ["disabled", "onClick"];
-  const _hoisted_4$8 = { class: "mda-thread-row-main" };
-  const _hoisted_5$8 = { class: "mda-thread-row-meta" };
-  const _hoisted_6$7 = {
+  const _hoisted_3$7 = ["disabled", "onClick"];
+  const _hoisted_4$7 = { class: "mda-thread-row-main" };
+  const _hoisted_5$7 = { class: "mda-thread-row-meta" };
+  const _hoisted_6$6 = {
     key: 1,
     class: "mda-thread-group-empty"
   };
-  const _sfc_main$a = /* @__PURE__ */ defineComponent({
+  const _sfc_main$9 = /* @__PURE__ */ defineComponent({
     __name: "ThreadGroup",
     props: {
       title: {},
@@ -9844,7 +9844,7 @@ ${unwrappedProps}
         });
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$9, [
+        return openBlock(), createElementBlock("section", _hoisted_1$8, [
           createBaseVNode(
             "h3",
             null,
@@ -9852,7 +9852,7 @@ ${unwrappedProps}
             1
             /* TEXT */
           ),
-          __props.threads.length ? (openBlock(), createElementBlock("div", _hoisted_2$8, [
+          __props.threads.length ? (openBlock(), createElementBlock("div", _hoisted_2$7, [
             (openBlock(true), createElementBlock(
               Fragment,
               null,
@@ -9864,7 +9864,7 @@ ${unwrappedProps}
                   disabled: !!__props.bindingId,
                   onClick: ($event) => _ctx.$emit("bind", thread.id)
                 }, [
-                  createBaseVNode("span", _hoisted_4$8, [
+                  createBaseVNode("span", _hoisted_4$7, [
                     createBaseVNode(
                       "strong",
                       null,
@@ -9880,7 +9880,7 @@ ${unwrappedProps}
                       /* TEXT */
                     )
                   ]),
-                  createBaseVNode("span", _hoisted_5$8, [
+                  createBaseVNode("span", _hoisted_5$7, [
                     createBaseVNode(
                       "time",
                       null,
@@ -9896,14 +9896,14 @@ ${unwrappedProps}
                       /* TEXT */
                     )
                   ])
-                ], 8, _hoisted_3$8);
+                ], 8, _hoisted_3$7);
               }),
               128
               /* KEYED_FRAGMENT */
             ))
           ])) : (openBlock(), createElementBlock(
             "p",
-            _hoisted_6$7,
+            _hoisted_6$6,
             toDisplayString(__props.emptyText),
             1
             /* TEXT */
@@ -9912,49 +9912,49 @@ ${unwrappedProps}
       };
     }
   });
-  const _hoisted_1$8 = {
+  const _hoisted_1$7 = {
     class: "mda-chat-thread",
     "aria-label": "页面改造对话"
   };
-  const _hoisted_2$7 = { class: "mda-message-avatar" };
-  const _hoisted_3$7 = { class: "mda-message-bubble" };
-  const _hoisted_4$7 = {
+  const _hoisted_2$6 = { class: "mda-message-avatar" };
+  const _hoisted_3$6 = { class: "mda-message-bubble" };
+  const _hoisted_4$6 = {
     key: 0,
     class: "mda-message-work"
   };
-  const _hoisted_5$7 = ["aria-expanded", "onClick"];
-  const _hoisted_6$6 = { class: "mda-message-work-label" };
-  const _hoisted_7$6 = {
+  const _hoisted_5$6 = ["aria-expanded", "onClick"];
+  const _hoisted_6$5 = { class: "mda-message-work-label" };
+  const _hoisted_7$5 = {
     key: 1,
     class: "mda-message-work-label"
   };
-  const _hoisted_8$5 = ["onClick"];
-  const _hoisted_9$5 = {
+  const _hoisted_8$4 = ["onClick"];
+  const _hoisted_9$4 = {
     key: 1,
     class: "mda-message-logs"
   };
-  const _hoisted_10$5 = {
+  const _hoisted_10$4 = {
     class: "mda-log-chain",
     role: "list",
     "aria-label": "Agent 调用链"
   };
-  const _hoisted_11$5 = { class: "mda-log-node-body" };
-  const _hoisted_12$5 = ["aria-expanded", "onClick"];
-  const _hoisted_13$5 = { class: "mda-log-node-actor" };
-  const _hoisted_14$5 = { class: "mda-log-node-title" };
-  const _hoisted_15$5 = {
+  const _hoisted_11$4 = { class: "mda-log-node-body" };
+  const _hoisted_12$4 = ["aria-expanded", "onClick"];
+  const _hoisted_13$4 = { class: "mda-log-node-actor" };
+  const _hoisted_14$4 = { class: "mda-log-node-title" };
+  const _hoisted_15$4 = {
     key: 1,
     class: "mda-log-node-head"
   };
-  const _hoisted_16$5 = { class: "mda-log-node-actor" };
-  const _hoisted_17$5 = { class: "mda-log-node-title" };
-  const _hoisted_18$5 = {
+  const _hoisted_16$4 = { class: "mda-log-node-actor" };
+  const _hoisted_17$4 = { class: "mda-log-node-title" };
+  const _hoisted_18$4 = {
     key: 2,
     class: "mda-message-log-item is-candidate-log"
   };
-  const _hoisted_19$5 = { class: "mda-log-file-label" };
-  const _hoisted_20$5 = ["onClick"];
-  const _hoisted_21$4 = {
+  const _hoisted_19$4 = { class: "mda-log-file-label" };
+  const _hoisted_20$4 = ["onClick"];
+  const _hoisted_21$3 = {
     key: 3,
     class: "mda-message-log-pre"
   };
@@ -10073,30 +10073,30 @@ ${unwrappedProps}
   };
   const _hoisted_78$1 = { class: "mda-provider-config-actions" };
   const _hoisted_79$1 = ["disabled"];
-  const _hoisted_80$1 = {
+  const _hoisted_80 = {
     class: "mda-diff-review",
     role: "dialog",
     "aria-modal": "true",
     "aria-label": "审查源码更改"
   };
-  const _hoisted_81$1 = { class: "mda-thread-picker-head" };
-  const _hoisted_82$1 = { class: "mda-diff-review-body" };
-  const _hoisted_83$1 = {
+  const _hoisted_81 = { class: "mda-thread-picker-head" };
+  const _hoisted_82 = { class: "mda-diff-review-body" };
+  const _hoisted_83 = {
     class: "mda-diff-file-list",
     "aria-label": "修改文件"
   };
-  const _hoisted_84$1 = ["onClick"];
-  const _hoisted_85$1 = {
+  const _hoisted_84 = ["onClick"];
+  const _hoisted_85 = {
     key: 0,
     class: "mda-diff-code"
   };
-  const _hoisted_86$1 = {
+  const _hoisted_86 = {
     class: "mda-diff-lines",
     role: "table",
     "aria-label": "源码差异"
   };
-  const _hoisted_87$1 = { "aria-hidden": "true" };
-  const _sfc_main$9 = {
+  const _hoisted_87 = { "aria-hidden": "true" };
+  const _sfc_main$8 = {
     __name: "ChatThread",
     setup(__props) {
       const commands = useGoCaptureCommands();
@@ -10484,7 +10484,7 @@ ${unwrappedProps}
       }
       return (_ctx, _cache) => {
         var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
-        return openBlock(), createElementBlock("section", _hoisted_1$8, [
+        return openBlock(), createElementBlock("section", _hoisted_1$7, [
           (openBlock(true), createElementBlock(
             Fragment,
             null,
@@ -10499,13 +10499,13 @@ ${unwrappedProps}
                 [
                   createBaseVNode(
                     "div",
-                    _hoisted_2$7,
+                    _hoisted_2$6,
                     toDisplayString(avatarText(message.role)),
                     1
                     /* TEXT */
                   ),
-                  createBaseVNode("div", _hoisted_3$7, [
-                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$7, [
+                  createBaseVNode("div", _hoisted_3$6, [
+                    showMessageWork(message) ? (openBlock(), createElementBlock("div", _hoisted_4$6, [
                       hasLogs(message) ? (openBlock(), createElementBlock("button", {
                         key: 0,
                         class: "mda-message-work-toggle",
@@ -10515,7 +10515,7 @@ ${unwrappedProps}
                       }, [
                         createBaseVNode(
                           "span",
-                          _hoisted_6$6,
+                          _hoisted_6$5,
                           toDisplayString(messageWorkLabel(message)),
                           1
                           /* TEXT */
@@ -10529,9 +10529,9 @@ ${unwrappedProps}
                           2
                           /* CLASS */
                         )
-                      ], 8, _hoisted_5$7)) : (openBlock(), createElementBlock(
+                      ], 8, _hoisted_5$6)) : (openBlock(), createElementBlock(
                         "div",
-                        _hoisted_7$6,
+                        _hoisted_7$5,
                         toDisplayString(messageWorkLabel(message)),
                         1
                         /* TEXT */
@@ -10544,14 +10544,14 @@ ${unwrappedProps}
                         "aria-label": "复制全部日志",
                         onClick: ($event) => copyAllLogs(message.logs)
                       }, [
-                        createVNode(_sfc_main$c, {
+                        createVNode(_sfc_main$b, {
                           name: "copy",
                           size: 15
                         })
-                      ], 8, _hoisted_8$5)) : createCommentVNode("v-if", true)
+                      ], 8, _hoisted_8$4)) : createCommentVNode("v-if", true)
                     ])) : createCommentVNode("v-if", true),
-                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_9$5, [
-                      createBaseVNode("div", _hoisted_10$5, [
+                    hasLogs(message) && isLogExpanded(message.id, message.logExpanded) ? (openBlock(), createElementBlock("div", _hoisted_9$4, [
+                      createBaseVNode("div", _hoisted_10$4, [
                         (openBlock(true), createElementBlock(
                           Fragment,
                           null,
@@ -10564,7 +10564,7 @@ ${unwrappedProps}
                                 role: "listitem"
                               },
                               [
-                                _cache[15] || (_cache[15] = createBaseVNode(
+                                _cache[14] || (_cache[14] = createBaseVNode(
                                   "span",
                                   {
                                     class: "mda-log-node-marker",
@@ -10574,7 +10574,7 @@ ${unwrappedProps}
                                   -1
                                   /* CACHED */
                                 )),
-                                createBaseVNode("div", _hoisted_11$5, [
+                                createBaseVNode("div", _hoisted_11$4, [
                                   node.expandable ? (openBlock(), createElementBlock("button", {
                                     key: 0,
                                     class: "mda-log-node-head is-expandable",
@@ -10584,14 +10584,14 @@ ${unwrappedProps}
                                   }, [
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_13$5,
+                                      _hoisted_13$4,
                                       toDisplayString(node.actor),
                                       1
                                       /* TEXT */
                                     ),
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_14$5,
+                                      _hoisted_14$4,
                                       toDisplayString(node.title),
                                       1
                                       /* TEXT */
@@ -10605,26 +10605,26 @@ ${unwrappedProps}
                                       2
                                       /* CLASS */
                                     )
-                                  ], 8, _hoisted_12$5)) : (openBlock(), createElementBlock("div", _hoisted_15$5, [
+                                  ], 8, _hoisted_12$4)) : (openBlock(), createElementBlock("div", _hoisted_15$4, [
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_16$5,
+                                      _hoisted_16$4,
                                       toDisplayString(node.actor),
                                       1
                                       /* TEXT */
                                     ),
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_17$5,
+                                      _hoisted_17$4,
                                       toDisplayString(node.title),
                                       1
                                       /* TEXT */
                                     )
                                   ])),
-                                  isCandidateLog(node.raw) ? (openBlock(), createElementBlock("div", _hoisted_18$5, [
+                                  isCandidateLog(node.raw) ? (openBlock(), createElementBlock("div", _hoisted_18$4, [
                                     createBaseVNode(
                                       "span",
-                                      _hoisted_19$5,
+                                      _hoisted_19$4,
                                       toDisplayString(candidatePrefix(node.raw)),
                                       1
                                       /* TEXT */
@@ -10633,10 +10633,10 @@ ${unwrappedProps}
                                       class: "mda-log-file-link",
                                       type: "button",
                                       onClick: ($event) => unref(commands).openSourceFile(candidateFile(node.raw))
-                                    }, toDisplayString(candidateFile(node.raw)), 9, _hoisted_20$5)
+                                    }, toDisplayString(candidateFile(node.raw)), 9, _hoisted_20$4)
                                   ])) : node.expandable && isNodeExpanded(message.id, logIndex, node.kind) ? (openBlock(), createElementBlock(
                                     "pre",
-                                    _hoisted_21$4,
+                                    _hoisted_21$3,
                                     toDisplayString(node.raw),
                                     1
                                     /* TEXT */
@@ -10723,7 +10723,7 @@ ${unwrappedProps}
                                     1
                                     /* TEXT */
                                   ),
-                                  _cache[16] || (_cache[16] = createTextVNode()),
+                                  _cache[15] || (_cache[15] = createTextVNode()),
                                   createBaseVNode(
                                     "em",
                                     null,
@@ -10768,7 +10768,7 @@ ${unwrappedProps}
                             onClick: openAgentPicker
                           }, [
                             createBaseVNode("span", _hoisted_35$2, [
-                              _cache[18] || (_cache[18] = createBaseVNode(
+                              _cache[17] || (_cache[17] = createBaseVNode(
                                 "em",
                                 null,
                                 "主要职责",
@@ -10776,11 +10776,11 @@ ${unwrappedProps}
                                 /* CACHED */
                               )),
                               createBaseVNode("strong", _hoisted_36$2, [
-                                createVNode(_sfc_main$b, {
+                                createVNode(_sfc_main$a, {
                                   name: ((_a3 = unref(connectAgentStore).activeProvider) == null ? void 0 : _a3.id) || "agent",
                                   size: 18
                                 }, null, 8, ["name"]),
-                                _cache[17] || (_cache[17] = createTextVNode(
+                                _cache[16] || (_cache[16] = createTextVNode(
                                   " 开发 Agent ",
                                   -1
                                   /* CACHED */
@@ -10794,50 +10794,14 @@ ${unwrappedProps}
                                 /* TEXT */
                               )
                             ]),
-                            _cache[19] || (_cache[19] = createBaseVNode(
+                            _cache[18] || (_cache[18] = createBaseVNode(
                               "b",
                               null,
                               "重新选择",
                               -1
                               /* CACHED */
                             ))
-                          ]),
-                          createBaseVNode("button", {
-                            class: "mda-locator-optional-row",
-                            type: "button",
-                            onClick: _cache[2] || (_cache[2] = ($event) => unref(commands).openSettings("locator"))
-                          }, [..._cache[20] || (_cache[20] = [
-                            createBaseVNode(
-                              "span",
-                              null,
-                              [
-                                createBaseVNode("strong", null, "Locator"),
-                                createBaseVNode("small", null, "可选前置定位；未配置时由开发 Agent 完成全部工作")
-                              ],
-                              -1
-                              /* CACHED */
-                            ),
-                            createBaseVNode(
-                              "b",
-                              null,
-                              "配置可选优化",
-                              -1
-                              /* CACHED */
-                            ),
-                            createBaseVNode(
-                              "span",
-                              { class: "mda-locator-card-help" },
-                              [
-                                createTextVNode(" 为什么配置？ "),
-                                createBaseVNode("span", {
-                                  class: "mda-locator-help-tip",
-                                  role: "tooltip"
-                                }, " 可用成本更低的模型先定位源码，再把位置交给开发 Agent，从而减少主 Agent 的检索轮次和 Token 消耗。它不是必需步骤。 ")
-                              ],
-                              -1
-                              /* CACHED */
-                            )
-                          ])])
+                          ])
                         ])) : createCommentVNode("v-if", true),
                         message.createdAt ? (openBlock(), createElementBlock("time", {
                           key: 8,
@@ -10877,11 +10841,11 @@ ${unwrappedProps}
               key: 0,
               class: "mda-thread-picker-backdrop",
               role: "presentation",
-              onClick: _cache[5] || (_cache[5] = withModifiers((...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args), ["self"]))
+              onClick: _cache[4] || (_cache[4] = withModifiers((...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args), ["self"]))
             }, [
               createBaseVNode("section", _hoisted_40$1, [
                 createBaseVNode("header", _hoisted_41$1, [
-                  _cache[21] || (_cache[21] = createBaseVNode(
+                  _cache[19] || (_cache[19] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -10895,16 +10859,16 @@ ${unwrappedProps}
                     class: "mda-thread-picker-close",
                     type: "button",
                     "aria-label": "关闭",
-                    onClick: _cache[3] || (_cache[3] = (...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args))
+                    onClick: _cache[2] || (_cache[2] = (...args) => unref(connectAgentStore).closeThreadPicker && unref(connectAgentStore).closeThreadPicker(...args))
                   }, [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "close",
                       size: 18
                     })
                   ])
                 ]),
                 createBaseVNode("div", _hoisted_42$1, [
-                  _cache[22] || (_cache[22] = createBaseVNode(
+                  _cache[20] || (_cache[20] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -10918,7 +10882,7 @@ ${unwrappedProps}
                     withDirectives(createBaseVNode(
                       "input",
                       {
-                        "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => projectProxy.value = $event),
+                        "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => projectProxy.value = $event),
                         type: "url",
                         placeholder: "例如 http://127.0.0.1:7890",
                         "aria-label": "项目 Agent 代理地址"
@@ -10960,7 +10924,7 @@ ${unwrappedProps}
                             onClick: ($event) => chooseAgent(provider.id)
                           }, [
                             createBaseVNode("span", _hoisted_47$1, [
-                              createVNode(_sfc_main$b, {
+                              createVNode(_sfc_main$a, {
                                 name: provider.id || provider.name,
                                 size: 24
                               }, null, 8, ["name"])
@@ -11011,14 +10975,14 @@ ${unwrappedProps}
                   Fragment,
                   { key: 1 },
                   [
-                    createVNode(_sfc_main$a, {
+                    createVNode(_sfc_main$9, {
                       title: "当前项目",
                       "empty-text": `${unref(connectAgentStore).pickerProvider.name} 中还没有这个项目的任务`,
                       threads: unref(connectAgentStore).threadGroups.project,
                       "binding-id": unref(connectAgentStore).bindingThreadId,
                       onBind: bindAgentThread
                     }, null, 8, ["empty-text", "threads", "binding-id"]),
-                    createVNode(_sfc_main$a, {
+                    createVNode(_sfc_main$9, {
                       title: "最近",
                       "empty-text": `没有可绑定的最近任务，请先在 ${unref(connectAgentStore).pickerProvider.name} 中新建任务`,
                       threads: unref(connectAgentStore).threadGroups.recent,
@@ -11065,7 +11029,7 @@ ${unwrappedProps}
                       1
                       /* TEXT */
                     ),
-                    _cache[23] || (_cache[23] = createBaseVNode(
+                    _cache[21] || (_cache[21] = createBaseVNode(
                       "p",
                       null,
                       "仅影响 GoCapture 启动的当前 Agent，不修改本机全局配置。",
@@ -11079,7 +11043,7 @@ ${unwrappedProps}
                     "aria-label": "关闭",
                     onClick: closeProviderConfig
                   }, [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "close",
                       size: 18
                     })
@@ -11087,7 +11051,7 @@ ${unwrappedProps}
                 ]),
                 createBaseVNode("div", _hoisted_55$1, [
                   createBaseVNode("fieldset", _hoisted_56$1, [
-                    _cache[25] || (_cache[25] = createBaseVNode(
+                    _cache[23] || (_cache[23] = createBaseVNode(
                       "legend",
                       null,
                       "模型来源",
@@ -11102,7 +11066,7 @@ ${unwrappedProps}
                           key: option.value
                         }, [
                           withDirectives(createBaseVNode("input", {
-                            "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => runtimeForm.value.backendId = $event),
+                            "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => runtimeForm.value.backendId = $event),
                             type: "radio",
                             value: option.value
                           }, null, 8, _hoisted_57$1), [
@@ -11110,7 +11074,7 @@ ${unwrappedProps}
                           ]),
                           createBaseVNode("span", null, [
                             createBaseVNode("strong", _hoisted_58$1, [
-                              createVNode(_sfc_main$b, {
+                              createVNode(_sfc_main$a, {
                                 name: option.iconName,
                                 size: 20
                               }, null, 8, ["name"]),
@@ -11125,9 +11089,9 @@ ${unwrappedProps}
                                 withDirectives(createBaseVNode(
                                   "select",
                                   {
-                                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => compatibleBackendId.value = $event),
+                                    "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => compatibleBackendId.value = $event),
                                     "aria-label": "选择第三方模型品牌",
-                                    onClick: _cache[8] || (_cache[8] = withModifiers(() => {
+                                    onClick: _cache[7] || (_cache[7] = withModifiers(() => {
                                     }, ["stop"])),
                                     onChange: selectCompatibleBackend
                                   },
@@ -11150,7 +11114,7 @@ ${unwrappedProps}
                                 ), [
                                   [vModelSelect, compatibleBackendId.value]
                                 ]),
-                                _cache[24] || (_cache[24] = createBaseVNode(
+                                _cache[22] || (_cache[22] = createBaseVNode(
                                   "i",
                                   { "aria-hidden": "true" },
                                   null,
@@ -11185,7 +11149,7 @@ ${unwrappedProps}
                     { key: 0 },
                     [
                       ((_e = selectedBackend.value) == null ? void 0 : _e.configurable) && runtimeForm.value.backendId !== "anthropic" ? (openBlock(), createElementBlock("label", _hoisted_62$1, [
-                        _cache[26] || (_cache[26] = createBaseVNode(
+                        _cache[24] || (_cache[24] = createBaseVNode(
                           "span",
                           null,
                           "Endpoint",
@@ -11193,7 +11157,7 @@ ${unwrappedProps}
                           /* CACHED */
                         )),
                         withDirectives(createBaseVNode("input", {
-                          "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => runtimeForm.value.baseUrl = $event),
+                          "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => runtimeForm.value.baseUrl = $event),
                           type: "url",
                           list: "mda-endpoint-presets",
                           placeholder: ((_f = selectedBackend.value) == null ? void 0 : _f.defaultBaseUrl) || "选择预设或输入兼容网关地址"
@@ -11223,7 +11187,7 @@ ${unwrappedProps}
                       ])) : createCommentVNode("v-if", true),
                       createBaseVNode("div", _hoisted_66$1, [
                         createBaseVNode("label", _hoisted_67$1, [
-                          _cache[27] || (_cache[27] = createBaseVNode(
+                          _cache[25] || (_cache[25] = createBaseVNode(
                             "span",
                             null,
                             "主模型",
@@ -11231,7 +11195,7 @@ ${unwrappedProps}
                             /* CACHED */
                           )),
                           withDirectives(createBaseVNode("input", {
-                            "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => runtimeForm.value.model = $event),
+                            "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => runtimeForm.value.model = $event),
                             type: "text",
                             list: "mda-primary-model-presets",
                             placeholder: ((_h = selectedBackend.value) == null ? void 0 : _h.defaultModel) || "选择预设或输入网关模型名"
@@ -11245,7 +11209,7 @@ ${unwrappedProps}
                           ])
                         ]),
                         createBaseVNode("label", _hoisted_69$1, [
-                          _cache[28] || (_cache[28] = createBaseVNode(
+                          _cache[26] || (_cache[26] = createBaseVNode(
                             "span",
                             null,
                             "快速 / 子 Agent 模型",
@@ -11253,7 +11217,7 @@ ${unwrappedProps}
                             /* CACHED */
                           )),
                           withDirectives(createBaseVNode("input", {
-                            "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => runtimeForm.value.fastModel = $event),
+                            "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => runtimeForm.value.fastModel = $event),
                             type: "text",
                             list: "mda-fast-model-presets",
                             placeholder: ((_i = selectedBackend.value) == null ? void 0 : _i.defaultFastModel) || "选择预设或留空"
@@ -11306,7 +11270,7 @@ ${unwrappedProps}
                         withDirectives(createBaseVNode(
                           "input",
                           {
-                            "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => runtimeApiKey.value = $event),
+                            "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => runtimeApiKey.value = $event),
                             type: "password",
                             autocomplete: "new-password",
                             placeholder: "sk-..."
@@ -11324,7 +11288,7 @@ ${unwrappedProps}
                         ])
                       ]),
                       createBaseVNode("label", _hoisted_76$1, [
-                        _cache[30] || (_cache[30] = createBaseVNode(
+                        _cache[28] || (_cache[28] = createBaseVNode(
                           "span",
                           null,
                           "推理强度",
@@ -11334,9 +11298,9 @@ ${unwrappedProps}
                         withDirectives(createBaseVNode(
                           "select",
                           {
-                            "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => runtimeForm.value.effort = $event)
+                            "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => runtimeForm.value.effort = $event)
                           },
-                          [..._cache[29] || (_cache[29] = [
+                          [..._cache[27] || (_cache[27] = [
                             createBaseVNode(
                               "option",
                               { value: "" },
@@ -11397,9 +11361,9 @@ ${unwrappedProps}
               role: "presentation",
               onClick: withModifiers(closeDiffReview, ["self"])
             }, [
-              createBaseVNode("section", _hoisted_80$1, [
-                createBaseVNode("header", _hoisted_81$1, [
-                  _cache[31] || (_cache[31] = createBaseVNode(
+              createBaseVNode("section", _hoisted_80, [
+                createBaseVNode("header", _hoisted_81, [
+                  _cache[29] || (_cache[29] = createBaseVNode(
                     "div",
                     null,
                     [
@@ -11415,14 +11379,14 @@ ${unwrappedProps}
                     "aria-label": "关闭",
                     onClick: closeDiffReview
                   }, [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "close",
                       size: 18
                     })
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_82$1, [
-                  createBaseVNode("nav", _hoisted_83$1, [
+                createBaseVNode("div", _hoisted_82, [
+                  createBaseVNode("nav", _hoisted_83, [
                     (openBlock(true), createElementBlock(
                       Fragment,
                       null,
@@ -11448,7 +11412,7 @@ ${unwrappedProps}
                               1
                               /* TEXT */
                             ),
-                            _cache[32] || (_cache[32] = createTextVNode()),
+                            _cache[30] || (_cache[30] = createTextVNode()),
                             createBaseVNode(
                               "em",
                               null,
@@ -11457,19 +11421,19 @@ ${unwrappedProps}
                               /* TEXT */
                             )
                           ])
-                        ], 10, _hoisted_84$1);
+                        ], 10, _hoisted_84);
                       }),
                       128
                       /* KEYED_FRAGMENT */
                     ))
                   ]),
-                  activeReviewDiff.value ? (openBlock(), createElementBlock("section", _hoisted_85$1, [
+                  activeReviewDiff.value ? (openBlock(), createElementBlock("section", _hoisted_85, [
                     createBaseVNode("header", null, [
                       createBaseVNode(
                         "button",
                         {
                           type: "button",
-                          onClick: _cache[14] || (_cache[14] = ($event) => unref(commands).openSourceFile(activeReviewDiff.value.file))
+                          onClick: _cache[13] || (_cache[13] = ($event) => unref(commands).openSourceFile(activeReviewDiff.value.file))
                         },
                         toDisplayString(activeReviewDiff.value.file),
                         1
@@ -11483,7 +11447,7 @@ ${unwrappedProps}
                         /* TEXT */
                       )
                     ]),
-                    createBaseVNode("div", _hoisted_86$1, [
+                    createBaseVNode("div", _hoisted_86, [
                       (openBlock(true), createElementBlock(
                         Fragment,
                         null,
@@ -11498,7 +11462,7 @@ ${unwrappedProps}
                             [
                               createBaseVNode(
                                 "span",
-                                _hoisted_87$1,
+                                _hoisted_87,
                                 toDisplayString(line.marker),
                                 1
                                 /* TEXT */
@@ -11609,72 +11573,6 @@ ${unwrappedProps}
       setSending,
       setFinalPrompt,
       clearContent
-    };
-  });
-  const useModelStore = /* @__PURE__ */ defineStore("gocapture.model", () => {
-    const selectedModelId = /* @__PURE__ */ ref(null);
-    const configs = /* @__PURE__ */ ref([]);
-    const useModelAssist = /* @__PURE__ */ ref(false);
-    const canUseModelAssist = /* @__PURE__ */ ref(false);
-    const editorOpen = /* @__PURE__ */ ref(false);
-    const form = /* @__PURE__ */ ref({});
-    const status = /* @__PURE__ */ ref("idle");
-    const logs = /* @__PURE__ */ ref([]);
-    const result = /* @__PURE__ */ ref(null);
-    const error = /* @__PURE__ */ ref("");
-    const startedAt = /* @__PURE__ */ ref(0);
-    const finishedAt = /* @__PURE__ */ ref(0);
-    const selectedModel = computed(() => {
-      return configs.value.find((item) => item.id === selectedModelId.value) || null;
-    });
-    function start() {
-      status.value = "running";
-      logs.value = [];
-      result.value = null;
-      error.value = "";
-      startedAt.value = Date.now();
-      finishedAt.value = 0;
-    }
-    function appendLog(log) {
-      logs.value.push(log);
-    }
-    function applyResult(nextResult) {
-      result.value = nextResult;
-      status.value = (nextResult == null ? void 0 : nextResult.stopped) ? "stopped" : "success";
-      finishedAt.value = Date.now();
-    }
-    function fail(reason) {
-      status.value = "error";
-      error.value = `${(reason == null ? void 0 : reason.message) || reason || ""}`;
-      finishedAt.value = Date.now();
-    }
-    function reset() {
-      status.value = "idle";
-      logs.value = [];
-      result.value = null;
-      error.value = "";
-      startedAt.value = 0;
-      finishedAt.value = 0;
-    }
-    return {
-      selectedModelId,
-      configs,
-      useModelAssist,
-      canUseModelAssist,
-      editorOpen,
-      form,
-      status,
-      logs,
-      result,
-      error,
-      startedAt,
-      finishedAt,
-      selectedModel,
-      start,
-      appendLog,
-      applyResult,
-      fail,
-      reset
     };
   });
   const useRouteStore = /* @__PURE__ */ defineStore("gocapture.route", () => {
@@ -12006,66 +11904,66 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   function candidateLogText(hit) {
     return candidateLogLines(hit).join("\n");
   }
-  const _hoisted_1$7 = {
+  const _hoisted_1$6 = {
     key: 0,
     class: "mda-composer-options mda-composite"
   };
-  const _hoisted_2$6 = { class: "mda-composite-row" };
-  const _hoisted_3$6 = {
+  const _hoisted_2$5 = { class: "mda-composite-row" };
+  const _hoisted_3$5 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_4$6 = {
+  const _hoisted_4$5 = {
     key: 0,
     class: "mda-composite-row"
   };
-  const _hoisted_5$6 = {
+  const _hoisted_5$5 = {
     key: 1,
     class: "mda-composite-row"
   };
-  const _hoisted_6$5 = ["onClick"];
-  const _hoisted_7$5 = ["onClick"];
-  const _hoisted_8$4 = {
+  const _hoisted_6$4 = ["onClick"];
+  const _hoisted_7$4 = ["onClick"];
+  const _hoisted_8$3 = {
     key: 0,
     class: "mda-composite-anchor"
   };
-  const _hoisted_9$4 = ["onClick"];
-  const _hoisted_10$4 = {
+  const _hoisted_9$3 = ["onClick"];
+  const _hoisted_10$3 = {
     key: 1,
     class: "mda-composer-options mda-plan"
   };
-  const _hoisted_11$4 = { class: "mda-plan-body" };
-  const _hoisted_12$4 = {
+  const _hoisted_11$3 = { class: "mda-plan-body" };
+  const _hoisted_12$3 = {
     key: 0,
     class: "mda-plan-summary"
   };
-  const _hoisted_13$4 = {
+  const _hoisted_13$3 = {
     key: 1,
     class: "mda-plan-block"
   };
-  const _hoisted_14$4 = ["onClick"];
-  const _hoisted_15$4 = {
+  const _hoisted_14$3 = ["onClick"];
+  const _hoisted_15$3 = {
     key: 0,
     class: "mda-composite-line"
   };
-  const _hoisted_16$4 = {
+  const _hoisted_16$3 = {
     key: 0,
     class: "mda-composite-anchor"
   };
-  const _hoisted_17$4 = {
+  const _hoisted_17$3 = {
     key: 1,
     class: "mda-plan-what"
   };
-  const _hoisted_18$4 = {
+  const _hoisted_18$3 = {
     key: 2,
     class: "mda-plan-why"
   };
-  const _hoisted_19$4 = {
+  const _hoisted_19$3 = {
     key: 2,
     class: "mda-plan-block"
   };
-  const _hoisted_20$4 = ["onClick"];
-  const _hoisted_21$3 = { class: "mda-composite-anchor" };
+  const _hoisted_20$3 = ["onClick"];
+  const _hoisted_21$2 = { class: "mda-composite-anchor" };
   const _hoisted_22$2 = { class: "mda-plan-block-title" };
   const _hoisted_23$2 = {
     key: 3,
@@ -12102,12 +12000,11 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 3,
     class: "mda-composer-options"
   };
-  const _sfc_main$8 = {
+  const _sfc_main$7 = {
     __name: "CandidateOptions",
     setup(__props) {
       const commands = useGoCaptureCommands();
       const searchStore = useSearchStore();
-      const modelStore = useModelStore();
       const showCandidatePicker = computed(() => searchStore.showCandidatePicker);
       const needsMoreEvidence = computed(() => searchStore.needsMoreEvidence);
       const candidateHits = computed(() => searchStore.candidates);
@@ -12131,11 +12028,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const openQuestionItems = computed(() => openQuestions.value.map((line, index) => ({ text: planLineText(line), key: `open-${index}-${planLineText(line)}` })).filter((item) => item.text));
       const selectedCandidatePaths = computed(() => searchStore.selectedCandidatePaths);
       const expandedCandidatePath = computed(() => searchStore.expandedCandidatePath);
-      const modelAssistLoading = computed(() => modelStore.status === "running");
       const collapsed = /* @__PURE__ */ ref(false);
-      watch(modelAssistLoading, (value) => {
-        if (value) collapsed.value = true;
-      });
       watch(openQuestions, (questions) => {
         const allowed = new Set(questions.map(planLineText).filter(Boolean));
         checkedQuestions.value = checkedQuestions.value.filter((item) => allowed.has(item));
@@ -12189,7 +12082,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           Fragment,
           null,
           [
-            composite.value ? (openBlock(), createElementBlock("div", _hoisted_1$7, [
+            composite.value ? (openBlock(), createElementBlock("div", _hoisted_1$6, [
               _cache[10] || (_cache[10] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -12197,7 +12090,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_2$6, [
+              createBaseVNode("div", _hoisted_2$5, [
                 _cache[4] || (_cache[4] = createBaseVNode(
                   "span",
                   { class: "mda-composite-tag mda-composite-render" },
@@ -12217,14 +12110,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   ),
                   composite.value.render.line ? (openBlock(), createElementBlock(
                     "span",
-                    _hoisted_3$6,
+                    _hoisted_3$5,
                     ":" + toDisplayString(composite.value.render.line),
                     1
                     /* TEXT */
                   )) : createCommentVNode("v-if", true)
                 ])
               ]),
-              composite.value.regionOwner ? (openBlock(), createElementBlock("div", _hoisted_4$6, [
+              composite.value.regionOwner ? (openBlock(), createElementBlock("div", _hoisted_4$5, [
                 _cache[5] || (_cache[5] = createBaseVNode(
                   "span",
                   { class: "mda-composite-tag" },
@@ -12243,7 +12136,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                   1
                   /* TEXT */
                 )
-              ])) : composite.value.assembly ? (openBlock(), createElementBlock("div", _hoisted_5$6, [
+              ])) : composite.value.assembly ? (openBlock(), createElementBlock("div", _hoisted_5$5, [
                 _cache[6] || (_cache[6] = createBaseVNode(
                   "span",
                   { class: "mda-composite-tag" },
@@ -12282,7 +12175,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(co.file)
-                    }, toDisplayString(co.file), 9, _hoisted_6$5)
+                    }, toDisplayString(co.file), 9, _hoisted_6$4)
                   ]);
                 }),
                 128
@@ -12307,10 +12200,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(child.file)
-                    }, toDisplayString(child.file), 9, _hoisted_7$5),
+                    }, toDisplayString(child.file), 9, _hoisted_7$4),
                     child.anchor ? (openBlock(), createElementBlock(
                       "span",
-                      _hoisted_8$4,
+                      _hoisted_8$3,
                       toDisplayString(child.anchor),
                       1
                       /* TEXT */
@@ -12339,14 +12232,14 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                       class: "mda-file-link",
                       type: "button",
                       onClick: ($event) => unref(commands).openSourceFile(bridge.file)
-                    }, toDisplayString(bridge.file), 9, _hoisted_9$4)
+                    }, toDisplayString(bridge.file), 9, _hoisted_9$3)
                   ]);
                 }),
                 128
                 /* KEYED_FRAGMENT */
               ))
             ])) : createCommentVNode("v-if", true),
-            hasChangePlanContent.value ? (openBlock(), createElementBlock("div", _hoisted_10$4, [
+            hasChangePlanContent.value ? (openBlock(), createElementBlock("div", _hoisted_10$3, [
               _cache[14] || (_cache[14] = createBaseVNode(
                 "div",
                 { class: "mda-option-title" },
@@ -12354,15 +12247,15 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )),
-              createBaseVNode("div", _hoisted_11$4, [
+              createBaseVNode("div", _hoisted_11$3, [
                 changePlan.value.summary ? (openBlock(), createElementBlock(
                   "div",
-                  _hoisted_12$4,
+                  _hoisted_12$3,
                   toDisplayString(changePlan.value.summary),
                   1
                   /* TEXT */
                 )) : createCommentVNode("v-if", true),
-                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$4, [
+                (changePlan.value.targets || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$3, [
                   _cache[11] || (_cache[11] = createBaseVNode(
                     "div",
                     { class: "mda-plan-block-title" },
@@ -12390,29 +12283,29 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           ),
                           target.line ? (openBlock(), createElementBlock(
                             "span",
-                            _hoisted_15$4,
+                            _hoisted_15$3,
                             ":" + toDisplayString(target.line),
                             1
                             /* TEXT */
                           )) : createCommentVNode("v-if", true)
-                        ], 8, _hoisted_14$4),
+                        ], 8, _hoisted_14$3),
                         target.anchor ? (openBlock(), createElementBlock(
                           "span",
-                          _hoisted_16$4,
+                          _hoisted_16$3,
                           toDisplayString(target.anchor),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         target.whatToChange ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_17$4,
+                          _hoisted_17$3,
                           "改：" + toDisplayString(target.whatToChange),
                           1
                           /* TEXT */
                         )) : createCommentVNode("v-if", true),
                         target.why ? (openBlock(), createElementBlock(
                           "div",
-                          _hoisted_18$4,
+                          _hoisted_18$3,
                           "因：" + toDisplayString(target.why),
                           1
                           /* TEXT */
@@ -12423,7 +12316,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     /* KEYED_FRAGMENT */
                   ))
                 ])) : createCommentVNode("v-if", true),
-                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_19$4, [
+                (changePlan.value.affected || []).length ? (openBlock(), createElementBlock("div", _hoisted_19$3, [
                   _cache[12] || (_cache[12] = createBaseVNode(
                     "div",
                     { class: "mda-plan-block-title" },
@@ -12443,10 +12336,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           class: "mda-file-link",
                           type: "button",
                           onClick: ($event) => unref(commands).openSourceFile(item.file)
-                        }, toDisplayString(item.file), 9, _hoisted_20$4),
+                        }, toDisplayString(item.file), 9, _hoisted_20$3),
                         createBaseVNode(
                           "span",
-                          _hoisted_21$3,
+                          _hoisted_21$2,
                           toDisplayString(item.reason),
                           1
                           /* TEXT */
@@ -12661,24 +12554,23 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _hoisted_1$6 = ["value", "readonly", "placeholder"];
-  const _hoisted_2$5 = ["onClick"];
-  const _hoisted_3$5 = {
+  const _hoisted_1$5 = ["value", "readonly", "placeholder"];
+  const _hoisted_2$4 = ["onClick"];
+  const _hoisted_3$4 = {
     key: 1,
     class: "mda-composer-shortcut-thumb is-empty"
   };
-  const _hoisted_4$5 = { class: "mda-composer-shortcut-meta" };
-  const _hoisted_5$5 = {
+  const _hoisted_4$4 = { class: "mda-composer-shortcut-meta" };
+  const _hoisted_5$4 = {
     key: 0,
     class: "mda-composer-shortcut-empty"
   };
-  const _sfc_main$7 = {
+  const _sfc_main$6 = {
     __name: "ComposerInput",
     setup(__props, { expose: __expose }) {
       useGoCaptureCommands();
       const composerStore = useComposerStore();
       const connectAgentStore = useConnectAgentStore();
-      const modelStore = useModelStore();
       const projectStore = useProjectStore();
       const searchStore = useSearchStore();
       const selectionStore = useSelectionStore();
@@ -12699,7 +12591,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
           return ((_c = (_b = (_a2 = connectAgentStore.pendingInteraction) == null ? void 0 : _a2.questions) == null ? void 0 : _b[0]) == null ? void 0 : _c.question) || "回答 Agent 的问题";
         }
         if (!selectionStore.items.length) return "移动鼠标高亮页面区域，按空格键添加选区";
-        if (modelStore.status === "running") return "模型定位中，可点击停止";
         if (searchStore.showCandidatePicker) return "请选择候选文件后继续";
         return "输入修改要求，可用 @选区 或 @选区1 引用已选区";
       });
@@ -12906,7 +12797,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               onSelect: handleComposerCursor,
               onFocus: handleComposerCursor,
               onKeydown: handleComposerKeydown
-            }, null, 40, _hoisted_1$6),
+            }, null, 40, _hoisted_1$5),
             shortcutMenuOpen.value ? (openBlock(), createElementBlock(
               "div",
               {
@@ -12940,12 +12831,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         /* STYLE */
                       )) : (openBlock(), createElementBlock(
                         "span",
-                        _hoisted_3$5,
+                        _hoisted_3$4,
                         toDisplayString(asset.index),
                         1
                         /* TEXT */
                       )),
-                      createBaseVNode("span", _hoisted_4$5, [
+                      createBaseVNode("span", _hoisted_4$4, [
                         createBaseVNode(
                           "strong",
                           null,
@@ -12961,12 +12852,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                           /* TEXT */
                         )
                       ])
-                    ], 42, _hoisted_2$5);
+                    ], 42, _hoisted_2$4);
                   }),
                   128
                   /* KEYED_FRAGMENT */
                 )),
-                !shortcutAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_5$5, "@ 无匹配选区")) : createCommentVNode("v-if", true)
+                !shortcutAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_5$4, "@ 无匹配选区")) : createCommentVNode("v-if", true)
               ],
               512
               /* NEED_PATCH */
@@ -12978,20 +12869,20 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _hoisted_1$5 = { class: "mda-composer-prebar" };
-  const _hoisted_2$4 = { class: "mda-composer-prebar-main" };
-  const _hoisted_3$4 = ["disabled"];
-  const _hoisted_4$4 = {
+  const _hoisted_1$4 = { class: "mda-composer-prebar" };
+  const _hoisted_2$3 = { class: "mda-composer-prebar-main" };
+  const _hoisted_3$3 = ["disabled"];
+  const _hoisted_4$3 = {
     key: 0,
     class: "mda-asset-strip"
   };
-  const _hoisted_5$4 = ["title", "onClick", "onKeydown"];
-  const _hoisted_6$4 = {
+  const _hoisted_5$3 = ["title", "onClick", "onKeydown"];
+  const _hoisted_6$3 = {
     key: 1,
     class: "mda-asset-thumb is-empty"
   };
-  const _hoisted_7$4 = ["onClick"];
-  const _sfc_main$6 = {
+  const _hoisted_7$3 = ["onClick"];
+  const _sfc_main$5 = {
     __name: "ComposerPrebar",
     emits: ["insert-asset"],
     setup(__props) {
@@ -13020,8 +12911,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         return (asset == null ? void 0 : asset.thumbnailUrl) ? { backgroundImage: `url("${asset.thumbnailUrl}")` } : {};
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("div", _hoisted_1$5, [
-          createBaseVNode("div", _hoisted_2$4, [
+        return openBlock(), createElementBlock("div", _hoisted_1$4, [
+          createBaseVNode("div", _hoisted_2$3, [
             createBaseVNode("button", {
               class: normalizeClass(["mda-assist-chip", { "is-active": includeApiEvidence.value }]),
               type: "button",
@@ -13042,8 +12933,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 -1
                 /* CACHED */
               )
-            ])], 10, _hoisted_3$4),
-            promptAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_4$4, [
+            ])], 10, _hoisted_3$3),
+            promptAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_4$3, [
               (openBlock(true), createElementBlock(
                 Fragment,
                 null,
@@ -13075,7 +12966,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         /* STYLE */
                       )) : (openBlock(), createElementBlock(
                         "span",
-                        _hoisted_6$4,
+                        _hoisted_6$3,
                         toDisplayString(asset.index),
                         1
                         /* TEXT */
@@ -13085,8 +12976,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                         type: "button",
                         title: "移除这个选区",
                         onClick: withModifiers(($event) => unref(commands).removeSelection(asset.uid), ["stop"])
-                      }, "×", 8, _hoisted_7$4)
-                    ], 40, _hoisted_5$4)
+                      }, "×", 8, _hoisted_7$3)
+                    ], 40, _hoisted_5$3)
                   ]);
                 }),
                 128
@@ -13098,46 +12989,46 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  const _hoisted_1$4 = { class: "mda-composer-wrap" };
-  const _hoisted_2$3 = { class: "mda-result-module" };
-  const _hoisted_3$3 = {
+  const _hoisted_1$3 = { class: "mda-composer-wrap" };
+  const _hoisted_2$2 = { class: "mda-result-module" };
+  const _hoisted_3$2 = {
     key: 0,
     class: "mda-result-module-head"
   };
-  const _hoisted_4$3 = { class: "mda-result-module-body" };
-  const _hoisted_5$3 = {
+  const _hoisted_4$2 = { class: "mda-result-module-body" };
+  const _hoisted_5$2 = {
     key: 0,
     class: "mda-composer-options mda-plan mda-agent-confirm",
     "aria-live": "polite"
   };
-  const _hoisted_6$3 = { class: "mda-plan-block" };
-  const _hoisted_7$3 = { class: "mda-plan-line mda-agent-confirm-question" };
-  const _hoisted_8$3 = {
+  const _hoisted_6$2 = { class: "mda-plan-block" };
+  const _hoisted_7$2 = { class: "mda-plan-line mda-agent-confirm-question" };
+  const _hoisted_8$2 = {
     key: 0,
     class: "mda-plan-why"
   };
-  const _hoisted_9$3 = {
+  const _hoisted_9$2 = {
     key: 0,
     class: "mda-agent-confirm-options"
   };
-  const _hoisted_10$3 = ["title", "onClick"];
-  const _hoisted_11$3 = { key: 0 };
-  const _hoisted_12$3 = { class: "mda-composer" };
-  const _hoisted_13$3 = { class: "mda-composer-toolbar" };
-  const _hoisted_14$3 = { class: "mda-toolbar-left" };
-  const _hoisted_15$3 = ["title"];
-  const _hoisted_16$3 = { class: "mda-toolbar-right" };
-  const _hoisted_17$3 = ["title", "disabled"];
-  const _hoisted_18$3 = {
+  const _hoisted_10$2 = ["title", "onClick"];
+  const _hoisted_11$2 = { key: 0 };
+  const _hoisted_12$2 = { class: "mda-composer" };
+  const _hoisted_13$2 = { class: "mda-composer-toolbar" };
+  const _hoisted_14$2 = { class: "mda-toolbar-left" };
+  const _hoisted_15$2 = ["title"];
+  const _hoisted_16$2 = { class: "mda-toolbar-right" };
+  const _hoisted_17$2 = ["title", "disabled"];
+  const _hoisted_18$2 = {
     key: 0,
     class: "mda-stop-icon"
   };
-  const _hoisted_19$3 = { key: 1 };
-  const _hoisted_20$3 = {
+  const _hoisted_19$2 = { key: 1 };
+  const _hoisted_20$2 = {
     key: 2,
     class: "mda-send-arrow"
   };
-  const _hoisted_21$2 = { class: "mda-route-inline" };
+  const _hoisted_21$1 = { class: "mda-route-inline" };
   const _hoisted_22$1 = {
     key: 1,
     class: "mda-route-empty"
@@ -13146,16 +13037,15 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     key: 1,
     class: "mda-toast"
   };
-  const _sfc_main$5 = {
+  const _sfc_main$4 = {
     __name: "ComposerPanel",
     setup(__props, { expose: __expose }) {
       const composerInputRef = /* @__PURE__ */ ref(null);
-      const buildVersion = "20260730.202242.135";
+      const buildVersion = "20260731.014234.453";
       const commands = useGoCaptureCommands();
       const appUiStore = useAppUiStore();
       const composerStore = useComposerStore();
       const connectAgentStore = useConnectAgentStore();
-      const modelStore = useModelStore();
       const projectStore = useProjectStore();
       const routeStore = useRouteStore();
       const searchStore = useSearchStore();
@@ -13168,7 +13058,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       });
       const selectedItems = computed(() => selectionStore.items);
       const project = computed(() => projectStore.current);
-      const modelAssistLoading = computed(() => modelStore.status === "running");
       const routeResolverTrace = computed(() => routeStore.resolverTrace);
       const toastText = computed(() => appUiStore.toastText);
       const interactionQuestion = computed(() => {
@@ -13187,7 +13076,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       const composerCanSend = computed(() => {
         var _a2;
         if (connectAgentStore.taskAwaitingInput) return composerStore.trimmedContent.length > 0;
-        if (modelAssistLoading.value || connectAgentStore.taskRunning) return true;
+        if (connectAgentStore.taskRunning) return true;
         if (candidateLoading.value) return false;
         if (!project.value) return false;
         if (!((_a2 = connectAgentStore.activeProvider) == null ? void 0 : _a2.connected)) return false;
@@ -13227,9 +13116,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         });
       }
       return (_ctx, _cache) => {
-        return openBlock(), createElementBlock("section", _hoisted_1$4, [
-          createBaseVNode("div", _hoisted_2$3, [
-            hasResultModule.value ? (openBlock(), createElementBlock("div", _hoisted_3$3, [
+        return openBlock(), createElementBlock("section", _hoisted_1$3, [
+          createBaseVNode("div", _hoisted_2$2, [
+            hasResultModule.value ? (openBlock(), createElementBlock("div", _hoisted_3$2, [
               _cache[4] || (_cache[4] = createBaseVNode(
                 "span",
                 { class: "mda-result-module-title" },
@@ -13251,10 +13140,10 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             ])) : createCommentVNode("v-if", true),
             withDirectives(createBaseVNode(
               "div",
-              _hoisted_4$3,
+              _hoisted_4$2,
               [
-                createVNode(_sfc_main$8),
-                createVNode(_sfc_main$6, { onInsertAsset: handleAssetInsert })
+                createVNode(_sfc_main$7),
+                createVNode(_sfc_main$5, { onInsertAsset: handleAssetInsert })
               ],
               512
               /* NEED_PATCH */
@@ -13262,7 +13151,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               [vShow, !(hasResultModule.value && resultModuleCollapsed.value)]
             ])
           ]),
-          unref(connectAgentStore).taskAwaitingInput ? (openBlock(), createElementBlock("section", _hoisted_5$3, [
+          unref(connectAgentStore).taskAwaitingInput ? (openBlock(), createElementBlock("section", _hoisted_5$2, [
             _cache[6] || (_cache[6] = createBaseVNode(
               "div",
               { class: "mda-option-title" },
@@ -13270,7 +13159,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               -1
               /* CACHED */
             )),
-            createBaseVNode("div", _hoisted_6$3, [
+            createBaseVNode("div", _hoisted_6$2, [
               _cache[5] || (_cache[5] = createBaseVNode(
                 "div",
                 { class: "mda-plan-block-title" },
@@ -13280,20 +13169,20 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               )),
               createBaseVNode(
                 "div",
-                _hoisted_7$3,
+                _hoisted_7$2,
                 toDisplayString(interactionQuestion.value),
                 1
                 /* TEXT */
               ),
               interactionDescription.value ? (openBlock(), createElementBlock(
                 "div",
-                _hoisted_8$3,
+                _hoisted_8$2,
                 toDisplayString(interactionDescription.value),
                 1
                 /* TEXT */
               )) : createCommentVNode("v-if", true)
             ]),
-            interactionOptions.value.length ? (openBlock(), createElementBlock("div", _hoisted_9$3, [
+            interactionOptions.value.length ? (openBlock(), createElementBlock("div", _hoisted_9$2, [
               (openBlock(true), createElementBlock(
                 Fragment,
                 null,
@@ -13314,12 +13203,12 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                     ),
                     option.description ? (openBlock(), createElementBlock(
                       "span",
-                      _hoisted_11$3,
+                      _hoisted_11$2,
                       toDisplayString(option.description),
                       1
                       /* TEXT */
                     )) : createCommentVNode("v-if", true)
-                  ], 8, _hoisted_10$3);
+                  ], 8, _hoisted_10$2);
                 }),
                 128
                 /* KEYED_FRAGMENT */
@@ -13333,9 +13222,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               /* CACHED */
             ))
           ])) : createCommentVNode("v-if", true),
-          createBaseVNode("div", _hoisted_12$3, [
+          createBaseVNode("div", _hoisted_12$2, [
             createVNode(
-              _sfc_main$7,
+              _sfc_main$6,
               {
                 ref_key: "composerInputRef",
                 ref: composerInputRef
@@ -13344,8 +13233,8 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
               512
               /* NEED_PATCH */
             ),
-            createBaseVNode("div", _hoisted_13$3, [
-              createBaseVNode("div", _hoisted_14$3, [
+            createBaseVNode("div", _hoisted_13$2, [
+              createBaseVNode("div", _hoisted_14$2, [
                 selectedItems.value.length ? (openBlock(), createElementBlock("button", {
                   key: 0,
                   class: "mda-inline-text-btn",
@@ -13355,22 +13244,22 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
                 createBaseVNode("span", {
                   class: "mda-build-version",
                   title: `构建版本 ${unref(buildVersion)}`
-                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_15$3)
+                }, "build " + toDisplayString(unref(buildVersion)), 9, _hoisted_15$2)
               ]),
-              createBaseVNode("div", _hoisted_16$3, [
+              createBaseVNode("div", _hoisted_16$2, [
                 createBaseVNode("button", {
-                  class: normalizeClass(["mda-send-btn", { "is-stopping": modelAssistLoading.value || unref(connectAgentStore).taskRunning && !unref(connectAgentStore).taskAwaitingInput }]),
+                  class: normalizeClass(["mda-send-btn", { "is-stopping": unref(connectAgentStore).taskRunning && !unref(connectAgentStore).taskAwaitingInput }]),
                   type: "button",
-                  title: unref(connectAgentStore).taskAwaitingInput ? "回答 Agent" : modelAssistLoading.value || unref(connectAgentStore).taskRunning ? "停止当前任务" : "提交",
+                  title: unref(connectAgentStore).taskAwaitingInput ? "回答 Agent" : unref(connectAgentStore).taskRunning ? "停止当前任务" : "提交",
                   disabled: !composerCanSend.value,
                   onClick: _cache[2] || (_cache[2] = (...args) => unref(commands).sendRequest && unref(commands).sendRequest(...args))
                 }, [
-                  modelAssistLoading.value || unref(connectAgentStore).taskRunning && !unref(connectAgentStore).taskAwaitingInput ? (openBlock(), createElementBlock("span", _hoisted_18$3)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_19$3, "检索")) : (openBlock(), createElementBlock("span", _hoisted_20$3))
-                ], 10, _hoisted_17$3)
+                  unref(connectAgentStore).taskRunning && !unref(connectAgentStore).taskAwaitingInput ? (openBlock(), createElementBlock("span", _hoisted_18$2)) : candidateLoading.value ? (openBlock(), createElementBlock("span", _hoisted_19$2, "检索")) : (openBlock(), createElementBlock("span", _hoisted_20$2))
+                ], 10, _hoisted_17$2)
               ])
             ])
           ]),
-          createBaseVNode("div", _hoisted_21$2, [
+          createBaseVNode("div", _hoisted_21$1, [
             routeResolverTrace.value ? (openBlock(), createElementBlock(
               Fragment,
               { key: 0 },
@@ -13418,377 +13307,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       };
     }
   };
-  function useMcpStatus() {
-    const servers = /* @__PURE__ */ ref([]);
-    const logs = /* @__PURE__ */ ref([]);
-    const config = /* @__PURE__ */ ref({});
-    const loading = /* @__PURE__ */ ref(false);
-    const error = /* @__PURE__ */ ref("");
-    let timer = null;
-    function refresh() {
-      return __async(this, null, function* () {
-        loading.value = true;
-        error.value = "";
-        try {
-          const data = yield sourceServerJson("/api/agent/mcp/status", { timeoutMs: 5e3 });
-          servers.value = Array.isArray(data.servers) ? data.servers : [];
-          logs.value = Array.isArray(data.logs) ? data.logs : [];
-          config.value = data.config && typeof data.config === "object" ? data.config : {};
-        } catch (err) {
-          error.value = (err == null ? void 0 : err.message) || String(err);
-        } finally {
-          loading.value = false;
-        }
-      });
-    }
-    function reload() {
-      return __async(this, null, function* () {
-        loading.value = true;
-        error.value = "";
-        try {
-          const data = yield sourceServerJson("/api/agent/mcp/reload", {
-            method: "POST",
-            body: {},
-            timeoutMs: 35e3
-          });
-          servers.value = Array.isArray(data.servers) ? data.servers : [];
-          logs.value = Array.isArray(data.logs) ? data.logs : [];
-        } catch (err) {
-          error.value = (err == null ? void 0 : err.message) || String(err);
-        } finally {
-          loading.value = false;
-        }
-      });
-    }
-    function stop(name) {
-      return __async(this, null, function* () {
-        loading.value = true;
-        error.value = "";
-        try {
-          const data = yield sourceServerJson("/api/agent/mcp/stop", {
-            method: "POST",
-            body: { name },
-            timeoutMs: 8e3
-          });
-          servers.value = Array.isArray(data.servers) ? data.servers : [];
-          logs.value = Array.isArray(data.logs) ? data.logs : [];
-        } catch (err) {
-          error.value = (err == null ? void 0 : err.message) || String(err);
-        } finally {
-          loading.value = false;
-        }
-      });
-    }
-    function startPolling(intervalMs = 2e3) {
-      stopPolling();
-      void refresh();
-      timer = window.setInterval(refresh, intervalMs);
-    }
-    function stopPolling() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    }
-    onScopeDispose(stopPolling);
-    return { servers, logs, config, loading, error, refresh, reload, stop, startPolling, stopPolling };
-  }
-  const _hoisted_1$3 = {
-    class: "mda-mcp-panel",
-    role: "dialog",
-    "aria-label": "MCP 状态"
-  };
-  const _hoisted_2$2 = { class: "mda-mcp-head" };
-  const _hoisted_3$2 = { class: "mda-mcp-head-actions" };
-  const _hoisted_4$2 = ["disabled"];
-  const _hoisted_5$2 = ["disabled"];
-  const _hoisted_6$2 = { class: "mda-mcp-body" };
-  const _hoisted_7$2 = {
-    key: 0,
-    class: "mda-mcp-error"
-  };
-  const _hoisted_8$2 = { class: "mda-mcp-config" };
-  const _hoisted_9$2 = { class: "mda-mcp-section-title" };
-  const _hoisted_10$2 = {
-    key: 1,
-    class: "mda-mcp-empty"
-  };
-  const _hoisted_11$2 = {
-    key: 2,
-    class: "mda-mcp-servers"
-  };
-  const _hoisted_12$2 = { class: "mda-mcp-server-head" };
-  const _hoisted_13$2 = { class: "mda-mcp-server-name" };
-  const _hoisted_14$2 = { class: "mda-mcp-server-status" };
-  const _hoisted_15$2 = ["disabled", "onClick"];
-  const _hoisted_16$2 = {
-    key: 0,
-    class: "mda-mcp-server-error"
-  };
-  const _hoisted_17$2 = {
-    key: 1,
-    class: "mda-mcp-tools"
-  };
-  const _hoisted_18$2 = { class: "mda-mcp-logs" };
-  const _hoisted_19$2 = {
-    key: 0,
-    class: "mda-mcp-empty"
-  };
-  const _hoisted_20$2 = { class: "mda-mcp-log-time" };
-  const _hoisted_21$1 = { class: "mda-mcp-log-line" };
-  const _sfc_main$4 = /* @__PURE__ */ defineComponent({
-    __name: "McpStatusPanel",
-    props: {
-      visible: { type: Boolean }
-    },
-    emits: ["close"],
-    setup(__props) {
-      const props = __props;
-      const { servers, logs, config, loading, error, refresh, reload, stop, startPolling, stopPolling } = useMcpStatus();
-      watch(() => props.visible, (open) => {
-        if (open) startPolling();
-        else stopPolling();
-      }, { immediate: true });
-      function formatTime(iso) {
-        try {
-          return new Date(iso).toLocaleTimeString();
-        } catch (e) {
-          return "";
-        }
-      }
-      return (_ctx, _cache) => {
-        return __props.visible ? (openBlock(), createElementBlock("div", {
-          key: 0,
-          class: "mda-mcp-overlay",
-          onClick: _cache[3] || (_cache[3] = withModifiers(($event) => _ctx.$emit("close"), ["self"]))
-        }, [
-          createBaseVNode("section", _hoisted_1$3, [
-            createBaseVNode("header", _hoisted_2$2, [
-              _cache[4] || (_cache[4] = createBaseVNode(
-                "span",
-                { class: "mda-mcp-title" },
-                "MCP 服务",
-                -1
-                /* CACHED */
-              )),
-              createBaseVNode("div", _hoisted_3$2, [
-                createBaseVNode("button", {
-                  class: "mda-mcp-btn",
-                  type: "button",
-                  disabled: unref(loading),
-                  onClick: _cache[0] || (_cache[0] = //@ts-ignore
-                  (...args) => unref(reload) && unref(reload)(...args))
-                }, toDisplayString(unref(loading) ? "处理中…" : "重新加载"), 9, _hoisted_4$2),
-                createBaseVNode("button", {
-                  class: "mda-mcp-btn",
-                  type: "button",
-                  disabled: unref(loading),
-                  onClick: _cache[1] || (_cache[1] = //@ts-ignore
-                  (...args) => unref(refresh) && unref(refresh)(...args))
-                }, toDisplayString(unref(loading) ? "刷新中…" : "刷新"), 9, _hoisted_5$2),
-                createBaseVNode("button", {
-                  class: "mda-mcp-btn",
-                  type: "button",
-                  onClick: _cache[2] || (_cache[2] = ($event) => _ctx.$emit("close"))
-                }, "关闭")
-              ])
-            ]),
-            createBaseVNode("div", _hoisted_6$2, [
-              unref(error) ? (openBlock(), createElementBlock(
-                "div",
-                _hoisted_7$2,
-                "读取失败：" + toDisplayString(unref(error)),
-                1
-                /* TEXT */
-              )) : createCommentVNode("v-if", true),
-              createBaseVNode("div", _hoisted_8$2, [
-                createBaseVNode("div", null, [
-                  _cache[5] || (_cache[5] = createBaseVNode(
-                    "strong",
-                    null,
-                    "用户配置",
-                    -1
-                    /* CACHED */
-                  )),
-                  createBaseVNode(
-                    "code",
-                    null,
-                    toDisplayString(unref(config).user || "~/.gocapture/mcp.json"),
-                    1
-                    /* TEXT */
-                  )
-                ]),
-                createBaseVNode("div", null, [
-                  _cache[6] || (_cache[6] = createBaseVNode(
-                    "strong",
-                    null,
-                    "项目配置",
-                    -1
-                    /* CACHED */
-                  )),
-                  createBaseVNode(
-                    "code",
-                    null,
-                    toDisplayString(unref(config).project || "<projectRoot>/.mcp.json"),
-                    1
-                    /* TEXT */
-                  )
-                ])
-              ]),
-              createBaseVNode(
-                "div",
-                _hoisted_9$2,
-                "已登记的 MCP（" + toDisplayString(unref(servers).length) + "）",
-                1
-                /* TEXT */
-              ),
-              !unref(servers).length ? (openBlock(), createElementBlock("div", _hoisted_10$2, [..._cache[7] || (_cache[7] = [
-                createTextVNode(
-                  " 暂无。请在项目根放 ",
-                  -1
-                  /* CACHED */
-                ),
-                createBaseVNode(
-                  "code",
-                  null,
-                  ".mcp.json",
-                  -1
-                  /* CACHED */
-                ),
-                createTextVNode(
-                  " 或 ",
-                  -1
-                  /* CACHED */
-                ),
-                createBaseVNode(
-                  "code",
-                  null,
-                  "~/.gocapture/mcp.json",
-                  -1
-                  /* CACHED */
-                ),
-                createTextVNode(
-                  " 后重新绑定项目。 ",
-                  -1
-                  /* CACHED */
-                )
-              ])])) : (openBlock(), createElementBlock("ul", _hoisted_11$2, [
-                (openBlock(true), createElementBlock(
-                  Fragment,
-                  null,
-                  renderList(unref(servers), (server) => {
-                    return openBlock(), createElementBlock("li", {
-                      key: server.name,
-                      class: "mda-mcp-server"
-                    }, [
-                      createBaseVNode("div", _hoisted_12$2, [
-                        createBaseVNode(
-                          "span",
-                          {
-                            class: normalizeClass(["mda-mcp-dot", server.status === "ready" ? "is-ready" : "is-failed"])
-                          },
-                          null,
-                          2
-                          /* CLASS */
-                        ),
-                        createBaseVNode(
-                          "span",
-                          _hoisted_13$2,
-                          toDisplayString(server.name),
-                          1
-                          /* TEXT */
-                        ),
-                        createBaseVNode(
-                          "span",
-                          _hoisted_14$2,
-                          toDisplayString(server.status === "ready" ? `就绪 · ${server.toolCount} 个工具` : server.status === "failed" ? "失败" : server.status),
-                          1
-                          /* TEXT */
-                        ),
-                        server.status === "ready" ? (openBlock(), createElementBlock("button", {
-                          key: 0,
-                          class: "mda-mcp-mini-btn",
-                          type: "button",
-                          disabled: unref(loading),
-                          onClick: ($event) => unref(stop)(server.name)
-                        }, "停止", 8, _hoisted_15$2)) : createCommentVNode("v-if", true)
-                      ]),
-                      server.error ? (openBlock(), createElementBlock(
-                        "div",
-                        _hoisted_16$2,
-                        toDisplayString(server.error),
-                        1
-                        /* TEXT */
-                      )) : createCommentVNode("v-if", true),
-                      server.tools && server.tools.length ? (openBlock(), createElementBlock("ul", _hoisted_17$2, [
-                        (openBlock(true), createElementBlock(
-                          Fragment,
-                          null,
-                          renderList(server.tools, (tool) => {
-                            return openBlock(), createElementBlock(
-                              "li",
-                              {
-                                key: tool,
-                                class: "mda-mcp-tool"
-                              },
-                              toDisplayString(tool),
-                              1
-                              /* TEXT */
-                            );
-                          }),
-                          128
-                          /* KEYED_FRAGMENT */
-                        ))
-                      ])) : createCommentVNode("v-if", true)
-                    ]);
-                  }),
-                  128
-                  /* KEYED_FRAGMENT */
-                ))
-              ])),
-              _cache[8] || (_cache[8] = createBaseVNode(
-                "div",
-                { class: "mda-mcp-section-title" },
-                "日志",
-                -1
-                /* CACHED */
-              )),
-              createBaseVNode("div", _hoisted_18$2, [
-                !unref(logs).length ? (openBlock(), createElementBlock("div", _hoisted_19$2, "暂无日志")) : createCommentVNode("v-if", true),
-                (openBlock(true), createElementBlock(
-                  Fragment,
-                  null,
-                  renderList(unref(logs), (log, index) => {
-                    return openBlock(), createElementBlock("div", {
-                      key: index,
-                      class: "mda-mcp-log"
-                    }, [
-                      createBaseVNode(
-                        "span",
-                        _hoisted_20$2,
-                        toDisplayString(formatTime(log.at)),
-                        1
-                        /* TEXT */
-                      ),
-                      createBaseVNode(
-                        "span",
-                        _hoisted_21$1,
-                        toDisplayString(log.line),
-                        1
-                        /* TEXT */
-                      )
-                    ]);
-                  }),
-                  128
-                  /* KEYED_FRAGMENT */
-                ))
-              ])
-            ])
-          ])
-        ])) : createCommentVNode("v-if", true);
-      };
-    }
-  });
   function flattenKeys(value, prefix = "", result = [], depth = 0, limit = 36) {
     if (!value || typeof value !== "object" || depth > 2 || result.length >= limit) return result;
     const entries = Array.isArray(value) ? value.slice(0, 1).map((item, index) => [String(index), item]) : Object.entries(value).slice(0, 18);
@@ -13929,7 +13447,7 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         const url = new URL(info.url || "", window.location.href);
         const sourceUrl = new URL(SOURCE_SERVER_URL);
         if (url.origin !== sourceUrl.origin) return false;
-        return url.pathname === "/health" || url.pathname.startsWith("/api/source/") || url.pathname.startsWith("/api/route/") || url.pathname.startsWith("/api/model/") || url.pathname.startsWith("/api/search");
+        return url.pathname === "/health" || url.pathname.startsWith("/api/source/") || url.pathname.startsWith("/api/route/") || url.pathname.startsWith("/api/connect-agents");
       } catch (error) {
         return false;
       }
@@ -14468,7 +13986,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     const projectStore = useProjectStore();
     const appUiStore = useAppUiStore();
     const composerStore = useComposerStore();
-    const modelStore = useModelStore();
     const searchStore = useSearchStore();
     const selectionStore = useSelectionStore();
     const {
@@ -14519,29 +14036,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         }
       });
     }
-    function projectInterpreterAdapter() {
-      if (!modelStore.selectedModelId) return null;
-      return modelStore.configs.find((item) => item.id === modelStore.selectedModelId) || null;
-    }
-    function runProjectInterpreter(path, fallbackProject) {
-      return __async(this, null, function* () {
-        var _a2;
-        const adapter = projectInterpreterAdapter();
-        if ((_a2 = fallbackProject == null ? void 0 : fallbackProject.context) == null ? void 0 : _a2.interpreted) return fallbackProject;
-        if (!adapter) return fallbackProject;
-        sourceServiceMessage.value = "正在大致了解项目：读取配置、目录结构并生成 Project.md...";
-        const result = yield sourceServerNdjson("/api/source/interpret/stream", {
-          method: "POST",
-          body: { path, adapter },
-          timeoutMs: Math.max(Number(adapter.timeoutMs || 12e4) * 3 + 3e4, 24e4),
-          timeoutMessage: "Project Interpreter 执行超时，请检查模型配置或稍后重试",
-          onEvent(event) {
-            if (event.type === "log" && event.log) sourceServiceMessage.value = event.log;
-          }
-        });
-        return (result == null ? void 0 : result.project) || fallbackProject;
-      });
-    }
     function resetAfterProjectChange(options = {}) {
       const preserveUi = !!options.preserveUi;
       if (!preserveUi) {
@@ -14553,7 +14047,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         composerStore.clearContent();
       }
       searchStore.reset();
-      modelStore.reset();
     }
     function restoreSavedProject() {
       return __async(this, null, function* () {
@@ -14575,8 +14068,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
             timeoutMessage: "恢复源码路径超时，请重新选择项目源码"
           });
           projectStore.setProject(normalizeSourceServerProject(data.project || {}));
-          const interpretedProject = yield runProjectInterpreter(path, data.project || {});
-          projectStore.setProject(normalizeSourceServerProject(interpretedProject || {}));
           projectStore.setServiceStatus("connected");
           resetAfterProjectChange({ preserveUi: true });
           appUiStore.setToast(`已恢复 ${project.value.name}`);
@@ -14607,9 +14098,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         projectStore.setProject(normalizeSourceServerProject(selectedProject));
         yield rememberProjectPath(project.value);
         resetAfterProjectChange();
-        const interpretedProject = yield runProjectInterpreter(selectedProject.path, selectedProject);
-        projectStore.setProject(normalizeSourceServerProject(interpretedProject || {}));
-        yield rememberProjectPath(project.value);
         projectStore.setServiceStatus("connected");
         appUiStore.setToast(`已关联 ${project.value.name}`);
       });
@@ -14725,7 +14213,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
   }
   function useSearchFacade() {
     const composerStore = useComposerStore();
-    const modelStore = useModelStore();
     const requestStore = useRequestStore();
     const routeStore = useRouteStore();
     const searchStore = useSearchStore();
@@ -14754,7 +14241,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
     const { recent: recentRequests } = storeToRefs(requestStore);
     const { filesConfirmed } = storeToRefs(selectionStore);
-    const modelAssistLoading = computed(() => modelStore.status === "running");
     const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
     const selectedCandidateHits = computed(() => {
       const selected = new Set(selectedCandidatePaths.value);
@@ -14773,9 +14259,9 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       if (serverNeedsMoreEvidence.value) return true;
       return candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value;
     });
-    const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
+    const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistAttempted.value);
     const showCandidatePicker = computed(() => {
-      return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
+      return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value;
     });
     watch([candidateLoading, searchRunning, candidateError, candidateHits], ([loading, running, error]) => {
       if (error) searchStore.status = "error";
@@ -14804,7 +14290,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
       expandedCandidatePath.value = "";
       selectionStore.filesConfirmed = false;
       modelAssistAttempted.value = false;
-      modelStore.reset();
       composerStore.setFinalPrompt("");
     }
     return {
@@ -15082,7 +14567,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
     const selectionStore = useSelectionStore();
     const composerStore = useComposerStore();
     const searchStore = useSearchStore();
-    const modelStore = useModelStore();
     const selection = createSelectionFacade(selectionStore);
     const deps = {
       bridge: { sendCommand: options.sendCommand },
@@ -15095,7 +14579,6 @@ ${hit.preciseSnippet || hit.uniqueSnippet}`);
         resetCandidateState: () => {
           selectionStore.filesConfirmed = false;
           searchStore.reset();
-          modelStore.reset();
           composerStore.setFinalPrompt("");
         },
         getComposerContent: () => composerStore.content || "",
@@ -15744,569 +15227,14 @@ ${source}` : "",
   function setupPromptRuntime() {
     return useSearchPrompt();
   }
-  const MODEL_STORAGE_KEY = "gocapture:model-adapters";
-  const MODEL_SELECTED_KEY = "gocapture:model-adapters:selected";
-  const MODEL_SYNC_CHANNEL = "gocapture:model-adapters:sync";
-  function loadJson(key, fallback) {
-    try {
-      const raw = window.localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (error) {
-      return fallback;
-    }
-  }
-  function saveJson(key, value) {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-    }
-  }
-  function loadText(key, fallback = "") {
-    try {
-      const raw = window.localStorage.getItem(key);
-      return typeof raw === "string" ? raw : fallback;
-    } catch (error) {
-      return fallback;
-    }
-  }
-  function saveText(key, value) {
-    try {
-      if (value) window.localStorage.setItem(key, value);
-      else window.localStorage.removeItem(key);
-    } catch (error) {
-    }
-  }
-  function extensionStorage() {
-    try {
-      const requireFn = typeof window._require === "function" ? window._require : typeof _require === "function" ? _require : null;
-      if (!requireFn) return null;
-      const storage = requireFn("md.storage");
-      return storage && storage.local ? storage.local : null;
-    } catch (error) {
-      return null;
-    }
-  }
-  function loadPersistedModelState() {
-    return __async(this, null, function* () {
-      const localModels = loadJson(MODEL_STORAGE_KEY, []);
-      const localSelectedId = loadText(MODEL_SELECTED_KEY, "");
-      const storage = extensionStorage();
-      if (!storage) {
-        return {
-          models: localModels,
-          selectedId: localSelectedId,
-          migrated: false
-        };
-      }
-      try {
-        const data = yield storage.get([MODEL_STORAGE_KEY, MODEL_SELECTED_KEY]);
-        const hasModels = Array.isArray(data == null ? void 0 : data[MODEL_STORAGE_KEY]);
-        const hasSelectedId = typeof (data == null ? void 0 : data[MODEL_SELECTED_KEY]) === "string";
-        if (hasModels || hasSelectedId) {
-          return {
-            models: hasModels ? data[MODEL_STORAGE_KEY] : [],
-            selectedId: hasSelectedId ? data[MODEL_SELECTED_KEY] : "",
-            migrated: false
-          };
-        }
-      } catch (error) {
-      }
-      return {
-        models: localModels,
-        selectedId: localSelectedId,
-        migrated: !!(localModels.length || localSelectedId)
-      };
-    });
-  }
-  function persistModelState(models, selectedId) {
-    return __async(this, null, function* () {
-      saveJson(MODEL_STORAGE_KEY, models);
-      saveText(MODEL_SELECTED_KEY, selectedId);
-      const storage = extensionStorage();
-      if (storage) {
-        try {
-          yield storage.set({
-            [MODEL_STORAGE_KEY]: models,
-            [MODEL_SELECTED_KEY]: selectedId || ""
-          });
-        } catch (error) {
-        }
-      }
-      broadcastModelState();
-    });
-  }
-  function broadcastModelState() {
-    if (typeof BroadcastChannel !== "function") return;
-    const channel = new BroadcastChannel(MODEL_SYNC_CHANNEL);
-    channel.postMessage({ type: "changed" });
-    channel.close();
-  }
-  function defaultModelForm() {
-    return {
-      id: "",
-      name: "DeepSeek",
-      provider: "deepseek",
-      type: "api",
-      endpoint: "https://api.deepseek.com/chat/completions",
-      apiKey: "",
-      model: "deepseek-v4-pro",
-      proxyUrl: "",
-      timeoutMs: 12e4
-    };
-  }
-  function providerModelForm(provider) {
-    return defaultModelForm();
-  }
-  function normalizeModel(raw) {
-    const item = raw || {};
-    if (item.provider !== "deepseek") return null;
-    return {
-      id: item.id || `model-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: item.name || "DeepSeek",
-      provider: "deepseek",
-      type: "api",
-      endpoint: item.endpoint || "https://api.deepseek.com/chat/completions",
-      apiKey: item.apiKey || "",
-      model: item.model || "deepseek-v4-pro",
-      proxyUrl: item.proxyUrl || "",
-      timeoutMs: Number(item.timeoutMs || 12e4)
-    };
-  }
-  function useModelAdapters() {
-    const modelStore = useModelStore();
-    const appUiStore = useAppUiStore();
-    const projectStore = useProjectStore();
-    const routeStore = useRouteStore();
-    const searchStore = useSearchStore();
-    const prompt = useSearchPrompt();
-    const { current: project } = storeToRefs(projectStore);
-    const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
-    const {
-      candidates: candidateHits,
-      changePlan,
-      selectedCandidatePaths,
-      apiTrace,
-      i18nTrace,
-      definitionTrace
-    } = storeToRefs(searchStore);
-    const { searchPayload } = prompt;
-    if (!modelStore.configs.length) modelStore.configs = loadJson(MODEL_STORAGE_KEY, []).map(normalizeModel).filter(Boolean);
-    if (!modelStore.selectedModelId) modelStore.selectedModelId = loadText(MODEL_SELECTED_KEY, "");
-    modelStore.useModelAssist = !!modelStore.selectedModelId;
-    const {
-      configs: modelConfigs,
-      selectedModelId,
-      useModelAssist,
-      editorOpen: modelEditorOpen,
-      form: modelForm,
-      error: modelAssistError,
-      logs: modelAssistLogs,
-      result: modelAssistResult,
-      startedAt: modelAssistStartedAt,
-      finishedAt: modelAssistFinishedAt
-    } = storeToRefs(modelStore);
-    let modelAssistController = null;
-    const selectedModel = computed(() => {
-      return modelConfigs.value.find((item) => item.id === selectedModelId.value) || null;
-    });
-    const canUseModelAssist = computed(() => {
-      return !!selectedModel.value && !!project.value && project.value.source === "source-server";
-    });
-    const modelAssistLoading = computed({
-      get: () => modelStore.status === "running",
-      set: (value) => {
-        var _a2;
-        if (value) {
-          modelStore.status = "running";
-          return;
-        }
-        if (modelStore.status !== "running") return;
-        if (modelAssistError.value) modelStore.status = "error";
-        else if ((_a2 = modelAssistResult.value) == null ? void 0 : _a2.stopped) modelStore.status = "stopped";
-        else if (modelAssistResult.value) modelStore.status = "success";
-        else modelStore.status = "idle";
-      }
-    });
-    watch(canUseModelAssist, (value) => {
-      modelStore.canUseModelAssist = !!value;
-    }, { immediate: true });
-    function persistModels() {
-      void persistModelState(modelConfigs.value, selectedModelId.value);
-    }
-    function hydratePersistedModels() {
-      return __async(this, null, function* () {
-        const state = yield loadPersistedModelState();
-        const nextModels = (Array.isArray(state.models) ? state.models : []).map(normalizeModel).filter(Boolean);
-        const validSelectedId = nextModels.some((item) => item.id === state.selectedId) ? state.selectedId : "";
-        modelConfigs.value = nextModels;
-        selectedModelId.value = validSelectedId;
-        useModelAssist.value = !!validSelectedId;
-        if (state.migrated || state.selectedId && state.selectedId !== validSelectedId) {
-          void persistModelState(nextModels, validSelectedId);
-        }
-      });
-    }
-    function handleStorageChange(event) {
-      if (event.key !== MODEL_STORAGE_KEY && event.key !== MODEL_SELECTED_KEY) return;
-      void hydratePersistedModels();
-    }
-    const syncChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel(MODEL_SYNC_CHANNEL) : null;
-    if (syncChannel) {
-      syncChannel.onmessage = () => {
-        void hydratePersistedModels();
-      };
-    }
-    window.addEventListener("storage", handleStorageChange);
-    onScopeDispose(() => {
-      syncChannel == null ? void 0 : syncChannel.close();
-      window.removeEventListener("storage", handleStorageChange);
-    });
-    function openModelEditor(model) {
-      modelForm.value = model ? __spreadValues({}, model) : defaultModelForm();
-      modelEditorOpen.value = true;
-    }
-    function openProviderModelEditor(provider) {
-      modelForm.value = providerModelForm();
-      modelEditorOpen.value = true;
-    }
-    function closeModelEditor() {
-      modelEditorOpen.value = false;
-    }
-    function saveModelForm() {
-      const normalized = normalizeModel(modelForm.value);
-      if (!normalized) {
-        appUiStore.setToast("当前模型供应商尚未安装适配器");
-        return;
-      }
-      const index = modelConfigs.value.findIndex((item) => item.id === normalized.id);
-      if (index === -1) modelConfigs.value.push(normalized);
-      else modelConfigs.value.splice(index, 1, normalized);
-      selectedModelId.value = normalized.id;
-      useModelAssist.value = true;
-      persistModels();
-      modelEditorOpen.value = false;
-      appUiStore.setToast("模型已保存");
-    }
-    function removeSelectedModel() {
-      var _a2;
-      if (!selectedModelId.value) return;
-      modelConfigs.value = modelConfigs.value.filter((item) => item.id !== selectedModelId.value);
-      selectedModelId.value = ((_a2 = modelConfigs.value[0]) == null ? void 0 : _a2.id) || "";
-      persistModels();
-      if (!selectedModelId.value) useModelAssist.value = false;
-      appUiStore.setToast("模型已移除");
-    }
-    function setSelectedModel(id) {
-      selectedModelId.value = id || "";
-      useModelAssist.value = !!selectedModelId.value;
-      persistModels();
-    }
-    function selectModelAndEnable(id) {
-      selectedModelId.value = id || "";
-      useModelAssist.value = !!selectedModelId.value;
-      persistModels();
-      if (selectedModelId.value) appUiStore.setToast("模型已启用");
-    }
-    function disableModelAssist() {
-      selectedModelId.value = "";
-      useModelAssist.value = false;
-      persistModels();
-      appUiStore.setToast("模型已停用");
-    }
-    function setUseModelAssist(value) {
-      useModelAssist.value = !!value;
-      if (useModelAssist.value && !selectedModel.value) {
-        openModelEditor();
-      }
-    }
-    function resetModelAssist() {
-      modelAssistError.value = "";
-      modelAssistLogs.value = [];
-      modelAssistResult.value = null;
-      modelAssistStartedAt.value = 0;
-      modelAssistFinishedAt.value = 0;
-      modelStore.status = "idle";
-    }
-    function mergeModelTargets(result) {
-      var _a2;
-      const targets = ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).filter((item) => item.exists);
-      const nextChangePlan = (result == null ? void 0 : result.changePlan) || ((_a2 = targets.find((item) => item.changePlan)) == null ? void 0 : _a2.changePlan) || null;
-      if (nextChangePlan) changePlan.value = nextChangePlan;
-      if (!targets.length) return;
-      const oldHits = candidateHits.value.slice();
-      const byFile = new Map(oldHits.map((hit) => [hit.file, hit]));
-      const promoted = targets.map((target, index) => {
-        var _a3, _b;
-        const old = byFile.get(target.file);
-        const score = Math.max((old == null ? void 0 : old.score) || 0, 980 - index * 40 + Math.round((target.confidence || 0) * 0.2));
-        return __spreadProps(__spreadValues({}, old || {
-          file: target.file,
-          from: "",
-          snippet: "",
-          uniqueSnippet: "",
-          uniqueMatchLabel: "",
-          uniqueMatchText: "",
-          uniqueMatchCount: 0
-        }), {
-          score,
-          stage: "model-agent",
-          preModelStage: (old == null ? void 0 : old.stage) || "",
-          preModelStageLabel: (old == null ? void 0 : old.stage) ? old.stage : "",
-          preModelReasons: (old == null ? void 0 : old.reasons) || [],
-          reasons: [
-            `模型定位：${target.enhancedPrompt || target.prompt || target.reason || ((_a3 = result.parsed) == null ? void 0 : _a3.summary) || result.rawText || "-"}`,
-            target.directionGuess ? `推测方向：${target.directionGuess}` : "",
-            target.codeSnippet ? `模型代码片段：${target.codeSnippet}` : "",
-            ...(old == null ? void 0 : old.reasons) || []
-          ].filter(Boolean).slice(0, 10),
-          modelPrompt: target.enhancedPrompt || target.prompt || target.reason || "",
-          modelEnhancedPrompt: target.enhancedPrompt || "",
-          modelChangePlan: target.changePlan || null,
-          modelExperienceMode: target.experienceMode || "",
-          modelUsedExperienceIds: target.usedExperienceIds || [],
-          modelCodeSnippet: target.codeSnippet || "",
-          modelLocateLevel: target.fileOnly ? "file" : target.locateLevel || "exact",
-          modelFileOnly: !!target.fileOnly,
-          modelSelectionFallback: !!target.selectionFallback,
-          modelSnippetSource: target.snippetSource || "",
-          modelDirectionGuess: target.directionGuess || "",
-          modelSnippetVerified: target.fileOnly ? true : target.snippetVerified !== false,
-          modelDowngradedToDirection: !!target.downgradedToDirection,
-          modelConfidence: target.confidence,
-          modelAdapter: ((_b = result.adapter) == null ? void 0 : _b.name) || ""
-        });
-      });
-      const promotedFiles = new Set(promoted.map((hit) => hit.file));
-      candidateHits.value = [
-        ...promoted,
-        ...oldHits.filter((hit) => !promotedFiles.has(hit.file))
-      ].sort((a, b) => b.score - a.score);
-      selectedCandidatePaths.value = promoted.map((hit) => hit.file);
-    }
-    function runModelAssist() {
-      return __async(this, null, function* () {
-        var _a2, _b, _c, _d, _e, _f;
-        if (!useModelAssist.value || !canUseModelAssist.value) return null;
-        if (modelAssistLoading.value) return null;
-        const controller = new AbortController();
-        modelAssistController = controller;
-        modelAssistStartedAt.value = Date.now();
-        modelAssistFinishedAt.value = 0;
-        modelAssistLoading.value = true;
-        modelAssistError.value = "";
-        modelAssistLogs.value = ["模型定位请求已发起"];
-        modelAssistResult.value = null;
-        try {
-          const result = yield sourceServerNdjson("/api/model/locate/stream", {
-            method: "POST",
-            controller,
-            body: {
-              adapter: selectedModel.value,
-              searchPayload: searchPayload(),
-              pagePath: ((_a2 = routeResolverTrace.value) == null ? void 0 : _a2.pagePath) || "",
-              routeResolver: routeResolverTrace.value,
-              apiTrace: (apiTrace == null ? void 0 : apiTrace.value) || null,
-              i18nTrace: (i18nTrace == null ? void 0 : i18nTrace.value) || null,
-              definitionTrace: (definitionTrace == null ? void 0 : definitionTrace.value) || null,
-              candidateHits: candidateHits.value.slice(0, 4),
-              selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
-            },
-            timeoutMs: Number(selectedModel.value.timeoutMs || 12e4) * 3 + 5e3,
-            timeoutMessage: "模型定位超时",
-            abortMessage: "模型定位已停止",
-            onEvent(event) {
-              if (event.type === "log" && event.log) {
-                modelAssistLogs.value = [...modelAssistLogs.value, event.log];
-              }
-              if (event.type === "result") {
-                modelAssistResult.value = event.result || null;
-              }
-              if (event.type === "error" && Array.isArray(event.logs)) {
-                modelAssistLogs.value = event.logs;
-              }
-            }
-          });
-          modelAssistResult.value = result || modelAssistResult.value || null;
-          modelAssistLogs.value = ((_b = modelAssistResult.value) == null ? void 0 : _b.logs) || [];
-          mergeModelTargets(modelAssistResult.value);
-          appUiStore.setToast("模型定位已完成");
-          return modelAssistResult.value;
-        } catch (error) {
-          if ((error == null ? void 0 : error.name) === "AbortError") {
-            const stoppedLogs = [...modelAssistLogs.value, "已手动停止"];
-            modelAssistLogs.value = stoppedLogs;
-            modelAssistResult.value = {
-              adapter: {
-                id: ((_c = selectedModel.value) == null ? void 0 : _c.id) || "",
-                name: ((_d = selectedModel.value) == null ? void 0 : _d.name) || "模型",
-                type: ((_e = selectedModel.value) == null ? void 0 : _e.type) || ""
-              },
-              stopped: true,
-              modelItems: [],
-              targetFiles: [],
-              logs: stoppedLogs
-            };
-            modelAssistError.value = "";
-            appUiStore.setToast("已手动停止");
-            return modelAssistResult.value;
-          }
-          modelAssistError.value = error.message || String(error);
-          modelAssistLogs.value = ((_f = error.payload) == null ? void 0 : _f.logs) || modelAssistLogs.value;
-          appUiStore.setToast("模型定位失败");
-          return null;
-        } finally {
-          modelAssistFinishedAt.value = Date.now();
-          modelAssistLoading.value = false;
-          if (modelAssistController === controller) modelAssistController = null;
-        }
-      });
-    }
-    function runSelectionContextAssist() {
-      return __async(this, arguments, function* (options = {}) {
-        var _a2, _b, _c, _d, _e, _f;
-        const selectionBindings = Array.isArray(options.selectionBindings) ? options.selectionBindings : [];
-        const userInstruction = String(options.userInstruction || "").trim();
-        if (!useModelAssist.value || !canUseModelAssist.value) return null;
-        if (modelAssistLoading.value) return null;
-        if (!selectionBindings.length) return null;
-        const controller = new AbortController();
-        modelAssistController = controller;
-        modelAssistStartedAt.value = Date.now();
-        modelAssistFinishedAt.value = 0;
-        modelAssistLoading.value = true;
-        modelAssistError.value = "";
-        modelAssistLogs.value = ["选区上下文增强请求已发起"];
-        modelAssistResult.value = null;
-        try {
-          const payload = searchPayload();
-          const result = yield sourceServerNdjson("/api/model/selection-context/stream", {
-            method: "POST",
-            controller,
-            body: {
-              adapter: selectedModel.value,
-              searchPayload: __spreadProps(__spreadValues({}, payload), {
-                userPrompt: userInstruction || payload.userPrompt || ""
-              }),
-              pagePath: ((_a2 = routeResolverTrace.value) == null ? void 0 : _a2.pagePath) || "",
-              routeResolver: routeResolverTrace.value,
-              selectionBindings: selectionBindings.map((item) => {
-                var _a3, _b2, _c2, _d2, _e2;
-                return {
-                  uid: item.uid,
-                  designRequirement: ((_a3 = item.binding) == null ? void 0 : _a3.designRequirement) || "",
-                  projectRoot: ((_b2 = item.binding) == null ? void 0 : _b2.projectRoot) || "",
-                  targets: Array.isArray((_c2 = item.binding) == null ? void 0 : _c2.targets) ? item.binding.targets : [],
-                  investigation: ((_d2 = item.binding) == null ? void 0 : _d2.investigation) || null,
-                  originSelections: Array.isArray((_e2 = item.binding) == null ? void 0 : _e2.originSelections) ? item.binding.originSelections : []
-                };
-              }),
-              candidateHits: candidateHits.value.slice(0, 4),
-              selectedCandidateHits: candidateHits.value.filter((hit) => selectedCandidatePaths.value.includes(hit.file)).slice(0, 4)
-            },
-            timeoutMs: Number(selectedModel.value.timeoutMs || 12e4) * 3 + 5e3,
-            timeoutMessage: "选区上下文增强超时",
-            abortMessage: "选区上下文增强已停止",
-            onEvent(event) {
-              if (event.type === "log" && event.log) {
-                modelAssistLogs.value = [...modelAssistLogs.value, event.log];
-              }
-              if (event.type === "result") {
-                modelAssistResult.value = event.result || null;
-              }
-              if (event.type === "error" && Array.isArray(event.logs)) {
-                modelAssistLogs.value = event.logs;
-              }
-            }
-          });
-          modelAssistResult.value = result || modelAssistResult.value || null;
-          modelAssistLogs.value = ((_b = modelAssistResult.value) == null ? void 0 : _b.logs) || [];
-          mergeModelTargets(modelAssistResult.value);
-          appUiStore.setToast("选区上下文增强已完成");
-          return modelAssistResult.value;
-        } catch (error) {
-          if ((error == null ? void 0 : error.name) === "AbortError") {
-            const stoppedLogs = [...modelAssistLogs.value, "已手动停止"];
-            modelAssistLogs.value = stoppedLogs;
-            modelAssistResult.value = {
-              adapter: {
-                id: ((_c = selectedModel.value) == null ? void 0 : _c.id) || "",
-                name: ((_d = selectedModel.value) == null ? void 0 : _d.name) || "模型",
-                type: ((_e = selectedModel.value) == null ? void 0 : _e.type) || ""
-              },
-              stopped: true,
-              modelItems: [],
-              targetFiles: [],
-              logs: stoppedLogs
-            };
-            modelAssistError.value = "";
-            appUiStore.setToast("已手动停止");
-            return modelAssistResult.value;
-          }
-          modelAssistError.value = error.message || String(error);
-          modelAssistLogs.value = ((_f = error.payload) == null ? void 0 : _f.logs) || modelAssistLogs.value;
-          appUiStore.setToast("选区上下文增强失败");
-          return null;
-        } finally {
-          modelAssistFinishedAt.value = Date.now();
-          modelAssistLoading.value = false;
-          if (modelAssistController === controller) modelAssistController = null;
-        }
-      });
-    }
-    function stopModelAssist() {
-      if (!modelAssistLoading.value || !modelAssistController) return;
-      modelAssistLogs.value = [...modelAssistLogs.value, "正在停止模型定位..."];
-      modelAssistController.abort();
-    }
-    void hydratePersistedModels();
-    return {
-      modelConfigs,
-      selectedModelId,
-      selectedModel,
-      useModelAssist,
-      canUseModelAssist,
-      modelEditorOpen,
-      modelForm,
-      modelAssistLoading,
-      modelAssistError,
-      modelAssistLogs,
-      modelAssistResult,
-      modelAssistStartedAt,
-      modelAssistFinishedAt,
-      openModelEditor,
-      openProviderModelEditor,
-      closeModelEditor,
-      saveModelForm,
-      removeSelectedModel,
-      setSelectedModel,
-      selectModelAndEnable,
-      disableModelAssist,
-      setUseModelAssist,
-      resetModelAssist,
-      runModelAssist,
-      runSelectionContextAssist,
-      stopModelAssist
-    };
-  }
-  function setupModelRuntime() {
-    return useModelAdapters();
-  }
   function useChatMessages() {
     const composerStore = useComposerStore();
-    const modelStore = useModelStore();
     const projectStore = useProjectStore();
     const searchStore = useSearchStore();
     const selectionStore = useSelectionStore();
     const connectAgentStore = useConnectAgentStore();
     const prompt = useSearchPrompt();
     const { finalPrompt: promptText } = storeToRefs(composerStore);
-    const {
-      error: modelAssistError,
-      logs: modelAssistLogs,
-      result: modelAssistResult,
-      startedAt: modelAssistStartedAt,
-      finishedAt: modelAssistFinishedAt
-    } = storeToRefs(modelStore);
     const {
       current: project,
       serviceStatus: sourceServiceStatus,
@@ -16338,7 +15266,6 @@ ${source}` : "",
       assetInfo: item.asset || item.element || {},
       thumbnailUrl: item.thumbnailUrl || ""
     })));
-    const modelAssistLoading = computed(() => modelStore.status === "running");
     const { selectionChatSummary, searchLogLines } = prompt;
     const sourceServiceText = computed(() => {
       if (sourceServiceStatus.value === "loading") return sourceServiceMessage.value || "正在连接本地源码服务...";
@@ -16347,14 +15274,14 @@ ${source}` : "",
       return "本地源码服务用于选择源码路径和扫描文件";
     });
     const chatMessages = computed(() => {
-      var _a2, _b;
+      var _a2;
       const messages = [];
       const finish = () => chronologicalMessages(messages, {
         selectionCreatedAt: latestSelectionTimestamp(selectionStore.items),
         searchStartedAt: Number((searchStartedAt == null ? void 0 : searchStartedAt.value) || 0),
         searchFinishedAt: Number((searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0),
-        modelStartedAt: Number((modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0),
-        modelFinishedAt: Number((modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0)
+        modelStartedAt: 0,
+        modelFinishedAt: 0
       });
       if (!project.value) {
         messages.push({
@@ -16386,7 +15313,7 @@ ${source}` : "",
           project.value.path ? `源码目录：${project.value.path}` : "",
           activeAgent ? agentBound ? `开发 Agent：${activeAgent.name}${activeAgent.version ? ` · ${activeAgent.version}` : ""}` : !activeAgent.connected ? `开发 Agent：${activeAgent.name} 需要重新连接` : `开发 Agent：${activeAgent.name} 已连接，尚未绑定任务` : connectAgentStore.loading ? "开发 Agent：正在检查" : "开发 Agent：未关联",
           agentBound ? `项目 Thread：${projectThreadId || "首次任务时建立"}` : "",
-          agentBound ? modelStore.selectedModel ? `Locator：${modelStore.selectedModel.name}` : "Locator：由开发 Agent 处理" : ""
+          agentBound ? "Locator：由开发 Agent 处理" : ""
         ].filter(Boolean).join("\n"),
         action: agentBound ? "agent-settings" : "connect-agent"
       };
@@ -16423,8 +15350,8 @@ ${source}` : "",
         text: [
           selectionChatSummary(),
           ...selectionStore.items.map((item, index) => {
-            var _a3, _b2;
-            const meaning = (_b2 = (_a3 = item.sourceBinding) == null ? void 0 : _a3.agentContext) == null ? void 0 : _b2.meaning;
+            var _a3, _b;
+            const meaning = (_b = (_a3 = item.sourceBinding) == null ? void 0 : _a3.agentContext) == null ? void 0 : _b.meaning;
             return meaning ? `@选区${index + 1}：${meaning}` : "";
           }).filter(Boolean)
         ].filter(Boolean).join("\n")
@@ -16469,63 +15396,6 @@ ${source}` : "",
           durationFinishedAt: (searchFinishedAt == null ? void 0 : searchFinishedAt.value) || 0,
           durationActive: false,
           logExpanded: false
-        });
-      }
-      if (modelAssistLoading == null ? void 0 : modelAssistLoading.value) {
-        messages.push({
-          id: "model-locating",
-          role: "agent",
-          title: "模型定位",
-          text: "正在让模型阅读本地预检索结果和候选文件内容，进一步判断应修改的源码文件。",
-          logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
-          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
-          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
-          durationActive: true,
-          logExpanded: true
-        });
-      } else if (modelAssistResult == null ? void 0 : modelAssistResult.value) {
-        const result = modelAssistResult.value;
-        const targets = result.modelItems || result.targetFiles || [];
-        const targetLogs = targets.slice(0, 5).flatMap((item, index) => {
-          const locateLevel = item.locateLevel || item.modelLocateLevel || "exact";
-          const fileOnly = !!(item.fileOnly || item.modelFileOnly || locateLevel === "file");
-          const selectionFallback = !!(item.selectionFallback || item.modelSelectionFallback || item.snippetSource === "selection-fallback" || item.modelSnippetSource === "selection-fallback");
-          const snippetVerified = item.snippetVerified !== false && item.modelSnippetVerified !== false;
-          return [
-            `模型返回 ${index + 1}: ${item.path || item.file}${item.confidence ? ` · ${item.confidence}%` : ""}${item.exists === false ? " · 文件不存在" : ""}`,
-            fileOnly ? "定位结果: 文件命中" : selectionFallback ? "定位层级: direction；源码不足，使用选区兜底" : `定位层级: ${locateLevel}${item.downgradedToDirection || item.modelDowngradedToDirection ? "；片段未逐字验证，已降级为源码方向" : ""}`,
-            item.codeSnippet ? `${selectionFallback ? "选区兜底" : snippetVerified ? "code片段" : "源码方向片段"}: ${item.codeSnippet}` : "",
-            item.directionGuess ? `推测方向: ${item.directionGuess}` : "",
-            item.prompt ? `提示词: ${item.prompt}` : item.reason || "-"
-          ].filter(Boolean);
-        });
-        messages.push({
-          id: "model-result",
-          role: "agent",
-          title: `模型定位 · ${((_b = result.adapter) == null ? void 0 : _b.name) || "模型"}`,
-          text: result.stopped ? "模型定位已手动停止。" : targets.length ? "模型已定位到修改点，可继续生成最终提示词。" : "模型未定位到可用修改点。",
-          logs: [
-            ...result.logs || [],
-            ...targetLogs,
-            !targetLogs.length && result.rawText ? `模型原始返回:
-${result.rawText}` : ""
-          ].filter(Boolean),
-          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
-          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
-          durationActive: false,
-          logExpanded: true
-        });
-      } else if (modelAssistError == null ? void 0 : modelAssistError.value) {
-        messages.push({
-          id: "model-error",
-          role: "agent",
-          title: "模型定位失败",
-          text: modelAssistError.value,
-          logs: (modelAssistLogs == null ? void 0 : modelAssistLogs.value) || [],
-          durationStartedAt: (modelAssistStartedAt == null ? void 0 : modelAssistStartedAt.value) || 0,
-          durationFinishedAt: (modelAssistFinishedAt == null ? void 0 : modelAssistFinishedAt.value) || 0,
-          durationActive: false,
-          logExpanded: true
         });
       }
       const locatorFeedbackVisible = connectAgentStore.taskStatus === "idle";
@@ -16756,7 +15626,6 @@ ${result.rawText}` : ""
     useSidePanelUiPersistence(currentPageHref);
     let search = null;
     let bridge = null;
-    let model = null;
     const source = useSourceProject({ currentPageHref });
     const selection = setupSelectionRuntime({
       sendCommand: (type, payload, options) => bridge == null ? void 0 : bridge.sendSidePanelCommand(type, payload, options),
@@ -16803,7 +15672,6 @@ ${result.rawText}` : ""
       startPickerOnConnect: api.sidePanel !== false
     });
     const prompt = setupPromptRuntime();
-    model = setupModelRuntime();
     const message = setupChatRuntime();
     return {
       api,
@@ -16816,31 +15684,8 @@ ${result.rawText}` : ""
       composer,
       bridge,
       prompt,
-      model,
       message
     };
-  }
-  function sourceTargetsFromCandidates(candidates) {
-    return (Array.isArray(candidates) ? candidates : []).filter((hit) => hit == null ? void 0 : hit.file).map((hit) => {
-      var _a2, _b;
-      return {
-        file: String(hit.file),
-        role: String(hit.role || hit.sourceRole || "related"),
-        line: Number(hit.line || 0),
-        anchor: String(hit.anchor || ""),
-        targetSnippet: String(hit.targetSnippet || ""),
-        // unlocated：本地未能把选区定位到具体源码，绝不用漂移的粗片段（会误导 LLM 到别的列）——
-        // 留空，让变更计划 LLM 依据原始选区身份 + 完整文件自己定位。
-        codeSnippet: hit.scopeAlignment === "unlocated" ? "" : String(
-          hit.modelCodeSnippet || hit.preciseSnippet || hit.uniqueSnippet || hit.snippet || ""
-        ),
-        importChain: Array.isArray(hit.importChain) ? hit.importChain.map(String) : [],
-        directionGuess: String(hit.modelDirectionGuess || ""),
-        locateLevel: String(hit.modelLocateLevel || "exact"),
-        scopeAlignment: String(hit.scopeAlignment || ((_b = (_a2 = hit.composite) == null ? void 0 : _a2.render) == null ? void 0 : _b.scopeAlignment) || ""),
-        reasons: Array.isArray(hit.reasons) ? hit.reasons.map(String).slice(0, 8) : []
-      };
-    });
   }
   function candidateHitsFromBindings(bindings) {
     const targets = dedupeBoundTargets(bindings.flatMap((item) => {
@@ -16889,12 +15734,10 @@ ${result.rawText}` : ""
     }
     return Array.from(byFile.values());
   }
-  const MAX_AUTO_EXPAND_ATTEMPTS = 5;
   function createComposerWorkflow(state) {
-    const { source, route, search, selection, composer, model, prompt } = state;
+    const { source, route, search, selection, composer, prompt } = state;
     const appUiStore = useAppUiStore();
     const connectAgentStore = useConnectAgentStore();
-    let lastOriginSelections = [];
     const activeAgentToolCalls = /* @__PURE__ */ new Set();
     function ancestorContainerAnchors(el) {
       const out = [];
@@ -16952,15 +15795,11 @@ ${result.rawText}` : ""
           connectAgentStore.cancelTask();
           return;
         }
-        if (model.modelAssistLoading.value) {
-          model.stopModelAssist();
-          return;
-        }
         if (!source.project.value) return;
         const instruction = composer.promptIntent.value.trim();
         if (!instruction) return;
         if (!((_a2 = connectAgentStore.activeProvider) == null ? void 0 : _a2.connected)) {
-          appUiStore.setToast("请先关联 Codex 开发 Agent");
+          appUiStore.setToast("请先关联开发 Agent");
           return;
         }
         if (!selection.referencedSelectionIds(instruction).length) {
@@ -16969,22 +15808,14 @@ ${result.rawText}` : ""
           return;
         }
         if (yield reuseSelectionSourceContext(instruction)) return;
-        if (search.showCandidatePicker.value) {
-          yield runModelAssistForCandidates(instruction);
-          return;
-        }
         if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
-        if (!model.selectedModel.value) {
-          yield runConnectedAgentFromLocalEvidence(instruction);
-          return;
-        }
-        yield searchCandidateFiles();
+        yield runConnectedAgentFromLocalEvidence(instruction);
       });
     }
     function runConnectedAgentFromLocalEvidence(instruction) {
       return __async(this, null, function* () {
         var _a2;
-        lastOriginSelections = captureOriginSelections(instruction);
+        captureOriginSelections(instruction);
         (_a2 = search.clearCandidateState) == null ? void 0 : _a2.call(search);
         search.processLogs.value = [
           `Locator 专用模型未配置：跳过 ${PRODUCT_NAME} Locator Agent`,
@@ -16997,207 +15828,6 @@ ${result.rawText}` : ""
           searchPayload: prompt.searchPayload()
         });
         search.searchFinishedAt.value = Date.now();
-      });
-    }
-    function searchCandidateFiles() {
-      return __async(this, null, function* () {
-        var _a2, _b, _c, _d, _e;
-        search.candidateLoading.value = true;
-        search.candidateError.value = "";
-        search.serverNeedsMoreEvidence.value = false;
-        search.modelAssistAttempted.value = false;
-        model.resetModelAssist();
-        selection.filesConfirmed.value = false;
-        try {
-          if (!route.sameRouteTracePage(route.routeResolverTrace.value)) {
-            yield route.resolveCurrentPageRoute();
-          }
-          search.searchRunning.value = true;
-          search.searchStartedAt.value = Date.now();
-          search.searchFinishedAt.value = 0;
-          search.processLogs.value = [];
-          search.agentUsed.value = false;
-          connectAgentStore.resetTask();
-          const timeoutMs = search.includeApiEvidence.value ? 3e4 : 12e3;
-          const data = yield runSearchWithOptionalRetry(timeoutMs);
-          search.candidateHits.value = Array.isArray(data.hits) ? data.hits : [];
-          search.compositeResult.value = data.composite || null;
-          route.applyRouteResolverTrace(data.routeResolver || null);
-          search.apiTrace.value = data.apiTrace || null;
-          search.i18nTrace.value = data.i18nTrace || null;
-          search.definitionTrace.value = data.definitionTrace || null;
-          search.serverNeedsMoreEvidence.value = !!(data.needsMoreEvidence || data.needMoreDom || ((_a2 = data.agent) == null ? void 0 : _a2.needMoreDom));
-          if (!search.candidateHits.value.length) {
-            search.selectedCandidatePaths.value = [];
-            if (search.serverNeedsMoreEvidence.value) {
-              search.candidateError.value = "自动扩区后仍证据不足，未能定位源码。";
-            } else {
-              search.candidateError.value = "未找到候选文件。可以继续补充选区，或在输入框里补充更具体的修改要求后重试。";
-            }
-          } else {
-            search.selectedCandidatePaths.value = [search.candidateHits.value[0].file];
-            search.expandedCandidatePath.value = "";
-            appUiStore.setToast(`找到 ${search.candidateHits.value.length} 个候选文件`);
-          }
-          if (((_b = data.agent) == null ? void 0 : _b.enabled) && search.candidateHits.value.length) {
-            const instruction = composer.promptIntent.value.trim();
-            const resolvedComposite = ((_c = data.agent) == null ? void 0 : _c.status) === "resolved" && !!((_d = data.composite) == null ? void 0 : _d.render);
-            if (resolvedComposite) {
-              search.selectedCandidatePaths.value = search.candidateHits.value.map((hit) => hit.file);
-              selection.filesConfirmed.value = true;
-              bindResolvedSelectionContext(instruction, data);
-              yield runChangePlanForResolved(instruction);
-            }
-            return search.candidateHits.value;
-          }
-          if (shouldAutoRunModelAssist(search.candidateHits.value)) {
-            const modelHandled = yield runModelAssistForCandidates(composer.promptIntent.value.trim());
-            if (modelHandled) return ((_e = model.modelAssistResult.value) == null ? void 0 : _e.stopped) ? [] : search.candidateHits.value;
-          }
-          return search.candidateHits.value;
-        } catch (error) {
-          search.selectedCandidatePaths.value = [];
-          search.candidateError.value = `${error.message || error}。`;
-          return [];
-        } finally {
-          search.candidateLoading.value = false;
-        }
-      });
-    }
-    function originAnchorsFromSelection(instruction) {
-      var _a2;
-      const items = ((_a2 = selection.selectedItems) == null ? void 0 : _a2.value) || [];
-      const [uid2 = ""] = selection.referencedSelectionIds(instruction);
-      const selected = items.find((item) => item.uid === uid2);
-      const el = (selected == null ? void 0 : selected.element) || (selected == null ? void 0 : selected.info) || {};
-      const anchors = [];
-      const markup = String(el.rawOuterHtml || el.outerHtml || "");
-      for (const match of markup.matchAll(/\bdata-(?!v-)[\w-]+="([^"]{2,})"/g)) {
-        const value = String(match[1] || "").trim();
-        if (value && !/^__.*__$/.test(value) && !/^[\d.]+$/.test(value)) anchors.push(value);
-      }
-      for (const word of String(el.text || "").split(/\s+/)) {
-        const token = word.trim();
-        if (token.length >= 2 && token.length <= 12 && !/^[¥$]?[\d.,:：/%\-]+$/.test(token) && !/^ID[:：]/i.test(token)) anchors.push(token);
-      }
-      for (const cls of String(el.className || "").split(/\s+/)) {
-        const token = cls.trim();
-        if (token && !/^(n-|el-|ivu-|ant-|van-|flex|grid|is-|has-|mt-|mb-|ml-|mr-|w-|h-|p-|m-)/.test(token)) anchors.push(token);
-      }
-      return Array.from(new Set(anchors)).slice(0, 6);
-    }
-    function runSearchWithOptionalRetry(timeoutMs) {
-      return __async(this, null, function* () {
-        var _a2;
-        try {
-          const focusAnchors = originAnchorsFromSelection(composer.promptIntent.value);
-          lastOriginSelections = captureOriginSelections(composer.promptIntent.value);
-          let firstPass = yield runSearchRequest(prompt.searchPayload(), timeoutMs, "第 1 轮：原始选区检索");
-          for (let attempt = 1; attempt <= MAX_AUTO_EXPAND_ATTEMPTS && shouldAutoExpandSearch(firstPass); attempt += 1) {
-            const expanded = yield expandReferencedSelectionForMoreEvidence(
-              attempt,
-              composer.promptIntent.value
-            );
-            if (!expanded) break;
-            const retryState = buildAgentRetryState(firstPass, attempt);
-            if (focusAnchors.length) retryState.focusAnchors = focusAnchors;
-            firstPass = yield runSearchRequest(prompt.searchPayload({
-              agentState: retryState
-            }), timeoutMs, `第 ${attempt + 1} 轮：自动扩区后继续检索`);
-          }
-          const firstHits = Array.isArray(firstPass == null ? void 0 : firstPass.hits) ? firstPass.hits : [];
-          if ((_a2 = firstPass == null ? void 0 : firstPass.agent) == null ? void 0 : _a2.enabled) return firstPass;
-          if (!shouldRetryExpandedSearch(firstHits)) return firstPass;
-          const secondPass = yield runSearchRequest(prompt.searchPayload({ expandedRetry: true }), timeoutMs, "扩展上下文兜底检索");
-          const secondHits = Array.isArray(secondPass == null ? void 0 : secondPass.hits) ? secondPass.hits : [];
-          return isBetterSearchResult(secondHits, firstHits) ? secondPass : firstPass;
-        } finally {
-          search.searchFinishedAt.value = Date.now();
-          search.searchRunning.value = false;
-        }
-      });
-    }
-    function runChangePlanForResolved(instruction) {
-      return __async(this, null, function* () {
-        var _a2;
-        const bindings = selection.reusableSourceBindings(instruction, projectRoot());
-        if (!bindings.length) {
-          prompt.generatePrompt({ userInstruction: instruction });
-          return;
-        }
-        if (yield runConnectedAgent(instruction, bindings)) return;
-        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
-          prompt.generatePrompt({ userInstruction: instruction });
-          return;
-        }
-        search.modelAssistAttempted.value = true;
-        const modelResult = yield model.runSelectionContextAssist({ userInstruction: instruction, selectionBindings: bindings });
-        if (modelResult == null ? void 0 : modelResult.stopped) return;
-        search.changePlanResult.value = (modelResult == null ? void 0 : modelResult.changePlan) || ((_a2 = search.candidateHits.value[0]) == null ? void 0 : _a2.modelChangePlan) || null;
-        prompt.generatePrompt({ userInstruction: instruction });
-      });
-    }
-    function runSearchRequest(body, timeoutMs, label = "") {
-      return __async(this, null, function* () {
-        var _a2;
-        if (label) search.appendProcessLog(`检索请求开始：${label}`);
-        return yield sourceServerNdjson("/api/search/stream", {
-          method: "POST",
-          body: __spreadProps(__spreadValues({}, body), {
-            projectRoot: projectRoot(),
-            adapter: model.selectedModel.value || null
-          }),
-          timeoutMs: Math.max(timeoutMs, Number(((_a2 = model.selectedModel.value) == null ? void 0 : _a2.timeoutMs) || 12e4) * 2 + 5e3),
-          timeoutMessage: search.includeApiEvidence.value ? "源码检索超时，请确认项目源码目录是否选错，或减少捕获接口/补充关键词后重试" : "源码检索超时，请确认项目源码目录是否选错，或补充关键词后重试",
-          onEvent(event) {
-            if (event.type === "log" && event.log) {
-              search.appendProcessLog(event.log);
-              if (String(event.log).startsWith("DOM Agent 触发判断：启用")) {
-                search.agentUsed.value = true;
-              }
-            }
-          }
-        });
-      });
-    }
-    function runModelAssistForCandidates(userInstruction) {
-      return __async(this, null, function* () {
-        if (!search.candidateHits.value.length) return false;
-        search.modelAssistAttempted.value = true;
-        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
-          const text = modelAssistUnavailableText();
-          search.candidateError.value = text;
-          appUiStore.setToast(text);
-          return true;
-        }
-        const modelResult = yield model.runModelAssist();
-        if (modelResult == null ? void 0 : modelResult.stopped) return true;
-        if (hasUsableModelResult(modelResult)) {
-          selection.filesConfirmed.value = true;
-          bindResolvedSelectionContext(userInstruction);
-          prompt.generatePrompt({ userInstruction });
-          return true;
-        }
-        return false;
-      });
-    }
-    function expandReferencedSelectionForMoreEvidence(attempt, instruction) {
-      return __async(this, null, function* () {
-        var _a2, _b, _c, _d;
-        ((_a2 = selection.selectedItems) == null ? void 0 : _a2.value) || [];
-        const [uid2 = ""] = selection.referencedSelectionIds(instruction);
-        const before = selectionSnapshotById(uid2);
-        if (!uid2 || typeof selection.expandSelection !== "function") return false;
-        (_b = search.appendProcessLog) == null ? void 0 : _b.call(search, `证据不足：自动扩大当前选区 ${uid2}（第 ${attempt} 次）`);
-        yield selection.expandSelection(uid2);
-        const changed = yield waitForSelectionSnapshotChange(before);
-        if (changed) {
-          (_c = search.appendProcessLog) == null ? void 0 : _c.call(search, "自动扩区完成：选区对象已更新，继续检索");
-          appUiStore.setToast("已自动扩大当前选区并继续检索");
-          return true;
-        }
-        (_d = search.appendProcessLog) == null ? void 0 : _d.call(search, "自动扩区停止：未检测到选区变化");
-        return false;
       });
     }
     function selectionSnapshotById(uid2) {
@@ -17218,50 +15848,9 @@ ${result.rawText}` : ""
         return false;
       });
     }
-    function modelAssistUnavailableText() {
-      if (!model.selectedModel.value) return "模型定位未启用：请先在输入框模型菜单里选择或配置模型。";
-      if (!source.project.value || source.project.value.source !== "source-server") {
-        return "模型定位不可用：请通过本地源码服务重新关联项目，模型需要读取真实源码文件。";
-      }
-      return "模型定位不可用：请检查模型配置。";
-    }
     function projectRoot() {
       var _a2, _b;
       return String(((_a2 = source.project.value) == null ? void 0 : _a2.path) || ((_b = source.project.value) == null ? void 0 : _b.root) || "").trim();
-    }
-    function bindResolvedSelectionContext(userInstruction, searchResult = null) {
-      const ids = selection.referencedSelectionIds(userInstruction);
-      if (ids.length !== 1) return;
-      const selected = search.selectedCandidateHits.value.length ? search.selectedCandidateHits.value : search.candidateHits.value.slice(0, 1);
-      const targets = sourceTargetsFromCandidates(selected);
-      const root = projectRoot();
-      if (!root || !targets.length) return;
-      selection.bindSourceContext(ids, {
-        projectRoot: root,
-        designRequirement: userInstruction,
-        targets,
-        investigation: sourceInvestigationFromResult(searchResult),
-        originSelections: lastOriginSelections,
-        resolvedAt: Date.now()
-      });
-      search.appendProcessLog(`选区源码上下文已绑定：${ids[0]} -> ${targets.map((target) => target.file).join("、")}`);
-    }
-    function sourceInvestigationFromResult(result) {
-      var _a2;
-      const locator = ((_a2 = result == null ? void 0 : result.agent) == null ? void 0 : _a2.locator) || (result == null ? void 0 : result.agent) || null;
-      if (!locator || locator.status !== "resolved") return null;
-      return {
-        status: "resolved",
-        reason: String(locator.reason || ""),
-        coveredDom: Array.isArray(locator.coveredDom) ? locator.coveredDom.map(String) : [],
-        missingEvidence: Array.isArray(locator.missingEvidence) ? locator.missingEvidence.map(String) : [],
-        relations: (Array.isArray(locator.relations) ? locator.relations : []).map((relation) => ({
-          from: String((relation == null ? void 0 : relation.from) || ""),
-          to: String((relation == null ? void 0 : relation.to) || ""),
-          type: String((relation == null ? void 0 : relation.type) || "related"),
-          evidence: String((relation == null ? void 0 : relation.evidence) || "")
-        })).filter((relation) => relation.from && relation.to)
-      };
     }
     function reuseSelectionSourceContext(userInstruction) {
       return __async(this, null, function* () {
@@ -17279,34 +15868,14 @@ ${result.rawText}` : ""
         search.candidateLoading.value = false;
         search.searchStartedAt.value = Date.now();
         search.searchFinishedAt.value = 0;
-        search.modelAssistAttempted.value = true;
         selection.filesConfirmed.value = false;
         if (yield runConnectedAgent(userInstruction, bindings)) {
           search.searchFinishedAt.value = Date.now();
           selection.filesConfirmed.value = true;
           return true;
         }
-        if (!model.useModelAssist.value || !model.canUseModelAssist.value) {
-          const text = modelAssistUnavailableText();
-          search.candidateError.value = text;
-          search.searchFinishedAt.value = Date.now();
-          appUiStore.setToast(text);
-          return true;
-        }
-        const modelResult = yield model.runSelectionContextAssist({
-          userInstruction,
-          selectionBindings: bindings
-        });
         search.searchFinishedAt.value = Date.now();
-        if (modelResult == null ? void 0 : modelResult.stopped) return true;
-        if (hasUsableModelResult(modelResult)) {
-          selection.filesConfirmed.value = true;
-          prompt.generatePrompt({ userInstruction });
-          appUiStore.setToast("已复用选区源码上下文并完成模型增强");
-          return true;
-        }
-        search.candidateError.value = model.modelAssistError.value || "选区源码上下文增强失败，请重试。";
-        return true;
+        return false;
       });
     }
     function runConnectedAgent(_0, _1) {
@@ -17384,23 +15953,24 @@ ${result.rawText}` : ""
           const changed = yield waitForSelectionSnapshotChange(before);
           const payload = prompt.searchPayload({ expandedRetry: true });
           const expandedSelection = selectionFromPayload(payload, selectionId);
+          const marked = markOriginalSelection(expandedSelection, targetSelection, selectionId);
+          const targetElement = (targetSelection == null ? void 0 : targetSelection.element) || {};
           result = {
             success: changed,
             selectionId,
             pageUrl: String((payload == null ? void 0 : payload.pageUrl) || state.currentPageHref.value || ""),
             pagePath: String((payload == null ? void 0 : payload.pagePath) || ""),
-            targetSelection,
-            expandedContext: markOriginalSelection(
-              expandedSelection,
-              targetSelection,
-              selectionId
-            ),
-            targetContract: [
-              "The user request applies only to targetSelection.",
-              "expandedContext is location evidence only and must not replace or broaden the target.",
-              "When markerEmbedded is true, the original target is enclosed by",
-              "GOCAPTURE_ORIGINAL_SELECTION_START/END comments inside the expanded markup."
-            ].join(" "),
+            target: {
+              tag: String(targetElement.tag || targetElement.tagName || ""),
+              selector: String(targetElement.selector || ""),
+              text: String(targetElement.text || "")
+            },
+            markerEmbedded: marked.markerEmbedded,
+            expandedMarkup: marked.markup,
+            note: [
+              "修改目标只有 target：即被 <gocapture-original-selection> 包裹的那个节点。",
+              "expandedMarkup 的其余部分仅是用于定位的周围上下文，不要当作选区，也不要据此扩大改动范围。"
+            ].join(""),
             message: changed ? "The browser context was expanded while the original modification target was preserved." : "The browser selection could not be expanded further."
           };
           (_d = search.appendProcessLog) == null ? void 0 : _d.call(
@@ -17436,71 +16006,25 @@ ${result.rawText}` : ""
       return (Array.isArray(payload == null ? void 0 : payload.selections) ? payload.selections : []).find((item) => String((item == null ? void 0 : item.uid) || (item == null ? void 0 : item.selectionId) || "") === selectionId) || null;
     }
     function markOriginalSelection(expanded, target, selectionId) {
-      if (!expanded) return {
-        markerEmbedded: false,
-        selection: null
-      };
-      const expandedElement = expanded.element || {};
+      const expandedElement = (expanded == null ? void 0 : expanded.element) || {};
       const targetElement = (target == null ? void 0 : target.element) || {};
-      const targetMarkup = String(
-        targetElement.rawOuterHtml || targetElement.outerHtml || ""
-      );
-      const markerStart = `<!-- GOCAPTURE_ORIGINAL_SELECTION_START ${selectionId} -->`;
-      const markerEnd = `<!-- GOCAPTURE_ORIGINAL_SELECTION_END ${selectionId} -->`;
-      let markerEmbedded = false;
-      const markedElement = __spreadValues({}, expandedElement);
-      for (const key of ["rawOuterHtml", "outerHtml"]) {
-        const markup = String((expandedElement == null ? void 0 : expandedElement[key]) || "");
-        if (!targetMarkup || !markup.includes(targetMarkup)) continue;
-        markedElement[key] = markup.replace(
-          targetMarkup,
-          `${markerStart}${targetMarkup}${markerEnd}`
-        );
-        markerEmbedded = true;
+      const expandedMarkup = String(expandedElement.rawOuterHtml || expandedElement.outerHtml || "");
+      const targetMarkup = String(targetElement.rawOuterHtml || targetElement.outerHtml || "");
+      if (!expandedMarkup) return { markerEmbedded: false, markup: targetMarkup };
+      if (!targetMarkup || !expandedMarkup.includes(targetMarkup)) {
+        return { markerEmbedded: false, markup: expandedMarkup };
       }
       return {
-        markerEmbedded,
-        marker: {
-          selectionId,
-          start: markerStart,
-          end: markerEnd
-        },
-        selection: __spreadProps(__spreadValues({}, expanded), {
-          element: markedElement
-        })
+        markerEmbedded: true,
+        markup: expandedMarkup.replace(
+          targetMarkup,
+          `<gocapture-original-selection data-selection-id="${selectionId}">${targetMarkup}</gocapture-original-selection>`
+        )
       };
     }
     return {
-      sendComposer,
-      searchCandidateFiles,
-      runModelAssistForCandidates
+      sendComposer
     };
-  }
-  function buildAgentRetryState(previousResult, attempt) {
-    var _a2, _b;
-    const agent = (previousResult == null ? void 0 : previousResult.agent) || {};
-    const inspectionCandidates = Array.isArray((_a2 = agent == null ? void 0 : agent.inspection) == null ? void 0 : _a2.candidates) ? agent.inspection.candidates : [];
-    return {
-      expansionRetry: true,
-      expansionRoundsUsed: attempt,
-      previousPlan: (agent == null ? void 0 : agent.plan) || null,
-      previousCandidates: inspectionCandidates.slice(0, 8).map((item) => ({
-        file: (item == null ? void 0 : item.file) || "",
-        score: (item == null ? void 0 : item.score) || 0,
-        matchedGroups: Array.isArray(item == null ? void 0 : item.matchedGroups) ? item.matchedGroups.map((group) => ({
-          keywords: Array.isArray(group == null ? void 0 : group.keywords) ? group.keywords : [],
-          source: (group == null ? void 0 : group.source) || "",
-          range: (group == null ? void 0 : group.range) || ""
-        })) : []
-      })),
-      previousReason: ((_b = agent == null ? void 0 : agent.evidence) == null ? void 0 : _b.reason) || ""
-    };
-  }
-  function shouldAutoExpandSearch(result) {
-    var _a2;
-    const hits = Array.isArray(result == null ? void 0 : result.hits) ? result.hits : [];
-    if (hits.length) return false;
-    return !!((result == null ? void 0 : result.needsMoreEvidence) || (result == null ? void 0 : result.needMoreDom) || ((_a2 = result == null ? void 0 : result.agent) == null ? void 0 : _a2.needMoreDom));
   }
   function latestSelectionSnapshotFromItems(items) {
     const latest = items[items.length - 1];
@@ -17526,47 +16050,8 @@ ${result.rawText}` : ""
   function sleep$1(ms) {
     return new Promise((resolve2) => setTimeout(resolve2, ms));
   }
-  function hasUsableModelResult(result) {
-    return ((result == null ? void 0 : result.modelItems) || (result == null ? void 0 : result.targetFiles) || []).some((item) => {
-      return item && item.exists !== false && (item.path || item.file);
-    });
-  }
-  function shouldAutoRunModelAssist(hits) {
-    const list = Array.isArray(hits) ? hits : [];
-    return list.length > 0;
-  }
-  function hasStrongSearchEvidence(hits) {
-    const list = Array.isArray(hits) ? hits : [];
-    return list.some((hit) => {
-      if (!hit) return false;
-      if (hit.preciseEvidence || hit.uniqueMatchText || hit.uniqueSnippet) return true;
-      if (Number(hit.exactMatchCount || 0) === 1 && Number(hit.contextScore || 0) >= 18) return true;
-      if (Number(hit.contextStrongMatchCount || 0) >= 2) return true;
-      if (Number(hit.contextScore || 0) >= 32 && (hit.contextReasons || []).length >= 2) return true;
-      return false;
-    });
-  }
-  function shouldRetryExpandedSearch(hits) {
-    const list = Array.isArray(hits) ? hits : [];
-    if (list.length < 2) return false;
-    if (hasStrongSearchEvidence(list)) return false;
-    if (list.length >= 6) return true;
-    const exactLikeHits = list.filter((hit) => (hit == null ? void 0 : hit.exactMatchText) || (hit == null ? void 0 : hit.uniqueMatchText)).length;
-    return exactLikeHits <= 1;
-  }
-  function isBetterSearchResult(nextHits, currentHits) {
-    var _a2, _b;
-    const next = Array.isArray(nextHits) ? nextHits : [];
-    const current = Array.isArray(currentHits) ? currentHits : [];
-    if (!next.length) return false;
-    const nextStrong = hasStrongSearchEvidence(next);
-    const currentStrong = hasStrongSearchEvidence(current);
-    if (nextStrong !== currentStrong) return nextStrong;
-    if (next.length !== current.length) return next.length < current.length;
-    return Number(((_a2 = next[0]) == null ? void 0 : _a2.score) || 0) > Number(((_b = current[0]) == null ? void 0 : _b.score) || 0);
-  }
   function createGoCaptureActions(state) {
-    const { api, currentPageHref, source, search, selection, composer, model } = state;
+    const { api, currentPageHref, source, search, selection } = state;
     const workflow = createComposerWorkflow(state);
     return {
       chooseProject: source.chooseProject,
@@ -17586,18 +16071,7 @@ ${result.rawText}` : ""
       setIncludeApiEvidence: (value) => {
         search.includeApiEvidence.value = !!value;
       },
-      onSearchOptionChange: () => search.clearCandidateState(),
-      openModelEditor: model.openModelEditor,
-      openProviderModelEditor: model.openProviderModelEditor,
-      closeModelEditor: model.closeModelEditor,
-      saveModelForm: model.saveModelForm,
-      removeSelectedModel: model.removeSelectedModel,
-      setSelectedModel: model.setSelectedModel,
-      selectModelAndEnable: model.selectModelAndEnable,
-      disableModelAssist: model.disableModelAssist,
-      setUseModelAssist: model.setUseModelAssist,
-      resetModelAssist: model.resetModelAssist,
-      stopModelAssist: model.stopModelAssist
+      onSearchOptionChange: () => search.clearCandidateState()
     };
   }
   function rebindSidePanel() {
@@ -18106,7 +16580,7 @@ ${result.rawText}` : ""
                     ]
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "refresh",
                       size: 19
                     })
@@ -18138,7 +16612,7 @@ ${result.rawText}` : ""
                     ]
                   },
                   [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "cog",
                       size: 20
                     })
@@ -18149,7 +16623,7 @@ ${result.rawText}` : ""
               ])
             ]),
             unref(serviceOnline) === false ? (openBlock(), createElementBlock("div", _hoisted_7$1, [
-              _cache[13] || (_cache[13] = createBaseVNode(
+              _cache[12] || (_cache[12] = createBaseVNode(
                 "span",
                 { class: "mda-service-down-icon" },
                 "⚠",
@@ -18157,7 +16631,7 @@ ${result.rawText}` : ""
                 /* CACHED */
               )),
               createBaseVNode("div", _hoisted_8$1, [
-                _cache[12] || (_cache[12] = createBaseVNode(
+                _cache[11] || (_cache[11] = createBaseVNode(
                   "div",
                   { class: "mda-service-down-title" },
                   "本地服务不可达",
@@ -18165,7 +16639,7 @@ ${result.rawText}` : ""
                   /* CACHED */
                 )),
                 createBaseVNode("div", _hoisted_9$1, [
-                  _cache[9] || (_cache[9] = createTextVNode(
+                  _cache[8] || (_cache[8] = createTextVNode(
                     " 正在探测 ",
                     -1
                     /* CACHED */
@@ -18192,7 +16666,7 @@ ${result.rawText}` : ""
                   )) : createCommentVNode("v-if", true)
                 ]),
                 createBaseVNode("div", _hoisted_10$1, [
-                  _cache[10] || (_cache[10] = createTextVNode(
+                  _cache[9] || (_cache[9] = createTextVNode(
                     "如果服务已启动，请运行 ",
                     -1
                     /* CACHED */
@@ -18204,7 +16678,7 @@ ${result.rawText}` : ""
                     1
                     /* TEXT */
                   ),
-                  _cache[11] || (_cache[11] = createTextVNode(
+                  _cache[10] || (_cache[10] = createTextVNode(
                     " 检查端口是否一致。",
                     -1
                     /* CACHED */
@@ -18218,7 +16692,7 @@ ${result.rawText}` : ""
                 onClick: retryHealth
               }, toDisplayString(retryChecking.value ? "检查中…" : "重试"), 9, _hoisted_11$1)
             ])) : ((_a2 = unref(updateInfo)) == null ? void 0 : _a2.updateAvailable) ? (openBlock(), createElementBlock("div", _hoisted_12$1, [
-              _cache[14] || (_cache[14] = createBaseVNode(
+              _cache[13] || (_cache[13] = createBaseVNode(
                 "span",
                 { class: "mda-update-icon" },
                 "⬆",
@@ -18266,12 +16740,12 @@ ${result.rawText}` : ""
                 544
                 /* NEED_HYDRATION, NEED_PATCH */
               ),
-              createVNode(_sfc_main$9),
-              createVNode(_sfc_main$5)
+              createVNode(_sfc_main$8),
+              createVNode(_sfc_main$4)
             ]),
             projectChecking.value ? (openBlock(), createElementBlock("div", _hoisted_18$1, [
               createBaseVNode("div", _hoisted_19$1, [
-                _cache[16] || (_cache[16] = createBaseVNode(
+                _cache[15] || (_cache[15] = createBaseVNode(
                   "div",
                   { class: "mda-project-checking-spinner" },
                   null,
@@ -18279,7 +16753,7 @@ ${result.rawText}` : ""
                   /* CACHED */
                 )),
                 createBaseVNode("div", null, [
-                  _cache[15] || (_cache[15] = createBaseVNode(
+                  _cache[14] || (_cache[14] = createBaseVNode(
                     "div",
                     { class: "mda-project-checking-title" },
                     "正在检查项目",
@@ -18295,11 +16769,7 @@ ${result.rawText}` : ""
                   )
                 ])
               ])
-            ])) : createCommentVNode("v-if", true),
-            createVNode(_sfc_main$4, {
-              visible: unref(mcpPanelOpen),
-              onClose: _cache[8] || (_cache[8] = ($event) => unref(appUiStore).setMcpPanelOpen(false))
-            }, null, 8, ["visible"])
+            ])) : createCommentVNode("v-if", true)
           ], 8, _hoisted_2$1)
         ]);
       };
@@ -18338,22 +16808,14 @@ ${result.rawText}` : ""
         message.value = "";
         try {
           const projectPath = projectStore.current.path;
-          const [result, extensionResult] = yield Promise.all([
-            sourceServerJson("/api/memory/read", {
-              method: "POST",
-              body: { projectPath },
-              timeoutMs: 1e4,
-              timeoutMessage: "读取记忆超时，请确认本地源码服务可用"
-            }),
-            sourceServerJson(`/api/connect-agents/extensions?projectRoot=${encodeURIComponent(projectPath)}`, {
-              timeoutMs: 1e4,
-              timeoutMessage: "读取 Agent 扩展超时"
-            })
-          ]);
-          snapshot.value = result.memory || null;
+          const extensionResult = yield sourceServerJson(
+            `/api/connect-agents/extensions?projectRoot=${encodeURIComponent(projectPath)}`,
+            { timeoutMs: 1e4, timeoutMessage: "读取 Agent 扩展超时" }
+          );
+          snapshot.value = null;
           extensions.value = extensionResult.extensions || null;
         } catch (cause) {
-          error.value = (cause == null ? void 0 : cause.message) || "读取记忆失败";
+          error.value = (cause == null ? void 0 : cause.message) || "读取 Agent 扩展失败";
         } finally {
           loading.value = false;
         }
@@ -18487,68 +16949,67 @@ ${result.rawText}` : ""
     class: "mda-memory-body"
   };
   const _hoisted_12 = {
-    key: 1,
-    class: "mda-locator-settings"
-  };
-  const _hoisted_13 = { class: "mda-locator-settings-intro" };
-  const _hoisted_14 = {
-    class: "mda-locator-choice",
-    role: "radiogroup",
-    "aria-label": "Locator 定位方式"
-  };
-  const _hoisted_15 = ["aria-checked"];
-  const _hoisted_16 = ["aria-checked", "onClick"];
-  const _hoisted_17 = ["aria-label", "title", "onClick"];
-  const _hoisted_18 = { class: "mda-locator-add-row" };
-  const _hoisted_19 = {
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_20 = {
+  const _hoisted_13 = {
     key: 1,
     class: "mda-settings-assets"
   };
-  const _hoisted_21 = ["aria-label", "onClick"];
-  const _hoisted_22 = {
+  const _hoisted_14 = ["aria-label", "onClick"];
+  const _hoisted_15 = {
     key: 1,
     class: "mda-settings-asset-thumb is-empty"
   };
-  const _hoisted_23 = { class: "mda-settings-asset-main" };
-  const _hoisted_24 = {
+  const _hoisted_16 = { class: "mda-settings-asset-main" };
+  const _hoisted_17 = {
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_25 = { class: "mda-memory-field" };
-  const _hoisted_26 = ["value"];
-  const _hoisted_27 = {
+  const _hoisted_18 = { class: "mda-memory-field" };
+  const _hoisted_19 = ["value"];
+  const _hoisted_20 = {
     key: 0,
     class: "mda-memory-form"
   };
-  const _hoisted_28 = { class: "mda-memory-field" };
-  const _hoisted_29 = { class: "mda-memory-field" };
-  const _hoisted_30 = ["value"];
-  const _hoisted_31 = { class: "mda-memory-field" };
-  const _hoisted_32 = { class: "mda-memory-field" };
-  const _hoisted_33 = { class: "mda-memory-field" };
-  const _hoisted_34 = { class: "mda-memory-field" };
-  const _hoisted_35 = { class: "mda-memory-actions" };
-  const _hoisted_36 = ["disabled"];
-  const _hoisted_37 = { class: "mda-agent-capability-head" };
-  const _hoisted_38 = ["disabled"];
-  const _hoisted_39 = {
+  const _hoisted_21 = { class: "mda-memory-field" };
+  const _hoisted_22 = { class: "mda-memory-field" };
+  const _hoisted_23 = ["value"];
+  const _hoisted_24 = { class: "mda-memory-field" };
+  const _hoisted_25 = { class: "mda-memory-field" };
+  const _hoisted_26 = { class: "mda-memory-field" };
+  const _hoisted_27 = { class: "mda-memory-field" };
+  const _hoisted_28 = { class: "mda-memory-actions" };
+  const _hoisted_29 = ["disabled"];
+  const _hoisted_30 = { class: "mda-agent-capability-head" };
+  const _hoisted_31 = ["disabled"];
+  const _hoisted_32 = {
     key: 0,
     class: "mda-memory-empty"
   };
-  const _hoisted_40 = {
+  const _hoisted_33 = {
     key: 1,
     class: "mda-agent-capabilities"
   };
-  const _hoisted_41 = { class: "mda-agent-capability-section" };
-  const _hoisted_42 = { class: "mda-agent-capability-title" };
-  const _hoisted_43 = { class: "mda-agent-capability-list" };
-  const _hoisted_44 = { class: "mda-agent-capability-section" };
-  const _hoisted_45 = { class: "mda-agent-capability-title" };
-  const _hoisted_46 = { class: "mda-agent-capability-list" };
+  const _hoisted_34 = { class: "mda-agent-capability-section" };
+  const _hoisted_35 = { class: "mda-agent-capability-title" };
+  const _hoisted_36 = { class: "mda-agent-capability-list" };
+  const _hoisted_37 = { class: "mda-agent-capability-section" };
+  const _hoisted_38 = { class: "mda-agent-capability-title" };
+  const _hoisted_39 = { class: "mda-agent-capability-list" };
+  const _hoisted_40 = { class: "mda-agent-capability-section" };
+  const _hoisted_41 = { class: "mda-agent-capability-title" };
+  const _hoisted_42 = {
+    key: 0,
+    class: "mda-agent-capability-empty"
+  };
+  const _hoisted_43 = {
+    key: 1,
+    class: "mda-agent-capability-list"
+  };
+  const _hoisted_44 = { class: "mda-agent-capability-actions" };
+  const _hoisted_45 = ["onClick"];
+  const _hoisted_46 = ["onClick"];
   const _hoisted_47 = { class: "mda-agent-capability-section" };
   const _hoisted_48 = { class: "mda-agent-capability-title" };
   const _hoisted_49 = {
@@ -18562,90 +17023,63 @@ ${result.rawText}` : ""
   const _hoisted_51 = { class: "mda-agent-capability-actions" };
   const _hoisted_52 = ["onClick"];
   const _hoisted_53 = ["onClick"];
-  const _hoisted_54 = { class: "mda-agent-capability-section" };
-  const _hoisted_55 = { class: "mda-agent-capability-title" };
-  const _hoisted_56 = {
-    key: 0,
-    class: "mda-agent-capability-empty"
-  };
-  const _hoisted_57 = {
-    key: 1,
-    class: "mda-agent-capability-list"
-  };
-  const _hoisted_58 = { class: "mda-agent-capability-actions" };
-  const _hoisted_59 = ["onClick"];
-  const _hoisted_60 = ["onClick"];
-  const _hoisted_61 = { class: "mda-memory-project-doc" };
-  const _hoisted_62 = {
+  const _hoisted_54 = { class: "mda-memory-project-doc" };
+  const _hoisted_55 = {
     key: 5,
     class: "mda-settings-toast",
     role: "status"
   };
-  const _hoisted_63 = {
-    class: "mda-model-editor",
-    role: "dialog",
-    "aria-modal": "true",
-    "aria-label": "Locator 模型配置"
-  };
-  const _hoisted_64 = { class: "mda-model-editor-head" };
-  const _hoisted_65 = { class: "mda-model-editor-body" };
-  const _hoisted_66 = { class: "mda-model-grid" };
-  const _hoisted_67 = { class: "is-wide" };
-  const _hoisted_68 = { class: "is-wide" };
-  const _hoisted_69 = { class: "is-wide" };
-  const _hoisted_70 = { class: "mda-model-actions" };
-  const _hoisted_71 = {
+  const _hoisted_56 = {
     class: "mda-asset-detail",
     role: "dialog",
     "aria-modal": "true",
     "aria-label": "选区资产详情"
   };
-  const _hoisted_72 = { class: "mda-asset-detail-head" };
-  const _hoisted_73 = { class: "mda-asset-detail-body" };
-  const _hoisted_74 = { class: "mda-asset-detail-preview" };
-  const _hoisted_75 = ["src", "alt"];
-  const _hoisted_76 = {
+  const _hoisted_57 = { class: "mda-asset-detail-head" };
+  const _hoisted_58 = { class: "mda-asset-detail-body" };
+  const _hoisted_59 = { class: "mda-asset-detail-preview" };
+  const _hoisted_60 = ["src", "alt"];
+  const _hoisted_61 = {
     key: 1,
     class: "mda-asset-detail-preview-empty"
   };
-  const _hoisted_77 = { class: "mda-asset-detail-info" };
-  const _hoisted_78 = { key: 0 };
-  const _hoisted_79 = {
+  const _hoisted_62 = { class: "mda-asset-detail-info" };
+  const _hoisted_63 = { key: 0 };
+  const _hoisted_64 = {
     key: 0,
     class: "mda-asset-markup"
   };
-  const _hoisted_80 = {
+  const _hoisted_65 = {
     key: 0,
     class: "mda-asset-source-list"
   };
-  const _hoisted_81 = { key: 0 };
-  const _hoisted_82 = {
+  const _hoisted_66 = { key: 0 };
+  const _hoisted_67 = {
     key: 1,
     class: "mda-asset-source-empty"
   };
-  const _hoisted_83 = ["aria-label"];
-  const _hoisted_84 = { class: "mda-model-editor-head" };
-  const _hoisted_85 = { class: "mda-model-editor-body" };
-  const _hoisted_86 = {
+  const _hoisted_68 = ["aria-label"];
+  const _hoisted_69 = { class: "mda-model-editor-head" };
+  const _hoisted_70 = { class: "mda-model-editor-body" };
+  const _hoisted_71 = {
     key: 0,
     class: "mda-extension-form"
   };
-  const _hoisted_87 = { key: 0 };
-  const _hoisted_88 = { key: 1 };
-  const _hoisted_89 = { key: 2 };
-  const _hoisted_90 = { key: 3 };
-  const _hoisted_91 = { key: 4 };
-  const _hoisted_92 = {
+  const _hoisted_72 = { key: 0 };
+  const _hoisted_73 = { key: 1 };
+  const _hoisted_74 = { key: 2 };
+  const _hoisted_75 = { key: 3 };
+  const _hoisted_76 = { key: 4 };
+  const _hoisted_77 = {
     key: 1,
     class: "mda-extension-form"
   };
-  const _hoisted_93 = { class: "mda-model-actions" };
-  const _hoisted_94 = ["disabled"];
+  const _hoisted_78 = { class: "mda-model-actions" };
+  const _hoisted_79 = ["disabled"];
   const _sfc_main$2 = /* @__PURE__ */ defineComponent({
     __name: "MemorySettingsPanel",
     props: {
-      mode: { default: "panel" },
-      modelRuntime: { default: null }
+      mode: { default: "panel" }
     },
     emits: ["back", "select-project"],
     setup(__props) {
@@ -18654,11 +17088,9 @@ ${result.rawText}` : ""
       const appUi = useAppUiStore();
       const selectionStore = useSelectionStore();
       const requestedSection = new URLSearchParams(window.location.search).get("section");
-      const allowedSections = /* @__PURE__ */ new Set(["locator", "assets", "tools", "project"]);
-      const initialTab = allowedSections.has(String(requestedSection)) ? requestedSection : "locator";
+      const allowedSections = /* @__PURE__ */ new Set(["assets", "tools", "project"]);
+      const initialTab = allowedSections.has(String(requestedSection)) ? requestedSection : "assets";
       const tab = /* @__PURE__ */ ref(initialTab);
-      const locatorEditorExpanded = /* @__PURE__ */ ref(false);
-      const locatorEditingId = /* @__PURE__ */ ref("");
       const activeSelectionAsset = /* @__PURE__ */ ref(null);
       const extensionEditor = /* @__PURE__ */ ref(null);
       const experienceId = /* @__PURE__ */ ref("");
@@ -18705,22 +17137,6 @@ ${result.rawText}` : ""
         var _a2;
         return ((_a2 = agentExtensions.value) == null ? void 0 : _a2.skills) || [];
       });
-      const locatorModels = computed(() => {
-        var _a2;
-        return unref((_a2 = props.modelRuntime) == null ? void 0 : _a2.modelConfigs) || [];
-      });
-      const locatorSelectedId = computed(() => {
-        var _a2;
-        return String(unref((_a2 = props.modelRuntime) == null ? void 0 : _a2.selectedModelId) || "");
-      });
-      const locatorSelectedModel = computed(() => {
-        var _a2;
-        return unref((_a2 = props.modelRuntime) == null ? void 0 : _a2.selectedModel) || null;
-      });
-      const locatorForm = computed(() => {
-        var _a2;
-        return unref((_a2 = props.modelRuntime) == null ? void 0 : _a2.modelForm) || {};
-      });
       const selectionAssets = computed(() => selectionStore.promptAssets || []);
       const activeExperience = computed(() => experiences.value.find((item) => item.componentPath === experienceId.value) || null);
       const projectLabel = computed(() => {
@@ -18731,17 +17147,11 @@ ${result.rawText}` : ""
       const visible = computed(() => isPage.value || memory.open);
       const memoryDependent = computed(() => tab.value === "tools" || tab.value === "project");
       const activeTitle = computed(() => {
-        if (tab.value === "locator") return "Locator";
         if (tab.value === "assets") return "选区资产";
         if (tab.value === "experiences") return "Experience";
         if (tab.value === "tools") return "Agent 能力";
         return "项目摘要";
       });
-      function chooseLocatorModel(id) {
-        var _a2, _b, _c, _d;
-        if (id) (_b = (_a2 = props.modelRuntime) == null ? void 0 : _a2.selectModelAndEnable) == null ? void 0 : _b.call(_a2, id);
-        else (_d = (_c = props.modelRuntime) == null ? void 0 : _c.disableModelAssist) == null ? void 0 : _d.call(_c);
-      }
       function showExperienceComingSoon() {
         appUi.setToast("Experience 功能开发中");
       }
@@ -18828,25 +17238,6 @@ ${result.rawText}` : ""
           if (ok) appUi.setToast(memory.message);
         });
       }
-      function editLocatorModel(model) {
-        var _a2, _b, _c, _d;
-        if (model) (_b = (_a2 = props.modelRuntime) == null ? void 0 : _a2.openModelEditor) == null ? void 0 : _b.call(_a2, model);
-        else (_d = (_c = props.modelRuntime) == null ? void 0 : _c.openProviderModelEditor) == null ? void 0 : _d.call(_c, "deepseek");
-        locatorEditingId.value = String((model == null ? void 0 : model.id) || "");
-        locatorEditorExpanded.value = true;
-      }
-      function saveLocatorModel() {
-        var _a2, _b;
-        (_b = (_a2 = props.modelRuntime) == null ? void 0 : _a2.saveModelForm) == null ? void 0 : _b.call(_a2);
-        locatorEditingId.value = "";
-        locatorEditorExpanded.value = false;
-      }
-      function removeLocatorModel() {
-        var _a2, _b;
-        (_b = (_a2 = props.modelRuntime) == null ? void 0 : _a2.removeSelectedModel) == null ? void 0 : _b.call(_a2);
-        locatorEditingId.value = "";
-        locatorEditorExpanded.value = false;
-      }
       watch(experiences, (value) => {
         var _a2;
         if (!value.some((item) => item.componentPath === experienceId.value)) experienceId.value = ((_a2 = value[0]) == null ? void 0 : _a2.componentPath) || "";
@@ -18931,7 +17322,7 @@ ${result.rawText}` : ""
         }, [
           !isPage.value ? (openBlock(), createElementBlock("header", _hoisted_2, [
             createBaseVNode("div", null, [
-              _cache[40] || (_cache[40] = createBaseVNode(
+              _cache[28] || (_cache[28] = createBaseVNode(
                 "strong",
                 null,
                 "记忆设置",
@@ -18962,7 +17353,7 @@ ${result.rawText}` : ""
                 type: "button",
                 onClick: _cache[1] || (_cache[1] = ($event) => _ctx.$emit("back"))
               }, [
-                createVNode(_sfc_main$c, {
+                createVNode(_sfc_main$b, {
                   name: "back",
                   size: 16
                 }),
@@ -18975,11 +17366,11 @@ ${result.rawText}` : ""
                 )
               ]),
               createBaseVNode("label", _hoisted_5, [
-                createVNode(_sfc_main$c, {
+                createVNode(_sfc_main$b, {
                   name: "search",
                   size: 17
                 }),
-                _cache[41] || (_cache[41] = createBaseVNode(
+                _cache[29] || (_cache[29] = createBaseVNode(
                   "input",
                   {
                     type: "text",
@@ -18991,35 +17382,7 @@ ${result.rawText}` : ""
                   /* CACHED */
                 ))
               ]),
-              _cache[48] || (_cache[48] = createBaseVNode(
-                "div",
-                { class: "mda-settings-group-label" },
-                "Agent",
-                -1
-                /* CACHED */
-              )),
-              createBaseVNode(
-                "button",
-                {
-                  class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "locator" }]),
-                  type: "button",
-                  onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "locator")
-                },
-                [
-                  createVNode(_sfc_main$c, {
-                    name: "search",
-                    size: 17
-                  }),
-                  _cache[42] || (_cache[42] = createTextVNode(
-                    "Locator ",
-                    -1
-                    /* CACHED */
-                  ))
-                ],
-                2
-                /* CLASS */
-              ),
-              _cache[49] || (_cache[49] = createBaseVNode(
+              _cache[35] || (_cache[35] = createBaseVNode(
                 "div",
                 { class: "mda-settings-group-label" },
                 "项目",
@@ -19031,14 +17394,14 @@ ${result.rawText}` : ""
                 {
                   class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "assets" }]),
                   type: "button",
-                  onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "assets")
+                  onClick: _cache[2] || (_cache[2] = ($event) => tab.value = "assets")
                 },
                 [
-                  createVNode(_sfc_main$c, {
+                  createVNode(_sfc_main$b, {
                     name: "images",
                     size: 17
                   }),
-                  _cache[43] || (_cache[43] = createTextVNode(
+                  _cache[30] || (_cache[30] = createTextVNode(
                     "选区资产 ",
                     -1
                     /* CACHED */
@@ -19052,18 +17415,18 @@ ${result.rawText}` : ""
                 type: "button",
                 onClick: showExperienceComingSoon
               }, [
-                createVNode(_sfc_main$c, {
+                createVNode(_sfc_main$b, {
                   name: "book",
                   size: 17
                 }),
-                _cache[44] || (_cache[44] = createBaseVNode(
+                _cache[31] || (_cache[31] = createBaseVNode(
                   "span",
                   null,
                   "Experience",
                   -1
                   /* CACHED */
                 )),
-                _cache[45] || (_cache[45] = createBaseVNode(
+                _cache[32] || (_cache[32] = createBaseVNode(
                   "small",
                   null,
                   "开发中",
@@ -19076,14 +17439,14 @@ ${result.rawText}` : ""
                 {
                   class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "project" }]),
                   type: "button",
-                  onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "project")
+                  onClick: _cache[3] || (_cache[3] = ($event) => tab.value = "project")
                 },
                 [
-                  createVNode(_sfc_main$c, {
+                  createVNode(_sfc_main$b, {
                     name: "folder",
                     size: 17
                   }),
-                  _cache[46] || (_cache[46] = createTextVNode(
+                  _cache[33] || (_cache[33] = createTextVNode(
                     "项目摘要 ",
                     -1
                     /* CACHED */
@@ -19092,7 +17455,7 @@ ${result.rawText}` : ""
                 2
                 /* CLASS */
               ),
-              _cache[50] || (_cache[50] = createBaseVNode(
+              _cache[36] || (_cache[36] = createBaseVNode(
                 "div",
                 { class: "mda-settings-group-label" },
                 "扩展",
@@ -19104,14 +17467,14 @@ ${result.rawText}` : ""
                 {
                   class: normalizeClass(["mda-settings-nav", { "is-active": tab.value === "tools" }]),
                   type: "button",
-                  onClick: _cache[5] || (_cache[5] = ($event) => tab.value = "tools")
+                  onClick: _cache[4] || (_cache[4] = ($event) => tab.value = "tools")
                 },
                 [
-                  createVNode(_sfc_main$c, {
+                  createVNode(_sfc_main$b, {
                     name: "construct",
                     size: 17
                   }),
-                  _cache[47] || (_cache[47] = createTextVNode(
+                  _cache[34] || (_cache[34] = createTextVNode(
                     "Agent 能力 ",
                     -1
                     /* CACHED */
@@ -19149,7 +17512,7 @@ ${result.rawText}` : ""
                 createBaseVNode("button", {
                   class: "mda-settings-primary",
                   type: "button",
-                  onClick: _cache[6] || (_cache[6] = ($event) => _ctx.$emit("select-project"))
+                  onClick: _cache[5] || (_cache[5] = ($event) => _ctx.$emit("select-project"))
                 }, "选择源码")
               ])) : createCommentVNode("v-if", true),
               !isPage.value ? (openBlock(), createElementBlock("nav", _hoisted_8, [
@@ -19162,7 +17525,7 @@ ${result.rawText}` : ""
                   {
                     type: "button",
                     class: normalizeClass({ "is-active": tab.value === "tools" }),
-                    onClick: _cache[7] || (_cache[7] = ($event) => tab.value = "tools")
+                    onClick: _cache[6] || (_cache[6] = ($event) => tab.value = "tools")
                   },
                   "Tools",
                   2
@@ -19173,7 +17536,7 @@ ${result.rawText}` : ""
                   {
                     type: "button",
                     class: normalizeClass({ "is-active": tab.value === "project" }),
-                    onClick: _cache[8] || (_cache[8] = ($event) => tab.value = "project")
+                    onClick: _cache[7] || (_cache[7] = ($event) => tab.value = "project")
                   },
                   "项目摘要",
                   2
@@ -19190,7 +17553,7 @@ ${result.rawText}` : ""
                 ),
                 createBaseVNode("button", {
                   type: "button",
-                  onClick: _cache[9] || (_cache[9] = //@ts-ignore
+                  onClick: _cache[8] || (_cache[8] = //@ts-ignore
                   (...args) => unref(memory).load && unref(memory).load(...args))
                 }, "重试")
               ])) : (openBlock(), createElementBlock("section", _hoisted_11, [
@@ -19204,147 +17567,11 @@ ${result.rawText}` : ""
                   3
                   /* TEXT, CLASS */
                 )) : createCommentVNode("v-if", true),
-                tab.value === "locator" ? (openBlock(), createElementBlock("div", _hoisted_12, [
-                  createBaseVNode("div", _hoisted_13, [
-                    _cache[51] || (_cache[51] = createBaseVNode(
-                      "div",
-                      null,
-                      [
-                        createBaseVNode("strong", null, "Locator 专用模型"),
-                        createBaseVNode("p", null, "可选。使用成本更低的模型先定位源码，再把精确位置交给关联 Agent，可减少主 Agent 的检索轮次和 Token 消耗。未配置时由关联 Agent 完成定位和开发。")
-                      ],
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode(
-                      "span",
-                      {
-                        class: normalizeClass({ "is-enabled": !!locatorSelectedModel.value })
-                      },
-                      toDisplayString(locatorSelectedModel.value ? "已启用" : "由 Agent 处理"),
-                      3
-                      /* TEXT, CLASS */
-                    )
-                  ]),
-                  createBaseVNode("div", _hoisted_14, [
-                    _cache[54] || (_cache[54] = createBaseVNode(
-                      "span",
-                      { class: "mda-locator-choice-label" },
-                      "定位方式",
-                      -1
-                      /* CACHED */
-                    )),
-                    createBaseVNode("button", {
-                      class: normalizeClass(["mda-locator-option", { "is-selected": !locatorSelectedId.value }]),
-                      type: "button",
-                      role: "radio",
-                      "aria-checked": String(!locatorSelectedId.value),
-                      onClick: _cache[10] || (_cache[10] = ($event) => chooseLocatorModel(""))
-                    }, [..._cache[52] || (_cache[52] = [
-                      createBaseVNode(
-                        "i",
-                        {
-                          class: "mda-locator-radio",
-                          "aria-hidden": "true"
-                        },
-                        null,
-                        -1
-                        /* CACHED */
-                      ),
-                      createBaseVNode(
-                        "span",
-                        null,
-                        [
-                          createBaseVNode("strong", null, "由开发 Agent 处理"),
-                          createBaseVNode("small", null, "不单独运行 Locator 模型")
-                        ],
-                        -1
-                        /* CACHED */
-                      )
-                    ])], 10, _hoisted_15),
-                    (openBlock(true), createElementBlock(
-                      Fragment,
-                      null,
-                      renderList(locatorModels.value, (item) => {
-                        return openBlock(), createElementBlock("div", {
-                          key: item.id,
-                          class: "mda-locator-option-row"
-                        }, [
-                          createBaseVNode("button", {
-                            class: normalizeClass(["mda-locator-option", { "is-selected": locatorSelectedId.value === item.id }]),
-                            type: "button",
-                            role: "radio",
-                            "aria-checked": String(locatorSelectedId.value === item.id),
-                            onClick: ($event) => chooseLocatorModel(item.id)
-                          }, [
-                            _cache[53] || (_cache[53] = createBaseVNode(
-                              "i",
-                              {
-                                class: "mda-locator-radio",
-                                "aria-hidden": "true"
-                              },
-                              null,
-                              -1
-                              /* CACHED */
-                            )),
-                            createBaseVNode("span", null, [
-                              createBaseVNode(
-                                "strong",
-                                null,
-                                toDisplayString(item.name),
-                                1
-                                /* TEXT */
-                              ),
-                              createBaseVNode(
-                                "small",
-                                null,
-                                toDisplayString(item.model) + toDisplayString(item.endpoint ? ` · ${item.endpoint}` : ""),
-                                1
-                                /* TEXT */
-                              )
-                            ])
-                          ], 10, _hoisted_16),
-                          createBaseVNode("button", {
-                            class: "mda-locator-option-edit",
-                            type: "button",
-                            "aria-label": `编辑 ${item.name}`,
-                            title: `编辑 ${item.name}`,
-                            onClick: ($event) => editLocatorModel(item)
-                          }, [
-                            createVNode(_sfc_main$c, {
-                              name: "settings",
-                              size: 17
-                            })
-                          ], 8, _hoisted_17)
-                        ]);
-                      }),
-                      128
-                      /* KEYED_FRAGMENT */
-                    ))
-                  ]),
-                  createBaseVNode("div", _hoisted_18, [
-                    createBaseVNode("button", {
-                      type: "button",
-                      onClick: _cache[11] || (_cache[11] = ($event) => editLocatorModel(null))
-                    }, [
-                      createVNode(_sfc_main$c, {
-                        name: "add",
-                        size: 16
-                      }),
-                      _cache[55] || (_cache[55] = createBaseVNode(
-                        "span",
-                        null,
-                        "添加 Locator 模型",
-                        -1
-                        /* CACHED */
-                      ))
-                    ])
-                  ])
-                ])) : tab.value === "assets" ? (openBlock(), createElementBlock(
+                tab.value === "assets" ? (openBlock(), createElementBlock(
                   Fragment,
-                  { key: 2 },
+                  { key: 1 },
                   [
-                    !selectionAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_19, "当前页面暂无选区资产。")) : (openBlock(), createElementBlock("div", _hoisted_20, [
+                    !selectionAssets.value.length ? (openBlock(), createElementBlock("div", _hoisted_12, "当前页面暂无选区资产。")) : (openBlock(), createElementBlock("div", _hoisted_13, [
                       (openBlock(true), createElementBlock(
                         Fragment,
                         null,
@@ -19368,12 +17595,12 @@ ${result.rawText}` : ""
                               /* STYLE */
                             )) : (openBlock(), createElementBlock(
                               "div",
-                              _hoisted_22,
+                              _hoisted_15,
                               toDisplayString(asset.index),
                               1
                               /* TEXT */
                             )),
-                            createBaseVNode("div", _hoisted_23, [
+                            createBaseVNode("div", _hoisted_16, [
                               createBaseVNode(
                                 "strong",
                                 null,
@@ -19396,7 +17623,7 @@ ${result.rawText}` : ""
                                 /* TEXT */
                               )
                             ])
-                          ], 8, _hoisted_21);
+                          ], 8, _hoisted_14);
                         }),
                         128
                         /* KEYED_FRAGMENT */
@@ -19407,14 +17634,14 @@ ${result.rawText}` : ""
                   /* STABLE_FRAGMENT */
                 )) : tab.value === "experiences" ? (openBlock(), createElementBlock(
                   Fragment,
-                  { key: 3 },
+                  { key: 2 },
                   [
-                    !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_24, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
+                    !experiences.value.length ? (openBlock(), createElementBlock("div", _hoisted_17, "当前项目暂无已保存 Experience。")) : (openBlock(), createElementBlock(
                       Fragment,
                       { key: 1 },
                       [
-                        createBaseVNode("label", _hoisted_25, [
-                          _cache[56] || (_cache[56] = createBaseVNode(
+                        createBaseVNode("label", _hoisted_18, [
+                          _cache[37] || (_cache[37] = createBaseVNode(
                             "span",
                             null,
                             "Experience",
@@ -19424,7 +17651,7 @@ ${result.rawText}` : ""
                           withDirectives(createBaseVNode(
                             "select",
                             {
-                              "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => experienceId.value = $event)
+                              "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => experienceId.value = $event)
                             },
                             [
                               (openBlock(true), createElementBlock(
@@ -19435,7 +17662,7 @@ ${result.rawText}` : ""
                                   return openBlock(), createElementBlock("option", {
                                     key: experience.componentPath,
                                     value: experience.componentPath
-                                  }, toDisplayString(experience.name) + " · " + toDisplayString(((_a3 = experience.validation) == null ? void 0 : _a3.valid) ? "有效" : "已失效"), 9, _hoisted_26);
+                                  }, toDisplayString(experience.name) + " · " + toDisplayString(((_a3 = experience.validation) == null ? void 0 : _a3.valid) ? "有效" : "已失效"), 9, _hoisted_19);
                                 }),
                                 128
                                 /* KEYED_FRAGMENT */
@@ -19447,9 +17674,9 @@ ${result.rawText}` : ""
                             [vModelSelect, experienceId.value]
                           ])
                         ]),
-                        activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_27, [
-                          createBaseVNode("label", _hoisted_28, [
-                            _cache[57] || (_cache[57] = createBaseVNode(
+                        activeExperience.value ? (openBlock(), createElementBlock("div", _hoisted_20, [
+                          createBaseVNode("label", _hoisted_21, [
+                            _cache[38] || (_cache[38] = createBaseVNode(
                               "span",
                               null,
                               "名称",
@@ -19459,7 +17686,7 @@ ${result.rawText}` : ""
                             withDirectives(createBaseVNode(
                               "input",
                               {
-                                "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => experienceDraft.name = $event),
+                                "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => experienceDraft.name = $event),
                                 type: "text"
                               },
                               null,
@@ -19469,8 +17696,8 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.name]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_29, [
-                            _cache[58] || (_cache[58] = createBaseVNode(
+                          createBaseVNode("label", _hoisted_22, [
+                            _cache[39] || (_cache[39] = createBaseVNode(
                               "span",
                               null,
                               "公共能力路径",
@@ -19481,10 +17708,10 @@ ${result.rawText}` : ""
                               value: activeExperience.value.componentPath,
                               type: "text",
                               disabled: ""
-                            }, null, 8, _hoisted_30)
+                            }, null, 8, _hoisted_23)
                           ]),
-                          createBaseVNode("label", _hoisted_31, [
-                            _cache[59] || (_cache[59] = createBaseVNode(
+                          createBaseVNode("label", _hoisted_24, [
+                            _cache[40] || (_cache[40] = createBaseVNode(
                               "span",
                               null,
                               "角色",
@@ -19494,7 +17721,7 @@ ${result.rawText}` : ""
                             withDirectives(createBaseVNode(
                               "input",
                               {
-                                "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => experienceDraft.role = $event),
+                                "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => experienceDraft.role = $event),
                                 type: "text"
                               },
                               null,
@@ -19504,8 +17731,8 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.role]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_32, [
-                            _cache[60] || (_cache[60] = createBaseVNode(
+                          createBaseVNode("label", _hoisted_25, [
+                            _cache[41] || (_cache[41] = createBaseVNode(
                               "span",
                               null,
                               [
@@ -19518,7 +17745,7 @@ ${result.rawText}` : ""
                             withDirectives(createBaseVNode(
                               "textarea",
                               {
-                                "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => experienceDraft.keywords = $event),
+                                "onUpdate:modelValue": _cache[12] || (_cache[12] = ($event) => experienceDraft.keywords = $event),
                                 rows: "4"
                               },
                               null,
@@ -19528,8 +17755,8 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.keywords]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_33, [
-                            _cache[61] || (_cache[61] = createBaseVNode(
+                          createBaseVNode("label", _hoisted_26, [
+                            _cache[42] || (_cache[42] = createBaseVNode(
                               "span",
                               null,
                               [
@@ -19542,7 +17769,7 @@ ${result.rawText}` : ""
                             withDirectives(createBaseVNode(
                               "textarea",
                               {
-                                "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => experienceDraft.usageFiles = $event),
+                                "onUpdate:modelValue": _cache[13] || (_cache[13] = ($event) => experienceDraft.usageFiles = $event),
                                 rows: "5",
                                 class: "is-code"
                               },
@@ -19553,8 +17780,8 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.usageFiles]
                             ])
                           ]),
-                          createBaseVNode("label", _hoisted_34, [
-                            _cache[62] || (_cache[62] = createBaseVNode(
+                          createBaseVNode("label", _hoisted_27, [
+                            _cache[43] || (_cache[43] = createBaseVNode(
                               "span",
                               null,
                               [
@@ -19567,7 +17794,7 @@ ${result.rawText}` : ""
                             withDirectives(createBaseVNode(
                               "textarea",
                               {
-                                "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => experienceDraft.doc = $event),
+                                "onUpdate:modelValue": _cache[14] || (_cache[14] = ($event) => experienceDraft.doc = $event),
                                 rows: "18",
                                 class: "is-code"
                               },
@@ -19578,13 +17805,13 @@ ${result.rawText}` : ""
                               [vModelText, experienceDraft.doc]
                             ])
                           ]),
-                          createBaseVNode("div", _hoisted_35, [
+                          createBaseVNode("div", _hoisted_28, [
                             createBaseVNode("button", {
                               class: "is-primary",
                               type: "button",
                               disabled: unref(memory).saving,
                               onClick: saveExperience
-                            }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_36)
+                            }, toDisplayString(unref(memory).saving ? "保存中..." : "保存 Experience"), 9, _hoisted_29)
                           ])
                         ])) : createCommentVNode("v-if", true)
                       ],
@@ -19596,10 +17823,10 @@ ${result.rawText}` : ""
                   /* STABLE_FRAGMENT */
                 )) : tab.value === "tools" ? (openBlock(), createElementBlock(
                   Fragment,
-                  { key: 4 },
+                  { key: 3 },
                   [
-                    createBaseVNode("div", _hoisted_37, [
-                      _cache[63] || (_cache[63] = createBaseVNode(
+                    createBaseVNode("div", _hoisted_30, [
+                      _cache[44] || (_cache[44] = createBaseVNode(
                         "div",
                         null,
                         [
@@ -19613,12 +17840,12 @@ ${result.rawText}` : ""
                         type: "button",
                         disabled: unref(memory).saving,
                         onClick: reloadAgentExtensions
-                      }, toDisplayString(unref(memory).saving ? "重载中..." : "重载能力"), 9, _hoisted_38)
+                      }, toDisplayString(unref(memory).saving ? "重载中..." : "重载能力"), 9, _hoisted_31)
                     ]),
-                    !agentExtensions.value ? (openBlock(), createElementBlock("div", _hoisted_39, "请先关联本地源码项目。")) : (openBlock(), createElementBlock("div", _hoisted_40, [
-                      createBaseVNode("section", _hoisted_41, [
-                        createBaseVNode("div", _hoisted_42, [
-                          _cache[64] || (_cache[64] = createBaseVNode(
+                    !agentExtensions.value ? (openBlock(), createElementBlock("div", _hoisted_32, "请先关联本地源码项目。")) : (openBlock(), createElementBlock("div", _hoisted_33, [
+                      createBaseVNode("section", _hoisted_34, [
+                        createBaseVNode("div", _hoisted_35, [
+                          _cache[45] || (_cache[45] = createBaseVNode(
                             "div",
                             null,
                             [
@@ -19638,7 +17865,7 @@ ${result.rawText}` : ""
                             /* TEXT, CLASS */
                           )
                         ]),
-                        createBaseVNode("div", _hoisted_43, [
+                        createBaseVNode("div", _hoisted_36, [
                           (openBlock(true), createElementBlock(
                             Fragment,
                             null,
@@ -19663,7 +17890,7 @@ ${result.rawText}` : ""
                                     /* TEXT */
                                   )
                                 ]),
-                                _cache[65] || (_cache[65] = createBaseVNode(
+                                _cache[46] || (_cache[46] = createBaseVNode(
                                   "small",
                                   null,
                                   "原生",
@@ -19677,9 +17904,9 @@ ${result.rawText}` : ""
                           ))
                         ])
                       ]),
-                      createBaseVNode("section", _hoisted_44, [
-                        createBaseVNode("div", _hoisted_45, [
-                          _cache[66] || (_cache[66] = createBaseVNode(
+                      createBaseVNode("section", _hoisted_37, [
+                        createBaseVNode("div", _hoisted_38, [
+                          _cache[47] || (_cache[47] = createBaseVNode(
                             "div",
                             null,
                             [
@@ -19697,7 +17924,7 @@ ${result.rawText}` : ""
                             /* TEXT */
                           )
                         ]),
-                        createBaseVNode("div", _hoisted_46, [
+                        createBaseVNode("div", _hoisted_39, [
                           (openBlock(true), createElementBlock(
                             Fragment,
                             null,
@@ -19722,7 +17949,7 @@ ${result.rawText}` : ""
                                     /* TEXT */
                                   )
                                 ]),
-                                _cache[67] || (_cache[67] = createBaseVNode(
+                                _cache[48] || (_cache[48] = createBaseVNode(
                                   "small",
                                   null,
                                   "动态",
@@ -19736,9 +17963,9 @@ ${result.rawText}` : ""
                           ))
                         ])
                       ]),
-                      createBaseVNode("section", _hoisted_47, [
-                        createBaseVNode("div", _hoisted_48, [
-                          _cache[68] || (_cache[68] = createBaseVNode(
+                      createBaseVNode("section", _hoisted_40, [
+                        createBaseVNode("div", _hoisted_41, [
+                          _cache[49] || (_cache[49] = createBaseVNode(
                             "div",
                             null,
                             [
@@ -19753,10 +17980,10 @@ ${result.rawText}` : ""
                           )),
                           createBaseVNode("button", {
                             type: "button",
-                            onClick: _cache[18] || (_cache[18] = ($event) => openMcpEditor())
+                            onClick: _cache[15] || (_cache[15] = ($event) => openMcpEditor())
                           }, "添加 MCP")
                         ]),
-                        !mcpServers.value.length ? (openBlock(), createElementBlock("div", _hoisted_49, "当前项目没有 MCP。")) : (openBlock(), createElementBlock("div", _hoisted_50, [
+                        !mcpServers.value.length ? (openBlock(), createElementBlock("div", _hoisted_42, "当前项目没有 MCP。")) : (openBlock(), createElementBlock("div", _hoisted_43, [
                           (openBlock(true), createElementBlock(
                             Fragment,
                             null,
@@ -19781,7 +18008,7 @@ ${result.rawText}` : ""
                                     /* TEXT */
                                   )
                                 ]),
-                                createBaseVNode("div", _hoisted_51, [
+                                createBaseVNode("div", _hoisted_44, [
                                   createBaseVNode(
                                     "small",
                                     null,
@@ -19793,13 +18020,13 @@ ${result.rawText}` : ""
                                     key: 0,
                                     type: "button",
                                     onClick: ($event) => openMcpEditor(server)
-                                  }, "编辑", 8, _hoisted_52)) : createCommentVNode("v-if", true),
+                                  }, "编辑", 8, _hoisted_45)) : createCommentVNode("v-if", true),
                                   server.source === "project" ? (openBlock(), createElementBlock("button", {
                                     key: 1,
                                     class: "is-danger",
                                     type: "button",
                                     onClick: ($event) => removeMcp(server)
-                                  }, "移除", 8, _hoisted_53)) : createCommentVNode("v-if", true)
+                                  }, "移除", 8, _hoisted_46)) : createCommentVNode("v-if", true)
                                 ])
                               ]);
                             }),
@@ -19808,9 +18035,9 @@ ${result.rawText}` : ""
                           ))
                         ]))
                       ]),
-                      createBaseVNode("section", _hoisted_54, [
-                        createBaseVNode("div", _hoisted_55, [
-                          _cache[69] || (_cache[69] = createBaseVNode(
+                      createBaseVNode("section", _hoisted_47, [
+                        createBaseVNode("div", _hoisted_48, [
+                          _cache[50] || (_cache[50] = createBaseVNode(
                             "div",
                             null,
                             [
@@ -19822,10 +18049,10 @@ ${result.rawText}` : ""
                           )),
                           createBaseVNode("button", {
                             type: "button",
-                            onClick: _cache[19] || (_cache[19] = ($event) => openSkillEditor())
+                            onClick: _cache[16] || (_cache[16] = ($event) => openSkillEditor())
                           }, "添加 Skill")
                         ]),
-                        !agentSkills.value.length ? (openBlock(), createElementBlock("div", _hoisted_56, "当前项目没有 Skill。")) : (openBlock(), createElementBlock("div", _hoisted_57, [
+                        !agentSkills.value.length ? (openBlock(), createElementBlock("div", _hoisted_49, "当前项目没有 Skill。")) : (openBlock(), createElementBlock("div", _hoisted_50, [
                           (openBlock(true), createElementBlock(
                             Fragment,
                             null,
@@ -19850,7 +18077,7 @@ ${result.rawText}` : ""
                                     /* TEXT */
                                   )
                                 ]),
-                                createBaseVNode("div", _hoisted_58, [
+                                createBaseVNode("div", _hoisted_51, [
                                   createBaseVNode(
                                     "small",
                                     null,
@@ -19862,13 +18089,13 @@ ${result.rawText}` : ""
                                     key: 0,
                                     type: "button",
                                     onClick: ($event) => openSkillEditor(skill)
-                                  }, "重装", 8, _hoisted_59)) : createCommentVNode("v-if", true),
+                                  }, "重装", 8, _hoisted_52)) : createCommentVNode("v-if", true),
                                   skill.source === "project" ? (openBlock(), createElementBlock("button", {
                                     key: 1,
                                     class: "is-danger",
                                     type: "button",
                                     onClick: ($event) => removeSkill(skill)
-                                  }, "移除", 8, _hoisted_60)) : createCommentVNode("v-if", true)
+                                  }, "移除", 8, _hoisted_53)) : createCommentVNode("v-if", true)
                                 ])
                               ]);
                             }),
@@ -19883,9 +18110,9 @@ ${result.rawText}` : ""
                   /* STABLE_FRAGMENT */
                 )) : (openBlock(), createElementBlock(
                   Fragment,
-                  { key: 5 },
+                  { key: 4 },
                   [
-                    _cache[70] || (_cache[70] = createBaseVNode(
+                    _cache[51] || (_cache[51] = createBaseVNode(
                       "div",
                       { class: "mda-memory-project-note" },
                       "Project.md 由源码扫描和 Experience 索引自动生成，不在这里手工修改。",
@@ -19894,7 +18121,7 @@ ${result.rawText}` : ""
                     )),
                     createBaseVNode(
                       "pre",
-                      _hoisted_61,
+                      _hoisted_54,
                       toDisplayString(((_c = unref(memory).snapshot) == null ? void 0 : _c.projectDocument) || "暂无项目摘要。"),
                       1
                       /* TEXT */
@@ -19906,7 +18133,7 @@ ${result.rawText}` : ""
               ])),
               isPage.value && unref(appUi).toastText ? (openBlock(), createElementBlock(
                 "div",
-                _hoisted_62,
+                _hoisted_55,
                 toDisplayString(unref(appUi).toastText),
                 1
                 /* TEXT */
@@ -19914,223 +18141,16 @@ ${result.rawText}` : ""
             ])
           ]),
           (openBlock(), createBlock(Teleport, { to: "body" }, [
-            locatorEditorExpanded.value ? (openBlock(), createElementBlock("div", {
-              key: 0,
-              class: "mda-model-modal",
-              role: "presentation",
-              onClick: _cache[28] || (_cache[28] = withModifiers(($event) => locatorEditorExpanded.value = false, ["self"]))
-            }, [
-              createBaseVNode("section", _hoisted_63, [
-                createBaseVNode("header", _hoisted_64, [
-                  _cache[71] || (_cache[71] = createBaseVNode(
-                    "div",
-                    null,
-                    [
-                      createBaseVNode("strong", null, "Locator 模型"),
-                      createBaseVNode("p", null, "仅用于源码定位；保存后立即应用到当前页面。")
-                    ],
-                    -1
-                    /* CACHED */
-                  )),
-                  createBaseVNode("button", {
-                    class: "mda-model-close",
-                    type: "button",
-                    "aria-label": "关闭",
-                    onClick: _cache[20] || (_cache[20] = ($event) => locatorEditorExpanded.value = false)
-                  }, [
-                    createVNode(_sfc_main$c, {
-                      name: "close",
-                      size: 18
-                    })
-                  ])
-                ]),
-                createBaseVNode("div", _hoisted_65, [
-                  createBaseVNode("div", _hoisted_66, [
-                    createBaseVNode("label", null, [
-                      _cache[72] || (_cache[72] = createBaseVNode(
-                        "span",
-                        null,
-                        "名称",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "input",
-                        {
-                          "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => locatorForm.value.name = $event),
-                          class: "mda-model-input",
-                          type: "text"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelText, locatorForm.value.name]
-                      ])
-                    ]),
-                    createBaseVNode("label", null, [
-                      _cache[74] || (_cache[74] = createBaseVNode(
-                        "span",
-                        null,
-                        "Model",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "select",
-                        {
-                          "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => locatorForm.value.model = $event),
-                          class: "mda-model-input"
-                        },
-                        [..._cache[73] || (_cache[73] = [
-                          createBaseVNode(
-                            "option",
-                            { value: "deepseek-v4-pro" },
-                            "deepseek-v4-pro",
-                            -1
-                            /* CACHED */
-                          ),
-                          createBaseVNode(
-                            "option",
-                            { value: "deepseek-v4-flash" },
-                            "deepseek-v4-flash",
-                            -1
-                            /* CACHED */
-                          )
-                        ])],
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelSelect, locatorForm.value.model]
-                      ])
-                    ]),
-                    createBaseVNode("label", _hoisted_67, [
-                      _cache[75] || (_cache[75] = createBaseVNode(
-                        "span",
-                        null,
-                        "Endpoint",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "input",
-                        {
-                          "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => locatorForm.value.endpoint = $event),
-                          class: "mda-model-input",
-                          type: "text"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelText, locatorForm.value.endpoint]
-                      ])
-                    ]),
-                    createBaseVNode("label", _hoisted_68, [
-                      _cache[76] || (_cache[76] = createBaseVNode(
-                        "span",
-                        null,
-                        "API Key",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "input",
-                        {
-                          "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => locatorForm.value.apiKey = $event),
-                          class: "mda-model-input",
-                          type: "password"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelText, locatorForm.value.apiKey]
-                      ])
-                    ]),
-                    createBaseVNode("label", _hoisted_69, [
-                      _cache[77] || (_cache[77] = createBaseVNode(
-                        "span",
-                        null,
-                        "代理地址",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "input",
-                        {
-                          "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => locatorForm.value.proxyUrl = $event),
-                          class: "mda-model-input",
-                          type: "text",
-                          placeholder: "可留空"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [vModelText, locatorForm.value.proxyUrl]
-                      ])
-                    ]),
-                    createBaseVNode("label", null, [
-                      _cache[78] || (_cache[78] = createBaseVNode(
-                        "span",
-                        null,
-                        "超时（毫秒）",
-                        -1
-                        /* CACHED */
-                      )),
-                      withDirectives(createBaseVNode(
-                        "input",
-                        {
-                          "onUpdate:modelValue": _cache[26] || (_cache[26] = ($event) => locatorForm.value.timeoutMs = $event),
-                          class: "mda-model-input",
-                          type: "number",
-                          min: "5000",
-                          step: "1000"
-                        },
-                        null,
-                        512
-                        /* NEED_PATCH */
-                      ), [
-                        [
-                          vModelText,
-                          locatorForm.value.timeoutMs,
-                          void 0,
-                          { number: true }
-                        ]
-                      ])
-                    ])
-                  ])
-                ]),
-                createBaseVNode("footer", _hoisted_70, [
-                  locatorEditingId.value && locatorEditingId.value === locatorSelectedId.value ? (openBlock(), createElementBlock("button", {
-                    key: 0,
-                    class: "mda-model-delete",
-                    type: "button",
-                    onClick: removeLocatorModel
-                  }, "删除")) : createCommentVNode("v-if", true),
-                  createBaseVNode("button", {
-                    type: "button",
-                    onClick: _cache[27] || (_cache[27] = ($event) => locatorEditorExpanded.value = false)
-                  }, "取消"),
-                  createBaseVNode("button", {
-                    class: "is-primary",
-                    type: "button",
-                    onClick: saveLocatorModel
-                  }, "保存并启用")
-                ])
-              ])
-            ])) : createCommentVNode("v-if", true),
             activeSelectionAsset.value ? (openBlock(), createElementBlock("div", {
-              key: 1,
+              key: 0,
               class: "mda-asset-detail-modal",
               role: "presentation",
               onClick: withModifiers(closeAssetDetails, ["self"])
             }, [
-              createBaseVNode("section", _hoisted_71, [
-                createBaseVNode("header", _hoisted_72, [
+              createBaseVNode("section", _hoisted_56, [
+                createBaseVNode("header", _hoisted_57, [
                   createBaseVNode("div", null, [
-                    _cache[79] || (_cache[79] = createBaseVNode(
+                    _cache[52] || (_cache[52] = createBaseVNode(
                       "strong",
                       null,
                       "选区详情",
@@ -20150,23 +18170,23 @@ ${result.rawText}` : ""
                     "aria-label": "关闭",
                     onClick: closeAssetDetails
                   }, [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "close",
                       size: 18
                     })
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_73, [
-                  createBaseVNode("div", _hoisted_74, [
+                createBaseVNode("div", _hoisted_58, [
+                  createBaseVNode("div", _hoisted_59, [
                     activeSelectionAsset.value.thumbnailUrl ? (openBlock(), createElementBlock("img", {
                       key: 0,
                       src: activeSelectionAsset.value.thumbnailUrl,
                       alt: `${activeSelectionAsset.value.token} 选区截图`
-                    }, null, 8, _hoisted_75)) : (openBlock(), createElementBlock("div", _hoisted_76, "暂无选区截图"))
+                    }, null, 8, _hoisted_60)) : (openBlock(), createElementBlock("div", _hoisted_61, "暂无选区截图"))
                   ]),
-                  createBaseVNode("div", _hoisted_77, [
+                  createBaseVNode("div", _hoisted_62, [
                     createBaseVNode("section", null, [
-                      _cache[86] || (_cache[86] = createBaseVNode(
+                      _cache[59] || (_cache[59] = createBaseVNode(
                         "h3",
                         null,
                         "选区信息",
@@ -20175,7 +18195,7 @@ ${result.rawText}` : ""
                       )),
                       createBaseVNode("dl", null, [
                         createBaseVNode("div", null, [
-                          _cache[80] || (_cache[80] = createBaseVNode(
+                          _cache[53] || (_cache[53] = createBaseVNode(
                             "dt",
                             null,
                             "文案",
@@ -20191,7 +18211,7 @@ ${result.rawText}` : ""
                           )
                         ]),
                         createBaseVNode("div", null, [
-                          _cache[81] || (_cache[81] = createBaseVNode(
+                          _cache[54] || (_cache[54] = createBaseVNode(
                             "dt",
                             null,
                             "选择器",
@@ -20209,7 +18229,7 @@ ${result.rawText}` : ""
                           ])
                         ]),
                         createBaseVNode("div", null, [
-                          _cache[82] || (_cache[82] = createBaseVNode(
+                          _cache[55] || (_cache[55] = createBaseVNode(
                             "dt",
                             null,
                             "Class",
@@ -20227,7 +18247,7 @@ ${result.rawText}` : ""
                           ])
                         ]),
                         createBaseVNode("div", null, [
-                          _cache[83] || (_cache[83] = createBaseVNode(
+                          _cache[56] || (_cache[56] = createBaseVNode(
                             "dt",
                             null,
                             "尺寸",
@@ -20242,8 +18262,8 @@ ${result.rawText}` : ""
                             /* TEXT */
                           )
                         ]),
-                        activeSelectionAsset.value.createdAt ? (openBlock(), createElementBlock("div", _hoisted_78, [
-                          _cache[84] || (_cache[84] = createBaseVNode(
+                        activeSelectionAsset.value.createdAt ? (openBlock(), createElementBlock("div", _hoisted_63, [
+                          _cache[57] || (_cache[57] = createBaseVNode(
                             "dt",
                             null,
                             "保存时间",
@@ -20259,8 +18279,8 @@ ${result.rawText}` : ""
                           )
                         ])) : createCommentVNode("v-if", true)
                       ]),
-                      assetMarkup(activeSelectionAsset.value) ? (openBlock(), createElementBlock("div", _hoisted_79, [
-                        _cache[85] || (_cache[85] = createBaseVNode(
+                      assetMarkup(activeSelectionAsset.value) ? (openBlock(), createElementBlock("div", _hoisted_64, [
+                        _cache[58] || (_cache[58] = createBaseVNode(
                           "span",
                           null,
                           "DOM",
@@ -20277,14 +18297,14 @@ ${result.rawText}` : ""
                       ])) : createCommentVNode("v-if", true)
                     ]),
                     createBaseVNode("section", null, [
-                      _cache[87] || (_cache[87] = createBaseVNode(
+                      _cache[60] || (_cache[60] = createBaseVNode(
                         "h3",
                         null,
                         "定位文件",
                         -1
                         /* CACHED */
                       )),
-                      assetSourceTargets(activeSelectionAsset.value).length ? (openBlock(), createElementBlock("div", _hoisted_80, [
+                      assetSourceTargets(activeSelectionAsset.value).length ? (openBlock(), createElementBlock("div", _hoisted_65, [
                         (openBlock(true), createElementBlock(
                           Fragment,
                           null,
@@ -20302,7 +18322,7 @@ ${result.rawText}` : ""
                               ),
                               target.anchor ? (openBlock(), createElementBlock(
                                 "span",
-                                _hoisted_81,
+                                _hoisted_66,
                                 toDisplayString(target.anchor),
                                 1
                                 /* TEXT */
@@ -20312,14 +18332,14 @@ ${result.rawText}` : ""
                           128
                           /* KEYED_FRAGMENT */
                         ))
-                      ])) : (openBlock(), createElementBlock("p", _hoisted_82, "该选区尚未绑定源码位置。"))
+                      ])) : (openBlock(), createElementBlock("p", _hoisted_67, "该选区尚未绑定源码位置。"))
                     ])
                   ])
                 ])
               ])
             ])) : createCommentVNode("v-if", true),
             extensionEditor.value ? (openBlock(), createElementBlock("div", {
-              key: 2,
+              key: 1,
               class: "mda-model-modal",
               role: "presentation",
               onClick: withModifiers(closeExtensionEditor, ["self"])
@@ -20330,7 +18350,7 @@ ${result.rawText}` : ""
                 "aria-modal": "true",
                 "aria-label": extensionEditor.value.kind === "mcp" ? "MCP 配置" : "Skill 配置"
               }, [
-                createBaseVNode("header", _hoisted_84, [
+                createBaseVNode("header", _hoisted_69, [
                   createBaseVNode("div", null, [
                     createBaseVNode(
                       "strong",
@@ -20339,7 +18359,7 @@ ${result.rawText}` : ""
                       1
                       /* TEXT */
                     ),
-                    _cache[88] || (_cache[88] = createBaseVNode(
+                    _cache[61] || (_cache[61] = createBaseVNode(
                       "p",
                       null,
                       "保存到当前项目，并立即重载到开发 Agent。",
@@ -20353,16 +18373,16 @@ ${result.rawText}` : ""
                     "aria-label": "关闭",
                     onClick: closeExtensionEditor
                   }, [
-                    createVNode(_sfc_main$c, {
+                    createVNode(_sfc_main$b, {
                       name: "close",
                       size: 18
                     })
                   ])
                 ]),
-                createBaseVNode("div", _hoisted_85, [
-                  extensionEditor.value.kind === "mcp" ? (openBlock(), createElementBlock("div", _hoisted_86, [
+                createBaseVNode("div", _hoisted_70, [
+                  extensionEditor.value.kind === "mcp" ? (openBlock(), createElementBlock("div", _hoisted_71, [
                     createBaseVNode("label", null, [
-                      _cache[89] || (_cache[89] = createBaseVNode(
+                      _cache[62] || (_cache[62] = createBaseVNode(
                         "span",
                         null,
                         "名称",
@@ -20372,7 +18392,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[29] || (_cache[29] = ($event) => mcpDraft.name = $event),
+                          "onUpdate:modelValue": _cache[17] || (_cache[17] = ($event) => mcpDraft.name = $event),
                           class: "mda-model-input",
                           type: "text",
                           placeholder: "例如 project-tools"
@@ -20385,7 +18405,7 @@ ${result.rawText}` : ""
                       ])
                     ]),
                     createBaseVNode("label", null, [
-                      _cache[91] || (_cache[91] = createBaseVNode(
+                      _cache[64] || (_cache[64] = createBaseVNode(
                         "span",
                         null,
                         "连接方式",
@@ -20395,10 +18415,10 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "select",
                         {
-                          "onUpdate:modelValue": _cache[30] || (_cache[30] = ($event) => mcpDraft.transport = $event),
+                          "onUpdate:modelValue": _cache[18] || (_cache[18] = ($event) => mcpDraft.transport = $event),
                           class: "mda-model-input"
                         },
-                        [..._cache[90] || (_cache[90] = [
+                        [..._cache[63] || (_cache[63] = [
                           createBaseVNode(
                             "option",
                             { value: "stdio" },
@@ -20427,8 +18447,8 @@ ${result.rawText}` : ""
                         [vModelSelect, mcpDraft.transport]
                       ])
                     ]),
-                    mcpDraft.transport === "stdio" ? (openBlock(), createElementBlock("label", _hoisted_87, [
-                      _cache[92] || (_cache[92] = createBaseVNode(
+                    mcpDraft.transport === "stdio" ? (openBlock(), createElementBlock("label", _hoisted_72, [
+                      _cache[65] || (_cache[65] = createBaseVNode(
                         "span",
                         null,
                         "Command",
@@ -20438,7 +18458,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[31] || (_cache[31] = ($event) => mcpDraft.command = $event),
+                          "onUpdate:modelValue": _cache[19] || (_cache[19] = ($event) => mcpDraft.command = $event),
                           class: "mda-model-input",
                           type: "text",
                           placeholder: "npx"
@@ -20450,8 +18470,8 @@ ${result.rawText}` : ""
                         [vModelText, mcpDraft.command]
                       ])
                     ])) : createCommentVNode("v-if", true),
-                    mcpDraft.transport === "stdio" ? (openBlock(), createElementBlock("label", _hoisted_88, [
-                      _cache[93] || (_cache[93] = createBaseVNode(
+                    mcpDraft.transport === "stdio" ? (openBlock(), createElementBlock("label", _hoisted_73, [
+                      _cache[66] || (_cache[66] = createBaseVNode(
                         "span",
                         null,
                         [
@@ -20464,7 +18484,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "textarea",
                         {
-                          "onUpdate:modelValue": _cache[32] || (_cache[32] = ($event) => mcpDraft.args = $event),
+                          "onUpdate:modelValue": _cache[20] || (_cache[20] = ($event) => mcpDraft.args = $event),
                           class: "mda-model-input is-code",
                           rows: "4"
                         },
@@ -20475,8 +18495,8 @@ ${result.rawText}` : ""
                         [vModelText, mcpDraft.args]
                       ])
                     ])) : createCommentVNode("v-if", true),
-                    mcpDraft.transport === "stdio" ? (openBlock(), createElementBlock("label", _hoisted_89, [
-                      _cache[94] || (_cache[94] = createBaseVNode(
+                    mcpDraft.transport === "stdio" ? (openBlock(), createElementBlock("label", _hoisted_74, [
+                      _cache[67] || (_cache[67] = createBaseVNode(
                         "span",
                         null,
                         [
@@ -20489,7 +18509,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "textarea",
                         {
-                          "onUpdate:modelValue": _cache[33] || (_cache[33] = ($event) => mcpDraft.env = $event),
+                          "onUpdate:modelValue": _cache[21] || (_cache[21] = ($event) => mcpDraft.env = $event),
                           class: "mda-model-input is-code",
                           rows: "4",
                           placeholder: '{"TOKEN":"..."}'
@@ -20500,8 +18520,8 @@ ${result.rawText}` : ""
                       ), [
                         [vModelText, mcpDraft.env]
                       ])
-                    ])) : (openBlock(), createElementBlock("label", _hoisted_90, [
-                      _cache[95] || (_cache[95] = createBaseVNode(
+                    ])) : (openBlock(), createElementBlock("label", _hoisted_75, [
+                      _cache[68] || (_cache[68] = createBaseVNode(
                         "span",
                         null,
                         "URL",
@@ -20511,7 +18531,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[34] || (_cache[34] = ($event) => mcpDraft.url = $event),
+                          "onUpdate:modelValue": _cache[22] || (_cache[22] = ($event) => mcpDraft.url = $event),
                           class: "mda-model-input",
                           type: "url",
                           placeholder: "https://example.com/mcp"
@@ -20523,8 +18543,8 @@ ${result.rawText}` : ""
                         [vModelText, mcpDraft.url]
                       ])
                     ])),
-                    mcpDraft.transport !== "stdio" ? (openBlock(), createElementBlock("label", _hoisted_91, [
-                      _cache[96] || (_cache[96] = createBaseVNode(
+                    mcpDraft.transport !== "stdio" ? (openBlock(), createElementBlock("label", _hoisted_76, [
+                      _cache[69] || (_cache[69] = createBaseVNode(
                         "span",
                         null,
                         [
@@ -20537,7 +18557,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "textarea",
                         {
-                          "onUpdate:modelValue": _cache[35] || (_cache[35] = ($event) => mcpDraft.headers = $event),
+                          "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => mcpDraft.headers = $event),
                           class: "mda-model-input is-code",
                           rows: "4",
                           placeholder: '{"Authorization":"Bearer ..."}'
@@ -20549,9 +18569,9 @@ ${result.rawText}` : ""
                         [vModelText, mcpDraft.headers]
                       ])
                     ])) : createCommentVNode("v-if", true)
-                  ])) : (openBlock(), createElementBlock("div", _hoisted_92, [
+                  ])) : (openBlock(), createElementBlock("div", _hoisted_77, [
                     createBaseVNode("label", null, [
-                      _cache[97] || (_cache[97] = createBaseVNode(
+                      _cache[70] || (_cache[70] = createBaseVNode(
                         "span",
                         null,
                         "名称",
@@ -20561,7 +18581,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[36] || (_cache[36] = ($event) => skillDraft.name = $event),
+                          "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => skillDraft.name = $event),
                           class: "mda-model-input",
                           type: "text",
                           placeholder: "例如 release-check"
@@ -20574,7 +18594,7 @@ ${result.rawText}` : ""
                       ])
                     ]),
                     createBaseVNode("label", null, [
-                      _cache[98] || (_cache[98] = createBaseVNode(
+                      _cache[71] || (_cache[71] = createBaseVNode(
                         "span",
                         null,
                         "说明",
@@ -20584,7 +18604,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "input",
                         {
-                          "onUpdate:modelValue": _cache[37] || (_cache[37] = ($event) => skillDraft.description = $event),
+                          "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => skillDraft.description = $event),
                           class: "mda-model-input",
                           type: "text"
                         },
@@ -20596,7 +18616,7 @@ ${result.rawText}` : ""
                       ])
                     ]),
                     createBaseVNode("label", null, [
-                      _cache[99] || (_cache[99] = createBaseVNode(
+                      _cache[72] || (_cache[72] = createBaseVNode(
                         "span",
                         null,
                         [
@@ -20609,7 +18629,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "textarea",
                         {
-                          "onUpdate:modelValue": _cache[38] || (_cache[38] = ($event) => skillDraft.allowedTools = $event),
+                          "onUpdate:modelValue": _cache[26] || (_cache[26] = ($event) => skillDraft.allowedTools = $event),
                           class: "mda-model-input is-code",
                           rows: "3"
                         },
@@ -20621,7 +18641,7 @@ ${result.rawText}` : ""
                       ])
                     ]),
                     createBaseVNode("label", null, [
-                      _cache[100] || (_cache[100] = createBaseVNode(
+                      _cache[73] || (_cache[73] = createBaseVNode(
                         "span",
                         null,
                         "Skill 指令",
@@ -20631,7 +18651,7 @@ ${result.rawText}` : ""
                       withDirectives(createBaseVNode(
                         "textarea",
                         {
-                          "onUpdate:modelValue": _cache[39] || (_cache[39] = ($event) => skillDraft.instructions = $event),
+                          "onUpdate:modelValue": _cache[27] || (_cache[27] = ($event) => skillDraft.instructions = $event),
                           class: "mda-model-input is-code",
                           rows: "12"
                         },
@@ -20644,7 +18664,7 @@ ${result.rawText}` : ""
                     ])
                   ]))
                 ]),
-                createBaseVNode("footer", _hoisted_93, [
+                createBaseVNode("footer", _hoisted_78, [
                   createBaseVNode("button", {
                     type: "button",
                     onClick: closeExtensionEditor
@@ -20654,9 +18674,9 @@ ${result.rawText}` : ""
                     type: "button",
                     disabled: unref(memory).saving,
                     onClick: saveExtension
-                  }, toDisplayString(unref(memory).saving ? "保存中..." : "保存并重载"), 9, _hoisted_94)
+                  }, toDisplayString(unref(memory).saving ? "保存中..." : "保存并重载"), 9, _hoisted_79)
                 ])
-              ], 8, _hoisted_83)
+              ], 8, _hoisted_68)
             ])) : createCommentVNode("v-if", true)
           ]))
         ], 10, _hoisted_1$1)) : createCommentVNode("v-if", true);
@@ -20806,7 +18826,6 @@ ${result.rawText}` : ""
       appUiStore: useAppUiStore(pinia),
       chatStore: useChatStore(pinia),
       composerStore: useComposerStore(pinia),
-      modelStore: useModelStore(pinia),
       projectStore: useProjectStore(pinia),
       requestStore: useRequestStore(pinia),
       routeStore: useRouteStore(pinia),

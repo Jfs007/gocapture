@@ -18,10 +18,6 @@
           <GoCaptureIcon name="search" :size="17" />
           <input type="text" placeholder="搜索设置..." disabled>
         </label>
-        <div class="mda-settings-group-label">Agent</div>
-        <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'locator' }" @click="tab = 'locator'">
-          <GoCaptureIcon name="search" :size="17" />Locator
-        </button>
         <div class="mda-settings-group-label">项目</div>
         <button class="mda-settings-nav" type="button" :class="{ 'is-active': tab === 'assets' }" @click="tab = 'assets'">
           <GoCaptureIcon name="images" :size="17" />选区资产
@@ -66,71 +62,7 @@
       <div v-if="memoryDependent && (memory.message || memory.error)" class="mda-memory-feedback" :class="{ 'is-error': !!memory.error }">
         {{ memory.error || memory.message }}
       </div>
-      <template v-if="tab === 'locator'">
-        <div class="mda-locator-settings">
-          <div class="mda-locator-settings-intro">
-            <div>
-              <strong>Locator 专用模型</strong>
-              <p>可选。使用成本更低的模型先定位源码，再把精确位置交给关联 Agent，可减少主 Agent 的检索轮次和 Token 消耗。未配置时由关联 Agent 完成定位和开发。</p>
-            </div>
-            <span :class="{ 'is-enabled': !!locatorSelectedModel }">
-              {{ locatorSelectedModel ? '已启用' : '由 Agent 处理' }}
-            </span>
-          </div>
-
-          <div class="mda-locator-choice" role="radiogroup" aria-label="Locator 定位方式">
-            <span class="mda-locator-choice-label">定位方式</span>
-            <button
-              class="mda-locator-option"
-              :class="{ 'is-selected': !locatorSelectedId }"
-              type="button"
-              role="radio"
-              :aria-checked="String(!locatorSelectedId)"
-              @click="chooseLocatorModel('')"
-            >
-              <i class="mda-locator-radio" aria-hidden="true" />
-              <span>
-                <strong>由开发 Agent 处理</strong>
-                <small>不单独运行 Locator 模型</small>
-              </span>
-            </button>
-            <div v-for="item in locatorModels" :key="item.id" class="mda-locator-option-row">
-              <button
-                class="mda-locator-option"
-                :class="{ 'is-selected': locatorSelectedId === item.id }"
-                type="button"
-                role="radio"
-                :aria-checked="String(locatorSelectedId === item.id)"
-                @click="chooseLocatorModel(item.id)"
-              >
-                <i class="mda-locator-radio" aria-hidden="true" />
-                <span>
-                  <strong>{{ item.name }}</strong>
-                  <small>{{ item.model }}{{ item.endpoint ? ` · ${item.endpoint}` : '' }}</small>
-                </span>
-              </button>
-              <button
-                class="mda-locator-option-edit"
-                type="button"
-                :aria-label="`编辑 ${item.name}`"
-                :title="`编辑 ${item.name}`"
-                @click="editLocatorModel(item)"
-              >
-                <GoCaptureIcon name="settings" :size="17" />
-              </button>
-            </div>
-          </div>
-
-          <div class="mda-locator-add-row">
-            <button type="button" @click="editLocatorModel(null)">
-              <GoCaptureIcon name="add" :size="16" />
-              <span>添加 Locator 模型</span>
-            </button>
-          </div>
-        </div>
-      </template>
-
-      <template v-else-if="tab === 'assets'">
+      <template v-if="tab === 'assets'">
         <div v-if="!selectionAssets.length" class="mda-memory-empty">当前页面暂无选区资产。</div>
         <div v-else class="mda-settings-assets">
           <button
@@ -312,60 +244,6 @@
     </div>
     <Teleport to="body">
       <div
-        v-if="locatorEditorExpanded"
-        class="mda-model-modal"
-        role="presentation"
-        @click.self="locatorEditorExpanded = false"
-      >
-        <section class="mda-model-editor" role="dialog" aria-modal="true" aria-label="Locator 模型配置">
-          <header class="mda-model-editor-head">
-            <div>
-              <strong>Locator 模型</strong>
-              <p>仅用于源码定位；保存后立即应用到当前页面。</p>
-            </div>
-            <button class="mda-model-close" type="button" aria-label="关闭" @click="locatorEditorExpanded = false">
-              <GoCaptureIcon name="close" :size="18" />
-            </button>
-          </header>
-          <div class="mda-model-editor-body">
-            <div class="mda-model-grid">
-              <label>
-                <span>名称</span>
-                <input v-model="locatorForm.name" class="mda-model-input" type="text">
-              </label>
-              <label>
-                <span>Model</span>
-                <select v-model="locatorForm.model" class="mda-model-input">
-                  <option value="deepseek-v4-pro">deepseek-v4-pro</option>
-                  <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-                </select>
-              </label>
-              <label class="is-wide">
-                <span>Endpoint</span>
-                <input v-model="locatorForm.endpoint" class="mda-model-input" type="text">
-              </label>
-              <label class="is-wide">
-                <span>API Key</span>
-                <input v-model="locatorForm.apiKey" class="mda-model-input" type="password">
-              </label>
-              <label class="is-wide">
-                <span>代理地址</span>
-                <input v-model="locatorForm.proxyUrl" class="mda-model-input" type="text" placeholder="可留空">
-              </label>
-              <label>
-                <span>超时（毫秒）</span>
-                <input v-model.number="locatorForm.timeoutMs" class="mda-model-input" type="number" min="5000" step="1000">
-              </label>
-            </div>
-          </div>
-          <footer class="mda-model-actions">
-            <button v-if="locatorEditingId && locatorEditingId === locatorSelectedId" class="mda-model-delete" type="button" @click="removeLocatorModel">删除</button>
-            <button type="button" @click="locatorEditorExpanded = false">取消</button>
-            <button class="is-primary" type="button" @click="saveLocatorModel">保存并启用</button>
-          </footer>
-        </section>
-      </div>
-      <div
         v-if="activeSelectionAsset"
         class="mda-asset-detail-modal"
         role="presentation"
@@ -524,7 +402,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, unref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import GoCaptureIcon from '../common/GoCaptureIcon.vue';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useMemoryStore } from '../../stores/memory.store';
@@ -533,10 +411,8 @@ import { PRODUCT_NAME } from '../../app/config/product';
 
 const props = withDefaults(defineProps<{
   mode?: 'panel' | 'page';
-  modelRuntime?: Record<string, any> | null;
 }>(), {
-  mode: 'panel',
-  modelRuntime: null
+  mode: 'panel'
 });
 defineEmits<{
   (event: 'back'): void;
@@ -547,13 +423,11 @@ const memory = useMemoryStore();
 const appUi = useAppUiStore();
 const selectionStore = useSelectionStore();
 const requestedSection = new URLSearchParams(window.location.search).get('section');
-const allowedSections = new Set(['locator', 'assets', 'tools', 'project']);
-const initialTab: 'locator' | 'assets' | 'tools' | 'project' = allowedSections.has(String(requestedSection))
-  ? requestedSection as 'locator' | 'assets' | 'tools' | 'project'
-  : 'locator';
-const tab = ref<'locator' | 'assets' | 'experiences' | 'tools' | 'project'>(initialTab);
-const locatorEditorExpanded = ref(false);
-const locatorEditingId = ref('');
+const allowedSections = new Set(['assets', 'tools', 'project']);
+const initialTab: 'assets' | 'tools' | 'project' = allowedSections.has(String(requestedSection))
+  ? requestedSection as 'assets' | 'tools' | 'project'
+  : 'assets';
+const tab = ref<'assets' | 'experiences' | 'tools' | 'project'>(initialTab);
 const activeSelectionAsset = ref<any | null>(null);
 const extensionEditor = ref<{ kind: 'mcp' | 'skill' } | null>(null);
 const experienceId = ref('');
@@ -586,10 +460,6 @@ const nativeCapabilities = computed(() => agentExtensions.value?.nativeCapabilit
 const agentTools = computed(() => agentExtensions.value?.tools || []);
 const mcpServers = computed(() => agentExtensions.value?.mcpServers || []);
 const agentSkills = computed(() => agentExtensions.value?.skills || []);
-const locatorModels = computed(() => unref(props.modelRuntime?.modelConfigs) || []);
-const locatorSelectedId = computed(() => String(unref(props.modelRuntime?.selectedModelId) || ''));
-const locatorSelectedModel = computed(() => unref(props.modelRuntime?.selectedModel) || null);
-const locatorForm = computed(() => unref(props.modelRuntime?.modelForm) || {});
 const selectionAssets = computed(() => selectionStore.promptAssets || []);
 const activeExperience = computed(() => experiences.value.find((item: any) => item.componentPath === experienceId.value) || null);
 const projectLabel = computed(() => memory.snapshot?.project?.name || '当前源码项目');
@@ -597,17 +467,12 @@ const isPage = computed(() => props.mode === 'page');
 const visible = computed(() => isPage.value || memory.open);
 const memoryDependent = computed(() => tab.value === 'tools' || tab.value === 'project');
 const activeTitle = computed(() => {
-  if (tab.value === 'locator') return 'Locator';
   if (tab.value === 'assets') return '选区资产';
   if (tab.value === 'experiences') return 'Experience';
   if (tab.value === 'tools') return 'Agent 能力';
   return '项目摘要';
 });
 
-function chooseLocatorModel(id: string) {
-  if (id) props.modelRuntime?.selectModelAndEnable?.(id);
-  else props.modelRuntime?.disableModelAssist?.();
-}
 
 function showExperienceComingSoon() {
   appUi.setToast('Experience 功能开发中');
@@ -698,25 +563,6 @@ async function removeSkill(skill: any) {
 async function reloadAgentExtensions() {
   const ok = await memory.reloadExtensions();
   if (ok) appUi.setToast(memory.message);
-}
-
-function editLocatorModel(model: any) {
-  if (model) props.modelRuntime?.openModelEditor?.(model);
-  else props.modelRuntime?.openProviderModelEditor?.('deepseek');
-  locatorEditingId.value = String(model?.id || '');
-  locatorEditorExpanded.value = true;
-}
-
-function saveLocatorModel() {
-  props.modelRuntime?.saveModelForm?.();
-  locatorEditingId.value = '';
-  locatorEditorExpanded.value = false;
-}
-
-function removeLocatorModel() {
-  props.modelRuntime?.removeSelectedModel?.();
-  locatorEditingId.value = '';
-  locatorEditorExpanded.value = false;
 }
 
 watch(experiences, value => {

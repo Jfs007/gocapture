@@ -119,19 +119,6 @@
               </span>
               <b>重新选择</b>
             </button>
-            <button class="mda-locator-optional-row" type="button" @click="commands.openSettings('locator')">
-              <span>
-                <strong>Locator</strong>
-                <small>可选前置定位；未配置时由开发 Agent 完成全部工作</small>
-              </span>
-              <b>配置可选优化</b>
-              <span class="mda-locator-card-help">
-                为什么配置？
-                <span class="mda-locator-help-tip" role="tooltip">
-                  可用成本更低的模型先定位源码，再把位置交给开发 Agent，从而减少主 Agent 的检索轮次和 Token 消耗。它不是必需步骤。
-                </span>
-              </span>
-            </button>
           </div>
           <time
             v-if="message.createdAt"

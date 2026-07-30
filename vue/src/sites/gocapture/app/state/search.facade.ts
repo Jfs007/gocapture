@@ -1,7 +1,6 @@
 import { computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useComposerStore } from '../../stores/composer.store';
-import { useModelStore } from '../../stores/model.store';
 import { useRequestStore } from '../../stores/request.store';
 import { useRouteStore } from '../../stores/route.store';
 import { useSearchStore } from '../../stores/search.store';
@@ -9,7 +8,6 @@ import { useSelectionStore } from '../../stores/selection.store';
 
 export function useSearchFacade() {
   const composerStore = useComposerStore();
-  const modelStore = useModelStore();
   const requestStore = useRequestStore();
   const routeStore = useRouteStore();
   const searchStore = useSearchStore();
@@ -38,7 +36,6 @@ export function useSearchFacade() {
   const { resolverTrace: routeResolverTrace } = storeToRefs(routeStore);
   const { recent: recentRequests } = storeToRefs(requestStore);
   const { filesConfirmed } = storeToRefs(selectionStore);
-  const modelAssistLoading = computed(() => modelStore.status === 'running');
 
   const searchApiRequests = computed(() => includeApiEvidence.value ? recentRequests.value.slice(0, 5) : []);
   const selectedCandidateHits = computed(() => {
@@ -55,9 +52,9 @@ export function useSearchFacade() {
     if (serverNeedsMoreEvidence.value) return true;
     return candidateHits.value.length > 1 && !filesConfirmed.value && !hasReliableCandidateEvidence.value;
   });
-  const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistLoading.value && !modelAssistAttempted.value);
+  const needsMoreEvidence = computed(() => localNeedsMoreEvidence.value && !modelAssistAttempted.value);
   const showCandidatePicker = computed(() => {
-    return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value && !modelAssistLoading.value;
+    return candidateHits.value.length > 1 && !filesConfirmed.value && !localNeedsMoreEvidence.value;
   });
 
   watch([candidateLoading, searchRunning, candidateError, candidateHits], ([loading, running, error]) => {
@@ -90,7 +87,6 @@ export function useSearchFacade() {
     expandedCandidatePath.value = '';
     selectionStore.filesConfirmed = false;
     modelAssistAttempted.value = false;
-    modelStore.reset();
     composerStore.setFinalPrompt('');
   }
 

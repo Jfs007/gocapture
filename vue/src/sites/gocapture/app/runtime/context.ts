@@ -19,7 +19,6 @@ export interface GoCaptureRuntimeState {
   composer: any;
   bridge: any;
   prompt: any;
-  model: any;
   message: any;
 }
 

@@ -1605,7 +1605,7 @@
         uid,
         tag: next.tagName?.toLowerCase?.() || '',
         className: getClassName(next),
-        text: normalizeText(next.innerText || next.textContent || '').slice(0, 80),
+        text: compactText(next.innerText || next.textContent || '', 80),
         ...runtimeDebug,
       };
     }

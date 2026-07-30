@@ -2,9 +2,27 @@
 
 // Locator 的确定性前置阶段。这里只整理项目、可用运行上下文、DOM 和已捕获事实，
 // 不判断渲染归属，也不生成候选结论。
+const fs = require('fs');
+const path = require('path');
 const { resolvePageRouteTrace } = require('../route-resolvers/registry');
 const { plannerDomInput } = require('../dom');
-const { readProjectStructure } = require('../agents/locator/prompt');
+
+const MAX_STRUCTURE_CHARS = 24000;
+const MAX_FALLBACK_PATHS = 500;
+
+// 项目结构：优先读 .gocapture/Structure.md，缺失时回退为文件路径清单。
+function readProjectStructure(project) {
+  const structurePath = path.join(project.path, '.gocapture', 'Structure.md');
+  try {
+    const text = fs.readFileSync(structurePath, 'utf8').trim();
+    if (text) return text.slice(0, MAX_STRUCTURE_CHARS);
+  } catch (error) {
+  }
+  return (project.files || [])
+    .slice(0, MAX_FALLBACK_PATHS)
+    .map(file => file.path)
+    .join('\n');
+}
 
 function routeFactsFromResult(body, routeResult) {
   return {
