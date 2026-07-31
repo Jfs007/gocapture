@@ -24,7 +24,6 @@ export default defineConfig({
     nav: [
       { text: '快速开始', link: '/guide/quick-start' },
       { text: '使用指南', link: '/guide/' },
-      { text: '配置', link: '/guide/config' },
       { text: 'Gitee', link: 'https://gitee.com/senruo/magnus' }
     ],
     sidebar: {
@@ -33,19 +32,7 @@ export default defineConfig({
           text: '使用 GoCapture',
           items: [
             { text: '产品概览', link: '/guide/' },
-            { text: '快速上手', link: '/guide/quick-start' },
-            { text: '项目与 Agent 配置', link: '/guide/config' },
-            { text: '部署到 GitHub Pages', link: '/guide/deploy-github' },
-            { text: '从 Gitee 部署', link: '/guide/deploy-gitee' },
-          ]
-        },
-        {
-          text: '开发与原理',
-          collapsed: true,
-          items: [
-            { text: '架构', link: '/guide/architecture' },
-            { text: '工程化 App 打包', link: '/guide/app-build' },
-            { text: '源码定位规则', link: '/guide/source-locate-rules' }
+            { text: '快速上手', link: '/guide/quick-start' }
           ]
         }
       ],

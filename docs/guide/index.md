@@ -59,5 +59,3 @@ Locator 是可选优化，不是使用 GoCapture 的前置条件。
 ## 下一步
 
 - [安装并完成第一个任务](/guide/quick-start)
-- [配置项目、Agent 和 Locator](/guide/config)
-- [将文档发布到 GitHub Pages](/guide/deploy-github)
