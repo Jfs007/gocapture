@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildLocatorEvidencePackage } = require('../../search/locator-evidence');
+const { buildLocatorEvidencePackage } = require('../../connect-agent/locator-evidence');
 const { loadProjectMessages } = require('../../connect-agent/message-store');
 const {
   deleteProjectSelectionLocations,

@@ -44,14 +44,12 @@ import { useGoCaptureCommands } from '../../app/runtime/commands';
 import { useComposerStore } from '../../stores/composer.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { useProjectStore } from '../../stores/project.store';
-import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 
 const commands = useGoCaptureCommands();
 const composerStore = useComposerStore();
 const connectAgentStore = useConnectAgentStore();
 const projectStore = useProjectStore();
-const searchStore = useSearchStore();
 const selectionStore = useSelectionStore();
 const inputRef = ref(null);
 const shortcutMenuRef = ref(null);
@@ -72,7 +70,6 @@ const composerPlaceholder = computed(() => {
     return connectAgentStore.pendingInteraction?.questions?.[0]?.question || '回答 Agent 的问题';
   }
   if (!selectionStore.items.length) return '移动鼠标高亮页面区域，按空格键添加选区';
-  if (searchStore.showCandidatePicker) return '请选择候选文件后继续';
   return '输入修改要求，可用 @选区 或 @选区1 引用已选区';
 });
 const promptAssets = computed(() => selectionStore.promptAssets);

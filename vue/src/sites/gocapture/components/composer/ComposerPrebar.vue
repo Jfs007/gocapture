@@ -1,16 +1,6 @@
 <template>
   <div class="mda-composer-prebar">
     <div class="mda-composer-prebar-main">
-      <button
-        class="mda-assist-chip"
-        :class="{ 'is-active': includeApiEvidence }"
-        type="button"
-        :disabled="candidateLoading || !!promptText"
-        @click="toggleApiEvidence"
-      >
-        <span class="mda-chip-shield" />
-        <span>接口线索</span>
-      </button>
       <div v-if="promptAssets.length" class="mda-asset-strip">
         <article
           v-for="asset in promptAssets"
@@ -39,25 +29,13 @@
 <script setup>
 import { computed } from 'vue';
 import { useGoCaptureCommands } from '../../app/runtime/commands';
-import { useComposerStore } from '../../stores/composer.store';
-import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
 
 defineEmits(['insert-asset']);
 
 const commands = useGoCaptureCommands();
-const composerStore = useComposerStore();
-const searchStore = useSearchStore();
 const selectionStore = useSelectionStore();
 const promptAssets = computed(() => selectionStore.promptAssets);
-const includeApiEvidence = computed(() => searchStore.includeApiEvidence);
-const candidateLoading = computed(() => searchStore.status === 'loading');
-const promptText = computed(() => composerStore.finalPrompt);
-
-function toggleApiEvidence() {
-  commands.setIncludeApiEvidence(!includeApiEvidence.value);
-  commands.onSearchOptionChange();
-}
 
 function assetTooltip(asset) {
   if (!asset) return '';

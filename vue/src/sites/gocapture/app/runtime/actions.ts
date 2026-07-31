@@ -5,7 +5,7 @@ import { useAppUiStore } from '../../stores/app-ui.store';
 import type { GoCaptureActions, GoCaptureRuntimeState } from './context';
 
 export function createGoCaptureActions(state: GoCaptureRuntimeState): GoCaptureActions {
-  const { api, currentPageHref, source, search, selection } = state;
+  const { api, currentPageHref, source, selection } = state;
   const workflow = createComposerWorkflow(state);
 
   return {
@@ -20,13 +20,7 @@ export function createGoCaptureActions(state: GoCaptureRuntimeState): GoCaptureA
     openSourceFile,
     openSettings: (section?: string) => openSettings(api, currentPageHref?.value || '', section),
     rebindSidePanel,
-    copyTextWithToast,
-    toggleCandidateFile: (hit: any) => toggleCandidateFile(hit, search, selection),
-    toggleCandidateDetail: (hit: any) => toggleCandidateDetail(hit, search),
-    setIncludeApiEvidence: (value: boolean) => {
-      search.includeApiEvidence.value = !!value;
-    },
-    onSearchOptionChange: () => search.clearCandidateState()
+    copyTextWithToast
   };
 }
 
@@ -79,20 +73,6 @@ async function openSourceFile(file: string, line?: number, column?: number) {
   } catch (error: any) {
     appUiStore.setToast(error.message || '打开源码文件失败');
   }
-}
-
-function toggleCandidateFile(hit: any, search: any, selection: any) {
-  if (!hit) return;
-  const selected = new Set(search.selectedCandidatePaths.value);
-  if (selected.has(hit.file)) selected.delete(hit.file);
-  else selected.add(hit.file);
-  search.selectedCandidatePaths.value = Array.from(selected);
-  search.invalidateCandidateConfirm();
-}
-
-function toggleCandidateDetail(hit: any, search: any) {
-  if (!hit) return;
-  search.expandedCandidatePath.value = search.expandedCandidatePath.value === hit.file ? '' : hit.file;
 }
 
 function copyTextWithToast(text: string) {

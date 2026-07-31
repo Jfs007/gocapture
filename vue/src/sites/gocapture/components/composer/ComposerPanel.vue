@@ -1,14 +1,7 @@
 <template>
   <section class="mda-composer-wrap">
     <div class="mda-result-module">
-      <div v-if="hasResultModule" class="mda-result-module-head">
-        <span class="mda-result-module-title">定位与修改计划</span>
-        <button class="mda-collapse-btn" type="button" @click="resultModuleCollapsed = !resultModuleCollapsed">
-          {{ resultModuleCollapsed ? '展开' : '收起' }}
-        </button>
-      </div>
-      <div v-show="!(hasResultModule && resultModuleCollapsed)" class="mda-result-module-body">
-        <CandidateOptions />
+      <div class="mda-result-module-body">
         <ComposerPrebar @insert-asset="handleAssetInsert" />
       </div>
     </div>
@@ -61,7 +54,6 @@
             @click="commands.sendRequest"
           >
             <span v-if="connectAgentStore.taskRunning && !connectAgentStore.taskAwaitingInput" class="mda-stop-icon" />
-            <span v-else-if="candidateLoading">检索</span>
             <span v-else class="mda-send-arrow" />
           </button>
         </div>
@@ -97,9 +89,7 @@ import { useComposerStore } from '../../stores/composer.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import { useProjectStore } from '../../stores/project.store';
 import { useRouteStore } from '../../stores/route.store';
-import { useSearchStore } from '../../stores/search.store';
 import { useSelectionStore } from '../../stores/selection.store';
-import CandidateOptions from './CandidateOptions.vue';
 import ComposerInput from './ComposerInput.vue';
 import ComposerPrebar from './ComposerPrebar.vue';
 
@@ -112,14 +102,8 @@ const composerStore = useComposerStore();
 const connectAgentStore = useConnectAgentStore();
 const projectStore = useProjectStore();
 const routeStore = useRouteStore();
-const searchStore = useSearchStore();
 const selectionStore = useSelectionStore();
 
-const candidateLoading = computed(() => searchStore.status === 'loading');
-const resultModuleCollapsed = ref(false);
-// 有定位/组合/修改计划结果时，才显示「整块收起」头部（prebar 在无结果时仍正常展示）。
-const hasResultModule = computed(() =>
-  (searchStore.candidates?.length || 0) > 0 || !!searchStore.composite || !!searchStore.changePlan);
 const selectedItems = computed(() => selectionStore.items);
 const project = computed(() => projectStore.current);
 const routeResolverTrace = computed(() => routeStore.resolverTrace);
@@ -139,14 +123,10 @@ const interactionOptions = computed(() =>
 const composerCanSend = computed(() => {
   if (connectAgentStore.taskAwaitingInput) return composerStore.trimmedContent.length > 0;
   if (connectAgentStore.taskRunning) return true;
-  if (candidateLoading.value) return false;
   if (!project.value) return false;
   if (!connectAgentStore.activeProvider?.connected) return false;
   if (connectAgentStore.activeProvider.requiresThreadBinding
     && !connectAgentStore.activeProvider.projectThreadId) return false;
-  if (searchStore.showCandidatePicker && /@(?:\[)?选区/.test(composerStore.trimmedContent)) {
-    return searchStore.selectedCandidates.length > 0;
-  }
   return composerStore.trimmedContent.length > 0;
 });
 

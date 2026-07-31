@@ -3,7 +3,7 @@
 // Skills 加载：对齐市面 SKILL.md 约定（frontmatter + markdown 正文）。
 //   <project>/.gocapture/skills/<name>/SKILL.md   +   ~/.gocapture/skills/<name>/SKILL.md
 // frontmatter：name / description / allowed-tools。项目级同名优先于用户级。
-// 注意：Skill 与 GoCapture 的 Experience 是两回事，互不混用（见 agent-host/README 边界）。
+// 注意：Skill 与 GoCapture 的 Experience 是两回事，互不混用。
 
 const fs = require('fs');
 const os = require('os');

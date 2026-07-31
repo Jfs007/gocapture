@@ -1,8 +1,8 @@
 'use strict';
 
 const { z } = require('zod');
-const { loadMcpLangChainTools } = require('../../agent-host/langchain/mcp-runtime');
-const { loadSkills } = require('../../agent-host/skills/loader');
+const { loadMcpLangChainTools } = require('../mcp/runtime');
+const { loadSkills } = require('../skills-loader');
 
 async function createProjectExtensionSession(project, options = {}) {
   const onEvent = typeof options.onEvent === 'function' ? options.onEvent : () => {};

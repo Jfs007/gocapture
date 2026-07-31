@@ -15,10 +15,6 @@ export interface GoCaptureCommands {
   expandSelection(id: string): Promise<void>;
   removeSelection(id: string): Promise<void>;
   clearSelections(): Promise<void>;
-  toggleCandidateFile(hit: any): void;
-  toggleCandidateDetail(hit: any): void;
-  setIncludeApiEvidence(value: boolean): void;
-  onSearchOptionChange(): void;
 }
 
 const GOCAPTURE_COMMANDS_KEY = Symbol('gocapture.commands');

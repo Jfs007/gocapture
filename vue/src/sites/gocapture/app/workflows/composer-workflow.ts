@@ -1,8 +1,3 @@
-import { sourceServerNdjson } from '../services/source-service';
-import {
-  candidateHitsFromBindings,
-  sourceTargetsFromCandidates
-} from '../services/selection-source-context';
 import { useAppUiStore } from '../../stores/app-ui.store';
 import { useConnectAgentStore } from '../../stores/connect-agent.store';
 import {
@@ -11,7 +6,6 @@ import {
 } from '../services/connect-agent.service';
 import type { GoCaptureRuntimeState } from '../runtime/context';
 import { PRODUCT_NAME } from '../config/product';
-import type { SelectionSourceBinding } from '../types/selection.types';
 
 export function createComposerWorkflow(state: GoCaptureRuntimeState) {
   const { source, route, search, selection, composer, prompt } = state;
@@ -87,7 +81,6 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
       await runConnectedAgent(instruction, [], { freeChat: true });
       return;
     }
-    if (await reuseSelectionSourceContext(instruction)) return;
     if (!selection.confirmSelectionContext(composer.invalidatePrompt)) return;
     await runConnectedAgentFromLocalEvidence(instruction);
   }
@@ -96,8 +89,8 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
     lastOriginSelections = captureOriginSelections(instruction);
     search.clearCandidateState?.();
     search.processLogs.value = [
-      `Locator 专用模型未配置：跳过 ${PRODUCT_NAME} Locator Agent`,
-      '先整理路由、压缩 DOM 和已捕获页面事实，再交给关联 Agent'
+      `${PRODUCT_NAME} 前置定位：整理路由事实、压缩 DOM 和已捕获页面事实`,
+      '完成后交给关联 Agent 自行定位并开发（Evidence Gate：证据不足时扩区）'
     ];
     search.searchStartedAt.value = Date.now();
     search.searchFinishedAt.value = 0;
@@ -131,31 +124,6 @@ export function createComposerWorkflow(state: GoCaptureRuntimeState) {
 
   function projectRoot() {
     return String(source.project.value?.path || source.project.value?.root || '').trim();
-  }
-
-  async function reuseSelectionSourceContext(userInstruction: string) {
-    const bindings = selection.reusableSourceBindings(userInstruction, projectRoot());
-    if (!bindings.length) return false;
-    search.candidateHits.value = candidateHitsFromBindings(bindings);
-    if (!search.candidateHits.value.length) return false;
-    search.selectedCandidatePaths.value = search.candidateHits.value.map((hit: any) => hit.file);
-    search.candidateError.value = '';
-    search.processLogs.value = [
-      `复用选区源码上下文：${bindings.map((item: any) => item.uid).join('、')}`,
-      '已跳过 DOM Agent、本地源码检索和源码定位模型'
-    ];
-    search.searchRunning.value = false;
-    search.candidateLoading.value = false;
-    search.searchStartedAt.value = Date.now();
-    search.searchFinishedAt.value = 0;
-    selection.filesConfirmed.value = false;
-    if (await runConnectedAgent(userInstruction, bindings)) {
-      search.searchFinishedAt.value = Date.now();
-      selection.filesConfirmed.value = true;
-      return true;
-    }
-    search.searchFinishedAt.value = Date.now();
-    return false;
   }
 
   async function runConnectedAgent(

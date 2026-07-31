@@ -3,8 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const { AGENT_TOOL_DEFINITIONS } = require('./core/agent-tool-session');
-const { loadMcpServers } = require('../agent-host/mcp/config');
-const { loadSkills } = require('../agent-host/skills/loader');
+const { loadMcpServers } = require('./mcp/config');
+const { loadSkills } = require('./skills-loader');
 
 const SAFE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -48,12 +48,28 @@ function projectMcpNames(project) {
 }
 
 function redactRecord(value) {
+  if (Array.isArray(value)) return value.map(item => redactRecord(item));
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).map(([key, child]) => {
     if (/key|token|secret|authorization/i.test(key)) return [key, child ? '已配置' : ''];
     if (child && typeof child === 'object') return [key, redactRecord(child)];
     return [key, child];
   }));
+}
+
+// 从规范化后的 server 还原「.mcp.json 里那一段原始条目」，供前端 JSON 编辑器直接展示/编辑。
+function mcpRawEntry(server) {
+  if (server.transport === 'stdio') {
+    const entry = { command: server.command };
+    if (Array.isArray(server.args) && server.args.length) entry.args = server.args;
+    if (server.env && Object.keys(server.env).length) entry.env = server.env;
+    if (server.cwd) entry.cwd = server.cwd;
+    return entry;
+  }
+  const entry = { url: server.url };
+  if (server.transport && server.transport !== 'http') entry.transport = server.transport;
+  if (server.headers && Object.keys(server.headers).length) entry.headers = server.headers;
+  return entry;
 }
 
 function listProjectExtensions(project, provider = null) {
@@ -67,7 +83,8 @@ function listProjectExtensions(project, provider = null) {
     summary: server.transport === 'stdio'
       ? `${server.command} ${(server.args || []).join(' ')}`.trim()
       : `${server.transport || 'http'} ${server.url || ''}`.trim(),
-    config: redactRecord(server),
+    // config = 该 server 在 .mcp.json 里的原始条目（密钥脱敏），前端直接当 JSON 编辑。
+    config: redactRecord(mcpRawEntry(server)),
   }));
   const skills = loadSkills(root).map(skill => ({
     name: skill.name,
@@ -107,37 +124,30 @@ function listProjectExtensions(project, provider = null) {
   };
 }
 
+// 前端 JSON 编辑器：直接接收该 server 的 .mcp.json 原始条目（input.config）。
 function saveProjectMcp(project, input = {}) {
   const name = assertSafeName(input.name, 'MCP');
-  const transport = String(input.transport || '').trim() || (input.command ? 'stdio' : 'http');
+  const raw = input.config;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('MCP 配置必须是一个 JSON 对象，例如 {"command":"npx","args":["-y","pkg"]}');
+  }
+  const command = String(raw.command || '').trim();
+  const url = String(raw.url || '').trim();
+  if (!command && !url) {
+    throw new Error('MCP 配置必须包含 command（本地 stdio）或 url（远程）');
+  }
+  if (url && !/^https?:\/\//i.test(url)) {
+    throw new Error('远程 MCP 的 url 必须是 http/https');
+  }
   const file = projectMcpFile(project);
   const config = readJson(file);
   const existing = config?.mcpServers?.[name] && typeof config.mcpServers[name] === 'object'
     ? config.mcpServers[name]
     : {};
-  let definition;
-  if (transport === 'stdio') {
-    const command = String(input.command || '').trim();
-    if (!command) throw new Error('stdio MCP 必须填写 command');
-    definition = {
-      command,
-      args: toStringList(input.args),
-      ...((input.env && typeof input.env === 'object') || existing.env
-        ? { env: restoreConfiguredValues(input.env ?? existing.env, existing.env) }
-        : {}),
-      ...(String(input.cwd || '').trim() ? { cwd: String(input.cwd).trim() } : {}),
-    };
-  } else {
-    const url = String(input.url || '').trim();
-    if (!/^https?:\/\//i.test(url)) throw new Error('远程 MCP 必须填写 http/https URL');
-    definition = {
-      url,
-      transport,
-      ...((input.headers && typeof input.headers === 'object') || existing.headers
-        ? { headers: restoreConfiguredValues(input.headers ?? existing.headers, existing.headers) }
-        : {}),
-    };
-  }
+  // name/kind/source/summary 只是列表展示字段，不属于 .mcp.json 条目；顺手剔除。
+  const { name: _n, kind: _k, source: _s, summary: _m, ...entry } = raw;
+  // 恢复被脱敏成「已配置」的密钥（env/headers/token 等），避免保存时把真实值覆盖没。
+  const definition = restoreConfiguredValues(entry, existing);
   config.mcpServers = {
     ...(config.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : {}),
     [name]: definition,

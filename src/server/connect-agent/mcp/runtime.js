@@ -1,7 +1,7 @@
 'use strict';
 
-const { loadMcpServers } = require('../mcp/config');
-const { isMcpProviderStopped, markMcpServerStatus } = require('../mcp/bootstrap');
+const { loadMcpServers } = require('./config');
+const { isMcpProviderStopped, markMcpServerStatus } = require('./bootstrap');
 
 function tryRequire(moduleName) {
   try {

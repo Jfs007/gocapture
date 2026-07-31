@@ -1,6 +1,6 @@
 {
   "name": "@sep-agent/gocapture",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "description": "GoCapture —— 本地源码定位、开发 Agent 连接服务与 Chrome 扩展。",
   "scripts": {

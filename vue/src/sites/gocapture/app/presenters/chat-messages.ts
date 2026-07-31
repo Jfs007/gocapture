@@ -21,17 +21,8 @@ export function useChatMessages() {
     serviceMessage: sourceServiceMessage
   } = storeToRefs(projectStore);
   const {
-    candidates: candidateHits,
-    candidateLoading,
-    searchRunning,
-    includeApiEvidence,
-    needsMoreEvidence,
     startedAt: searchStartedAt,
     finishedAt: searchFinishedAt
-  } = storeToRefs(searchStore);
-  const {
-    processLogs: searchProcessLogs,
-    agentUsed: searchAgentUsed
   } = storeToRefs(searchStore);
   const {
     confirmed: selectionConfirmed,
@@ -46,7 +37,7 @@ export function useChatMessages() {
     assetInfo: item.asset || item.element || {},
     thumbnailUrl: item.thumbnailUrl || ''
   })));
-  const { selectionChatSummary, searchLogLines } = prompt;
+  const { selectionChatSummary } = prompt;
   const sourceServiceText = computed(() => {
     if (sourceServiceStatus.value === 'loading') return sourceServiceMessage.value || '正在连接本地源码服务...';
     if (sourceServiceStatus.value === 'connected') return '已连接本地源码服务，可读取真实源码路径';
@@ -170,73 +161,6 @@ export function useChatMessages() {
         id: `custom-evidence-${index}`,
         role: 'user',
         text
-      });
-    }
-
-    if (searchRunning?.value) {
-      messages.push({
-        id: 'searching',
-        role: searchAgentUsed.value ? 'agent' : 'system',
-        title: searchAgentUsed.value ? 'DOM 源码定位 Agent' : '源码检索',
-        text: searchAgentUsed.value
-          ? '正在让模型生成检索计划，并由本地执行候选检索和源码事实对照。'
-          : includeApiEvidence.value ? '正在基于选区和接口端点追踪候选文件。' : '正在基于选区文案、className 和页面路径检索候选文件。',
-        logs: searchProcessLogs.value || [],
-        durationStartedAt: searchStartedAt?.value || 0,
-        durationFinishedAt: searchFinishedAt?.value || 0,
-        durationActive: true,
-        logExpanded: true
-      });
-    } else if ((searchFinishedAt?.value || 0) > 0) {
-      messages.push({
-        id: 'search-log',
-        role: searchAgentUsed.value ? 'agent' : 'system',
-        title: searchAgentUsed.value ? 'DOM 源码定位 Agent' : '源码检索',
-        text: candidateHits.value.length ? `找到 ${candidateHits.value.length} 个候选文件。` : '未命中候选文件。',
-        logs: [
-          ...(searchProcessLogs.value || []),
-          ...searchLogLines()
-        ],
-        durationStartedAt: searchStartedAt?.value || 0,
-        durationFinishedAt: searchFinishedAt?.value || 0,
-        durationActive: false,
-        logExpanded: false
-      });
-    }
-
-    const locatorFeedbackVisible = connectAgentStore.taskStatus === 'idle';
-    if (!candidateLoading.value && needsMoreEvidence.value && locatorFeedbackVisible) {
-      messages.push({
-        id: 'need-more-evidence',
-        role: 'system',
-        title: '线索不足，需要补充页面证据',
-        text: [
-          '当前选区检索到了多个候选文件，系统已基于当前选区自动向上扩区并继续检索。',
-          '如果自动扩区后仍然失败，说明当前 DOM 链路还不能把候选收敛到唯一源码方向。'
-        ].join('\n')
-      });
-    } else if (
-      !candidateLoading.value
-      && candidateHits.value.length > 1
-      && !filesConfirmed.value
-      && locatorFeedbackVisible
-    ) {
-      messages.push({
-        id: 'multi-candidates',
-        role: 'system',
-        title: '存在多个命中文件，请确认',
-        text: `默认选择最高命中：${candidateHits.value[0].file}`
-      });
-    } else if (
-      !candidateLoading.value
-      && candidateHits.value.length === 1
-      && !filesConfirmed.value
-      && locatorFeedbackVisible
-    ) {
-      messages.push({
-        id: 'single-candidate',
-        role: 'system',
-        text: `本地检索命中 ${candidateHits.value[0].file}，等待模型定位确认。`
       });
     }
 

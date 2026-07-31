@@ -1,7 +1,7 @@
 'use strict';
 
 const { scanProject } = require('../../core/project');
-const { registerConfiguredMcpProviders } = require('../../agent-host/mcp/bootstrap');
+const { registerConfiguredMcpProviders } = require('../../connect-agent/mcp/bootstrap');
 
 // 绑定项目后记录该项目可用的 MCP 配置。
 // MCP server 不注册成全局 provider；关联 Agent 每轮运行时按当前项目加载 MCP tools。

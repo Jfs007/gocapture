@@ -339,35 +339,17 @@
             <div v-if="extensionEditor.kind === 'mcp'" class="mda-extension-form">
               <label>
                 <span>名称</span>
-                <input v-model="mcpDraft.name" class="mda-model-input" type="text" placeholder="例如 project-tools">
+                <input v-model="mcpDraft.name" class="mda-model-input" type="text" placeholder="例如 context7">
               </label>
               <label>
-                <span>连接方式</span>
-                <select v-model="mcpDraft.transport" class="mda-model-input">
-                  <option value="stdio">本地命令（stdio）</option>
-                  <option value="http">远程 HTTP</option>
-                  <option value="sse">远程 SSE</option>
-                </select>
-              </label>
-              <label v-if="mcpDraft.transport === 'stdio'">
-                <span>Command</span>
-                <input v-model="mcpDraft.command" class="mda-model-input" type="text" placeholder="npx">
-              </label>
-              <label v-if="mcpDraft.transport === 'stdio'">
-                <span>参数 <small>每行一个</small></span>
-                <textarea v-model="mcpDraft.args" class="mda-model-input is-code" rows="4" />
-              </label>
-              <label v-if="mcpDraft.transport === 'stdio'">
-                <span>环境变量 <small>JSON，可留空</small></span>
-                <textarea v-model="mcpDraft.env" class="mda-model-input is-code" rows="4" placeholder='{"TOKEN":"..."}' />
-              </label>
-              <label v-else>
-                <span>URL</span>
-                <input v-model="mcpDraft.url" class="mda-model-input" type="url" placeholder="https://example.com/mcp">
-              </label>
-              <label v-if="mcpDraft.transport !== 'stdio'">
-                <span>Headers <small>JSON，可留空</small></span>
-                <textarea v-model="mcpDraft.headers" class="mda-model-input is-code" rows="4" placeholder='{"Authorization":"Bearer ..."}' />
+                <span>配置 <small>.mcp.json 里这一段（JSON）；密钥显示为「已配置」时保留原值</small></span>
+                <textarea
+                  v-model="mcpDraft.json"
+                  class="mda-model-input is-code"
+                  rows="10"
+                  spellcheck="false"
+                  placeholder='{"command":"npx","args":["-y","@upstash/context7-mcp"]}'
+                />
               </label>
             </div>
             <div v-else class="mda-extension-form">
@@ -440,12 +422,7 @@ const experienceDraft = reactive({
 });
 const mcpDraft = reactive({
   name: '',
-  transport: 'stdio',
-  command: '',
-  args: '',
-  env: '',
-  url: '',
-  headers: ''
+  json: ''
 });
 const skillDraft = reactive({
   name: '',
@@ -478,16 +455,32 @@ function showExperienceComingSoon() {
   appUi.setToast('Experience 功能开发中');
 }
 
+const MCP_JSON_TEMPLATE = [
+  '{',
+  '  "command": "npx",',
+  '  "args": ["-y", "<package>"]',
+  '}'
+].join('\n');
+
 function openMcpEditor(server: any = null) {
-  const config = server?.config || {};
   mcpDraft.name = String(server?.name || '');
-  mcpDraft.transport = String(server?.transport || 'stdio');
-  mcpDraft.command = String(config.command || '');
-  mcpDraft.args = toLines(config.args);
-  mcpDraft.env = editableJson(config.env);
-  mcpDraft.url = String(config.url || '');
-  mcpDraft.headers = editableJson(config.headers);
+  mcpDraft.json = server?.config
+    ? JSON.stringify(server.config, null, 2)
+    : MCP_JSON_TEMPLATE;
   extensionEditor.value = { kind: 'mcp' };
+}
+
+function parseMcpJson(text: string) {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(String(text || '').trim());
+  } catch {
+    throw new Error('MCP 配置不是合法 JSON');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('MCP 配置必须是一个 JSON 对象');
+  }
+  return parsed;
 }
 
 function openSkillEditor(skill: any = null) {
@@ -502,36 +495,12 @@ function closeExtensionEditor() {
   extensionEditor.value = null;
 }
 
-function editableJson(value: unknown) {
-  if (!value || typeof value !== 'object') return '';
-  return Object.keys(value as Record<string, unknown>).length
-    ? JSON.stringify(value, null, 2)
-    : '';
-}
-
-function parseOptionalJson(value: string, label: string) {
-  const text = String(value || '').trim();
-  if (!text) return undefined;
-  try {
-    const parsed = JSON.parse(text);
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
-    return parsed;
-  } catch {
-    throw new Error(`${label} 必须是 JSON 对象`);
-  }
-}
-
 async function saveExtension() {
   try {
     const ok = extensionEditor.value?.kind === 'mcp'
       ? await memory.installExtension('mcp', {
           name: mcpDraft.name,
-          transport: mcpDraft.transport,
-          command: mcpDraft.command,
-          args: fromLines(mcpDraft.args),
-          env: parseOptionalJson(mcpDraft.env, '环境变量'),
-          url: mcpDraft.url,
-          headers: parseOptionalJson(mcpDraft.headers, 'Headers')
+          config: parseMcpJson(mcpDraft.json)
         })
       : await memory.installExtension('skill', {
           name: skillDraft.name,

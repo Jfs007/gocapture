@@ -17,22 +17,7 @@ export function provideGoCaptureRuntime(api: Record<string, any>, state: GoCaptu
     restoreSelectionPreview: actions.restoreSelectionPreview,
     expandSelection: actions.expandSelection,
     removeSelection: actions.removeSelection,
-    clearSelections: actions.clearSelections,
-    toggleCandidateFile: actions.toggleCandidateFile,
-    toggleCandidateDetail: actions.toggleCandidateDetail,
-    setIncludeApiEvidence: actions.setIncludeApiEvidence,
-    onSearchOptionChange: actions.onSearchOptionChange,
-    openModelEditor: actions.openModelEditor,
-    openProviderModelEditor: actions.openProviderModelEditor,
-    closeModelEditor: actions.closeModelEditor,
-    saveModelForm: actions.saveModelForm,
-    removeSelectedModel: actions.removeSelectedModel,
-    setSelectedModel: actions.setSelectedModel,
-    selectModelAndEnable: actions.selectModelAndEnable,
-    disableModelAssist: actions.disableModelAssist,
-    setUseModelAssist: actions.setUseModelAssist,
-    resetModelAssist: actions.resetModelAssist,
-    stopModelAssist: actions.stopModelAssist
+    clearSelections: actions.clearSelections
   };
 
   provideGoCaptureCommands(api.bootstrap?.createCommands?.(commands) || commands);
